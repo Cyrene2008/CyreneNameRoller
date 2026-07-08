@@ -1,6 +1,6 @@
 <template>
   <div class="roller-view">
-    <h1 class="roller-title">{{ t('h1', lang) }}</h1>
+    <h1 class="roller-title">{{ lang === 'en' ? 'Name Roller' : '随机点名' }}</h1>
 
     <!-- 名字显示区域 -->
     <div class="display-container">
@@ -91,6 +91,7 @@ import { useNamesStore } from '../stores/names'
 import { useSettingsStore } from '../stores/settings'
 import { useStatisticsStore } from '../stores/statistics'
 import { t } from '../utils/i18n'
+import { useRecordsStore } from '../stores/records'
 import { pickUniform, pickBalanced } from '../utils/balance'
 import FluentButton from '../components/FluentButton.vue'
 import FluentIcon from '../components/FluentIcon.vue'
@@ -101,6 +102,7 @@ import FluentInput from '../components/FluentInput.vue'
 const namesStore = useNamesStore()
 const settingsStore = useSettingsStore()
 const statisticsStore = useStatisticsStore()
+const recordsStore = useRecordsStore()
 
 const lang = computed(() => settingsStore.settings.englishMode ? 'en' : 'zh')
 const settings = computed(() => settingsStore.settings)
@@ -270,6 +272,13 @@ function finishRoll() {
     if (settings.value.recordCounts && !whiteList.some(w => w.cn === pick.cn)) {
       statisticsStore.incrementCount(pick.cn)
     }
+
+    recordsStore.addRecord({
+      cn: pick.cn,
+      en: pick.en,
+      listName: namesStore.currentList.name,
+      source: 'roller'
+    })
 
     setTimeout(() => emphasize(i), 50 * i)
   }

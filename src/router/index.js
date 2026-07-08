@@ -1,40 +1,14 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
 
 const routes = [
-  {
-    path: '/',
-    redirect: '/roller'
-  },
-  {
-    path: '/roller',
-    name: 'Roller',
-    component: () => import('../views/RollerView.vue')
-  },
-  {
-    path: '/card',
-    name: 'Card',
-    component: () => import('../views/CardView.vue')
-  },
-  {
-    path: '/statistics',
-    name: 'Statistics',
-    component: () => import('../views/StatisticsView.vue')
-  },
-  {
-    path: '/lists',
-    name: 'Lists',
-    component: () => import('../views/ListsView.vue')
-  },
-  {
-    path: '/settings',
-    name: 'Settings',
-    component: () => import('../views/SettingsView.vue')
-  },
-  {
-    path: '/about',
-    name: 'About',
-    component: () => import('../views/AboutView.vue')
-  }
+  { path: '/', redirect: '/roller' },
+  { path: '/roller', name: 'Roller', component: () => import('../views/RollerView.vue') },
+  { path: '/card', name: 'Card', component: () => import('../views/CardView.vue') },
+  { path: '/statistics', name: 'Statistics', component: () => import('../views/StatisticsView.vue') },
+  { path: '/records', name: 'Records', component: () => import('../views/RecordsView.vue') },
+  { path: '/lists', name: 'Lists', component: () => import('../views/ListsView.vue') },
+  { path: '/settings', name: 'Settings', component: () => import('../views/SettingsView.vue') },
+  { path: '/about', name: 'About', component: () => import('../views/AboutView.vue') }
 ]
 
 const router = createRouter({

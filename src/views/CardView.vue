@@ -58,12 +58,14 @@
 import { ref, computed, onMounted } from 'vue'
 import { useNamesStore } from '../stores/names'
 import { useSettingsStore } from '../stores/settings'
+import { useRecordsStore } from '../stores/records'
 import FluentButton from '../components/FluentButton.vue'
 import FluentIcon from '../components/FluentIcon.vue'
 import FluentInput from '../components/FluentInput.vue'
 
 const namesStore = useNamesStore()
 const settingsStore = useSettingsStore()
+const recordsStore = useRecordsStore()
 const lang = computed(() => settingsStore.settings.englishMode ? 'en' : 'zh')
 
 const cardCount = ref(5)
@@ -112,6 +114,17 @@ function flipCard(index) {
   flippedCount.value++
   usedNames.value.add(card.name)
   history.value.unshift(card.name)
+
+  const person = namesStore.currentNames.find(n => {
+    const displayName = settingsStore.settings.englishMode && n.en ? n.en : n.cn
+    return displayName === card.name
+  })
+  recordsStore.addRecord({
+    cn: person ? person.cn : card.name,
+    en: person ? person.en : '',
+    listName: namesStore.currentList.name,
+    source: 'card'
+  })
 }
 
 function reset() {

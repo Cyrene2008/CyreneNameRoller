@@ -39,36 +39,13 @@ const settingsStore = useSettingsStore()
 const lang = computed(() => settingsStore.settings.englishMode ? 'en' : 'zh')
 
 const navItems = [
-  {
-    path: '/roller',
-    icon: 'fluent:flash-24-regular',
-    label: { zh: '随机点名', en: 'Roller' }
-  },
-  {
-    path: '/card',
-    icon: 'fluent:playing-cards-24-regular',
-    label: { zh: '翻牌点名', en: 'Card Mode' }
-  },
-  {
-    path: '/statistics',
-    icon: 'fluent:chart-multiple-24-regular',
-    label: { zh: '统计', en: 'Statistics' }
-  },
-  {
-    path: '/lists',
-    icon: 'fluent:people-list-24-regular',
-    label: { zh: '名单管理', en: 'Lists' }
-  },
-  {
-    path: '/settings',
-    icon: 'fluent:settings-24-regular',
-    label: { zh: '设置', en: 'Settings' }
-  },
-  {
-    path: '/about',
-    icon: 'fluent:info-24-regular',
-    label: { zh: '关于', en: 'About' }
-  }
+  { path: '/roller', icon: 'fluent:flash-24-regular', label: { zh: '随机点名', en: 'Roller' } },
+  { path: '/card', icon: 'fluent:playing-cards-24-regular', label: { zh: '翻牌点名', en: 'Card Mode' } },
+  { path: '/statistics', icon: 'fluent:chart-multiple-24-regular', label: { zh: '统计', en: 'Statistics' } },
+  { path: '/records', icon: 'fluent:clipboard-text-24-regular', label: { zh: '抽取记录', en: 'Records' } },
+  { path: '/lists', icon: 'fluent:people-list-24-regular', label: { zh: '名单管理', en: 'Lists' } },
+  { path: '/settings', icon: 'fluent:settings-24-regular', label: { zh: '设置', en: 'Settings' } },
+  { path: '/about', icon: 'fluent:info-24-regular', label: { zh: '关于', en: 'About' } }
 ]
 </script>
 

@@ -39,6 +39,40 @@
         <span class="setting-label">{{ lang === 'en' ? 'Max Threshold' : '最大阈值' }}</span>
         <FluentInput v-model="balance.maxThreshold" type="number" :step="0.1" style="width: 100px;" @update:model-value="saveBalance" />
       </div>
+      <div class="setting-row">
+        <span class="setting-label">{{ lang === 'en' ? 'Max Boost (%)' : '最大提升值（%）' }}</span>
+        <FluentInput v-model="balance.maxBoostPercent" type="number" :step="1" style="width: 100px;" @update:model-value="saveBalance" />
+      </div>
+
+      <!-- 三点曲线 -->
+      <div class="curve-section">
+        <h4 class="curve-title">{{ lang === 'en' ? 'Curve Points (Quadratic Fit)' : '三点曲线（拟合函数）' }}</h4>
+        <div class="points-grid">
+          <template v-for="(pt, idx) in balance.points" :key="idx">
+            <span class="point-label">{{ lang === 'en' ? `Point ${idx+1} X` : `点 ${idx+1}：X（差值）` }}</span>
+            <FluentInput v-model="pt.x" type="number" :step="0.1" @update:model-value="saveBalance" />
+            <span class="point-label">{{ lang === 'en' ? `Point ${idx+1} Y (%)` : `点 ${idx+1}：Y（倍率%）` }}</span>
+            <FluentInput v-model="pt.y" type="number" :step="1" @update:model-value="saveBalance" />
+          </template>
+        </div>
+
+        <!-- 曲线预览 -->
+        <div class="preview-wrap">
+          <canvas ref="balanceCanvasRef" class="balance-canvas" />
+          <div class="preview-summary">{{ balanceSummary }}</div>
+        </div>
+
+        <div class="curve-actions">
+          <FluentButton variant="primary" size="sm" @click="saveBalance">
+            <FluentIcon icon="save-16-regular" :width="14" />
+            {{ lang === 'en' ? 'Save' : '保存设置' }}
+          </FluentButton>
+          <FluentButton variant="secondary" size="sm" @click="resetBalance">
+            <FluentIcon icon="arrow-undo-16-regular" :width="14" />
+            {{ lang === 'en' ? 'Reset' : '恢复默认' }}
+          </FluentButton>
+        </div>
+      </div>
       <p class="setting-note">{{ t('balanceNote', lang) }}</p>
     </FluentCard>
 
@@ -50,16 +84,18 @@
       </h3>
       <div class="setting-row">
         <span class="setting-label">{{ t('animSpeed', lang) }}</span>
-        <input
-          type="range"
-          :value="settings.animSpeed"
-          min="0.5"
-          max="2"
-          step="0.1"
-          class="speed-slider"
-          @input="update('animSpeed', parseFloat($event.target.value))"
-        />
-        <span class="speed-value">{{ settings.animSpeed }}x</span>
+        <div class="slider-group">
+          <input
+            type="range"
+            :value="settings.animSpeed"
+            min="0.5"
+            max="2"
+            step="0.1"
+            class="speed-slider"
+            @input="update('animSpeed', parseFloat($event.target.value))"
+          />
+          <span class="speed-value">{{ settings.animSpeed }}x</span>
+        </div>
       </div>
       <p class="setting-note">{{ t('perfNote', lang) }}</p>
     </FluentCard>
@@ -100,19 +136,15 @@
         </div>
       </div>
     </FluentCard>
-
-    <div class="version-info">
-      <p>CyreneNameRoller v3.0.0</p>
-    </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, nextTick, watch } from 'vue'
+import { useNamesStore } from '../stores/names'
 import { useSettingsStore } from '../stores/settings'
-import { useStatisticsStore } from '../stores/statistics'
 import { t } from '../utils/i18n'
-import { DEFAULT_BALANCE_SETTINGS, normalizeSettings } from '../utils/balance'
+import { DEFAULT_BALANCE_SETTINGS, normalizeSettings, interpolateQuadratic } from '../utils/balance'
 import FluentCard from '../components/FluentCard.vue'
 import FluentButton from '../components/FluentButton.vue'
 import FluentIcon from '../components/FluentIcon.vue'
@@ -120,44 +152,152 @@ import FluentToggle from '../components/FluentToggle.vue'
 import FluentInput from '../components/FluentInput.vue'
 
 const settingsStore = useSettingsStore()
-const statisticsStore = useStatisticsStore()
+const namesStore = useNamesStore()
 
 const lang = computed(() => settingsStore.settings.englishMode ? 'en' : 'zh')
 const settings = computed(() => settingsStore.settings)
 
-const balance = ref({ ...DEFAULT_BALANCE_SETTINGS })
+const balance = ref(JSON.parse(JSON.stringify(DEFAULT_BALANCE_SETTINGS)))
 const changelog = ref([])
+const balanceCanvasRef = ref(null)
+const balanceSummary = ref('')
 
 function update(key, value) {
   settingsStore.update(key, value)
 }
 
 async function saveBalance() {
-  await window.electronAPI.saveData('balance', balance.value)
+  const normalized = normalizeSettings(balance.value)
+  balance.value = normalized
+  await window.electronAPI.saveData('balance', normalized)
+  renderBalanceCurve()
+}
+
+function resetBalance() {
+  balance.value = JSON.parse(JSON.stringify(DEFAULT_BALANCE_SETTINGS))
+  saveBalance()
 }
 
 async function exportData() {
   const result = await window.electronAPI.exportData()
-  if (result.success) {
-    alert(lang.value === 'en' ? 'Exported successfully' : '导出成功')
-  }
+  if (result.success) alert(lang.value === 'en' ? 'Exported successfully' : '导出成功')
 }
 
 async function importData() {
   const result = await window.electronAPI.importData()
-  if (result.success) {
-    alert(lang.value === 'en' ? 'Imported successfully. Please restart.' : '导入成功，请重启应用。')
+  if (result.success) alert(lang.value === 'en' ? 'Imported successfully. Please restart.' : '导入成功，请重启应用。')
+}
+
+function setCanvasSize(canvas) {
+  const rect = canvas.getBoundingClientRect()
+  const dpr = window.devicePixelRatio || 1
+  const width = Math.max(320, Math.round(rect.width * dpr))
+  const height = Math.max(200, Math.round(rect.height * dpr))
+  if (canvas.width !== width) canvas.width = width
+  if (canvas.height !== height) canvas.height = height
+  return { width, height }
+}
+
+function renderBalanceCurve() {
+  const canvas = balanceCanvasRef.value
+  if (!canvas) return
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return
+
+  const s = normalizeSettings(balance.value)
+  const { width, height } = setCanvasSize(canvas)
+  const padL = 56, padR = 18, padT = 18, padB = 38
+  const plotW = width - padL - padR
+  const plotH = height - padT - padB
+  ctx.clearRect(0, 0, width, height)
+
+  const names = namesStore.currentNames
+  const poolCount = Math.max(1, names.filter(n => n.cn !== '再来一次').length || 2)
+  const theoreticalThreshold = poolCount / Math.max(0.1, s.factor || 1)
+  const maxThreshold = Math.max(0, s.maxThreshold)
+  const maxBoost = Math.max(200, s.maxBoostPercent)
+  const points = s.points.map(p => ({ x: p.x / Math.max(theoreticalThreshold, 1e-6), y: p.y }))
+  const xMax = Math.max(1, (maxThreshold > 0 ? maxThreshold / Math.max(theoreticalThreshold, 1e-6) : 0), points[2].x * 1.2, 1.2)
+  const yMin = 100
+  const yMax = Math.max(maxBoost, ...points.map(p => p.y), 220)
+
+  function xToPx(x) { return padL + (x / xMax) * plotW }
+  function yToPx(y) { return padT + (1 - (y - yMin) / (yMax - yMin)) * plotH }
+
+  ctx.save()
+  ctx.strokeStyle = '#e9e9e9'
+  ctx.lineWidth = 1
+  for (let i = 0; i <= 5; i++) {
+    const gx = padL + (plotW * i / 5)
+    ctx.beginPath(); ctx.moveTo(gx, padT); ctx.lineTo(gx, padT + plotH); ctx.stroke()
   }
+  for (let i = 0; i <= 4; i++) {
+    const gy = padT + (plotH * i / 4)
+    ctx.beginPath(); ctx.moveTo(padL, gy); ctx.lineTo(padL + plotW, gy); ctx.stroke()
+  }
+  ctx.restore()
+
+  ctx.save()
+  ctx.strokeStyle = '#666'
+  ctx.lineWidth = 1.5
+  ctx.beginPath(); ctx.moveTo(padL, padT); ctx.lineTo(padL, padT + plotH); ctx.lineTo(padL + plotW, padT + plotH); ctx.stroke()
+  ctx.restore()
+
+  if (maxThreshold > 0) {
+    const nx = maxThreshold / Math.max(theoreticalThreshold, 1e-6)
+    if (Number.isFinite(nx)) {
+      ctx.save(); ctx.setLineDash([6, 5]); ctx.strokeStyle = '#6b7280'
+      ctx.beginPath(); ctx.moveTo(xToPx(Math.min(nx, xMax)), padT); ctx.lineTo(xToPx(Math.min(nx, xMax)), padT + plotH); ctx.stroke()
+      ctx.restore()
+    }
+  }
+
+  const steps = 120
+  ctx.save(); ctx.strokeStyle = '#111'; ctx.lineWidth = 2.25; ctx.beginPath()
+  for (let i = 0; i <= steps; i++) {
+    const x = xMax * (i / steps)
+    let y = interpolateQuadratic(points, x)
+    if (!Number.isFinite(y)) y = 100
+    y = Math.max(100, Math.min(y, maxBoost))
+    const px = xToPx(x); const py = yToPx(y)
+    if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py)
+  }
+  ctx.stroke(); ctx.restore()
+
+  ctx.save(); ctx.fillStyle = '#111'
+  points.forEach(p => {
+    const px = xToPx(Math.min(p.x, xMax)); const py = yToPx(Math.max(100, Math.min(p.y, maxBoost)))
+    ctx.beginPath(); ctx.arc(px, py, 4.2, 0, Math.PI * 2); ctx.fill()
+  })
+  ctx.restore()
+
+  ctx.save(); ctx.fillStyle = '#222'
+  const fontSize = Math.round((window.devicePixelRatio || 1) * 12)
+  ctx.font = `${fontSize}px sans-serif`
+  ctx.textAlign = 'center'
+  ctx.fillText(lang.value === 'en' ? 'Deficit' : '差值', padL + plotW / 2, height - 10)
+  ctx.save(); ctx.translate(14, padT + plotH / 2); ctx.rotate(-Math.PI / 2)
+  ctx.fillText(lang.value === 'en' ? 'Boost (%)' : '倍率(%)', 0, 0); ctx.restore()
+  ctx.textAlign = 'left'
+  ctx.fillText('100%', 8, yToPx(100) + 4)
+  ctx.fillText(`${maxBoost.toFixed(0)}%`, 8, yToPx(maxBoost) + 4)
+  if (maxThreshold > 0) {
+    const nx = maxThreshold / Math.max(theoreticalThreshold, 1e-6)
+    ctx.fillText(`${lang.value === 'en' ? 'Threshold' : '阈值'}≈${maxThreshold.toFixed(2)}`, xToPx(Math.min(nx, xMax)) - 30, padT + 12)
+  }
+  ctx.restore()
+
+  const activeState = s.enabled ? (lang.value === 'en' ? 'ON' : '开启') : (lang.value === 'en' ? 'OFF' : '关闭')
+  balanceSummary.value = `${lang.value === 'en' ? 'Status' : '当前状态'}：${activeState}；${lang.value === 'en' ? 'Candidates' : '候选人数'}：${poolCount}；${lang.value === 'en' ? 'Threshold' : '理论阈值'}≈${theoreticalThreshold.toFixed(4)}；${lang.value === 'en' ? 'Max Threshold' : '最大阈值'}=${maxThreshold.toFixed(2)}；${lang.value === 'en' ? 'Max Boost' : '最大倍率'}=${maxBoost.toFixed(0)}%。`
 }
 
 onMounted(async () => {
   const saved = await window.electronAPI.loadData('balance')
-  if (saved) {
-    balance.value = normalizeSettings(saved)
-  }
-
+  if (saved) balance.value = normalizeSettings(saved)
   const logs = await window.electronAPI.loadChangelog()
   changelog.value = logs || []
+  await nextTick()
+  renderBalanceCurve()
 })
 </script>
 
@@ -211,9 +351,15 @@ onMounted(async () => {
   line-height: 1.5;
 }
 
+.slider-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  justify-content: flex-end;
+}
+
 .speed-slider {
-  flex: 1;
-  max-width: 200px;
+  width: 200px;
   accent-color: var(--accent);
 }
 
@@ -222,6 +368,61 @@ onMounted(async () => {
   color: var(--text-muted);
   min-width: 32px;
   text-align: right;
+}
+
+.curve-section {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-default);
+}
+
+.curve-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 12px;
+}
+
+.points-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 16px;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.point-label {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.preview-wrap {
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  background: var(--bg-card-solid);
+  margin-bottom: 12px;
+}
+
+.balance-canvas {
+  width: 100%;
+  height: 280px;
+  display: block;
+  border-radius: var(--radius-sm);
+}
+
+.preview-summary {
+  margin-top: 12px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  word-break: break-all;
+}
+
+.curve-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .action-row {
@@ -272,12 +473,5 @@ onMounted(async () => {
 
 .changelog-logs li {
   margin-bottom: 2px;
-}
-
-.version-info {
-  text-align: center;
-  margin-top: 24px;
-  font-size: 13px;
-  color: var(--text-muted);
 }
 </style>
