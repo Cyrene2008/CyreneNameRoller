@@ -24,13 +24,6 @@
         </div>
       </div>
     </FluentCard>
-
-    <div class="records-actions">
-      <FluentButton variant="secondary" @click="clearRecords">
-        <FluentIcon icon="delete-16-regular" :width="14" />
-        {{ lang === 'en' ? 'Clear All' : '清空记录' }}
-      </FluentButton>
-    </div>
   </div>
 </template>
 
@@ -40,7 +33,6 @@ import { useSettingsStore } from '../stores/settings'
 import { useNamesStore } from '../stores/names'
 import { useRecordsStore } from '../stores/records'
 import FluentCard from '../components/FluentCard.vue'
-import FluentButton from '../components/FluentButton.vue'
 import FluentIcon from '../components/FluentIcon.vue'
 
 const settingsStore = useSettingsStore()
@@ -55,10 +47,6 @@ function formatTime(ts) {
   const d = new Date(ts)
   const pad = (n) => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
-}
-
-function clearRecords() {
-  recordsStore.clearAll()
 }
 
 onMounted(() => {
@@ -145,11 +133,5 @@ onMounted(() => {
   text-align: center;
   color: var(--text-muted);
   font-size: 14px;
-}
-
-.records-actions {
-  margin-top: 16px;
-  display: flex;
-  gap: 8px;
 }
 </style>

@@ -1,5 +1,6 @@
 <template>
   <label class="fluent-toggle" :class="{ checked: modelValue, disabled }">
+    <span v-if="label" class="toggle-label">{{ label }}</span>
     <input
       type="checkbox"
       :checked="modelValue"
@@ -9,7 +10,6 @@
     <span class="toggle-track">
       <span class="toggle-thumb" />
     </span>
-    <span v-if="label" class="toggle-label">{{ label }}</span>
   </label>
 </template>
 
@@ -44,6 +44,11 @@ defineEmits(['update:modelValue'])
   height: 0;
 }
 
+.toggle-label {
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
 .toggle-track {
   position: relative;
   width: 40px;
@@ -76,10 +81,5 @@ defineEmits(['update:modelValue'])
 
 .fluent-toggle:hover .toggle-track {
   opacity: 0.9;
-}
-
-.toggle-label {
-  font-size: 14px;
-  color: var(--text-primary);
 }
 </style>

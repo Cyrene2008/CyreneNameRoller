@@ -19,9 +19,8 @@
       </div>
     </div>
 
-    <!-- 控制区 -->
+    <!-- 控制区 - 右下角 -->
     <div class="controls">
-      <!-- 名单选择器 -->
       <div class="list-selector-bar">
         <span class="selector-label">{{ t('currentList', lang) }}</span>
         <FluentSelect
@@ -31,7 +30,6 @@
         />
       </div>
 
-      <!-- 开关组 -->
       <div class="switches">
         <FluentToggle
           v-model="settings.englishMode"
@@ -50,7 +48,6 @@
         />
       </div>
 
-      <!-- 多人模式设置 -->
       <div v-if="settings.multiMode" class="multi-settings">
         <span class="setting-label">{{ t('peopleCount', lang) }}</span>
         <div class="count-control">
@@ -71,16 +68,17 @@
         </div>
       </div>
 
-      <!-- 开始/停止按钮 -->
-      <FluentButton
-        :variant="isRunning ? 'danger' : 'primary'"
-        size="lg"
-        class="start-btn"
-        @click="toggleRoll"
-      >
-        <FluentIcon :icon="isRunning ? 'stop-24-filled' : 'play-24-filled'" :width="18" />
-        {{ isRunning ? t('stop', lang) : t('start', lang) }}
-      </FluentButton>
+      <div class="start-row">
+        <FluentButton
+          :variant="isRunning ? 'danger' : 'primary'"
+          size="lg"
+          class="start-btn"
+          @click="toggleRoll"
+        >
+          <FluentIcon :icon="isRunning ? 'stop-24-filled' : 'play-24-filled'" :width="18" />
+          {{ isRunning ? t('stop', lang) : t('start', lang) }}
+        </FluentButton>
+      </div>
     </div>
   </div>
 </template>
@@ -122,15 +120,8 @@ let decelerationFrame = 0
 const maxSpeed = 100
 
 const balanceSettings = ref({
-  enabled: true,
-  factor: 13.3,
-  maxThreshold: 3,
-  maxBoostPercent: 1200,
-  points: [
-    { x: 0.3, y: 150 },
-    { x: 1.5, y: 420 },
-    { x: 2.4, y: 800 }
-  ]
+  enabled: true, factor: 13.3, maxThreshold: 3, maxBoostPercent: 1200,
+  points: [{ x: 0.3, y: 150 }, { x: 1.5, y: 420 }, { x: 2.4, y: 800 }]
 })
 
 onMounted(async () => {
@@ -147,9 +138,7 @@ function initializeDisplays(count) {
   }
 }
 
-function saveSetting(key, value) {
-  settingsStore.update(key, value)
-}
+function saveSetting(key, value) { settingsStore.update(key, value) }
 
 function onMultiModeChange(val) {
   settingsStore.update('multiMode', val)
@@ -180,126 +169,60 @@ function doPick() {
   const countsMap = statisticsStore.counts
   const allowDup = settings.value.allowDuplicates
   const excludeList = lastPickedNames.value.filter(n => n)
-
-  if (settings.value.multiMode) {
-    return pickBalanced(names, whiteList, countsMap, balanceSettings.value, excludeList, allowDup)
-  }
-  if (balanceSettings.value.enabled) {
-    return pickBalanced(names, whiteList, countsMap, balanceSettings.value, [], true)
-  }
+  if (settings.value.multiMode) return pickBalanced(names, whiteList, countsMap, balanceSettings.value, excludeList, allowDup)
+  if (balanceSettings.value.enabled) return pickBalanced(names, whiteList, countsMap, balanceSettings.value, [], true)
   return pickUniform(names, [], true)
 }
 
 function animationLoop() {
   if (!isRunning.value) return
-
   if (isDecelerating.value) {
     decelerationFrame++
-    const t = decelerationFrame / 100
-    currentSpeed.value = maxSpeed * Math.pow(1 - t, 2)
-
-    if (currentSpeed.value <= 0.5) {
-      currentSpeed.value = 0
-      finishRoll()
-      return
-    }
+    currentSpeed.value = maxSpeed * Math.pow(1 - decelerationFrame / 100, 2)
+    if (currentSpeed.value <= 0.5) { currentSpeed.value = 0; finishRoll(); return }
   } else {
-    if (currentSpeed.value < maxSpeed) {
-      currentSpeed.value = Math.min(maxSpeed, currentSpeed.value + 3)
-    }
+    if (currentSpeed.value < maxSpeed) currentSpeed.value = Math.min(maxSpeed, currentSpeed.value + 3)
   }
-
   const count = settings.value.multiMode ? (settings.value.peopleCount || 2) : 1
   for (let i = 0; i < count; i++) {
     const pick = doPick()
-    const displayText = settings.value.englishMode && pick.en ? pick.en : pick.cn
-    if (nameDisplays[i]) {
-      nameDisplays[i].text = displayText
-      nameDisplays[i].opacity = 1
-    }
+    if (nameDisplays[i]) { nameDisplays[i].text = settings.value.englishMode && pick.en ? pick.en : pick.cn; nameDisplays[i].opacity = 1 }
   }
-
-  const delay = Math.max(16, 50 - currentSpeed.value * 0.3)
-  intervalId = setTimeout(animationLoop, delay)
+  intervalId = setTimeout(animationLoop, Math.max(16, 50 - currentSpeed.value * 0.3))
 }
 
 function toggleRoll() {
-  if (isRunning.value) {
-    isDecelerating.value = true
-    return
-  }
-
-  const names = namesStore.currentNames
-  if (!names || names.length === 0) return
-
-  isRunning.value = true
-  isDecelerating.value = false
-  currentSpeed.value = 0
-  decelerationFrame = 0
-
-  const count = settings.value.multiMode ? (settings.value.peopleCount || 2) : 1
-  initializeDisplays(count)
+  if (isRunning.value) { isDecelerating.value = true; return }
+  if (!namesStore.currentNames || namesStore.currentNames.length === 0) return
+  isRunning.value = true; isDecelerating.value = false; currentSpeed.value = 0; decelerationFrame = 0
+  initializeDisplays(settings.value.multiMode ? (settings.value.peopleCount || 2) : 1)
   animationLoop()
 }
 
 function finishRoll() {
-  isRunning.value = false
-  isDecelerating.value = false
-
+  isRunning.value = false; isDecelerating.value = false
   const count = settings.value.multiMode ? (settings.value.peopleCount || 2) : 1
-  const names = namesStore.currentNames
-  const whiteList = namesStore.currentWhiteList
-  const countsMap = statisticsStore.counts
-  const allowDup = settings.value.allowDuplicates
-
+  const names = namesStore.currentNames; const whiteList = namesStore.currentWhiteList
+  const countsMap = statisticsStore.counts; const allowDup = settings.value.allowDuplicates
   lastPickedNames.value = []
-
   for (let i = 0; i < count; i++) {
     const excludeList = lastPickedNames.value.filter(n => n)
     const pick = allowDup
-      ? (balanceSettings.value.enabled
-        ? pickBalanced(names, whiteList, countsMap, balanceSettings.value, excludeList, true)
-        : pickUniform(names, excludeList, true))
-      : (balanceSettings.value.enabled
-        ? pickBalanced(names, whiteList, countsMap, balanceSettings.value, excludeList, false)
-        : pickUniform(names, excludeList, false))
-
-    const displayText = settings.value.englishMode && pick.en ? pick.en : pick.cn
-    nameDisplays[i].text = displayText
-    nameDisplays[i].opacity = 1
-    lastPickedNames.value.push(pick.cn)
-
-    if (settings.value.recordCounts && !whiteList.some(w => w.cn === pick.cn)) {
-      statisticsStore.incrementCount(pick.cn)
-    }
-
-    recordsStore.addRecord({
-      cn: pick.cn,
-      en: pick.en,
-      listName: namesStore.currentList.name,
-      source: 'roller'
-    })
-
+      ? (balanceSettings.value.enabled ? pickBalanced(names, whiteList, countsMap, balanceSettings.value, excludeList, true) : pickUniform(names, excludeList, true))
+      : (balanceSettings.value.enabled ? pickBalanced(names, whiteList, countsMap, balanceSettings.value, excludeList, false) : pickUniform(names, excludeList, false))
+    nameDisplays[i].text = settings.value.englishMode && pick.en ? pick.en : pick.cn
+    nameDisplays[i].opacity = 1; lastPickedNames.value.push(pick.cn)
+    if (settings.value.recordCounts && !whiteList.some(w => w.cn === pick.cn)) statisticsStore.incrementCount(pick.cn)
+    recordsStore.addRecord({ cn: pick.cn, en: pick.en, listName: namesStore.currentList.name, source: 'roller' })
     setTimeout(() => emphasize(i), 50 * i)
   }
 }
 
 onMounted(() => {
-  if (namesStore.isLoaded) {
-    const count = settings.value.multiMode ? (settings.value.peopleCount || 2) : 1
-    initializeDisplays(count)
-  }
-  watch(() => namesStore.isLoaded, (loaded) => {
-    if (loaded) {
-      const count = settings.value.multiMode ? (settings.value.peopleCount || 2) : 1
-      initializeDisplays(count)
-    }
-  })
+  if (namesStore.isLoaded) initializeDisplays(settings.value.multiMode ? (settings.value.peopleCount || 2) : 1)
+  watch(() => namesStore.isLoaded, (loaded) => { if (loaded) initializeDisplays(settings.value.multiMode ? (settings.value.peopleCount || 2) : 1) })
 })
-
-onBeforeUnmount(() => {
-  if (intervalId) clearTimeout(intervalId)
-})
+onBeforeUnmount(() => { if (intervalId) clearTimeout(intervalId) })
 </script>
 
 <style scoped>
@@ -309,6 +232,7 @@ onBeforeUnmount(() => {
   flex-direction: column;
   align-items: center;
   min-height: 100%;
+  position: relative;
 }
 
 .roller-title {
@@ -369,31 +293,28 @@ onBeforeUnmount(() => {
   100% { background-position: 400% 50%; }
 }
 
-.name-display.entering {
-  animation: name-enter 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
+.name-display.entering { animation: name-enter 0.8s cubic-bezier(0.34, 1.56, 0.64, 1); }
 @keyframes name-enter {
   0% { transform: scale(0.3) rotate(-10deg); opacity: 0; filter: blur(10px); }
   50% { transform: scale(1.1) rotate(2deg); filter: blur(0); }
   100% { transform: scale(1) rotate(0deg); opacity: 1; filter: blur(0); }
 }
 
-.name-display.final {
-  animation: final-reveal 0.5s cubic-bezier(0.1, 0.9, 0.2, 1);
-}
-
+.name-display.final { animation: final-reveal 0.5s cubic-bezier(0.1, 0.9, 0.2, 1); }
 @keyframes final-reveal {
   0% { transform: scale(4); opacity: 0; filter: brightness(2); }
   100% { transform: scale(1); filter: brightness(1); }
 }
 
 .controls {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 16px;
-  width: 100%;
+  gap: 12px;
+  align-items: flex-end;
+  z-index: 10;
 }
 
 .list-selector-bar {
@@ -417,9 +338,9 @@ onBeforeUnmount(() => {
 
 .switches {
   display: flex;
-  gap: 24px;
-  flex-wrap: wrap;
-  justify-content: center;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-end;
 }
 
 .multi-settings {
@@ -437,6 +358,11 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.start-row {
+  display: flex;
+  justify-content: flex-end;
 }
 
 .start-btn {
