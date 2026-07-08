@@ -5,28 +5,31 @@
       :class="{ open, disabled }"
       @click="toggle"
       :disabled="disabled"
+      ref="btnRef"
     >
       <span class="select-value">{{ displayValue }}</span>
       <FluentIcon icon="chevron-down-16-regular" :width="16" class="select-chevron" />
     </button>
-    <Transition name="dropdown">
-      <div v-if="open" class="fluent-select-dropdown">
-        <button
-          v-for="opt in options"
-          :key="opt.value"
-          class="select-option"
-          :class="{ selected: opt.value === modelValue }"
-          @click="select(opt.value)"
-        >
-          {{ opt.label }}
-        </button>
-      </div>
-    </Transition>
+    <Teleport to="body">
+      <Transition name="dropdown">
+        <div v-if="open" class="fluent-select-dropdown" :style="dropdownStyle">
+          <button
+            v-for="opt in options"
+            :key="opt.value"
+            class="select-option"
+            :class="{ selected: opt.value === modelValue }"
+            @click="select(opt.value)"
+          >
+            {{ opt.label }}
+          </button>
+        </div>
+      </Transition>
+    </Teleport>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import FluentIcon from './FluentIcon.vue'
 
 const props = defineProps({
@@ -40,14 +43,34 @@ const emit = defineEmits(['update:modelValue'])
 
 const open = ref(false)
 const wrapperRef = ref(null)
+const btnRef = ref(null)
+const dropdownStyle = ref({})
 
 const displayValue = computed(() => {
   const found = props.options.find(o => o.value === props.modelValue)
   return found ? found.label : props.placeholder
 })
 
+function updateDropdownPos() {
+  if (!btnRef.value) return
+  const rect = btnRef.value.getBoundingClientRect()
+  dropdownStyle.value = {
+    position: 'fixed',
+    top: `${rect.bottom + 4}px`,
+    left: `${rect.left}px`,
+    width: `${rect.width}px`,
+    zIndex: 99999
+  }
+}
+
 function toggle() {
-  if (!props.disabled) open.value = !open.value
+  if (props.disabled) return
+  if (!open.value) {
+    updateDropdownPos()
+    open.value = true
+  } else {
+    open.value = false
+  }
 }
 
 function select(value) {
@@ -61,13 +84,22 @@ function onClickOutside(e) {
   }
 }
 
-onMounted(() => document.addEventListener('click', onClickOutside))
-onBeforeUnmount(() => document.removeEventListener('click', onClickOutside))
+function onScroll() {
+  if (open.value) updateDropdownPos()
+}
+
+onMounted(() => {
+  document.addEventListener('click', onClickOutside)
+  window.addEventListener('scroll', onScroll, true)
+})
+onBeforeUnmount(() => {
+  document.removeEventListener('click', onClickOutside)
+  window.removeEventListener('scroll', onScroll, true)
+})
 </script>
 
 <style scoped>
 .fluent-select-wrapper {
-  position: relative;
   display: inline-block;
 }
 
@@ -81,7 +113,7 @@ onBeforeUnmount(() => document.removeEventListener('click', onClickOutside))
   background: var(--bg-card);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm);
-  font-family: var(--font-ui);
+  font-family: 'HarmonyOS Sans SC', var(--font-ui);
   font-size: 14px;
   color: var(--text-primary);
   cursor: pointer;
@@ -120,16 +152,27 @@ onBeforeUnmount(() => document.removeEventListener('click', onClickOutside))
   transform: rotate(180deg);
 }
 
+.dropdown-enter-active {
+  transition: all var(--duration-fast) var(--ease-standard);
+}
+
+.dropdown-leave-active {
+  transition: all var(--duration-fast) ease-in;
+}
+
+.dropdown-enter-from,
+.dropdown-leave-to {
+  opacity: 0;
+  transform: translateY(-4px) scale(0.98);
+}
+</style>
+
+<style>
 .fluent-select-dropdown {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0;
-  right: 0;
   background: var(--bg-card-solid);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-8);
-  z-index: 100;
   padding: 4px;
   max-height: 240px;
   overflow-y: auto;
@@ -142,7 +185,7 @@ onBeforeUnmount(() => document.removeEventListener('click', onClickOutside))
   background: transparent;
   border: none;
   border-radius: var(--radius-sm);
-  font-family: var(--font-ui);
+  font-family: 'HarmonyOS Sans SC', var(--font-ui);
   font-size: 14px;
   color: var(--text-primary);
   cursor: pointer;
@@ -161,20 +204,5 @@ onBeforeUnmount(() => document.removeEventListener('click', onClickOutside))
 
 .dark .select-option.selected {
   background: rgba(234, 94, 193, 0.12);
-}
-
-/* Transitions */
-.dropdown-enter-active {
-  transition: all var(--duration-fast) var(--ease-standard);
-}
-
-.dropdown-leave-active {
-  transition: all var(--duration-fast) ease-in;
-}
-
-.dropdown-enter-from,
-.dropdown-leave-to {
-  opacity: 0;
-  transform: translateY(-4px) scale(0.98);
 }
 </style>

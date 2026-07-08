@@ -18,32 +18,20 @@
           {{ t('createList', lang) }}
         </FluentButton>
       </div>
-
-      <!-- 新建名单表单 -->
       <div v-if="showCreateForm" class="create-form">
-        <FluentInput
-          ref="newListInput"
-          v-model="newListName"
-          :placeholder="lang === 'en' ? 'New list name' : '新名单名称'"
-          @enter="createList"
-        />
-        <FluentButton variant="primary" size="sm" @click="createList">
-          <FluentIcon icon="checkmark-16-regular" :width="14" />
-        </FluentButton>
-        <FluentButton variant="subtle" size="sm" @click="showCreateForm = false; newListName = ''">
-          <FluentIcon icon="dismiss-16-regular" :width="14" />
-        </FluentButton>
+        <FluentInput v-model="newListName" :placeholder="lang === 'en' ? 'New list name' : '新名单名称'" @enter="createList" />
+        <FluentButton variant="primary" size="sm" @click="createList"><FluentIcon icon="checkmark-16-regular" :width="14" /></FluentButton>
+        <FluentButton variant="subtle" size="sm" @click="showCreateForm = false; newListName = ''"><FluentIcon icon="dismiss-16-regular" :width="14" /></FluentButton>
       </div>
     </FluentCard>
 
     <!-- 添加人员 -->
     <FluentCard class="add-person-card">
       <div class="add-person-row">
-        <FluentInput v-model="newCn" :placeholder="t('cnName', lang)" @enter="$refs.newEnInput?.focus()" />
-        <FluentInput ref="newEnInput" v-model="newEn" :placeholder="t('enName', lang)" @enter="addPerson" />
+        <FluentInput v-model="newCn" :placeholder="t('cnName', lang)" @enter="newEnRef?.focus()" />
+        <FluentInput ref="newEnRef" v-model="newEn" :placeholder="t('enName', lang)" @enter="addPerson" />
         <FluentButton variant="primary" size="sm" @click="addPerson">
-          <FluentIcon icon="add-16-regular" :width="14" />
-          {{ t('addPerson', lang) }}
+          <FluentIcon icon="add-16-regular" :width="14" /> {{ t('addPerson', lang) }}
         </FluentButton>
       </div>
     </FluentCard>
@@ -54,27 +42,14 @@
         <span class="person-count">{{ namesStore.currentNames.length }} {{ lang === 'en' ? 'people' : '人' }}</span>
       </div>
       <div class="person-list">
-        <div
-          v-for="(person, index) in namesStore.currentNames"
-          :key="index"
-          class="person-item"
-        >
+        <div v-for="(person, index) in namesStore.currentNames" :key="index" class="person-item">
           <div class="person-info">
             <span class="person-cn">{{ person.cn }}</span>
             <span class="person-en">{{ person.en }}</span>
             <span v-if="namesStore.isWhiteList(person.cn)" class="whitelist-badge">{{ lang === 'en' ? 'WL' : '白名单' }}</span>
           </div>
           <div class="person-actions">
-            <FluentButton variant="subtle" size="sm" icon-only @click="startEdit(index)">
-              <FluentIcon icon="edit-16-regular" :width="14" />
-            </FluentButton>
-            <FluentButton
-              variant="subtle"
-              size="sm"
-              icon-only
-              :disabled="namesStore.isWhiteList(person.cn)"
-              @click="confirmDelete(index)"
-            >
+            <FluentButton variant="subtle" size="sm" icon-only :disabled="namesStore.isWhiteList(person.cn)" @click="namesStore.deletePerson(index)">
               <FluentIcon icon="delete-16-regular" :width="14" />
             </FluentButton>
           </div>
@@ -88,27 +63,27 @@
     <!-- 操作按钮 -->
     <div class="list-actions">
       <FluentButton variant="secondary" @click="namesStore.resetCurrentList()">
-        <FluentIcon icon="arrow-undo-16-regular" :width="14" />
-        {{ t('resetList', lang) }}
+        <FluentIcon icon="arrow-undo-16-regular" :width="14" /> {{ t('resetList', lang) }}
       </FluentButton>
       <FluentButton variant="secondary" @click="namesStore.clearCurrentList()">
-        <FluentIcon icon="delete-16-regular" :width="14" />
-        {{ t('clearList', lang) }}
+        <FluentIcon icon="delete-16-regular" :width="14" /> {{ t('clearList', lang) }}
       </FluentButton>
-      <FluentButton
-        v-if="namesStore.allLists.length > 1"
-        variant="danger"
-        @click="namesStore.deleteList(namesStore.currentListId)"
-      >
-        <FluentIcon icon="dismiss-16-regular" :width="14" />
-        {{ t('deleteList', lang) }}
+      <FluentButton v-if="namesStore.allLists.length > 1" variant="danger" @click="namesStore.deleteList(namesStore.currentListId)">
+        <FluentIcon icon="dismiss-16-regular" :width="14" /> {{ t('deleteList', lang) }}
+      </FluentButton>
+      <div class="list-divider" />
+      <FluentButton variant="secondary" @click="exportList">
+        <FluentIcon icon="arrow-download-16-regular" :width="14" /> {{ lang === 'en' ? 'Export List' : '导出名单' }}
+      </FluentButton>
+      <FluentButton variant="secondary" @click="importList">
+        <FluentIcon icon="arrow-upload-16-regular" :width="14" /> {{ lang === 'en' ? 'Import List' : '导入名单' }}
       </FluentButton>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, nextTick } from 'vue'
+import { ref, computed } from 'vue'
 import { useNamesStore } from '../stores/names'
 import { useSettingsStore } from '../stores/settings'
 import { t } from '../utils/i18n'
@@ -130,6 +105,7 @@ const showCreateForm = ref(false)
 const newListName = ref('')
 const newCn = ref('')
 const newEn = ref('')
+const newEnRef = ref(null)
 
 function createList() {
   if (!newListName.value.trim()) return
@@ -145,135 +121,70 @@ function addPerson() {
   newEn.value = ''
 }
 
-function startEdit(index) {
-  // TODO: implement inline edit
+async function exportList() {
+  const list = namesStore.currentList
+  const data = JSON.stringify(list, null, 2)
+  try {
+    await window.electronAPI.saveData(`list_export_${list.id}`, list)
+    const blob = new Blob([data], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = `${list.name}.json`; a.click()
+    URL.revokeObjectURL(url)
+  } catch {
+    const blob = new Blob([data], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = `${list.name}.json`; a.click()
+    URL.revokeObjectURL(url)
+  }
 }
 
-function confirmDelete(index) {
-  namesStore.deletePerson(index)
+async function importList() {
+  try {
+    const input = document.createElement('input')
+    input.type = 'file'; input.accept = '.json'
+    input.onchange = async (e) => {
+      const file = e.target.files[0]
+      if (!file) return
+      const text = await file.text()
+      const data = JSON.parse(text)
+      if (data.name && Array.isArray(data.names)) {
+        namesStore.createList(data.name)
+        data.names.forEach(n => namesStore.addPerson(n.cn, n.en))
+        alert(lang.value === 'en' ? 'List imported' : '名单导入成功')
+      } else {
+        alert(lang.value === 'en' ? 'Invalid list file' : '无效的名单文件')
+      }
+    }
+    input.click()
+  } catch {
+    alert(lang.value === 'en' ? 'Import failed' : '导入失败')
+  }
 }
 </script>
 
 <style scoped>
-.lists-view {
-  padding: 32px;
-}
-
-.page-title {
-  font-family: var(--font-display);
-  font-size: 24px;
-  font-weight: 700;
-  color: var(--text-primary);
-  margin-bottom: 24px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.list-header {
-  margin-bottom: 12px;
-}
-
-.list-header-row {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-}
-
-.create-form {
-  display: flex;
-  gap: 8px;
-  margin-top: 12px;
-  align-items: center;
-}
-
-.add-person-card {
-  margin-bottom: 12px;
-}
-
-.add-person-row {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.person-list-card {
-  padding: 0;
-  overflow: hidden;
-  margin-bottom: 16px;
-}
-
-.person-list-header {
-  padding: 12px 20px;
-  border-bottom: 1px solid var(--border-default);
-}
-
-.person-count {
-  font-size: 13px;
-  color: var(--text-muted);
-}
-
-.person-list {
-  max-height: 400px;
-  overflow-y: auto;
-}
-
-.person-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 20px;
-  border-bottom: 1px solid var(--border-default);
-  transition: background var(--duration-fast) ease;
-}
-
-.person-item:last-child {
-  border-bottom: none;
-}
-
-.person-item:hover {
-  background: var(--bg-hover);
-}
-
-.person-info {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.person-cn {
-  font-weight: 500;
-  color: var(--text-primary);
-}
-
-.person-en {
-  font-size: 12px;
-  color: var(--text-muted);
-}
-
-.whitelist-badge {
-  font-size: 11px;
-  color: var(--text-muted);
-  background: var(--bg-hover);
-  padding: 1px 6px;
-  border-radius: var(--radius-sm);
-}
-
-.person-actions {
-  display: flex;
-  gap: 4px;
-}
-
-.empty-list {
-  padding: 40px 20px;
-  text-align: center;
-  color: var(--text-muted);
-  font-size: 14px;
-}
-
-.list-actions {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
+.lists-view { padding: 32px; }
+.page-title { font-family: var(--font-display); font-size: 24px; font-weight: 700; color: var(--text-primary); margin-bottom: 24px; display: flex; align-items: center; gap: 10px; }
+.list-header { margin-bottom: 12px; }
+.list-header-row { display: flex; gap: 12px; align-items: center; }
+.create-form { display: flex; gap: 8px; margin-top: 12px; align-items: center; }
+.add-person-card { margin-bottom: 12px; }
+.add-person-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.person-list-card { padding: 0; overflow: hidden; margin-bottom: 16px; }
+.person-list-header { padding: 12px 20px; border-bottom: 1px solid var(--border-default); }
+.person-count { font-size: 13px; color: var(--text-muted); }
+.person-list { max-height: 400px; overflow-y: auto; }
+.person-item { display: flex; align-items: center; justify-content: space-between; padding: 8px 20px; border-bottom: 1px solid var(--border-default); transition: background var(--duration-fast) ease; }
+.person-item:last-child { border-bottom: none; }
+.person-item:hover { background: var(--bg-hover); }
+.person-info { display: flex; align-items: center; gap: 8px; }
+.person-cn { font-weight: 500; color: var(--text-primary); }
+.person-en { font-size: 12px; color: var(--text-muted); }
+.whitelist-badge { font-size: 11px; color: var(--text-muted); background: var(--bg-hover); padding: 1px 6px; border-radius: var(--radius-sm); }
+.person-actions { display: flex; gap: 4px; }
+.empty-list { padding: 40px 20px; text-align: center; color: var(--text-muted); font-size: 14px; }
+.list-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.list-divider { width: 1px; height: 24px; background: var(--border-default); margin: 0 4px; }
 </style>

@@ -2,7 +2,7 @@
   <div class="titlebar">
     <div class="titlebar-drag">
       <Icon icon="fluent:heart-24-filled" class="titlebar-icon" :width="14" />
-      <span class="titlebar-text">CyreneNameRoller</span>
+      <span class="titlebar-text">Cyrene's Name Roller</span>
     </div>
     <div class="titlebar-controls">
       <button class="titlebar-btn" @click="minimize" title="最小化">

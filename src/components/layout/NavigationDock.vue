@@ -2,6 +2,7 @@
   <nav class="dock">
     <div class="dock-logo">
       <Icon icon="fluent:heart-24-filled" :width="28" class="dock-logo-icon" />
+      <span class="dock-logo-text">Cyreneの随机点名器</span>
     </div>
 
     <div class="dock-items">
@@ -68,11 +69,19 @@ const navItems = [
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 8px;
   padding: 20px 0 16px;
 }
 
 .dock-logo-icon {
   color: var(--accent);
+}
+
+.dock-logo-text {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
 }
 
 .dock-items {

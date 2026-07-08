@@ -23,19 +23,11 @@
       <h3 class="section-title"><FluentIcon icon="desktop-24-regular" :width="20" /> {{ lang === 'en' ? 'Display' : '显示设置' }}</h3>
       <div class="setting-row">
         <span class="setting-label">{{ t('uiScale', lang) }}</span>
-        <FluentSelect
-          :model-value="settings.uiScale"
-          :options="uiScaleOptions"
-          @update:model-value="update('uiScale', $event)"
-        />
+        <FluentSelect :model-value="settings.uiScale" :options="uiScaleOptions" @update:model-value="update('uiScale', $event)" />
       </div>
       <div class="setting-row">
         <span class="setting-label">{{ t('fontSize', lang) }}</span>
-        <FluentSelect
-          :model-value="settings.nameFontSize"
-          :options="fontSizeOptions"
-          @update:model-value="update('nameFontSize', $event)"
-        />
+        <FluentSelect :model-value="settings.nameFontSize" :options="fontSizeOptions" @update:model-value="update('nameFontSize', $event)" />
       </div>
     </FluentCard>
 
@@ -87,30 +79,41 @@
         <span class="setting-label">{{ t('animSpeed', lang) }}</span>
         <div class="slider-group">
           <input type="range" :value="settings.animSpeed" min="0.5" max="2" step="0.1" class="speed-slider" @input="update('animSpeed', parseFloat($event.target.value))" />
-          <span class="speed-value">{{ settings.animSpeed }}x</span>
+          <span class="speed-value num-font">{{ settings.animSpeed }}x</span>
         </div>
       </div>
       <p class="setting-note">{{ t('perfNote', lang) }}</p>
+    </FluentCard>
+
+    <!-- 数据安全 -->
+    <FluentCard class="settings-section">
+      <h3 class="section-title"><FluentIcon icon="shield-lock-24-regular" :width="20" /> {{ lang === 'en' ? 'Data Security' : '数据安全' }}</h3>
+      <div class="setting-row">
+        <span class="setting-label">{{ lang === 'en' ? 'Data Password' : '数据操作密码' }}</span>
+        <FluentButton variant="secondary" size="sm" @click="openPasswordModal">
+          <FluentIcon icon="lock-closed-16-regular" :width="14" />
+          {{ hasPassword ? (lang === 'en' ? 'Change Password' : '修改密码') : (lang === 'en' ? 'Set Password' : '设置密码') }}
+        </FluentButton>
+      </div>
+      <p class="setting-note">{{ lang === 'en' ? 'Password is required for data export, import, and clear operations.' : '导出、导入和清除数据操作需要验证密码。' }}</p>
     </FluentCard>
 
     <!-- 数据管理 -->
     <FluentCard class="settings-section">
       <h3 class="section-title"><FluentIcon icon="database-24-regular" :width="20" /> {{ t('dataManagement', lang) }}</h3>
       <div class="action-row">
-        <FluentButton variant="secondary" @click="exportData"><FluentIcon icon="arrow-download-16-regular" :width="14" /> {{ lang === 'en' ? 'Export' : '导出数据' }}</FluentButton>
-        <FluentButton variant="secondary" @click="importData"><FluentIcon icon="arrow-upload-16-regular" :width="14" /> {{ lang === 'en' ? 'Import' : '导入数据' }}</FluentButton>
-        <FluentButton variant="secondary" @click="clearRecords"><FluentIcon icon="delete-16-regular" :width="14" /> {{ lang === 'en' ? 'Clear Records' : '清空抽取记录' }}</FluentButton>
-      </div>
-      <div class="setting-row" style="margin-top: 12px;">
-        <span class="setting-label">{{ lang === 'en' ? 'Data Password' : '数据操作密码' }}</span>
-        <div class="password-group">
-          <FluentButton v-if="!hasPassword" variant="secondary" size="sm" @click="showPasswordModal = true">
-            <FluentIcon icon="lock-closed-16-regular" :width="14" /> {{ lang === 'en' ? 'Set Password' : '设置密码' }}
-          </FluentButton>
-          <FluentButton v-else variant="secondary" size="sm" @click="showPasswordModal = true">
-            <FluentIcon icon="lock-closed-16-regular" :width="14" /> {{ lang === 'en' ? 'Change Password' : '修改密码' }}
-          </FluentButton>
-        </div>
+        <FluentButton variant="secondary" :disabled="!hasPassword" @click="doExport">
+          <FluentIcon icon="arrow-download-16-regular" :width="14" /> {{ lang === 'en' ? 'Export All' : '导出全部数据' }}
+        </FluentButton>
+        <FluentButton variant="secondary" :disabled="!hasPassword" @click="doImport">
+          <FluentIcon icon="arrow-upload-16-regular" :width="14" /> {{ lang === 'en' ? 'Import Data' : '导入数据' }}
+        </FluentButton>
+        <FluentButton variant="secondary" :disabled="!hasPassword" @click="doClearRecords">
+          <FluentIcon icon="broom-16-regular" :width="14" /> {{ lang === 'en' ? 'Clear Records' : '清空抽取记录' }}
+        </FluentButton>
+        <FluentButton variant="danger" :disabled="!hasPassword" @click="doClearAll">
+          <FluentIcon icon="delete-16-regular" :width="14" /> {{ lang === 'en' ? 'Clear All Data' : '清除所有数据' }}
+        </FluentButton>
       </div>
     </FluentCard>
 
@@ -125,17 +128,27 @@
       </div>
     </FluentCard>
 
-    <!-- 密码验证弹窗 -->
-    <FluentModal v-model="showPasswordModal" :title="lang === 'en' ? 'Password Verification' : '密码验证'" max-width="400px">
-      <div class="password-modal-body">
-        <p v-if="pendingAction === 'set'" class="pw-hint">{{ lang === 'en' ? 'Set a password to protect data operations:' : '设置密码以保护数据操作：' }}</p>
-        <p v-else class="pw-hint">{{ lang === 'en' ? 'Enter password to continue:' : '请输入密码以继续：' }}</p>
-        <FluentInput ref="pwInputRef" v-model="passwordInput" type="password" :placeholder="lang === 'en' ? 'Password' : '密码'" @enter="handlePasswordConfirm" />
-        <p v-if="passwordError" class="pw-error">{{ passwordError }}</p>
+    <!-- 密码弹窗 -->
+    <FluentModal v-model="showPwModal" :title="pwModalTitle" max-width="400px">
+      <div class="pw-modal-body">
+        <p class="pw-hint">{{ pwModalHint }}</p>
+        <FluentInput v-model="pwInput" type="password" :placeholder="lang === 'en' ? 'Password' : '密码'" @enter="confirmPassword" />
+        <p v-if="pwError" class="pw-error">{{ pwError }}</p>
       </div>
       <template #footer>
-        <FluentButton variant="secondary" size="sm" @click="showPasswordModal = false">{{ lang === 'en' ? 'Cancel' : '取消' }}</FluentButton>
-        <FluentButton variant="primary" size="sm" @click="handlePasswordConfirm">{{ lang === 'en' ? 'Confirm' : '确认' }}</FluentButton>
+        <FluentButton variant="secondary" size="sm" @click="showPwModal = false">{{ lang === 'en' ? 'Cancel' : '取消' }}</FluentButton>
+        <FluentButton variant="primary" size="sm" @click="confirmPassword">{{ lang === 'en' ? 'Confirm' : '确认' }}</FluentButton>
+      </template>
+    </FluentModal>
+
+    <!-- 导入警告弹窗 -->
+    <FluentModal v-model="showImportWarning" :title="lang === 'en' ? 'Import Warning' : '导入警告'" max-width="440px">
+      <div class="pw-modal-body">
+        <p class="pw-hint">{{ lang === 'en' ? 'Importing will overwrite all current data (lists, settings, records). This cannot be undone. Continue?' : '导入将覆盖当前所有数据（名单、设置、记录等），此操作不可撤销。是否继续？' }}</p>
+      </div>
+      <template #footer>
+        <FluentButton variant="secondary" size="sm" @click="showImportWarning = false">{{ lang === 'en' ? 'Cancel' : '取消' }}</FluentButton>
+        <FluentButton variant="danger" size="sm" @click="confirmImport">{{ lang === 'en' ? 'Import' : '确认导入' }}</FluentButton>
       </template>
     </FluentModal>
   </div>
@@ -146,6 +159,7 @@ import { ref, computed, onMounted, nextTick, watch } from 'vue'
 import { useNamesStore } from '../stores/names'
 import { useSettingsStore } from '../stores/settings'
 import { useRecordsStore } from '../stores/records'
+import { useStatisticsStore } from '../stores/statistics'
 import { t } from '../utils/i18n'
 import { DEFAULT_BALANCE_SETTINGS, normalizeSettings, interpolateQuadratic } from '../utils/balance'
 import FluentCard from '../components/FluentCard.vue'
@@ -153,44 +167,51 @@ import FluentButton from '../components/FluentButton.vue'
 import FluentIcon from '../components/FluentIcon.vue'
 import FluentToggle from '../components/FluentToggle.vue'
 import FluentInput from '../components/FluentInput.vue'
-import FluentModal from '../components/FluentModal.vue'
 import FluentSelect from '../components/FluentSelect.vue'
+import FluentModal from '../components/FluentModal.vue'
 
 const settingsStore = useSettingsStore()
 const namesStore = useNamesStore()
 const recordsStore = useRecordsStore()
+const statisticsStore = useStatisticsStore()
 
 const lang = computed(() => settingsStore.settings.englishMode ? 'en' : 'zh')
 const settings = computed(() => settingsStore.settings)
-
-const uiScaleOptions = [
-  { value: 75, label: '75%' },
-  { value: 100, label: '100%' },
-  { value: 125, label: '125%' },
-  { value: 150, label: '150%' },
-  { value: 175, label: '175%' },
-  { value: 200, label: '200%' }
-]
-
-const fontSizeOptions = [
-  { value: 0.75, label: '0.75x' },
-  { value: 1.0, label: '1.0x' },
-  { value: 1.25, label: '1.25x' },
-  { value: 1.5, label: '1.5x' },
-  { value: 1.75, label: '1.75x' },
-  { value: 2.0, label: '2.0x' }
-]
 
 const balance = ref(JSON.parse(JSON.stringify(DEFAULT_BALANCE_SETTINGS)))
 const changelog = ref([])
 const balanceCanvasRef = ref(null)
 const balanceSummary = ref('')
 
+const uiScaleOptions = [
+  { value: 75, label: '75%' }, { value: 100, label: '100%' }, { value: 125, label: '125%' },
+  { value: 150, label: '150%' }, { value: 175, label: '175%' }, { value: 200, label: '200%' }
+]
+const fontSizeOptions = [
+  { value: 0.75, label: '0.75x' }, { value: 1.0, label: '1.0x' }, { value: 1.25, label: '1.25x' },
+  { value: 1.5, label: '1.5x' }, { value: 1.75, label: '1.75x' }, { value: 2.0, label: '2.0x' }
+]
+
 const hasPassword = ref(false)
-const showPasswordModal = ref(false)
-const passwordInput = ref('')
-const passwordError = ref('')
+const showPwModal = ref(false)
+const pwInput = ref('')
+const pwError = ref('')
+const pwModalMode = ref('verify')
 const pendingAction = ref(null)
+const showImportWarning = ref(false)
+
+const pwModalTitle = computed(() => {
+  if (pwModalMode.value === 'set') return lang.value === 'en' ? 'Set Password' : '设置密码'
+  if (pwModalMode.value === 'change') return lang.value === 'en' ? 'Change Password' : '修改密码'
+  return lang.value === 'en' ? 'Verify Password' : '验证密码'
+})
+const pwModalHint = computed(() => {
+  if (pwModalMode.value === 'set') return lang.value === 'en' ? 'Set a password to protect data operations:' : '设置密码以保护数据操作：'
+  if (pwModalMode.value === 'change') return lang.value === 'en' ? 'Enter current password, then new password:' : '请输入当前密码，然后设置新密码：'
+  return lang.value === 'en' ? 'Enter password to continue:' : '请输入密码以继续：'
+})
+
+function update(key, value) { settingsStore.update(key, value) }
 
 async function sha256(str) {
   const encoder = new TextEncoder()
@@ -199,66 +220,86 @@ async function sha256(str) {
   return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('')
 }
 
-async function checkPassword() {
-  const stored = await window.electronAPI.loadData('password')
-  if (!stored || !stored.hash) { hasPassword.value = false; return false }
+async function loadPasswordHash() {
+  try {
+    const stored = await window.electronAPI.loadData('password')
+    if (stored && stored.hash) { hasPassword.value = true; return stored.hash }
+  } catch {}
+  hasPassword.value = false
+  return null
+}
+
+async function savePasswordHash(hash) {
+  try { await window.electronAPI.saveData('password', { hash }) } catch {}
   hasPassword.value = true
-  return stored.hash
 }
 
-async function handlePasswordConfirm() {
-  passwordError.value = ''
-  const storedHash = await window.electronAPI.loadData('password')
-
-  if (pendingAction.value === 'set') {
-    if (!passwordInput.value || passwordInput.value.length < 1) {
-      passwordError.value = lang.value === 'en' ? 'Password required' : '请输入密码'
-      return
-    }
-    const hash = await sha256(passwordInput.value)
-    await window.electronAPI.saveData('password', { hash })
-    hasPassword.value = true
-    showPasswordModal.value = false
-    passwordInput.value = ''
-    return
-  }
-
-  if (!storedHash || !storedHash.hash) {
-    showPasswordModal.value = false
-    executePendingAction()
-    return
-  }
-
-  const inputHash = await sha256(passwordInput.value)
-  if (inputHash !== storedHash.hash) {
-    passwordError.value = lang.value === 'en' ? 'Wrong password' : '密码错误'
-    return
-  }
-
-  showPasswordModal.value = false
-  passwordInput.value = ''
-  executePendingAction()
+function openPasswordModal() {
+  pwModalMode.value = hasPassword.value ? 'change' : 'set'
+  pwInput.value = ''
+  pwError.value = ''
+  showPwModal.value = true
 }
 
-function executePendingAction() {
-  if (pendingAction.value === 'clearRecords') recordsStore.clearAll()
-  if (pendingAction.value === 'clearAllData') { /* future */ }
-  pendingAction.value = null
+async function confirmPassword() {
+  pwError.value = ''
+  if (pwModalMode.value === 'set') {
+    if (!pwInput.value || pwInput.value.length < 1) { pwError.value = lang.value === 'en' ? 'Password required' : '请输入密码'; return }
+    const hash = await sha256(pwInput.value)
+    await savePasswordHash(hash)
+    showPwModal.value = false
+    pwInput.value = ''
+    if (pendingAction.value) { executePending(); pendingAction.value = null }
+    return
+  }
+  const storedHash = await loadPasswordHash()
+  if (!storedHash) { showPwModal.value = false; executePending(); return }
+  const inputHash = await sha256(pwInput.value)
+  if (inputHash !== storedHash) { pwError.value = lang.value === 'en' ? 'Wrong password' : '密码错误'; return }
+  showPwModal.value = false
+  pwInput.value = ''
+  if (pendingAction.value) { executePending(); pendingAction.value = null }
 }
 
-function requestAction(action) {
+function executePending() {
+  const action = pendingAction.value
+  if (action === 'export') doExportNow()
+  else if (action === 'import') showImportWarning.value = true
+  else if (action === 'clearRecords') { recordsStore.clearAll(); alert(lang.value === 'en' ? 'Records cleared' : '抽取记录已清空') }
+  else if (action === 'clearAll') doClearAllNow()
+}
+
+function requirePassword(action) {
   pendingAction.value = action
-  passwordInput.value = ''
-  passwordError.value = ''
-  if (!hasPassword.value) {
-    showPasswordModal.value = true
-    pendingAction.value = 'set'
-  } else {
-    showPasswordModal.value = true
-  }
+  if (!hasPassword.value) { openPasswordModal(); return }
+  pwModalMode.value = 'verify'
+  pwInput.value = ''; pwError.value = ''
+  showPwModal.value = true
 }
 
-function update(key, value) { settingsStore.update(key, value) }
+function doExport() { requirePassword('export') }
+function doImport() { requirePassword('import') }
+function doClearRecords() { requirePassword('clearRecords') }
+function doClearAll() { requirePassword('clearAll') }
+
+async function doExportNow() {
+  const result = await window.electronAPI.exportData()
+  if (result.success) alert(lang.value === 'en' ? 'Exported successfully' : '导出成功')
+}
+
+async function confirmImport() {
+  showImportWarning.value = false
+  const result = await window.electronAPI.importData()
+  if (result.success) alert(lang.value === 'en' ? 'Imported. Please restart.' : '导入成功，请重启应用。')
+}
+
+async function doClearAllNow() {
+  await window.electronAPI.saveData('lists', {})
+  await window.electronAPI.saveData('statistics', { counts: {}, totalCount: 0 })
+  await window.electronAPI.saveData('records', [])
+  await window.electronAPI.saveData('settings', {})
+  alert(lang.value === 'en' ? 'All data cleared. Please restart.' : '所有数据已清除，请重启应用。')
+}
 
 async function saveBalance() {
   const normalized = normalizeSettings(balance.value)
@@ -272,48 +313,26 @@ function resetBalance() {
   saveBalance()
 }
 
-async function exportData() {
-  const result = await window.electronAPI.exportData()
-  if (result.success) alert(lang.value === 'en' ? 'Exported successfully' : '导出成功')
-}
-
-async function importData() {
-  const result = await window.electronAPI.importData()
-  if (result.success) alert(lang.value === 'en' ? 'Imported successfully. Please restart.' : '导入成功，请重启应用。')
-}
-
-function clearRecords() {
-  if (!hasPassword.value) {
-    pendingAction.value = 'set'
-    showPasswordModal.value = true
-    return
-  }
-  pendingAction.value = 'clearRecords'
-  showPasswordModal.value = true
-}
-
-function setCanvasSize(canvas) {
-  const rect = canvas.getBoundingClientRect()
-  const dpr = window.devicePixelRatio || 1
-  const width = Math.max(320, Math.round(rect.width * dpr))
-  const height = Math.max(200, Math.round(rect.height * dpr))
-  if (canvas.width !== width) canvas.width = width
-  if (canvas.height !== height) canvas.height = height
-  return { width, height }
-}
-
 function renderBalanceCurve() {
   const canvas = balanceCanvasRef.value
   if (!canvas) return
   const ctx = canvas.getContext('2d')
   if (!ctx) return
 
+  const rect = canvas.getBoundingClientRect()
+  if (rect.width < 10 || rect.height < 10) return
+
+  const dpr = window.devicePixelRatio || 1
+  const w = Math.round(rect.width * dpr)
+  const h = Math.round(rect.height * dpr)
+  canvas.width = w
+  canvas.height = h
+
   const s = normalizeSettings(balance.value)
-  const { width, height } = setCanvasSize(canvas)
   const padL = 56, padR = 18, padT = 18, padB = 38
-  const plotW = width - padL - padR
-  const plotH = height - padT - padB
-  ctx.clearRect(0, 0, width, height)
+  const plotW = w - padL - padR
+  const plotH = h - padT - padB
+  ctx.clearRect(0, 0, w, h)
 
   const names = namesStore.currentNames
   const poolCount = Math.max(1, names.filter(n => n.cn !== '再来一次').length || 2)
@@ -322,8 +341,7 @@ function renderBalanceCurve() {
   const maxBoost = Math.max(200, s.maxBoostPercent)
   const points = s.points.map(p => ({ x: p.x / Math.max(theoreticalThreshold, 1e-6), y: p.y }))
   const xMax = Math.max(1, (maxThreshold > 0 ? maxThreshold / Math.max(theoreticalThreshold, 1e-6) : 0), points[2].x * 1.2, 1.2)
-  const yMin = 100
-  const yMax = Math.max(maxBoost, ...points.map(p => p.y), 220)
+  const yMin = 100, yMax = Math.max(maxBoost, ...points.map(p => p.y), 220)
 
   function xToPx(x) { return padL + (x / xMax) * plotW }
   function yToPx(y) { return padT + (1 - (y - yMin) / (yMax - yMin)) * plotH }
@@ -339,11 +357,7 @@ function renderBalanceCurve() {
 
   if (maxThreshold > 0) {
     const nx = maxThreshold / Math.max(theoreticalThreshold, 1e-6)
-    if (Number.isFinite(nx)) {
-      ctx.save(); ctx.setLineDash([6, 5]); ctx.strokeStyle = '#6b7280'
-      ctx.beginPath(); ctx.moveTo(xToPx(Math.min(nx, xMax)), padT); ctx.lineTo(xToPx(Math.min(nx, xMax)), padT + plotH); ctx.stroke()
-      ctx.restore()
-    }
+    if (Number.isFinite(nx)) { ctx.save(); ctx.setLineDash([6, 5]); ctx.strokeStyle = '#6b7280'; ctx.beginPath(); ctx.moveTo(xToPx(Math.min(nx, xMax)), padT); ctx.lineTo(xToPx(Math.min(nx, xMax)), padT + plotH); ctx.stroke(); ctx.restore() }
   }
 
   ctx.save(); ctx.strokeStyle = '#111'; ctx.lineWidth = 2.25; ctx.beginPath()
@@ -358,8 +372,8 @@ function renderBalanceCurve() {
   points.forEach(p => { const px = xToPx(Math.min(p.x, xMax)); const py = yToPx(Math.max(100, Math.min(p.y, maxBoost))); ctx.beginPath(); ctx.arc(px, py, 4.2, 0, Math.PI * 2); ctx.fill() })
   ctx.restore()
 
-  ctx.save(); ctx.fillStyle = '#222'; ctx.font = `${Math.round((window.devicePixelRatio || 1) * 12)}px sans-serif`
-  ctx.textAlign = 'center'; ctx.fillText(lang.value === 'en' ? 'Deficit' : '差值', padL + plotW / 2, height - 10)
+  ctx.save(); ctx.fillStyle = '#222'; ctx.font = `${Math.round(dpr * 12)}px "Wengfaluosi", "HarmonyOS Sans SC", sans-serif`
+  ctx.textAlign = 'center'; ctx.fillText(lang.value === 'en' ? 'Deficit' : '差值', padL + plotW / 2, h - 10)
   ctx.save(); ctx.translate(14, padT + plotH / 2); ctx.rotate(-Math.PI / 2); ctx.fillText(lang.value === 'en' ? 'Boost (%)' : '倍率(%)', 0, 0); ctx.restore()
   ctx.textAlign = 'left'; ctx.fillText('100%', 8, yToPx(100) + 4); ctx.fillText(`${maxBoost.toFixed(0)}%`, 8, yToPx(maxBoost) + 4)
   ctx.restore()
@@ -369,13 +383,13 @@ function renderBalanceCurve() {
 }
 
 onMounted(async () => {
-  await checkPassword()
+  await loadPasswordHash()
   const saved = await window.electronAPI.loadData('balance')
   if (saved) balance.value = normalizeSettings(saved)
   const logs = await window.electronAPI.loadChangelog()
   changelog.value = logs || []
   await nextTick()
-  requestAnimationFrame(() => { renderBalanceCurve() })
+  setTimeout(() => { renderBalanceCurve() }, 100)
 })
 </script>
 
@@ -399,8 +413,8 @@ onMounted(async () => {
 .preview-summary { margin-top: 12px; font-size: 13px; color: var(--text-secondary); line-height: 1.6; word-break: break-all; }
 .curve-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .action-row { display: flex; gap: 8px; flex-wrap: wrap; }
-.password-group { display: flex; gap: 8px; }
-.pw-hint { font-size: 14px; color: var(--text-secondary); margin-bottom: 12px; }
+.pw-modal-body { padding: 8px 0; }
+.pw-hint { font-size: 14px; color: var(--text-secondary); margin-bottom: 12px; line-height: 1.5; }
 .pw-error { font-size: 13px; color: #c42b1c; margin-top: 8px; }
 .changelog-list { max-height: 400px; overflow-y: auto; }
 .changelog-item { padding: 12px 0; border-bottom: 1px solid var(--border-default); }

@@ -59,6 +59,11 @@ a:hover {
   color: var(--accent-dark);
 }
 
-.num {
+.num,
+.num-font {
+  font-family: 'Wengfaluosi', 'HarmonyOS Sans SC', sans-serif !important;
+}
+
+canvas {
   font-family: 'Wengfaluosi', 'HarmonyOS Sans SC', sans-serif;
 }
