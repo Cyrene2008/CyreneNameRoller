@@ -164,7 +164,6 @@ onMounted(async () => {
 <style scoped>
 .settings-view {
   padding: 32px;
-  max-width: 700px;
 }
 
 .page-title {

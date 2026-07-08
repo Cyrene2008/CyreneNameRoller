@@ -3,7 +3,7 @@
     <h1 class="roller-title">{{ t('h1', lang) }}</h1>
 
     <!-- 名字显示区域 -->
-    <div class="display-container" ref="displayContainer">
+    <div class="display-container">
       <div
         v-for="(display, i) in nameDisplays"
         :key="i"
@@ -43,6 +43,11 @@
           :label="t('multiMode', lang)"
           @update:model-value="onMultiModeChange"
         />
+        <FluentToggle
+          v-model="settings.allowDuplicates"
+          :label="t('allowDuplicates', lang)"
+          @update:model-value="saveSetting('allowDuplicates', $event)"
+        />
       </div>
 
       <!-- 多人模式设置 -->
@@ -64,14 +69,6 @@
             <FluentIcon icon="add-16-regular" :width="14" />
           </FluentButton>
         </div>
-      </div>
-
-      <!-- 进度条 -->
-      <div v-if="isRunning" class="progress-bar">
-        <div class="progress-track">
-          <div class="progress-fill" :style="{ width: progress + '%' }" />
-        </div>
-        <span class="progress-text">PROGRESS: {{ Math.round(progress) }}%</span>
       </div>
 
       <!-- 开始/停止按钮 -->
@@ -112,11 +109,9 @@ const listOptions = computed(() =>
   namesStore.allLists.map(l => ({ value: l.id, label: l.name }))
 )
 
-// 显示状态
 const nameDisplays = reactive([])
 const isRunning = ref(false)
 const isDecelerating = ref(false)
-const progress = ref(0)
 const currentSpeed = ref(0)
 const lastPickedNames = ref([])
 
@@ -124,7 +119,6 @@ let intervalId = null
 let decelerationFrame = 0
 const maxSpeed = 100
 
-// 平衡设置
 const balanceSettings = ref({
   enabled: true,
   factor: 13.3,
@@ -137,61 +131,47 @@ const balanceSettings = ref({
   ]
 })
 
-// 初始化显示
+onMounted(async () => {
+  const saved = await window.electronAPI.loadData('balance')
+  if (saved) balanceSettings.value = { ...balanceSettings.value, ...saved }
+})
+
 function initializeDisplays(count) {
   nameDisplays.splice(0)
   lastPickedNames.value = []
   for (let i = 0; i < count; i++) {
-    nameDisplays.push({
-      text: '...',
-      opacity: 0,
-      animating: false,
-      entering: false
-    })
+    nameDisplays.push({ text: '...', opacity: 0, animating: false, entering: false })
     lastPickedNames.value.push('')
   }
 }
 
-// 保存设置
 function saveSetting(key, value) {
   settingsStore.update(key, value)
 }
 
 function onMultiModeChange(val) {
   settingsStore.update('multiMode', val)
-  if (!val) {
-    initializeDisplays(1)
-  } else {
-    const count = settings.value.peopleCount || 2
-    initializeDisplays(count)
-  }
+  if (!val) initializeDisplays(1)
+  else initializeDisplays(settings.value.peopleCount || 2)
 }
 
 function onPeopleCountChange(val) {
   const count = Math.max(2, Math.min(20, parseInt(val) || 2))
   settingsStore.update('peopleCount', count)
-  if (settings.value.multiMode) {
-    initializeDisplays(count)
-  }
+  if (settings.value.multiMode) initializeDisplays(count)
 }
 
 function changeCount(delta) {
   const count = Math.max(2, Math.min(20, (settings.value.peopleCount || 2) + delta))
   settingsStore.update('peopleCount', count)
-  if (settings.value.multiMode) {
-    initializeDisplays(count)
-  }
+  if (settings.value.multiMode) initializeDisplays(count)
 }
 
-// 强调动画
 function emphasize(index) {
   nameDisplays[index].animating = true
-  setTimeout(() => {
-    nameDisplays[index].animating = false
-  }, 1200)
+  setTimeout(() => { nameDisplays[index].animating = false }, 1200)
 }
 
-// 抽选逻辑
 function doPick() {
   const names = namesStore.currentNames
   const whiteList = namesStore.currentWhiteList
@@ -199,16 +179,15 @@ function doPick() {
   const allowDup = settings.value.allowDuplicates
   const excludeList = lastPickedNames.value.filter(n => n)
 
-  const pick = settings.value.multiMode
-    ? pickBalanced(names, whiteList, countsMap, balanceSettings.value, excludeList, allowDup)
-    : (balanceSettings.value.enabled
-      ? pickBalanced(names, whiteList, countsMap, balanceSettings.value, [], true)
-      : pickUniform(names, [], true))
-
-  return pick
+  if (settings.value.multiMode) {
+    return pickBalanced(names, whiteList, countsMap, balanceSettings.value, excludeList, allowDup)
+  }
+  if (balanceSettings.value.enabled) {
+    return pickBalanced(names, whiteList, countsMap, balanceSettings.value, [], true)
+  }
+  return pickUniform(names, [], true)
 }
 
-// 动画循环
 function animationLoop() {
   if (!isRunning.value) return
 
@@ -216,11 +195,9 @@ function animationLoop() {
     decelerationFrame++
     const t = decelerationFrame / 100
     currentSpeed.value = maxSpeed * Math.pow(1 - t, 2)
-    progress.value = currentSpeed.value
 
     if (currentSpeed.value <= 0.5) {
       currentSpeed.value = 0
-      progress.value = 0
       finishRoll()
       return
     }
@@ -228,10 +205,8 @@ function animationLoop() {
     if (currentSpeed.value < maxSpeed) {
       currentSpeed.value = Math.min(maxSpeed, currentSpeed.value + 3)
     }
-    progress.value = currentSpeed.value
   }
 
-  // 快速滚动名字
   const count = settings.value.multiMode ? (settings.value.peopleCount || 2) : 1
   for (let i = 0; i < count; i++) {
     const pick = doPick()
@@ -246,7 +221,6 @@ function animationLoop() {
   intervalId = setTimeout(animationLoop, delay)
 }
 
-// 开始/停止
 function toggleRoll() {
   if (isRunning.value) {
     isDecelerating.value = true
@@ -260,11 +234,9 @@ function toggleRoll() {
   isDecelerating.value = false
   currentSpeed.value = 0
   decelerationFrame = 0
-  progress.value = 0
 
   const count = settings.value.multiMode ? (settings.value.peopleCount || 2) : 1
   initializeDisplays(count)
-
   animationLoop()
 }
 
@@ -295,23 +267,19 @@ function finishRoll() {
     nameDisplays[i].opacity = 1
     lastPickedNames.value.push(pick.cn)
 
-    // 记录统计
     if (settings.value.recordCounts && !whiteList.some(w => w.cn === pick.cn)) {
       statisticsStore.incrementCount(pick.cn)
     }
 
-    // 强调动画
     setTimeout(() => emphasize(i), 50 * i)
   }
 }
 
-// 初始化
-onMounted(async () => {
+onMounted(() => {
   if (namesStore.isLoaded) {
     const count = settings.value.multiMode ? (settings.value.peopleCount || 2) : 1
     initializeDisplays(count)
   }
-
   watch(() => namesStore.isLoaded, (loaded) => {
     if (loaded) {
       const count = settings.value.multiMode ? (settings.value.peopleCount || 2) : 1
@@ -397,20 +365,9 @@ onBeforeUnmount(() => {
 }
 
 @keyframes name-enter {
-  0% {
-    transform: scale(0.3) rotate(-10deg);
-    opacity: 0;
-    filter: blur(10px);
-  }
-  50% {
-    transform: scale(1.1) rotate(2deg);
-    filter: blur(0);
-  }
-  100% {
-    transform: scale(1) rotate(0deg);
-    opacity: 1;
-    filter: blur(0);
-  }
+  0% { transform: scale(0.3) rotate(-10deg); opacity: 0; filter: blur(10px); }
+  50% { transform: scale(1.1) rotate(2deg); filter: blur(0); }
+  100% { transform: scale(1) rotate(0deg); opacity: 1; filter: blur(0); }
 }
 
 .name-display.final {
@@ -418,15 +375,8 @@ onBeforeUnmount(() => {
 }
 
 @keyframes final-reveal {
-  0% {
-    transform: scale(4);
-    opacity: 0;
-    filter: brightness(2);
-  }
-  100% {
-    transform: scale(1);
-    filter: brightness(1);
-  }
+  0% { transform: scale(4); opacity: 0; filter: brightness(2); }
+  100% { transform: scale(1); filter: brightness(1); }
 }
 
 .controls {
@@ -435,7 +385,6 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 16px;
   width: 100%;
-  max-width: 500px;
 }
 
 .list-selector-bar {
@@ -479,37 +428,6 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   gap: 8px;
-}
-
-.progress-bar {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  width: 100%;
-  max-width: 300px;
-}
-
-.progress-track {
-  width: 100%;
-  height: 6px;
-  background: var(--bg-hover);
-  border-radius: var(--radius-full);
-  overflow: hidden;
-}
-
-.progress-fill {
-  height: 100%;
-  background: linear-gradient(90deg, var(--accent), var(--accent-light));
-  border-radius: var(--radius-full);
-  transition: width 0.1s linear;
-}
-
-.progress-text {
-  font-size: 12px;
-  color: var(--text-muted);
-  font-weight: 600;
-  letter-spacing: 1px;
 }
 
 .start-btn {

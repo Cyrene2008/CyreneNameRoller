@@ -1,12 +1,21 @@
 <template>
   <div class="card-view">
-    <h1 class="card-title">{{ lang === 'en' ? 'Card Mode' : '翻牌抽名器' }}</h1>
+    <h1 class="card-title">
+      <FluentIcon icon="playing-cards-24-regular" :width="28" />
+      {{ lang === 'en' ? 'Card Mode' : '翻牌抽名器' }}
+    </h1>
 
     <div class="card-controls">
       <span class="control-label">{{ lang === 'en' ? 'Cards:' : '牌子数量:' }}</span>
       <FluentInput v-model="cardCount" type="number" :min="2" :max="20" style="width: 70px;" />
-      <FluentButton variant="primary" @click="shuffle">{{ lang === 'en' ? 'Shuffle' : '洗牌' }}</FluentButton>
-      <FluentButton variant="secondary" @click="reset">{{ lang === 'en' ? 'Reset' : '重置' }}</FluentButton>
+      <FluentButton variant="primary" @click="shuffle">
+        <FluentIcon icon="arrow-shuffle-24-regular" :width="16" />
+        {{ lang === 'en' ? 'Shuffle' : '洗牌' }}
+      </FluentButton>
+      <FluentButton variant="secondary" @click="reset">
+        <FluentIcon icon="arrow-undo-16-regular" :width="14" />
+        {{ lang === 'en' ? 'Reset' : '重置' }}
+      </FluentButton>
     </div>
 
     <div class="cards-grid">
@@ -20,7 +29,7 @@
       >
         <div class="card-inner">
           <div class="card-face card-back">
-            <span class="card-question">?</span>
+            <FluentIcon icon="question-24-regular" :width="48" class="card-q-icon" />
           </div>
           <div class="card-face card-front">
             {{ card.name }}
@@ -30,7 +39,10 @@
     </div>
 
     <div class="tray">
-      <div class="tray-label">{{ lang === 'en' ? 'History' : '收牌区域' }}</div>
+      <div class="tray-label">
+        <FluentIcon icon="archive-16-regular" :width="14" />
+        {{ lang === 'en' ? 'History' : '收牌区域' }}
+      </div>
       <div class="tray-stack">
         <TransitionGroup name="tray-item">
           <div v-for="item in history" :key="item" class="history-chip">
@@ -47,6 +59,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useNamesStore } from '../stores/names'
 import { useSettingsStore } from '../stores/settings'
 import FluentButton from '../components/FluentButton.vue'
+import FluentIcon from '../components/FluentIcon.vue'
 import FluentInput from '../components/FluentInput.vue'
 
 const namesStore = useNamesStore()
@@ -71,7 +84,6 @@ function getAvailableNames() {
 function shuffle() {
   const available = getAvailableNames()
   const k = Math.min(parseInt(cardCount.value) || 5, available.length)
-
   if (k < 2) return
 
   const chosen = []
@@ -87,9 +99,7 @@ function shuffle() {
     visible: false,
     flipped: false
   }))
-
   flippedCount.value = 0
-
   cards.value.forEach((card, i) => {
     setTimeout(() => { card.visible = true }, i * 80)
   })
@@ -98,7 +108,6 @@ function shuffle() {
 function flipCard(index) {
   const card = cards.value[index]
   if (!card || card.flipped) return
-
   card.flipped = true
   flippedCount.value++
   usedNames.value.add(card.name)
@@ -134,6 +143,9 @@ onMounted(() => {
   font-weight: 700;
   color: var(--text-primary);
   margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .card-controls {
@@ -161,7 +173,6 @@ onMounted(() => {
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: 20px;
   width: 100%;
-  max-width: 900px;
   justify-items: center;
   margin-bottom: 40px;
 }
@@ -216,11 +227,9 @@ onMounted(() => {
   background: linear-gradient(135deg, var(--bg-card-solid), var(--bg-hover));
 }
 
-.card-question {
-  font-size: 48px;
+.card-q-icon {
   color: var(--accent);
   opacity: 0.3;
-  font-weight: 700;
 }
 
 .card-front {
@@ -238,13 +247,15 @@ onMounted(() => {
 
 .tray {
   width: 100%;
-  max-width: 900px;
 }
 
 .tray-label {
   font-size: 13px;
   color: var(--text-muted);
   margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .tray-stack {

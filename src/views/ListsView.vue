@@ -157,7 +157,6 @@ function confirmDelete(index) {
 <style scoped>
 .lists-view {
   padding: 32px;
-  max-width: 700px;
 }
 
 .page-title {

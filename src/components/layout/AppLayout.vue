@@ -4,7 +4,11 @@
     <div class="app-body">
       <NavigationDock />
       <main class="app-content">
-        <router-view />
+        <router-view v-slot="{ Component, route }">
+          <Transition :name="route.meta.transition || 'page-slide'" mode="out-in">
+            <component :is="Component" :key="route.path" />
+          </Transition>
+        </router-view>
       </main>
     </div>
   </div>
@@ -49,5 +53,24 @@ onMounted(async () => {
   overflow-y: auto;
   overflow-x: hidden;
   background: var(--bg-base);
+  position: relative;
+}
+
+.page-slide-enter-active {
+  transition: all 0.25s cubic-bezier(0.1, 0.9, 0.2, 1);
+}
+
+.page-slide-leave-active {
+  transition: all 0.15s ease-in;
+}
+
+.page-slide-enter-from {
+  opacity: 0;
+  transform: translateX(20px);
+}
+
+.page-slide-leave-to {
+  opacity: 0;
+  transform: translateX(-10px);
 }
 </style>

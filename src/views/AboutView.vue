@@ -60,7 +60,6 @@ const lang = computed(() => settingsStore.settings.englishMode ? 'en' : 'zh')
 <style scoped>
 .about-view {
   padding: 32px;
-  max-width: 500px;
 }
 
 .page-title {

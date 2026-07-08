@@ -17,18 +17,22 @@
     </FluentCard>
 
     <FluentCard class="stats-list-card">
+      <div class="stats-table-header">
+        <span class="th-name">{{ lang === 'en' ? 'Name' : '姓名' }}</span>
+        <span class="th-en">{{ lang === 'en' ? 'English' : '英文名' }}</span>
+        <span class="th-count">{{ lang === 'en' ? 'Count' : '次数' }}</span>
+        <span class="th-prob">{{ lang === 'en' ? 'Probability' : '概率' }}</span>
+        <span class="th-balanced">{{ lang === 'en' ? 'Balanced' : '平衡概率' }}</span>
+      </div>
       <ul class="stats-list">
-        <li v-for="stat in statsData.stats" :key="stat.name" class="stats-item">
-          <div class="stat-info">
-            <span class="stat-name">{{ stat.name }}</span>
-            <span class="stat-en">{{ stat.en }}</span>
-          </div>
-          <div class="stat-data">
-            <span class="stat-count">{{ stat.count }} {{ lang === 'en' ? 'times' : '次' }}</span>
-            <span class="stat-prob">{{ stat.probability.toFixed(2) }}%</span>
-          </div>
+        <li v-for="stat in statsWithBalance" :key="stat.name" class="stats-item">
+          <span class="stat-name">{{ stat.name }}</span>
+          <span class="stat-en">{{ stat.en }}</span>
+          <span class="stat-count">{{ stat.count }}</span>
+          <span class="stat-prob">{{ stat.probability.toFixed(2) }}%</span>
+          <span class="stat-balanced">{{ stat.balancedProbability.toFixed(2) }}%</span>
         </li>
-        <li v-if="statsData.stats.length === 0" class="stats-empty">
+        <li v-if="statsWithBalance.length === 0" class="stats-empty">
           {{ lang === 'en' ? 'No data yet' : '暂无数据' }}
         </li>
       </ul>
@@ -37,10 +41,11 @@
 </template>
 
 <script setup>
-import { computed, onMounted } from 'vue'
+import { computed } from 'vue'
 import { useNamesStore } from '../stores/names'
 import { useSettingsStore } from '../stores/settings'
 import { useStatisticsStore } from '../stores/statistics'
+import { computeBalancedProbability } from '../utils/balance'
 import { t } from '../utils/i18n'
 import FluentCard from '../components/FluentCard.vue'
 import FluentIcon from '../components/FluentIcon.vue'
@@ -57,12 +62,25 @@ const statsData = computed(() => {
     namesStore.currentWhiteList
   )
 })
+
+const statsWithBalance = computed(() => {
+  const balanceSettings = { enabled: true, factor: 13.3, maxThreshold: 3, maxBoostPercent: 1200, points: [{ x: 0.3, y: 150 }, { x: 1.5, y: 420 }, { x: 2.4, y: 800 }] }
+  const probMap = computeBalancedProbability(
+    namesStore.currentNames,
+    namesStore.currentWhiteList,
+    statisticsStore.counts,
+    balanceSettings
+  )
+  return statsData.value.stats.map(s => ({
+    ...s,
+    balancedProbability: probMap[s.name] || 0
+  }))
+})
 </script>
 
 <style scoped>
 .statistics-view {
   padding: 32px;
-  max-width: 700px;
 }
 
 .page-title {
@@ -105,6 +123,20 @@ const statsData = computed(() => {
   overflow: hidden;
 }
 
+.stats-table-header {
+  display: grid;
+  grid-template-columns: 1fr 1fr 80px 100px 100px;
+  gap: 8px;
+  padding: 10px 20px;
+  background: var(--bg-hover);
+  border-bottom: 1px solid var(--border-default);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
 .stats-list {
   list-style: none;
   max-height: 50vh;
@@ -112,12 +144,14 @@ const statsData = computed(() => {
 }
 
 .stats-item {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr 1fr 80px 100px 100px;
+  gap: 8px;
   align-items: center;
-  justify-content: space-between;
-  padding: 12px 20px;
+  padding: 10px 20px;
   border-bottom: 1px solid var(--border-default);
   transition: background var(--duration-fast) ease;
+  font-size: 14px;
 }
 
 .stats-item:last-child {
@@ -126,12 +160,6 @@ const statsData = computed(() => {
 
 .stats-item:hover {
   background: var(--bg-hover);
-}
-
-.stat-info {
-  display: flex;
-  align-items: center;
-  gap: 8px;
 }
 
 .stat-name {
@@ -144,22 +172,20 @@ const statsData = computed(() => {
   color: var(--text-muted);
 }
 
-.stat-data {
-  display: flex;
-  gap: 16px;
-  align-items: center;
-}
-
 .stat-count {
-  font-size: 14px;
   color: var(--text-secondary);
+  text-align: center;
 }
 
 .stat-prob {
-  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-align: right;
+}
+
+.stat-balanced {
   font-weight: 600;
   color: var(--accent);
-  min-width: 60px;
   text-align: right;
 }
 

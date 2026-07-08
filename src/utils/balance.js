@@ -59,7 +59,8 @@ function interpolateQuadratic(points, x) {
   const l1 = ((x - x2) * (x - x3)) / d1
   const l2 = ((x - x1) * (x - x3)) / d2
   const l3 = ((x - x1) * (x - x2)) / d3
-  return y1 * l1 + y2 * l2 + y3 * l3
+  const raw = y1 * l1 + y2 * l2 + y3 * l3
+  return raw
 }
 
 function computeBoostPercent(deficit, candidateCount, settings) {
@@ -75,7 +76,8 @@ function computeBoostPercent(deficit, candidateCount, settings) {
     return maxBoostPercent
   }
 
-  const points = normalizeSettings(settings).points.map(p => ({
+  const normSettings = normalizeSettings(settings)
+  const points = normSettings.points.map(p => ({
     x: p.x / Math.max(theoreticalThreshold, 1e-6),
     y: p.y
   }))
@@ -92,6 +94,45 @@ function computeBoostPercent(deficit, candidateCount, settings) {
   if (boostedPercent < 100) boostedPercent = 100
   if (boostedPercent > maxBoostPercent) boostedPercent = maxBoostPercent
   return boostedPercent
+}
+
+export function computeBalancedProbability(names, whiteList, countsMap, settings) {
+  const isWL = (cn) => whiteList.some(w => w.cn === cn)
+  const available = names.filter(n => n.cn !== BANNED_NAME)
+  const validList = available.filter(n => !isWL(n.cn))
+  const calcList = validList.length > 0 ? validList : available
+
+  let sum = 0
+  calcList.forEach(n => { sum += countsMap[n.cn] || 0 })
+  const avgCount = calcList.length > 0 ? sum / calcList.length : 0
+  const candidateCount = calcList.length
+
+  const probMap = {}
+  const choices = []
+  const weights = []
+
+  for (const name of available) {
+    if (isWL(name.cn)) {
+      choices.push(name)
+      weights.push(1)
+      continue
+    }
+    const observedCount = countsMap[name.cn] || 0
+    const deficit = Math.max(0, avgCount - observedCount)
+    const boostPercent = computeBoostPercent(deficit, candidateCount, settings)
+    const boostMultiplier = boostPercent / 100
+    const baseWeight = 1 / (observedCount + 1)
+    const weight = Math.max(1e-6, baseWeight * boostMultiplier)
+    choices.push(name)
+    weights.push(weight)
+  }
+
+  const totalWeight = weights.reduce((a, b) => a + b, 0) || 1
+  for (let i = 0; i < choices.length; i++) {
+    probMap[choices[i].cn] = (weights[i] / totalWeight) * 100
+  }
+
+  return probMap
 }
 
 export function weightedRandomChoice(choices, weights) {
