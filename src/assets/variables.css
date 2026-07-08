@@ -6,26 +6,26 @@
   --accent-200: #fce4f0;
   --accent-50: #fef5fa;
 
-  --bg-base: #f3f3f3;
-  --bg-card: rgba(255, 255, 255, 0.7);
-  --bg-card-solid: #ffffff;
-  --bg-hover: #f6f6f6;
-  --bg-acrylic: rgba(255, 255, 255, 0.75);
-  --bg-mica: linear-gradient(135deg, rgba(255,255,255,0.9), rgba(243,243,243,0.9));
+  --bg-base: #fdf2f8;
+  --bg-card: rgba(255, 240, 248, 0.75);
+  --bg-card-solid: #fff5f9;
+  --bg-hover: #fce7f3;
+  --bg-acrylic: rgba(255, 240, 248, 0.78);
+  --bg-mica: linear-gradient(135deg, rgba(255,240,248,0.95), rgba(253,242,248,0.95));
 
-  --text-primary: #1a1a1a;
-  --text-secondary: #45515e;
-  --text-muted: #8e8e93;
+  --text-primary: #3d1a2e;
+  --text-secondary: #6b3a55;
+  --text-muted: #b07a95;
   --text-on-accent: #ffffff;
 
-  --border-default: rgba(0, 0, 0, 0.06);
-  --border-subtle: rgba(0, 0, 0, 0.04);
-  --border-strong: rgba(0, 0, 0, 0.12);
+  --border-default: rgba(234, 94, 193, 0.1);
+  --border-subtle: rgba(234, 94, 193, 0.06);
+  --border-strong: rgba(234, 94, 193, 0.2);
 
-  --shadow-2: 0 1px 2px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.1);
-  --shadow-4: 0 2px 4px rgba(0,0,0,0.04), 0 8px 16px rgba(0,0,0,0.08);
-  --shadow-8: 0 4px 8px rgba(0,0,0,0.08), 0 12px 24px rgba(0,0,0,0.12);
-  --shadow-16: 0 8px 16px rgba(0,0,0,0.14), 0 0 2px rgba(0,0,0,0.12);
+  --shadow-2: 0 1px 2px rgba(234,94,193,0.06), 0 1px 3px rgba(234,94,193,0.1);
+  --shadow-4: 0 2px 4px rgba(234,94,193,0.06), 0 8px 16px rgba(234,94,193,0.1);
+  --shadow-8: 0 4px 8px rgba(234,94,193,0.1), 0 12px 24px rgba(234,94,193,0.14);
+  --shadow-16: 0 8px 16px rgba(234,94,193,0.14), 0 0 2px rgba(234,94,193,0.12);
 
   --radius-sm: 4px;
   --radius-md: 8px;
@@ -33,8 +33,9 @@
   --radius-xl: 16px;
   --radius-full: 9999px;
 
-  --font-ui: 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
-  --font-display: 'Segoe UI Variable Display', 'Segoe UI', system-ui, sans-serif;
+  --font-ui: 'HarmonyOS Sans SC', 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
+  --font-display: 'HarmonyOS Sans SC', 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
+  --font-num: 'Wengfaluosi', 'HarmonyOS Sans SC', system-ui, sans-serif;
 
   --ease-standard: cubic-bezier(0.1, 0.9, 0.2, 1);
   --duration-fast: 150ms;
@@ -49,18 +50,18 @@
 }
 
 .dark {
-  --bg-base: #202020;
-  --bg-card: rgba(40, 40, 40, 0.7);
-  --bg-card-solid: #2d2d2d;
-  --bg-hover: #383838;
-  --bg-acrylic: rgba(32, 32, 32, 0.8);
-  --bg-mica: linear-gradient(135deg, rgba(32,32,32,0.95), rgba(20,20,20,0.95));
-  --text-primary: #f0f0f0;
-  --text-secondary: #b0b0b0;
-  --text-muted: #707070;
-  --border-default: rgba(255, 255, 255, 0.08);
-  --border-subtle: rgba(255, 255, 255, 0.04);
-  --border-strong: rgba(255, 255, 255, 0.15);
+  --bg-base: #2d1a25;
+  --bg-card: rgba(50, 30, 42, 0.75);
+  --bg-card-solid: #3a2232;
+  --bg-hover: #4a2a3e;
+  --bg-acrylic: rgba(40, 22, 35, 0.82);
+  --bg-mica: linear-gradient(135deg, rgba(40,22,35,0.95), rgba(30,15,25,0.95));
+  --text-primary: #fce4f0;
+  --text-secondary: #d4a0bc;
+  --text-muted: #8a5a75;
+  --border-default: rgba(234, 94, 193, 0.15);
+  --border-subtle: rgba(234, 94, 193, 0.08);
+  --border-strong: rgba(234, 94, 193, 0.25);
   --shadow-2: 0 1px 2px rgba(0,0,0,0.2), 0 1px 3px rgba(0,0,0,0.3);
   --shadow-4: 0 2px 4px rgba(0,0,0,0.15), 0 8px 16px rgba(0,0,0,0.25);
   --shadow-8: 0 4px 8px rgba(0,0,0,0.2), 0 12px 24px rgba(0,0,0,0.3);

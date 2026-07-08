@@ -6,9 +6,13 @@ export default defineConfig({
   plugins: [vue()],
   build: {
     outDir: 'dist',
-    emptyOutDir: true
+    emptyOutDir: true,
+    assetsInlineLimit: 0
   },
   server: {
     port: 5173
+  },
+  json: {
+    stringify: true
   }
 })

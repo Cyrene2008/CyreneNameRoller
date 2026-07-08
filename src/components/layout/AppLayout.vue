@@ -1,5 +1,5 @@
 <template>
-  <div class="app-layout" :class="{ dark: settingsStore.darkMode }">
+  <div class="app-layout" :class="{ dark: settingsStore.darkMode }" :style="{ fontSize: (14 * (settingsStore.settings.uiScale || 100) / 100) + 'px' }">
     <TitleBar />
     <div class="app-body">
       <NavigationDock />
@@ -16,7 +16,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import TitleBar from './TitleBar.vue'
 import NavigationDock from './NavigationDock.vue'
 import { useSettingsStore } from '../../stores/settings'
@@ -37,6 +37,14 @@ onMounted(async () => {
   await statisticsStore.initialize()
   await recordsStore.initialize()
 })
+
+watch(() => settingsStore.settings.uiScale, (val) => {
+  document.documentElement.style.setProperty('--ui-scale', (val || 100) / 100)
+}, { immediate: true })
+
+watch(() => settingsStore.settings.nameFontSize, (val) => {
+  document.documentElement.style.setProperty('--name-font-factor', val || 1)
+}, { immediate: true })
 </script>
 
 <style scoped>
@@ -47,6 +55,10 @@ onMounted(async () => {
   background: var(--bg-base);
   overflow: hidden;
   position: relative;
+  transform: scale(var(--ui-scale, 1));
+  transform-origin: top left;
+  width: calc(100vw / var(--ui-scale, 1));
+  height: calc(100vh / var(--ui-scale, 1));
 }
 
 .app-body {
@@ -71,7 +83,7 @@ onMounted(async () => {
   color: var(--text-muted);
   opacity: 0.6;
   pointer-events: none;
-  font-family: var(--font-ui);
+  font-family: var(--font-num);
   font-variant-numeric: tabular-nums;
   z-index: 10;
 }

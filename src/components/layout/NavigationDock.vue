@@ -7,7 +7,7 @@
 
     <div class="dock-items">
       <router-link
-        v-for="item in navItems"
+        v-for="item in mainItems"
         :key="item.path"
         :to="item.path"
         class="dock-item"
@@ -20,6 +20,17 @@
     </div>
 
     <div class="dock-bottom">
+      <router-link
+        v-for="item in bottomItems"
+        :key="item.path"
+        :to="item.path"
+        class="dock-item"
+        :class="{ active: route.path === item.path }"
+      >
+        <div class="dock-item-indicator" />
+        <Icon :icon="item.icon" :width="20" class="dock-item-icon" />
+        <span class="dock-item-label">{{ item.label[lang] }}</span>
+      </router-link>
       <button class="dock-item dark-toggle" @click="settingsStore.toggleDarkMode()">
         <Icon :icon="settingsStore.darkMode ? 'fluent:weather-moon-24-regular' : 'fluent:weather-sunny-24-regular'" :width="20" class="dock-item-icon" />
         <span class="dock-item-label">{{ settingsStore.darkMode ? '深色' : '浅色' }}</span>
@@ -36,15 +47,17 @@ import { useSettingsStore } from '../../stores/settings'
 
 const route = useRoute()
 const settingsStore = useSettingsStore()
-
 const lang = computed(() => settingsStore.settings.englishMode ? 'en' : 'zh')
 
-const navItems = [
+const mainItems = [
   { path: '/roller', icon: 'fluent:flash-24-regular', label: { zh: '随机点名', en: 'Roller' } },
   { path: '/card', icon: 'fluent:playing-cards-24-regular', label: { zh: '翻牌点名', en: 'Card Mode' } },
   { path: '/statistics', icon: 'fluent:chart-multiple-24-regular', label: { zh: '统计', en: 'Statistics' } },
   { path: '/records', icon: 'fluent:clipboard-text-24-regular', label: { zh: '抽取记录', en: 'Records' } },
-  { path: '/lists', icon: 'fluent:people-list-24-regular', label: { zh: '名单管理', en: 'Lists' } },
+  { path: '/lists', icon: 'fluent:people-list-24-regular', label: { zh: '名单管理', en: 'Lists' } }
+]
+
+const bottomItems = [
   { path: '/settings', icon: 'fluent:settings-24-regular', label: { zh: '设置', en: 'Settings' } },
   { path: '/about', icon: 'fluent:info-24-regular', label: { zh: '关于', en: 'About' } }
 ]
@@ -73,9 +86,7 @@ const navItems = [
   padding: 20px 0 16px;
 }
 
-.dock-logo-icon {
-  color: var(--accent);
-}
+.dock-logo-icon { color: var(--accent); }
 
 .dock-logo-text {
   font-size: 13px;
@@ -110,19 +121,9 @@ const navItems = [
   font-family: var(--font-ui);
 }
 
-.dock-item:hover {
-  background: var(--bg-hover);
-  color: var(--text-primary);
-}
-
-.dock-item.active {
-  background: var(--accent-50);
-  color: var(--accent);
-}
-
-.dark .dock-item.active {
-  background: rgba(234, 94, 193, 0.12);
-}
+.dock-item:hover { background: var(--bg-hover); color: var(--text-primary); }
+.dock-item.active { background: var(--accent-50); color: var(--accent); }
+.dark .dock-item.active { background: rgba(234, 94, 193, 0.15); }
 
 .dock-item-indicator {
   position: absolute;
@@ -136,23 +137,16 @@ const navItems = [
   transition: height var(--duration-normal) var(--ease-standard);
 }
 
-.dock-item.active .dock-item-indicator {
-  height: 16px;
-}
-
-.dock-item-icon {
-  flex-shrink: 0;
-}
-
-.dock-item-label {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
+.dock-item.active .dock-item-indicator { height: 16px; }
+.dock-item-icon { flex-shrink: 0; }
+.dock-item-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .dock-bottom {
   padding: 8px;
   border-top: 1px solid var(--border-subtle);
   margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 </style>
