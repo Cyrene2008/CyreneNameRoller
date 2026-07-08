@@ -1,12 +1,13 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
+import { dataBridge } from '../utils/dataBridge'
 
 export const useRecordsStore = defineStore('records', () => {
   const records = ref([])
   const isLoaded = ref(false)
 
   async function initialize() {
-    const saved = await window.electronAPI.loadData('records')
+    const saved = await dataBridge.load('records')
     if (saved && Array.isArray(saved)) {
       records.value = saved
     }
@@ -14,7 +15,7 @@ export const useRecordsStore = defineStore('records', () => {
   }
 
   async function save() {
-    await window.electronAPI.saveData('records', records.value)
+    await dataBridge.save('records', records.value)
   }
 
   function addRecord({ cn, en, listName, source }) {

@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref } from 'vue'
+import { dataBridge } from '../utils/dataBridge'
 
 const DEFAULT_SETTINGS = {
   recordCounts: true,
@@ -22,7 +23,7 @@ export const useSettingsStore = defineStore('settings', () => {
   const darkMode = ref(false)
 
   async function initialize() {
-    const saved = await window.electronAPI.loadData('settings')
+    const saved = await dataBridge.load('settings')
     if (saved) {
       settings.value = { ...DEFAULT_SETTINGS, ...saved }
     }
@@ -32,7 +33,7 @@ export const useSettingsStore = defineStore('settings', () => {
   }
 
   async function save() {
-    await window.electronAPI.saveData('settings', settings.value)
+    await dataBridge.save('settings', settings.value)
   }
 
   function update(key, value) {

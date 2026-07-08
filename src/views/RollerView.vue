@@ -88,6 +88,7 @@ import { useSettingsStore } from '../stores/settings'
 import { useStatisticsStore } from '../stores/statistics'
 import { t } from '../utils/i18n'
 import { useRecordsStore } from '../stores/records'
+import { dataBridge } from '../utils/dataBridge'
 import { pickUniform, pickBalanced } from '../utils/balance'
 import FluentButton from '../components/FluentButton.vue'
 import FluentIcon from '../components/FluentIcon.vue'
@@ -123,7 +124,7 @@ const balanceSettings = ref({
 })
 
 onMounted(async () => {
-  const saved = await window.electronAPI.loadData('balance')
+  const saved = await dataBridge.load('balance')
   if (saved) balanceSettings.value = { ...balanceSettings.value, ...saved }
 })
 
@@ -368,7 +369,8 @@ onBeforeUnmount(() => { if (intervalId) clearTimeout(intervalId) })
 }
 
 .start-btn {
-  min-width: 200px;
+  min-width: 260px;
   font-size: 16px;
+  min-height: 48px;
 }
 </style>

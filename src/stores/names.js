@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { dataBridge } from '../utils/dataBridge'
 
 const DEFAULT_LIST_ID = 'default'
 
@@ -31,9 +32,9 @@ export const useNamesStore = defineStore('names', () => {
   }
 
   async function initialize() {
-    const savedLists = await window.electronAPI.loadData('lists')
-    const savedCurrentId = await window.electronAPI.loadData('currentListId')
-    const namesJson = await window.electronAPI.loadNames()
+    const savedLists = await dataBridge.load('lists')
+    const savedCurrentId = await dataBridge.load('currentListId')
+    const namesJson = await dataBridge.loadNames()
 
     defaultNamesData.value = namesJson || { names: [], whiteList: [{ cn: '再来一次', en: 'Again!' }] }
 
@@ -58,8 +59,8 @@ export const useNamesStore = defineStore('names', () => {
   }
 
   async function save() {
-    await window.electronAPI.saveData('lists', nameLists.value)
-    await window.electronAPI.saveData('currentListId', currentListId.value)
+    await dataBridge.save('lists', nameLists.value)
+    await dataBridge.save('currentListId', currentListId.value)
   }
 
   function switchList(id) {

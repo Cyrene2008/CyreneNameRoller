@@ -160,6 +160,7 @@ import { useNamesStore } from '../stores/names'
 import { useSettingsStore } from '../stores/settings'
 import { useRecordsStore } from '../stores/records'
 import { useStatisticsStore } from '../stores/statistics'
+import { dataBridge } from '../utils/dataBridge'
 import { t } from '../utils/i18n'
 import { DEFAULT_BALANCE_SETTINGS, normalizeSettings, interpolateQuadratic } from '../utils/balance'
 import FluentCard from '../components/FluentCard.vue'
@@ -221,16 +222,14 @@ async function sha256(str) {
 }
 
 async function loadPasswordHash() {
-  try {
-    const stored = await window.electronAPI.loadData('password')
-    if (stored && stored.hash) { hasPassword.value = true; return stored.hash }
-  } catch {}
+  const stored = await dataBridge.load('password')
+  if (stored && stored.hash) { hasPassword.value = true; return stored.hash }
   hasPassword.value = false
   return null
 }
 
 async function savePasswordHash(hash) {
-  try { await window.electronAPI.saveData('password', { hash }) } catch {}
+  await dataBridge.save('password', { hash })
   hasPassword.value = true
 }
 
@@ -243,6 +242,7 @@ function openPasswordModal() {
 
 async function confirmPassword() {
   pwError.value = ''
+
   if (pwModalMode.value === 'set') {
     if (!pwInput.value || pwInput.value.length < 1) { pwError.value = lang.value === 'en' ? 'Password required' : '请输入密码'; return }
     const hash = await sha256(pwInput.value)
@@ -252,6 +252,19 @@ async function confirmPassword() {
     if (pendingAction.value) { executePending(); pendingAction.value = null }
     return
   }
+
+  if (pwModalMode.value === 'change') {
+    const storedHash = await loadPasswordHash()
+    if (storedHash) {
+      const inputHash = await sha256(pwInput.value)
+      if (inputHash !== storedHash) { pwError.value = lang.value === 'en' ? 'Wrong password' : '密码错误'; return }
+    }
+    pwModalMode.value = 'set'
+    pwInput.value = ''
+    pwError.value = ''
+    return
+  }
+
   const storedHash = await loadPasswordHash()
   if (!storedHash) { showPwModal.value = false; executePending(); return }
   const inputHash = await sha256(pwInput.value)
@@ -283,28 +296,28 @@ function doClearRecords() { requirePassword('clearRecords') }
 function doClearAll() { requirePassword('clearAll') }
 
 async function doExportNow() {
-  const result = await window.electronAPI.exportData()
+  const result = await dataBridge.exportData()
   if (result.success) alert(lang.value === 'en' ? 'Exported successfully' : '导出成功')
 }
 
 async function confirmImport() {
   showImportWarning.value = false
-  const result = await window.electronAPI.importData()
+  const result = await dataBridge.importData()
   if (result.success) alert(lang.value === 'en' ? 'Imported. Please restart.' : '导入成功，请重启应用。')
 }
 
 async function doClearAllNow() {
-  await window.electronAPI.saveData('lists', {})
-  await window.electronAPI.saveData('statistics', { counts: {}, totalCount: 0 })
-  await window.electronAPI.saveData('records', [])
-  await window.electronAPI.saveData('settings', {})
+  await dataBridge.save('lists', {})
+  await dataBridge.save('statistics', { counts: {}, totalCount: 0 })
+  await dataBridge.save('records', [])
+  await dataBridge.save('settings', {})
   alert(lang.value === 'en' ? 'All data cleared. Please restart.' : '所有数据已清除，请重启应用。')
 }
 
 async function saveBalance() {
   const normalized = normalizeSettings(balance.value)
   balance.value = normalized
-  await window.electronAPI.saveData('balance', normalized)
+  await dataBridge.save('balance', normalized)
   renderBalanceCurve()
 }
 
@@ -384,9 +397,9 @@ function renderBalanceCurve() {
 
 onMounted(async () => {
   await loadPasswordHash()
-  const saved = await window.electronAPI.loadData('balance')
+  const saved = await dataBridge.load('balance')
   if (saved) balance.value = normalizeSettings(saved)
-  const logs = await window.electronAPI.loadChangelog()
+  const logs = await dataBridge.loadChangelog()
   changelog.value = logs || []
   await nextTick()
   setTimeout(() => { renderBalanceCurve() }, 100)

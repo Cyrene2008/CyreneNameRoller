@@ -124,20 +124,11 @@ function addPerson() {
 async function exportList() {
   const list = namesStore.currentList
   const data = JSON.stringify(list, null, 2)
-  try {
-    await window.electronAPI.saveData(`list_export_${list.id}`, list)
-    const blob = new Blob([data], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url; a.download = `${list.name}.json`; a.click()
-    URL.revokeObjectURL(url)
-  } catch {
-    const blob = new Blob([data], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url; a.download = `${list.name}.json`; a.click()
-    URL.revokeObjectURL(url)
-  }
+  const blob = new Blob([data], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url; a.download = `${list.name}.json`; a.click()
+  URL.revokeObjectURL(url)
 }
 
 async function importList() {

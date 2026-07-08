@@ -1,14 +1,20 @@
 export function isElectron() {
-  return typeof window !== 'undefined' && window.electronAPI !== undefined
+  return typeof window !== 'undefined' && !!window.electronAPI
 }
 
 export const dataBridge = {
   async load(key) {
     if (isElectron()) {
-      return await window.electronAPI.loadData(key)
+      try {
+        const result = await window.electronAPI.loadData(key)
+        if (result !== null && result !== undefined) {
+          localStorage.setItem(`db_${key}`, JSON.stringify(result))
+          return result
+        }
+      } catch {}
     }
     try {
-      const raw = localStorage.getItem(key)
+      const raw = localStorage.getItem(`db_${key}`)
       return raw ? JSON.parse(raw) : null
     } catch {
       return null
@@ -16,20 +22,16 @@ export const dataBridge = {
   },
 
   async save(key, data) {
+    try { localStorage.setItem(`db_${key}`, JSON.stringify(data)) } catch {}
     if (isElectron()) {
-      return await window.electronAPI.saveData(key, data)
+      try { await window.electronAPI.saveData(key, data) } catch {}
     }
-    try {
-      localStorage.setItem(key, JSON.stringify(data))
-      return true
-    } catch {
-      return false
-    }
+    return true
   },
 
   async loadNames() {
     if (isElectron()) {
-      return await window.electronAPI.loadNames()
+      try { return await window.electronAPI.loadNames() } catch {}
     }
     try {
       const res = await fetch('./names.json')
@@ -41,7 +43,7 @@ export const dataBridge = {
 
   async loadChangelog() {
     if (isElectron()) {
-      return await window.electronAPI.loadChangelog()
+      try { return await window.electronAPI.loadChangelog() } catch {}
     }
     try {
       const res = await fetch('./up.json')
@@ -53,15 +55,45 @@ export const dataBridge = {
 
   async exportData() {
     if (isElectron()) {
-      return await window.electronAPI.exportData()
+      try { return await window.electronAPI.exportData() } catch {}
     }
-    return { success: false, error: 'Not in Electron' }
+    const allData = {}
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i)
+      if (key.startsWith('db_')) {
+        try { allData[key.replace('db_', '')] = JSON.parse(localStorage.getItem(key)) } catch {}
+      }
+    }
+    const blob = new Blob([JSON.stringify(allData, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = 'cyrene-data.cyrene'; a.click()
+    URL.revokeObjectURL(url)
+    return { success: true }
   },
 
   async importData() {
     if (isElectron()) {
-      return await window.electronAPI.importData()
+      try { return await window.electronAPI.importData() } catch {}
     }
-    return { success: false, error: 'Not in Electron' }
+    return new Promise((resolve) => {
+      const input = document.createElement('input')
+      input.type = 'file'; input.accept = '.cyrene,.json'
+      input.onchange = async (e) => {
+        const file = e.target.files[0]
+        if (!file) { resolve({ success: false, cancelled: true }); return }
+        try {
+          const text = await file.text()
+          const data = JSON.parse(text)
+          for (const [key, value] of Object.entries(data)) {
+            localStorage.setItem(`db_${key}`, JSON.stringify(value))
+          }
+          resolve({ success: true })
+        } catch {
+          resolve({ success: false, error: 'Parse error' })
+        }
+      }
+      input.click()
+    })
   }
 }

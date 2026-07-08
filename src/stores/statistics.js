@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref } from 'vue'
+import { dataBridge } from '../utils/dataBridge'
 
 export const useStatisticsStore = defineStore('statistics', () => {
   const counts = ref({})
@@ -7,7 +8,7 @@ export const useStatisticsStore = defineStore('statistics', () => {
   const isLoaded = ref(false)
 
   async function initialize() {
-    const saved = await window.electronAPI.loadData('statistics')
+    const saved = await dataBridge.load('statistics')
     if (saved) {
       counts.value = saved.counts || {}
       totalCount.value = saved.totalCount || 0
@@ -16,7 +17,7 @@ export const useStatisticsStore = defineStore('statistics', () => {
   }
 
   async function save() {
-    await window.electronAPI.saveData('statistics', {
+    await dataBridge.save('statistics', {
       counts: counts.value,
       totalCount: totalCount.value
     })
