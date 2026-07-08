@@ -1,13 +1,58 @@
 <template>
   <div class="about-view">
-    <h1>{{ lang === 'en' ? 'About' : '关于' }}</h1>
-    <p>{{ lang === 'en' ? 'About page - Coming soon' : '关于页 - 开发中' }}</p>
+    <h1 class="page-title">
+      <FluentIcon icon="info-24-regular" :width="28" />
+      {{ t('about', lang) }}
+    </h1>
+
+    <FluentCard class="about-card">
+      <div class="about-logo">
+        <img src="/cyrene256.png" alt="CyreneNameRoller" class="logo-img" />
+      </div>
+
+      <h2 class="app-name">CyreneNameRoller</h2>
+      <p class="app-version">v3.0.0</p>
+      <p class="app-desc">{{ lang === 'en' ? 'A random name picker with Fluent Design' : '一个采用 Fluent Design 的随机点名器' }}</p>
+
+      <div class="about-divider" />
+
+      <div class="about-section">
+        <h3>{{ lang === 'en' ? 'Author' : '作者' }}</h3>
+        <p>Cyrene</p>
+        <a href="https://昔涟.cn" target="_blank">昔涟.cn</a>
+      </div>
+
+      <div class="about-section">
+        <h3>{{ lang === 'en' ? 'License' : '许可证' }}</h3>
+        <p>GNU General Public License v3.0</p>
+        <p class="license-note">
+          {{ lang === 'en'
+            ? 'This is free software: you are free to change and redistribute it.'
+            : '这是自由软件：你可以自由修改和分发它。' }}
+        </p>
+      </div>
+
+      <div class="about-section">
+        <h3>{{ lang === 'en' ? 'Copyright' : '版权声明' }}</h3>
+        <p>Copyright &copy; 2025-2026 <a href="https://昔涟.cn" target="_blank">昔涟.cn</a> by Cyrene, All Rights Reserved.</p>
+      </div>
+
+      <div class="about-section">
+        <p class="icp-link">
+          <a href="https://icp.gov.moe/?keyword=20260093" target="_blank" rel="noopener">萌ICP备20260093号</a>
+        </p>
+      </div>
+    </FluentCard>
   </div>
 </template>
 
 <script setup>
 import { computed } from 'vue'
 import { useSettingsStore } from '../stores/settings'
+import { t } from '../utils/i18n'
+import FluentCard from '../components/FluentCard.vue'
+import FluentIcon from '../components/FluentIcon.vue'
+
 const settingsStore = useSettingsStore()
 const lang = computed(() => settingsStore.settings.englishMode ? 'en' : 'zh')
 </script>
@@ -15,12 +60,98 @@ const lang = computed(() => settingsStore.settings.englishMode ? 'en' : 'zh')
 <style scoped>
 .about-view {
   padding: 32px;
+  max-width: 500px;
 }
-h1 {
+
+.page-title {
   font-family: var(--font-display);
-  font-size: 28px;
+  font-size: 24px;
   font-weight: 700;
   color: var(--text-primary);
-  margin-bottom: 12px;
+  margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.about-card {
+  text-align: center;
+}
+
+.about-logo {
+  margin-bottom: 16px;
+}
+
+.logo-img {
+  width: 80px;
+  height: 80px;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-4);
+}
+
+.app-name {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+.app-version {
+  font-size: 14px;
+  color: var(--accent);
+  margin-bottom: 8px;
+}
+
+.app-desc {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin-bottom: 16px;
+}
+
+.about-divider {
+  height: 1px;
+  background: var(--border-default);
+  margin: 20px 0;
+}
+
+.about-section {
+  margin-bottom: 16px;
+  text-align: center;
+}
+
+.about-section h3 {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+}
+
+.about-section p {
+  font-size: 14px;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+.about-section a {
+  color: var(--accent);
+  font-size: 14px;
+}
+
+.license-note {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+.icp-link {
+  margin-top: 8px;
+}
+
+.icp-link a {
+  font-size: 12px;
+  color: var(--text-muted);
 }
 </style>

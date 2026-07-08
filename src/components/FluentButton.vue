@@ -1,6 +1,6 @@
 <template>
   <button
-    :class="['fluent-btn', variant, size, { icon-only: iconOnly, disabled: disabled }]"
+    :class="['fluent-btn', variant, size, { 'icon-only': iconOnly, disabled: disabled }]"
     :disabled="disabled"
     @click="$emit('click', $event)"
   >
