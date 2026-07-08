@@ -18,6 +18,27 @@
       </div>
     </FluentCard>
 
+    <!-- 显示设置 -->
+    <FluentCard class="settings-section">
+      <h3 class="section-title"><FluentIcon icon="desktop-24-regular" :width="20" /> {{ lang === 'en' ? 'Display' : '显示设置' }}</h3>
+      <div class="setting-row">
+        <span class="setting-label">{{ t('uiScale', lang) }}</span>
+        <FluentSelect
+          :model-value="settings.uiScale"
+          :options="uiScaleOptions"
+          @update:model-value="update('uiScale', $event)"
+        />
+      </div>
+      <div class="setting-row">
+        <span class="setting-label">{{ t('fontSize', lang) }}</span>
+        <FluentSelect
+          :model-value="settings.nameFontSize"
+          :options="fontSizeOptions"
+          @update:model-value="update('nameFontSize', $event)"
+        />
+      </div>
+    </FluentCard>
+
     <!-- 平衡算法 -->
     <FluentCard class="settings-section">
       <h3 class="section-title"><FluentIcon icon="data-line-24-regular" :width="20" /> {{ t('balanceSettings', lang) }}</h3>
@@ -133,6 +154,7 @@ import FluentIcon from '../components/FluentIcon.vue'
 import FluentToggle from '../components/FluentToggle.vue'
 import FluentInput from '../components/FluentInput.vue'
 import FluentModal from '../components/FluentModal.vue'
+import FluentSelect from '../components/FluentSelect.vue'
 
 const settingsStore = useSettingsStore()
 const namesStore = useNamesStore()
@@ -140,6 +162,24 @@ const recordsStore = useRecordsStore()
 
 const lang = computed(() => settingsStore.settings.englishMode ? 'en' : 'zh')
 const settings = computed(() => settingsStore.settings)
+
+const uiScaleOptions = [
+  { value: 75, label: '75%' },
+  { value: 100, label: '100%' },
+  { value: 125, label: '125%' },
+  { value: 150, label: '150%' },
+  { value: 175, label: '175%' },
+  { value: 200, label: '200%' }
+]
+
+const fontSizeOptions = [
+  { value: 0.75, label: '0.75x' },
+  { value: 1.0, label: '1.0x' },
+  { value: 1.25, label: '1.25x' },
+  { value: 1.5, label: '1.5x' },
+  { value: 1.75, label: '1.75x' },
+  { value: 2.0, label: '2.0x' }
+]
 
 const balance = ref(JSON.parse(JSON.stringify(DEFAULT_BALANCE_SETTINGS)))
 const changelog = ref([])

@@ -43,6 +43,9 @@
 
   --dock-width: 220px;
   --titlebar-height: 32px;
+
+  --ui-scale: 1;
+  --name-font-factor: 1;
 }
 
 .dark {

@@ -2,7 +2,6 @@
   <div class="roller-view">
     <h1 class="roller-title">{{ lang === 'en' ? 'Name Roller' : '随机点名' }}</h1>
 
-    <!-- 名字显示区域 -->
     <div class="display-container">
       <div
         v-for="(display, i) in nameDisplays"
@@ -19,17 +18,7 @@
       </div>
     </div>
 
-    <!-- 控制区 - 右下角 -->
     <div class="controls">
-      <div class="list-selector-bar">
-        <span class="selector-label">{{ t('currentList', lang) }}</span>
-        <FluentSelect
-          :model-value="namesStore.currentListId"
-          :options="listOptions"
-          @update:model-value="namesStore.switchList"
-        />
-      </div>
-
       <div class="switches">
         <FluentToggle
           v-model="settings.englishMode"
@@ -66,6 +55,15 @@
             <FluentIcon icon="add-16-regular" :width="14" />
           </FluentButton>
         </div>
+      </div>
+
+      <div class="list-selector-bar">
+        <span class="selector-label">{{ t('currentList', lang) }}</span>
+        <FluentSelect
+          :model-value="namesStore.currentListId"
+          :options="listOptions"
+          @update:model-value="namesStore.switchList"
+        />
       </div>
 
       <div class="start-row">
@@ -236,7 +234,7 @@ onBeforeUnmount(() => { if (intervalId) clearTimeout(intervalId) })
 }
 
 .roller-title {
-  font-family: var(--font-display);
+  font-family: 'HarmonyOS Sans SC', var(--font-display);
   font-size: 28px;
   font-weight: 700;
   color: var(--text-primary);
@@ -254,8 +252,8 @@ onBeforeUnmount(() => { if (intervalId) clearTimeout(intervalId) })
 }
 
 .name-display {
-  font-family: var(--font-display);
-  font-size: 52px;
+  font-family: 'Wengfaluosi', 'HarmonyOS Sans SC', var(--font-display);
+  font-size: calc(52px * var(--name-font-factor, 1));
   font-weight: 700;
   color: var(--text-primary);
   min-width: 120px;
@@ -312,34 +310,17 @@ onBeforeUnmount(() => { if (intervalId) clearTimeout(intervalId) })
   right: 24px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
   align-items: flex-end;
   z-index: 10;
-}
-
-.list-selector-bar {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  background: var(--bg-card);
-  backdrop-filter: blur(20px);
-  padding: 8px 16px;
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--border-default);
-  box-shadow: var(--shadow-4);
-}
-
-.selector-label {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-secondary);
-  white-space: nowrap;
+  transform: scale(var(--ui-scale, 1));
+  transform-origin: bottom right;
 }
 
 .switches {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
   align-items: flex-end;
 }
 
@@ -360,9 +341,30 @@ onBeforeUnmount(() => { if (intervalId) clearTimeout(intervalId) })
   gap: 8px;
 }
 
+.list-selector-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--bg-card);
+  backdrop-filter: blur(20px);
+  padding: 8px 16px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-default);
+  box-shadow: var(--shadow-4);
+  align-self: stretch;
+}
+
+.selector-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
 .start-row {
   display: flex;
   justify-content: flex-end;
+  align-self: stretch;
 }
 
 .start-btn {

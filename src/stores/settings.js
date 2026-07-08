@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 
 const DEFAULT_SETTINGS = {
   recordCounts: true,
@@ -11,7 +11,9 @@ const DEFAULT_SETTINGS = {
   theme: 'default',
   particles: true,
   blur: true,
-  animSpeed: 1
+  animSpeed: 1,
+  uiScale: 100,
+  nameFontSize: 1.0
 }
 
 export const useSettingsStore = defineStore('settings', () => {
@@ -25,6 +27,8 @@ export const useSettingsStore = defineStore('settings', () => {
       settings.value = { ...DEFAULT_SETTINGS, ...saved }
     }
     isLoaded.value = true
+    applyUIScale()
+    applyNameFontSize()
   }
 
   async function save() {
@@ -34,10 +38,22 @@ export const useSettingsStore = defineStore('settings', () => {
   function update(key, value) {
     settings.value[key] = value
     save()
+    if (key === 'uiScale') applyUIScale()
+    if (key === 'nameFontSize') applyNameFontSize()
   }
 
   function toggleDarkMode() {
     darkMode.value = !darkMode.value
+  }
+
+  function applyUIScale() {
+    const scale = (settings.value.uiScale || 100) / 100
+    document.documentElement.style.setProperty('--ui-scale', scale)
+  }
+
+  function applyNameFontSize() {
+    const factor = settings.value.nameFontSize || 1.0
+    document.documentElement.style.setProperty('--name-font-factor', factor)
   }
 
   return {

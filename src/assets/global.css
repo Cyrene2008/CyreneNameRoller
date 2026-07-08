@@ -1,3 +1,5 @@
+@import './fonts.css';
+
 *,
 *::before,
 *::after {
@@ -12,7 +14,7 @@ html, body {
 }
 
 body {
-  font-family: var(--font-ui);
+  font-family: 'HarmonyOS Sans SC', 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
   background: var(--bg-base);
   color: var(--text-primary);
   line-height: 1.5;
@@ -44,7 +46,7 @@ body {
 }
 
 input, button, select, textarea {
-  font-family: var(--font-ui);
+  font-family: 'HarmonyOS Sans SC', 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
   font-size: 14px;
 }
 
@@ -55,4 +57,8 @@ a {
 
 a:hover {
   color: var(--accent-dark);
+}
+
+.num {
+  font-family: 'Wengfaluosi', 'HarmonyOS Sans SC', sans-serif;
 }
