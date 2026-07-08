@@ -1,0 +1,57 @@
+{
+  "name": "cyrene-name-roller",
+  "version": "3.0.0",
+  "description": "Cyrene's Name Roller - Fluent Design Desktop App",
+  "main": "electron/main.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "electron:dev": "concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",
+    "electron:build": "vite build && electron-builder",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "vue": "^3.5.17",
+    "vue-router": "^4.5.1",
+    "pinia": "^3.0.3",
+    "@iconify/vue": "^4.3.0",
+    "@iconify-json/fluent": "^1.2.10"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.2.4",
+    "vite": "^6.3.5",
+    "electron": "^35.5.0",
+    "electron-builder": "^26.0.12",
+    "concurrently": "^9.2.0",
+    "wait-on": "^8.0.3",
+    "sass": "^1.89.2"
+  },
+  "build": {
+    "appId": "cn.xilian.cyrene-name-roller",
+    "productName": "CyreneNameRoller",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**",
+      "electron/**"
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "public/cyrene256.png"
+    },
+    "mac": {
+      "target": [
+        "dmg"
+      ],
+      "icon": "public/cyrene256.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  },
+  "license": "GPL-3.0"
+}
