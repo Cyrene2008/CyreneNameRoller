@@ -9,6 +9,7 @@ const DEFAULT_SETTINGS = {
   multiMode: false,
   peopleCount: 2,
   allowDuplicates: false,
+  forbidDuplicates: false,
   theme: 'default',
   particles: true,
   blur: true,

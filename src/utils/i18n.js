@@ -4,7 +4,7 @@ const translations = {
     h1: '点名器',
     multiMode: '多人模式',
     peopleCount: '人数',
-    allowDuplicates: '减少重复',
+    allowDuplicates: '禁止重复',
     start: '开始',
     stop: '停止',
     settings: '设置',

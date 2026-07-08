@@ -12,13 +12,15 @@
       </main>
     </div>
     <div class="version-badge">v26.0.0 build:{{ buildHash }}</div>
+    <FluentToast ref="globalToast" />
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted, watch, provide } from 'vue'
 import TitleBar from './TitleBar.vue'
 import NavigationDock from './NavigationDock.vue'
+import FluentToast from '../FluentToast.vue'
 import { useSettingsStore } from '../../stores/settings'
 import { useNamesStore } from '../../stores/names'
 import { useStatisticsStore } from '../../stores/statistics'
@@ -30,6 +32,9 @@ const statisticsStore = useStatisticsStore()
 const recordsStore = useRecordsStore()
 
 const buildHash = ref(Date.now().toString(36).toUpperCase())
+const globalToast = ref(null)
+
+provide('toast', globalToast)
 
 onMounted(async () => {
   await settingsStore.initialize()

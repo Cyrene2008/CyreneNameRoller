@@ -7,11 +7,7 @@
         v-for="(display, i) in nameDisplays"
         :key="i"
         class="name-display"
-        :class="{
-          rainbow: settings.rainbowNames,
-          final: display.animating,
-          entering: display.entering
-        }"
+        :class="{ rainbow: settings.rainbowNames, final: display.animating, entering: display.entering }"
         :style="{ opacity: display.opacity }"
       >
         {{ display.text }}
@@ -22,17 +18,21 @@
       <div class="switches">
         <FluentToggle v-model="settings.englishMode" :label="t('englishMode', lang)" @update:model-value="saveSetting('englishMode', $event)" />
         <FluentToggle v-model="settings.multiMode" :label="t('multiMode', lang)" @update:model-value="onMultiModeChange" />
-        <FluentToggle v-model="settings.allowDuplicates" :label="t('allowDuplicates', lang)" @update:model-value="saveSetting('allowDuplicates', $event)" />
+        <Transition name="toggle-expand">
+          <FluentToggle v-if="settings.multiMode" v-model="settings.forbidDuplicates" :label="t('allowDuplicates', lang)" @update:model-value="onForbidDuplicatesChange" />
+        </Transition>
       </div>
 
-      <div v-if="settings.multiMode" class="multi-settings">
-        <span class="setting-label">{{ t('peopleCount', lang) }}</span>
-        <div class="count-control">
-          <FluentButton variant="secondary" size="sm" @click="changeCount(-1)"><FluentIcon icon="subtract-16-regular" :width="14" /></FluentButton>
-          <FluentInput v-model="settings.peopleCount" type="number" :min="2" :max="20" style="width: 60px; text-align: center;" @update:model-value="onPeopleCountChange" />
-          <FluentButton variant="secondary" size="sm" @click="changeCount(1)"><FluentIcon icon="add-16-regular" :width="14" /></FluentButton>
+      <Transition name="toggle-expand">
+        <div v-if="settings.multiMode" class="multi-settings">
+          <span class="setting-label">{{ t('peopleCount', lang) }}</span>
+          <div class="count-control">
+            <FluentButton variant="secondary" size="sm" @click="changeCount(-1)"><FluentIcon icon="subtract-16-regular" :width="14" /></FluentButton>
+            <FluentInput v-model="settings.peopleCount" type="number" :min="2" :max="maxPeopleCount" style="width: 60px; text-align: center;" @update:model-value="onPeopleCountChange" />
+            <FluentButton variant="secondary" size="sm" @click="changeCount(1)"><FluentIcon icon="add-16-regular" :width="14" /></FluentButton>
+          </div>
         </div>
-      </div>
+      </Transition>
 
       <div class="list-selector-bar">
         <span class="selector-label">{{ t('currentList', lang) }}</span>
@@ -40,7 +40,7 @@
       </div>
 
       <div class="start-row">
-        <FluentButton :variant="isRunning ? 'danger' : 'primary'" size="lg" class="start-btn" @click="toggleRoll">
+        <FluentButton :variant="isRunning ? 'danger' : 'primary'" size="lg" class="start-btn" :disabled="!canStart" @click="toggleRoll">
           <FluentIcon :icon="isRunning ? 'stop-24-filled' : 'play-24-filled'" :width="18" />
           {{ isRunning ? t('stop', lang) : t('start', lang) }}
         </FluentButton>
@@ -73,6 +73,18 @@ const lang = computed(() => settingsStore.settings.englishMode ? 'en' : 'zh')
 const settings = computed(() => settingsStore.settings)
 const listOptions = computed(() => namesStore.allLists.map(l => ({ value: l.id, label: l.name })))
 
+const nonWhiteListCount = computed(() => {
+  return namesStore.currentNames.filter(n => !namesStore.isWhiteList(n.cn) && n.cn !== '再来一次').length
+})
+
+const maxPeopleCount = computed(() => Math.max(2, nonWhiteListCount.value))
+
+const canStart = computed(() => {
+  if (nonWhiteListCount.value < 2) return false
+  if (settings.value.multiMode && (settings.value.peopleCount || 2) > nonWhiteListCount.value) return false
+  return true
+})
+
 const nameDisplays = reactive([])
 const isRunning = ref(false)
 const lastPickedNames = ref([])
@@ -101,17 +113,28 @@ function saveSetting(key, value) { settingsStore.update(key, value) }
 
 function onMultiModeChange(val) {
   settingsStore.update('multiMode', val)
-  initializeDisplays(val ? (settings.value.peopleCount || 2) : 1)
+  if (!val) {
+    settingsStore.update('forbidDuplicates', false)
+    initializeDisplays(1)
+  } else {
+    const count = Math.min(settings.value.peopleCount || 2, maxPeopleCount.value)
+    settingsStore.update('peopleCount', count)
+    initializeDisplays(count)
+  }
+}
+
+function onForbidDuplicatesChange(val) {
+  settingsStore.update('forbidDuplicates', val)
 }
 
 function onPeopleCountChange(val) {
-  const count = Math.max(2, Math.min(20, parseInt(val) || 2))
+  const count = Math.max(2, Math.min(maxPeopleCount.value, parseInt(val) || 2))
   settingsStore.update('peopleCount', count)
   if (settings.value.multiMode) initializeDisplays(count)
 }
 
 function changeCount(delta) {
-  const count = Math.max(2, Math.min(20, (settings.value.peopleCount || 2) + delta))
+  const count = Math.max(2, Math.min(maxPeopleCount.value, (settings.value.peopleCount || 2) + delta))
   settingsStore.update('peopleCount', count)
   if (settings.value.multiMode) initializeDisplays(count)
 }
@@ -121,14 +144,20 @@ function emphasize(index) {
   setTimeout(() => { nameDisplays[index].animating = false }, 1200)
 }
 
-function doPick() {
+function doPick(excludeList = []) {
   const names = namesStore.currentNames
   const whiteList = namesStore.currentWhiteList
-  const countsMap = statisticsStore.counts
-  const allowDup = settings.value.allowDuplicates
-  const excludeList = lastPickedNames.value.filter(n => n)
-  if (settings.value.multiMode) return pickBalanced(names, whiteList, countsMap, balanceSettings.value, excludeList, allowDup)
-  if (balanceSettings.value.enabled) return pickBalanced(names, whiteList, countsMap, balanceSettings.value, [], true)
+  const forbidDup = settings.value.multiMode && settings.value.forbidDuplicates
+
+  if (forbidDup) {
+    return pickUniform(names, excludeList, false)
+  }
+  if (settings.value.multiMode) {
+    return pickBalanced(names, whiteList, statisticsStore.counts, balanceSettings.value, excludeList, true)
+  }
+  if (balanceSettings.value.enabled) {
+    return pickBalanced(names, whiteList, statisticsStore.counts, balanceSettings.value, [], true)
+  }
   return pickUniform(names, [], true)
 }
 
@@ -136,7 +165,7 @@ function animationLoop() {
   if (!isRunning.value) return
   const count = settings.value.multiMode ? (settings.value.peopleCount || 2) : 1
   for (let i = 0; i < count; i++) {
-    const pick = doPick()
+    const pick = doPick([])
     if (nameDisplays[i]) {
       nameDisplays[i].text = settings.value.englishMode && pick.en ? pick.en : pick.cn
       nameDisplays[i].opacity = 1
@@ -152,7 +181,7 @@ function toggleRoll() {
     finishRoll()
     return
   }
-  if (!namesStore.currentNames || namesStore.currentNames.length === 0) return
+  if (!canStart.value) return
   isRunning.value = true
   initializeDisplays(settings.value.multiMode ? (settings.value.peopleCount || 2) : 1)
   animationLoop()
@@ -162,14 +191,17 @@ function finishRoll() {
   const count = settings.value.multiMode ? (settings.value.peopleCount || 2) : 1
   const names = namesStore.currentNames
   const whiteList = namesStore.currentWhiteList
-  const countsMap = statisticsStore.counts
-  const allowDup = settings.value.allowDuplicates
+  const forbidDup = settings.value.multiMode && settings.value.forbidDuplicates
   lastPickedNames.value = []
+
   for (let i = 0; i < count; i++) {
     const excludeList = lastPickedNames.value.filter(n => n)
-    const pick = allowDup
-      ? (balanceSettings.value.enabled ? pickBalanced(names, whiteList, countsMap, balanceSettings.value, excludeList, true) : pickUniform(names, excludeList, true))
-      : (balanceSettings.value.enabled ? pickBalanced(names, whiteList, countsMap, balanceSettings.value, excludeList, false) : pickUniform(names, excludeList, false))
+    let pick
+    if (forbidDup) {
+      pick = pickUniform(names, excludeList, false)
+    } else {
+      pick = pickBalanced(names, whiteList, statisticsStore.counts, balanceSettings.value, excludeList, true)
+    }
     nameDisplays[i].text = settings.value.englishMode && pick.en ? pick.en : pick.cn
     nameDisplays[i].opacity = 1
     lastPickedNames.value.push(pick.cn)
@@ -187,147 +219,36 @@ onBeforeUnmount(() => { if (intervalId) clearTimeout(intervalId) })
 </script>
 
 <style scoped>
-.roller-view {
-  padding: 32px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  min-height: 100%;
-  position: relative;
-}
-
-.roller-title {
-  font-family: var(--font-display);
-  font-size: 28px;
-  font-weight: 700;
-  color: var(--text-primary);
-  margin-bottom: 32px;
-}
-
-.display-container {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  align-items: center;
-  gap: 32px;
-  margin-bottom: 32px;
-  min-height: 80px;
-}
+.roller-view { padding: 32px; display: flex; flex-direction: column; align-items: center; min-height: 100%; position: relative; }
+.roller-title { font-family: var(--font-display); font-size: 28px; font-weight: 700; color: var(--text-primary); margin-bottom: 32px; }
+.display-container { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 32px; margin-bottom: 32px; min-height: 80px; }
 
 .name-display {
   font-family: var(--font-display);
   font-size: calc(52px * var(--name-font-factor, 1));
-  font-weight: 700;
-  color: var(--text-primary);
-  min-width: 120px;
-  text-align: center;
-  white-space: nowrap;
-  overflow: hidden;
-  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-  text-shadow: 0 4px 20px rgba(234, 94, 193, 0.15);
-  position: relative;
+  font-weight: 700; color: var(--text-primary); min-width: 120px; text-align: center;
+  white-space: nowrap; overflow: hidden; transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  text-shadow: 0 4px 20px rgba(234, 94, 193, 0.15); position: relative;
 }
-
-.name-display::before {
-  content: '';
-  position: absolute;
-  inset: -4px;
-  background: var(--accent);
-  border-radius: var(--radius-sm);
-  z-index: -1;
-  opacity: 0;
-  transition: opacity 0.3s ease;
-}
-
-.name-display.rainbow {
-  background: linear-gradient(90deg, #E50012, #FF8C00, #FFEF00, #00811F, #0044FF, #760089, #E50012);
-  background-size: 400% 100%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  animation: rainbow-flow 5s linear infinite;
-  text-shadow: none;
-}
-
+.name-display::before { content: ''; position: absolute; inset: -4px; background: var(--accent); border-radius: var(--radius-sm); z-index: -1; opacity: 0; transition: opacity 0.3s ease; }
+.name-display.rainbow { background: linear-gradient(90deg, #E50012, #FF8C00, #FFEF00, #00811F, #0044FF, #760089, #E50012); background-size: 400% 100%; -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; animation: rainbow-flow 5s linear infinite; text-shadow: none; }
 @keyframes rainbow-flow { 0% { background-position: 0% 50%; } 100% { background-position: 400% 50%; } }
-
 .name-display.entering { animation: name-enter 0.8s cubic-bezier(0.34, 1.56, 0.64, 1); }
-@keyframes name-enter {
-  0% { transform: scale(0.3) rotate(-10deg); opacity: 0; filter: blur(10px); }
-  50% { transform: scale(1.1) rotate(2deg); filter: blur(0); }
-  100% { transform: scale(1) rotate(0deg); opacity: 1; filter: blur(0); }
-}
-
+@keyframes name-enter { 0% { transform: scale(0.3) rotate(-10deg); opacity: 0; filter: blur(10px); } 50% { transform: scale(1.1) rotate(2deg); filter: blur(0); } 100% { transform: scale(1) rotate(0deg); opacity: 1; filter: blur(0); } }
 .name-display.final { animation: final-reveal 0.5s cubic-bezier(0.1, 0.9, 0.2, 1); }
-@keyframes final-reveal {
-  0% { transform: scale(4); opacity: 0; filter: brightness(2); }
-  100% { transform: scale(1); filter: brightness(1); }
-}
+@keyframes final-reveal { 0% { transform: scale(4); opacity: 0; filter: brightness(2); } 100% { transform: scale(1); filter: brightness(1); } }
 
-.controls {
-  position: fixed;
-  bottom: 24px;
-  right: 24px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  align-items: flex-end;
-  z-index: 10;
-}
+.controls { position: fixed; bottom: 24px; right: 24px; display: flex; flex-direction: column; gap: 10px; align-items: flex-end; z-index: 10; }
+.switches { display: flex; flex-direction: column; gap: 6px; align-items: flex-end; }
+.multi-settings { display: flex; align-items: center; gap: 12px; }
+.setting-label { font-size: 14px; color: var(--text-secondary); }
+.count-control { display: flex; align-items: center; gap: 8px; }
+.list-selector-bar { display: flex; align-items: center; gap: 12px; background: var(--bg-card); backdrop-filter: blur(20px); padding: 8px 16px; border-radius: var(--radius-lg); border: 1px solid var(--border-default); box-shadow: var(--shadow-4); align-self: stretch; }
+.selector-label { font-size: 14px; font-weight: 600; color: var(--text-secondary); white-space: nowrap; }
+.start-row { display: flex; justify-content: flex-end; align-self: stretch; }
+.start-btn { min-width: 280px; font-size: 16px; min-height: 48px; }
 
-.switches {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  align-items: flex-end;
-}
-
-.multi-settings {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.setting-label {
-  font-size: 14px;
-  color: var(--text-secondary);
-}
-
-.count-control {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.list-selector-bar {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  background: var(--bg-card);
-  backdrop-filter: blur(20px);
-  padding: 8px 16px;
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--border-default);
-  box-shadow: var(--shadow-4);
-  align-self: stretch;
-}
-
-.selector-label {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-secondary);
-  white-space: nowrap;
-}
-
-.start-row {
-  display: flex;
-  justify-content: flex-end;
-  align-self: stretch;
-}
-
-.start-btn {
-  min-width: 280px;
-  font-size: 16px;
-  min-height: 48px;
-}
+.toggle-expand-enter-active { animation: toggle-in 0.25s cubic-bezier(0.1, 0.9, 0.2, 1); }
+.toggle-expand-leave-active { animation: toggle-in 0.15s ease-in reverse; }
+@keyframes toggle-in { from { opacity: 0; transform: translateY(-8px); max-height: 0; } to { opacity: 1; transform: translateY(0); max-height: 40px; } }
 </style>
