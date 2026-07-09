@@ -2,7 +2,7 @@
   <div class="app-layout" :class="{ dark: settingsStore.darkMode, 'perf-no-blur': !settingsStore.settings.perfBlur, 'perf-no-shadow': !settingsStore.settings.perfShadows, 'perf-no-anim': !settingsStore.settings.perfAnimations }" :style="{ fontSize: (14 * (settingsStore.settings.uiScale || 100) / 100) + 'px' }">
     <TitleBar />
     <div class="app-body">
-      <NavigationDock :build-hash="APP_BUILD" />
+      <NavigationDock />
       <main class="app-content">
         <router-view v-slot="{ Component, route }">
           <Transition :name="route.meta.transition || 'page-slide'" mode="out-in">
@@ -10,6 +10,11 @@
           </Transition>
         </router-view>
       </main>
+    </div>
+    <div class="version-badge">
+      <span class="v-num">{{ APP_VERSION }}</span>
+      <span class="v-sep">build:</span>
+      <span class="v-num">{{ APP_BUILD }}</span>
     </div>
     <FluentToast ref="globalToast" />
   </div>
@@ -41,7 +46,6 @@ onMounted(async () => {
   await namesStore.initialize()
   await statisticsStore.initialize()
   await recordsStore.initialize()
-  console.log('[App] All stores initialized. isElectron:', !!window.electronAPI)
 })
 
 watch(() => settingsStore.settings.uiScale, (val) => {
@@ -79,6 +83,30 @@ watch(() => settingsStore.settings.nameFontSize, (val) => {
   overflow-x: hidden;
   background: var(--bg-base);
   position: relative;
+}
+
+.version-badge {
+  position: fixed;
+  bottom: 8px;
+  right: 16px;
+  font-size: 22px;
+  color: var(--text-muted);
+  opacity: 0.5;
+  pointer-events: none;
+  z-index: 999999;
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.v-num {
+  font-family: var(--font-num);
+  font-size: calc(22px * var(--font-num-scale, 1.6));
+}
+
+.v-sep {
+  font-family: var(--font-ui);
+  font-size: 22px;
 }
 
 .page-slide-enter-active {

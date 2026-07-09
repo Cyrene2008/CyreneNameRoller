@@ -41,8 +41,6 @@
         <span v-if="!dockCollapsed" class="dock-item-label">{{ item.label[lang] }}</span>
       </router-link>
     </div>
-
-    <div class="dock-build">{{ APP_VERSION }} build:{{ APP_BUILD }}</div>
   </nav>
 </template>
 
@@ -51,7 +49,6 @@ import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { Icon } from '@iconify/vue'
 import { useSettingsStore } from '../../stores/settings'
-import { APP_VERSION, APP_BUILD } from '../../utils/version'
 
 const props = defineProps({
   buildHash: { type: String, default: '' }
@@ -207,21 +204,6 @@ const bottomItems = [
   flex-direction: column;
   gap: 2px;
   overflow: hidden;
-}
-
-.dock-build {
-  font-size: 9px;
-  color: var(--text-muted);
-  opacity: 0.5;
-  text-align: center;
-  padding: 6px 0 2px;
-  font-family: var(--font-num);
-  letter-spacing: 0.3px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  position: relative;
-  z-index: 60;
 }
 
 @media (max-width: 768px) {
