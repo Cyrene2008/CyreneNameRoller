@@ -3,3 +3,5 @@ node_modules
 dist
 release
 *.log
+public/names.json
+public/up.json
