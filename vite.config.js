@@ -1,7 +1,8 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 
-const buildHash = new Date().toISOString().slice(0, 10).replace(/-/g, '')
+const now = new Date()
+const buildHash = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}${String(now.getHours()).padStart(2,'0')}`
 
 export default defineConfig({
   base: './',
