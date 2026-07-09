@@ -109,7 +109,7 @@
       <div class="changelog-list">
         <div v-for="log in changelog" :key="log.version" class="changelog-item">
           <div class="changelog-header"><span class="changelog-version">{{ log.version }}</span><span class="changelog-date">{{ log.date }}</span></div>
-          <ul class="changelog-logs"><li v-for="(entry, i) in log.logs" :key="i">{{ entry }}</li></ul>
+          <ul class="changelog-logs"><li v-for="(entry, i) in getLogEntries(log)" :key="i">{{ entry }}</li></ul>
         </div>
       </div>
     </FluentCard>
@@ -214,6 +214,12 @@ const pwModalHint = computed(() => {
 })
 
 function update(key, value) { settingsStore.update(key, value) }
+
+function getLogEntries(log) {
+  if (!log.logs) return []
+  if (Array.isArray(log.logs)) return log.logs
+  return log.logs[lang.value] || log.logs.zh || []
+}
 
 onMounted(async () => {
   if (!settings.value.recordCounts) settingsStore.update('recordCounts', true)
