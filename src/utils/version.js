@@ -1,4 +1,5 @@
-export const APP_VERSION = 'v26.0.1'
+export const APP_VERSION = '26.0.1'
+export const APP_VERSION_PREFIX = 'v'
 
 function getBuildNumber() {
   const now = new Date()
@@ -21,5 +22,4 @@ export const APP_BUILD = typeof __BUILD_HASH__ !== 'undefined'
   : getBuildNumber()
 
 export const APP_PLATFORM = getPlatformSuffix()
-export const APP_BUILD_FULL = `${APP_BUILD}-${APP_PLATFORM}`
 export const APP_NAME = "Cyreneの随机点名器"
