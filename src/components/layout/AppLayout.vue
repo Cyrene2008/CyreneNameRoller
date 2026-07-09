@@ -18,7 +18,7 @@
     </div>
 
     <Transition name="update-slide">
-      <div v-if="updateState.available" class="update-banner">
+      <div v-if="isDesktopApp && updateState.available" class="update-banner">
         <FluentIcon icon="arrow-download-24-regular" :width="18" />
         <span>{{ lang === 'en' ? 'Update available:' : '发现新版本：' }}{{ updateState.version }}</span>
         <button class="update-btn" @click="downloadUpdate">{{ lang === 'en' ? 'Download' : '下载' }}</button>
@@ -48,6 +48,7 @@ import { useStatisticsStore } from '../../stores/statistics'
 import { useRecordsStore } from '../../stores/records'
 import { APP_VERSION, APP_VERSION_PREFIX, APP_BUILD, APP_PLATFORM, APP_NAME } from '../../utils/version'
 import { updateState, checkForUpdates, downloadUpdate } from '../../utils/updater'
+import { isTauri } from '../../utils/tauriAPI'
 
 const router = useRouter()
 const settingsStore = useSettingsStore()
@@ -56,6 +57,7 @@ const statisticsStore = useStatisticsStore()
 const recordsStore = useRecordsStore()
 
 const lang = computed(() => settingsStore.settings.language)
+const isDesktopApp = computed(() => !!window.electronAPI || isTauri())
 
 const globalToast = ref(null)
 provide('toast', globalToast)

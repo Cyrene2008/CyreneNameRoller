@@ -33,7 +33,7 @@ import BalanceEditor from '../components/BalanceEditor.vue'
 
 const router = useRouter()
 const settingsStore = useSettingsStore()
-const lang = computed(() => settingsStore.settings.englishMode ? 'en' : 'zh')
+const lang = computed(() => settingsStore.settings.language)
 const balance = ref(JSON.parse(JSON.stringify(DEFAULT_BALANCE_SETTINGS)))
 
 onMounted(async () => {

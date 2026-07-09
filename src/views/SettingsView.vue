@@ -16,14 +16,14 @@
         <span class="setting-label">{{ lang === 'en' ? 'Dark Mode' : '深色模式' }}</span>
         <FluentToggle :model-value="settingsStore.darkMode" @update:model-value="settingsStore.toggleDarkMode()" />
       </div>
-      <div class="setting-row">
+      <div v-if="isDesktop" class="setting-row">
         <span class="setting-label">{{ lang === 'en' ? 'Check for Updates' : '检查更新' }}</span>
         <FluentButton variant="secondary" size="sm" :disabled="updateState.checking" @click="doCheckUpdate">
           <FluentIcon icon="arrow-sync-16-regular" :width="14" />
           {{ updateState.checking ? (lang === 'en' ? 'Checking...' : '检查中...') : (lang === 'en' ? 'Check' : '检查') }}
         </FluentButton>
       </div>
-      <div v-if="updateState.available" class="update-info">
+      <div v-if="isDesktop && updateState.available" class="update-info">
         <FluentIcon icon="arrow-download-16-regular" :width="14" />
         <span>{{ lang === 'en' ? 'New version:' : '发现新版本：' }}{{ updateState.version }}</span>
         <FluentButton variant="primary" size="sm" @click="downloadUpdate">{{ lang === 'en' ? 'Download' : '下载' }}</FluentButton>
@@ -135,10 +135,9 @@
       </div>
       <Transition name="toggle-expand">
         <div v-if="balance.enabled" class="balance-sub">
-          <p class="balance-explain">{{ lang === 'en' ? 'Names picked fewer times get higher probability next round. Drag points on the curve to adjust.' : '被抽中次数越少，下次被抽中的概率越高。拖动曲线上的点来调整。' }}</p>
-          <BalanceEditor v-model="balance.points" :lang="lang" @update:model-value="saveBalance" />
-          <FluentButton variant="secondary" size="sm" @click="resetBalance">
-            <FluentIcon icon="arrow-reset-16-regular" :width="14" /> {{ lang === 'en' ? 'Reset Curve' : '重置曲线' }}
+          <p class="balance-explain">{{ lang === 'en' ? 'Names picked fewer times get higher probability next round.' : '被抽中次数越少，下次被抽中的概率越高。' }}</p>
+          <FluentButton variant="secondary" size="sm" @click="router.push('/settings/balance-curve')">
+            <FluentIcon icon="data-line-16-regular" :width="14" /> {{ lang === 'en' ? 'Edit Curve' : '编辑曲线' }}
           </FluentButton>
         </div>
       </Transition>
@@ -198,7 +197,6 @@ import FluentToggle from '../components/FluentToggle.vue'
 import FluentInput from '../components/FluentInput.vue'
 import FluentSelect from '../components/FluentSelect.vue'
 import FluentModal from '../components/FluentModal.vue'
-import BalanceEditor from '../components/BalanceEditor.vue'
 
 const router = useRouter()
 const settingsStore = useSettingsStore()
