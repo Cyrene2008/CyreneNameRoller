@@ -81,7 +81,7 @@ onMounted(async () => {
 
 <style scoped>
 .titlebar {
-  height: var(--titlebar-height);
+  height: 40px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -98,20 +98,20 @@ onMounted(async () => {
   flex: 1;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding-left: 12px;
+  gap: 10px;
+  padding-left: 14px;
   height: 100%;
 }
 
 .titlebar-logo {
-  width: 16px;
-  height: 16px;
-  border-radius: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
   object-fit: cover;
 }
 
 .titlebar-text {
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--text-secondary);
 }
@@ -123,7 +123,7 @@ onMounted(async () => {
 }
 
 .titlebar-btn {
-  width: 46px;
+  width: 50px;
   height: 100%;
   display: flex;
   align-items: center;
