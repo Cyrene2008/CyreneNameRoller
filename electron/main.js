@@ -1,21 +1,25 @@
 const { app, BrowserWindow, ipcMain, dialog } = require('electron')
 const path = require('path')
 const fs = require('fs')
-const Store = require('electron-store')
 
 let win
+let store
+let windowStateStore
 const isDev = !app.isPackaged
 
-const store = new Store({ name: 'cyrene-data' })
-const windowStatePath = new Store({ name: 'window-state' })
+async function initStore() {
+  const { default: Store } = await import('electron-store')
+  store = new Store({ name: 'cyrene-data' })
+  windowStateStore = new Store({ name: 'window-state' })
+}
 
 function loadWindowState() {
   try {
-    const x = windowStatePath.get('x')
-    const y = windowStatePath.get('y')
-    const width = windowStatePath.get('width')
-    const height = windowStatePath.get('height')
-    const isMaximized = windowStatePath.get('isMaximized')
+    const x = windowStateStore.get('x')
+    const y = windowStateStore.get('y')
+    const width = windowStateStore.get('width')
+    const height = windowStateStore.get('height')
+    const isMaximized = windowStateStore.get('isMaximized')
     if (width && height) return { x, y, width, height, isMaximized }
   } catch {}
   return null
@@ -25,11 +29,11 @@ function saveWindowState() {
   if (!win || win.isDestroyed()) return
   try {
     const bounds = win.getBounds()
-    windowStatePath.set('x', bounds.x)
-    windowStatePath.set('y', bounds.y)
-    windowStatePath.set('width', bounds.width)
-    windowStatePath.set('height', bounds.height)
-    windowStatePath.set('isMaximized', win.isMaximized())
+    windowStateStore.set('x', bounds.x)
+    windowStateStore.set('y', bounds.y)
+    windowStateStore.set('width', bounds.width)
+    windowStateStore.set('height', bounds.height)
+    windowStateStore.set('isMaximized', win.isMaximized())
   } catch {}
 }
 
@@ -77,6 +81,7 @@ ipcMain.handle('window-is-maximized', () => win.isMaximized())
 // electron-store 存储 IPC
 ipcMain.handle('storage-get', (_, key) => {
   try {
+    if (!store) return null
     const val = store.get(key)
     return val !== undefined ? val : null
   } catch (e) {
@@ -87,6 +92,7 @@ ipcMain.handle('storage-get', (_, key) => {
 
 ipcMain.handle('storage-set', (_, key, value) => {
   try {
+    if (!store) return false
     store.set(key, value)
     return true
   } catch (e) {
@@ -97,6 +103,7 @@ ipcMain.handle('storage-set', (_, key, value) => {
 
 ipcMain.handle('storage-delete', (_, key) => {
   try {
+    if (!store) return false
     store.delete(key)
     return true
   } catch (e) {
@@ -106,6 +113,7 @@ ipcMain.handle('storage-delete', (_, key) => {
 
 ipcMain.handle('storage-clear', () => {
   try {
+    if (!store) return false
     store.clear()
     return true
   } catch (e) {
@@ -176,6 +184,9 @@ ipcMain.handle('data:importData', async () => {
   }
 })
 
-app.whenReady().then(createWindow)
+app.whenReady().then(async () => {
+  await initStore()
+  createWindow()
+})
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit() })
 app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow() })
