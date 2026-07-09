@@ -1,0 +1,111 @@
+@import './fonts.css';
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  height: 100%;
+  overflow: hidden;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-app-region: no-drag;
+}
+
+body {
+  font-family: 'HarmonyOS Sans SC', 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
+  background: var(--bg-base);
+  color: var(--text-primary);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#app {
+  height: 100%;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--accent-light);
+  border-radius: var(--radius-full);
+  opacity: 0.4;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--accent);
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: rgba(234, 94, 193, 0.3);
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: rgba(234, 94, 193, 0.5);
+}
+
+input, button, select, textarea {
+  font-family: 'HarmonyOS Sans SC', 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
+  font-size: 14px;
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+a:hover {
+  color: var(--accent-dark);
+}
+
+/* Performance Settings - individual toggles */
+.perf-no-blur * {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.perf-no-blur .fluent-card,
+.perf-no-blur .list-selector-bar,
+.perf-no-blur .card-controls,
+.perf-no-blur .dock,
+.perf-no-blur .titlebar {
+  background: var(--bg-card-solid) !important;
+}
+
+.perf-no-blur .fluent-modal-overlay {
+  background: rgba(0, 0, 0, 0.4) !important;
+}
+
+.perf-no-shadow .fluent-card,
+.perf-no-shadow .list-selector-bar,
+.perf-no-shadow .card-controls {
+  box-shadow: var(--shadow-2) !important;
+}
+
+.perf-no-shadow .name-display {
+  text-shadow: none !important;
+}
+
+.perf-no-anim *:not(.name-display):not(.card) {
+  transition-duration: 0s !important;
+}
+
+.perf-no-anim .name-display:not(.rainbow):not(.final) {
+  animation: none !important;
+}
+
+.perf-no-anim .card:not(.show) {
+  animation: none !important;
+}

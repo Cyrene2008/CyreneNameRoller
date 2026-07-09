@@ -1,0 +1,72 @@
+{
+  "name": "cyrene-name-roller",
+  "version": "26.0.2",
+  "description": "随机点名器 - 支持多人模式、平衡算法、翻牌模式的桌面端点名应用",
+  "author": "Cyrene2008 <https://github.com/Cyrene2008>",
+  "main": "electron/main.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "electron:dev": "concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",
+    "electron:build": "vite build && electron-builder && node scripts/activate-fuses.js",
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@electron/fuses": "1.8.0",
+    "@iconify-json/fluent": "^1.2.10",
+    "@iconify/vue": "^4.3.0",
+    "@tauri-apps/api": "^2.11.1",
+    "@tauri-apps/plugin-store": "^2.4.3",
+    "electron-store": "8.2.0",
+    "pinia": "^3.0.3",
+    "vue": "^3.5.17",
+    "vue-router": "^4.5.1"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.11.4",
+    "@vitejs/plugin-vue": "^5.2.4",
+    "concurrently": "^9.2.0",
+    "electron": "22.3.27",
+    "electron-builder": "^26.0.12",
+    "sass": "^1.89.2",
+    "vite": "^6.3.5",
+    "wait-on": "^8.0.3"
+  },
+  "build": {
+    "appId": "cn.xilian.cyrene-name-roller",
+    "productName": "CyreneNameRoller",
+    "copyright": "Copyright © 2025-2026 Cyrene2008",
+    "asar": true,
+    "asarUnpack": [],
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**",
+      "electron/**"
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "public/icon.png",
+      "legalTrademarks": "昔涟.cn"
+    },
+    "mac": {
+      "target": [
+        "dmg"
+      ],
+      "icon": "public/icon.png",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": true
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  },
+  "license": "GPL-3.0"
+}

@@ -1,0 +1,23 @@
+{
+  "name": "Cyreneの随机点名器",
+  "short_name": "点名器",
+  "description": "随机点名器 - 支持多人模式、平衡算法、翻牌模式",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#fdf5fa",
+  "theme_color": "#ea5ec1",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "cyrene256.png",
+      "sizes": "256x256",
+      "type": "image/png"
+    }
+  ]
+}

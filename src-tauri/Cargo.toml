@@ -1,0 +1,19 @@
+[package]
+name = "cyrene-name-roller"
+version = "26.0.0"
+description = "Cyrene's Name Roller - Random name picker"
+authors = ["Cyrene2008"]
+edition = "2021"
+
+[lib]
+name = "cyrene_name_roller_lib"
+crate-type = ["lib", "cdylib", "staticlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-store = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

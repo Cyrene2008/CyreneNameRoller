@@ -1,0 +1,184 @@
+[
+  {
+    "version": "26.0.2",
+    "date": "2026-07-09",
+    "logs": {
+      "zh": [
+        "【新功能】贡献人员页面：展示团队成员头像、角色分工、GitHub 链接",
+        "【新功能】非商用资源引用声明（崩坏：星穹铁道资源，版权归 miHoYo/HoYoverse 所有）",
+        "【新功能】平衡曲线编辑器内嵌参数调节（平衡因子、最大阈值、最大提升值）",
+        "【改进】平衡曲线编辑器升级为独立子页面（设置 > 编辑曲线）",
+        "【改进】Dock 栏子页面焦点联动（进入子页面时父级高亮）",
+        "【改进】数据持久化迁移到 electron-store，重启后数据完整保留",
+        "【修复】更新检测：Web 端隐藏，桌面端支持 gh-proxy.com 备用镜像",
+        "【修复】修复合并冲突导致的 CSS 语法错误和页面空白问题",
+        "【修复】English Mode 现在正确影响所有页面的文字显示",
+        "【UI】标题栏 1.25x 放大，hamburger 按钮移入标题栏",
+        "【UI】渐变名称动画优化（无缝循环）",
+        "【UI】滚动条、Dock 栏粉色系配色统一"
+      ],
+      "en": [
+        "[Feature] Contributors page with avatars, roles, and GitHub links",
+        "[Feature] Non-commercial resource attribution (Honkai: Star Rail, miHoYo/HoYoverse)",
+        "[Feature] Balance curve editor with inline parameter controls (factor, threshold, max boost)",
+        "[Improvement] Balance curve editor promoted to standalone sub-page (Settings > Edit Curve)",
+        "[Improvement] Dock highlights parent item when navigating to sub-pages",
+        "[Improvement] Data persistence migrated to electron-store for reliable restart retention",
+        "[Fix] Update checker hidden in web mode, gh-proxy.com fallback for desktop",
+        "[Fix] Merge conflict CSS errors and blank page issues",
+        "[Fix] English Mode now correctly affects all page text",
+        "[UI] Titlebar scaled 1.25x, hamburger button moved into titlebar",
+        "[UI] Gradient name animation optimized (seamless loop)",
+        "[UI] Scrollbar and dock unified pink color scheme"
+      ]
+    }
+  },
+  {
+    "version": "26.0.1",
+    "date": "2026-07-09",
+    "logs": {
+      "zh": [
+        "【新功能】自动更新检测：Tauri/Electron 版启动时自动检查 GitHub Releases，发现新版本顶部弹出下载横幅",
+        "【新功能】手动检查更新：设置页面添加「检查更新」按钮，支持 gh-proxy.com 备用镜像",
+        "【新功能】PWA 支持：Web 版支持离线使用，Service Worker 缓存所有资源",
+        "【新功能】Web 全屏按钮：Web 端右上角显示全屏切换按钮（桌面端不显示）",
+        "【改进】版本号格式改为 YYYYMMDDHH-平台后缀（如 2026070917-electron-win64）",
+        "【改进】版本号时区统一为 UTC+8",
+        "【改进】Tauri 更新日志修复：up.json 作为资源嵌入，打包后可正常显示",
+        "【修复】移动端布局修复：修复 Dock 栏顶部空白导致底部按钮无法点击的问题"
+      ],
+      "en": [
+        "[Feature] Auto update checker: Tauri/Electron checks GitHub Releases on startup",
+        "[Feature] Manual update check: Settings page button with gh-proxy.com fallback mirror",
+        "[Feature] PWA support: Web version works offline with Service Worker caching",
+        "[Feature] Web fullscreen button: top-right corner, hidden in desktop apps",
+        "[Improvement] Build format: YYYYMMDDHH-platform suffix (e.g. 2026070917-electron-win64)",
+        "[Improvement] Build timezone unified to UTC+8",
+        "[Fix] Tauri changelog: up.json bundled as resource, displays correctly after packaging",
+        "[Fix] Mobile layout: dock top gap causing bottom buttons to be unclickable"
+      ]
+    }
+  },
+  {
+    "version": "26.0.0",
+    "date": "2026-07-09",
+    "logs": {
+      "zh": [
+        "【重构与性能】全新架构：基于 Vue 3 + Vite + Electron 全面重构，支持本地独立运行",
+        "【重构与性能】数据双保险：Electron 文件系统 + localStorage 双写，意外崩溃数据也能自动恢复",
+        "【重构与性能】Fluent Design (Win11) 设计语言，左侧 Dock 导航，操作更符合现代直觉",
+        "【点名核心】随机点名：多人模式、禁止重复（不放回抽取）、平衡算法加权概率",
+        "【点名核心】翻牌点名：一键多抽、收牌历史持久化、切换名单不丢失状态",
+        "【点名核心】Fritsch-Carlson 单调三次 Hermite 插值算法 + 可拖动曲线编辑器",
+        "【数据安全】名单管理：CRUD、批量删除（10秒撤销）、导入/导出名单",
+        "【数据安全】密码保护关键数据操作，支持数据导出/导入/清除",
+        "【统计与记录】抽取记录：姓名、名单、来源、时间全程记录",
+        "【统计与记录】数据可视化：抽取次数、原始概率与平衡概率实时展示",
+        "【界面与显示】深色模式、UI 缩放 (75%-200%)、名字字体大小调节",
+        "【界面与显示】多语言：设置内切换中/英文"
+      ],
+      "en": [
+        "[Refactor] Full rewrite with Vue 3 + Vite + Electron, standalone local app",
+        "[Refactor] Dual-write persistence: Electron FS + localStorage, auto-recovery on crash",
+        "[Refactor] Fluent Design (Win11) with left Dock navigation",
+        "[Core] Random roller: multi-player, forbid duplicates (no replacement), weighted balance",
+        "[Core] Card mode: quick multi-draw, persistent card history across list switches",
+        "[Core] Fritsch-Carlson monotone Hermite interpolation + draggable curve editor",
+        "[Security] List CRUD, batch delete (10s undo), import/export lists",
+        "[Security] Password-protected data operations, full export/import/clear",
+        "[Records] Extraction records: name, list, source, timestamp",
+        "[Records] Statistics: pick count, raw probability, balanced probability",
+        "[UI] Dark mode, UI scale (75%-200%), name font size adjustment",
+        "[UI] i18n: Chinese/English switch in settings"
+      ]
+    }
+  },
+  {
+    "version": "2.0.5 Amphoreus",
+    "date": "2026-05-08",
+    "logs": {
+      "zh": ["版本代号：Amphoreus", "视觉优化：视觉与交互轻微改进", "性能优化：默认主题点名器更流畅", "新功能：支持自定义名单"],
+      "en": ["Codename: Amphoreus", "Visual: minor visual and interaction improvements", "Performance: smoother default theme roller", "Feature: custom name lists support"]
+    }
+  },
+  {
+    "version": "2.0.0 Amphoreus",
+    "date": "2026-04-11",
+    "logs": {
+      "zh": ["版本代号：Amphoreus", "重大更新：视觉与交互全面重构", "Tunnel 主题上线！", "翻牌模式华丽重构", "性能与特效设置面板", "English Mode 完整支持"],
+      "en": ["Codename: Amphoreus", "Major: full visual and interaction overhaul", "Tunnel theme launched!", "Card mode rework", "Performance & effects settings panel", "Full English Mode support"]
+    }
+  },
+  {
+    "version": "1.7 beta2",
+    "date": "2026-04-10",
+    "logs": {
+      "zh": ["平衡更新：自定义平滑曲线、平滑因子、提升率"],
+      "en": ["Balance update: custom smooth curve, factor, boost rate"]
+    }
+  },
+  {
+    "version": "1.6",
+    "date": "2025-10-11",
+    "logs": {
+      "zh": ["新增 English Mode"],
+      "en": ["Added English Mode"]
+    }
+  },
+  {
+    "version": "1.5.51",
+    "date": "2025-10-07",
+    "logs": {
+      "zh": ["优化概率不平衡问题", "移除禁止重复功能，更新为减少重复"],
+      "en": ["Fixed probability imbalance", "Removed forbid duplicates, replaced with reduce duplicates"]
+    }
+  },
+  {
+    "version": "1.5.0",
+    "date": "2025-09-29",
+    "logs": {
+      "zh": ["修复概率不平衡问题"],
+      "en": ["Fixed probability imbalance"]
+    }
+  },
+  {
+    "version": "1.4.0",
+    "date": "2025-04-11",
+    "logs": {
+      "zh": ["修复数据导出相关问题", "使用SHA256进行加密", "新增点名结果动画"],
+      "en": ["Fixed data export issues", "SHA256 encryption", "Added result animation"]
+    }
+  },
+  {
+    "version": "1.3.1 Hotfix",
+    "date": "2025-03-23",
+    "logs": {
+      "zh": ["新增概率计算", "概率平衡调整", "概率公示"],
+      "en": ["Added probability calculation", "Balance adjustment", "Probability display"]
+    }
+  },
+  {
+    "version": "1.3",
+    "date": "2025-03-22",
+    "logs": {
+      "zh": ["新增数据统计功能", "允许开关彩色名称功能", "优化代码，修复已知问题"],
+      "en": ["Added statistics", "Toggle colorful names", "Code optimization and bug fixes"]
+    }
+  },
+  {
+    "version": "1.2",
+    "date": "2025-03-20",
+    "logs": {
+      "zh": ["新增了多人模式", "优化代码，修复已知问题"],
+      "en": ["Added multi-player mode", "Code optimization and bug fixes"]
+    }
+  },
+  {
+    "version": "1.1",
+    "date": "2025-03-19",
+    "logs": {
+      "zh": ["初始发布"],
+      "en": ["Initial release"]
+    }
+  }
+]
