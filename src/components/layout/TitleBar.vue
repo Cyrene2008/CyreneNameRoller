@@ -1,8 +1,11 @@
 <template>
   <div v-if="isDesktopApp" class="titlebar">
+    <button class="titlebar-hamburger" @click="toggleDock" :title="dockCollapsed ? '展开' : '收起'">
+      <Icon icon="fluent:line-horizontal-3-20-regular" :width="18" />
+    </button>
+    <img src="/cyrene.png" class="titlebar-logo" alt="" draggable="false" />
+    <span class="titlebar-app-title">Cyreneの随机点名器</span>
     <div class="titlebar-drag">
-      <img src="/cyrene.png" class="titlebar-logo" alt="" draggable="false" />
-      <span class="titlebar-text">Cyreneの随机点名器</span>
     </div>
     <div class="titlebar-controls">
       <button class="titlebar-btn minimize-btn" @click="minimize" title="最小化">
@@ -30,13 +33,21 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { Icon } from '@iconify/vue'
 import { isTauri } from '../../utils/tauriAPI'
+import { useSettingsStore } from '../../stores/settings'
 
+const settingsStore = useSettingsStore()
 const isMaximized = ref(false)
+const dockCollapsed = computed(() => settingsStore.settings.dockCollapsed || false)
 
 const isDesktopApp = computed(() => {
   return !!window.electronAPI || isTauri()
 })
+
+function toggleDock() {
+  settingsStore.update('dockCollapsed', !dockCollapsed.value)
+}
 
 function minimize() {
   if (isTauri()) {
@@ -93,14 +104,29 @@ onMounted(async () => {
   user-select: none;
 }
 
-.titlebar-drag {
-  -webkit-app-region: drag;
-  flex: 1;
+.titlebar-hamburger {
+  width: 46px;
+  height: 100%;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding-left: 12px;
-  height: 100%;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+  outline: none;
+  -webkit-app-region: no-drag;
+  flex-shrink: 0;
+}
+
+.titlebar-hamburger:hover {
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--text-primary);
+}
+
+.dark .titlebar-hamburger:hover {
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .titlebar-logo {
@@ -108,12 +134,24 @@ onMounted(async () => {
   height: 16px;
   border-radius: 3px;
   object-fit: cover;
+  flex-shrink: 0;
+  -webkit-app-region: drag;
+  margin-right: 5px;
 }
 
-.titlebar-text {
+.titlebar-app-title {
   font-size: 12px;
   font-weight: 600;
   color: var(--text-secondary);
+  -webkit-app-region: drag;
+  white-space: nowrap;
+  margin-right: 8px;
+}
+
+.titlebar-drag {
+  -webkit-app-region: drag;
+  flex: 1;
+  height: 100%;
 }
 
 .titlebar-controls {

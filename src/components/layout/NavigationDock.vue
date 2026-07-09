@@ -1,6 +1,6 @@
 <template>
   <nav class="dock" :class="{ collapsed: dockCollapsed }">
-    <div class="dock-top">
+    <div v-if="!isDesktopApp" class="dock-top">
       <button class="dock-toggle" @click="toggleDock" :title="dockCollapsed ? '展开' : '收起'">
         <Icon icon="fluent:line-horizontal-3-20-regular" :width="18" />
       </button>
@@ -49,6 +49,7 @@ import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { Icon } from '@iconify/vue'
 import { useSettingsStore } from '../../stores/settings'
+import { isTauri } from '../../utils/tauriAPI'
 
 const props = defineProps({
   buildHash: { type: String, default: '' }
@@ -58,6 +59,7 @@ const route = useRoute()
 const settingsStore = useSettingsStore()
 const lang = computed(() => settingsStore.settings.englishMode ? 'en' : 'zh')
 const dockCollapsed = computed(() => settingsStore.settings.dockCollapsed || false)
+const isDesktopApp = computed(() => !!window.electronAPI || isTauri())
 
 function toggleDock() {
   settingsStore.update('dockCollapsed', !dockCollapsed.value)
@@ -173,8 +175,8 @@ const bottomItems = [
 }
 
 .dock.collapsed .dock-item {
-  justify-content: center;
-  padding: 9px 0;
+  justify-content: flex-start;
+  padding: 9px 10px;
 }
 
 .dock-item:hover { background: var(--bg-hover); color: var(--text-primary); }
