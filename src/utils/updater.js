@@ -4,26 +4,47 @@ import { isElectron } from './dataBridge'
 import { APP_VERSION } from './version'
 
 const GITHUB_REPO = 'Cyrene2008/CyreneNameRoller'
+const API_PRIMARY = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`
+const API_FALLBACK = `https://gh-proxy.com/https://api.github.com/repos/${GITHUB_REPO}/releases/latest`
 
 export const updateState = ref({
   available: false,
   checking: false,
   version: '',
   url: '',
+  body: '',
   error: null
 })
 
 function getPlatform() {
-  if (isTauri()) return 'Tauri'
-  if (isElectron()) return 'Electron'
-  return null
+  if (isTauri()) return 'tauri-win64'
+  if (isElectron()) return 'electron-win64'
+  return 'web'
 }
 
 function normalizeVersion(v) {
   return v.replace(/^v/i, '').trim()
 }
 
-export async function checkForUpdates() {
+async function fetchWithFallback() {
+  try {
+    const resp = await fetch(API_PRIMARY, {
+      headers: { 'Accept': 'application/vnd.github.v3+json' }
+    })
+    if (resp.ok) return await resp.json()
+  } catch {}
+
+  try {
+    const resp = await fetch(API_FALLBACK, {
+      headers: { 'Accept': 'application/vnd.github.v3+json' }
+    })
+    if (resp.ok) return await resp.json()
+  } catch {}
+
+  throw new Error('无法连接到更新服务器')
+}
+
+export async function checkForUpdates(silent = true) {
   if (!isTauri() && !isElectron()) return
   if (updateState.value.checking) return
 
@@ -31,13 +52,7 @@ export async function checkForUpdates() {
   updateState.value.error = null
 
   try {
-    const resp = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/releases/latest`, {
-      headers: { 'Accept': 'application/vnd.github.v3+json' }
-    })
-
-    if (!resp.ok) throw new Error('Failed to fetch releases')
-
-    const release = await resp.json()
+    const release = await fetchWithFallback()
     const remoteVersion = normalizeVersion(release.tag_name)
     const currentVersion = normalizeVersion(APP_VERSION)
 
@@ -46,9 +61,9 @@ export async function checkForUpdates() {
       const assets = release.assets || []
 
       let targetAsset = null
-      if (platform === 'Tauri') {
+      if (platform === 'tauri-win64') {
         targetAsset = assets.find(a => a.name.includes('Tauri') && a.name.endsWith('.exe'))
-      } else if (platform === 'Electron') {
+      } else if (platform === 'electron-win64') {
         targetAsset = assets.find(a => a.name.includes('Setup') && a.name.endsWith('.exe') && !a.name.includes('Tauri'))
       }
 
@@ -57,13 +72,15 @@ export async function checkForUpdates() {
         checking: false,
         version: release.tag_name,
         url: targetAsset ? targetAsset.browser_download_url : release.html_url,
+        body: release.body || '',
         error: null
       }
     } else {
-      updateState.value = { available: false, checking: false, version: '', url: '', error: null }
+      updateState.value = { available: false, checking: false, version: '', url: '', body: '', error: null }
+      if (!silent) updateState.value.error = '已是最新版本'
     }
   } catch (e) {
-    updateState.value = { available: false, checking: false, version: '', url: '', error: e.message }
+    updateState.value = { available: false, checking: false, version: '', url: '', body: '', error: e.message }
   }
 }
 

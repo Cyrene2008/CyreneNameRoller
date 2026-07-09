@@ -16,6 +16,19 @@
         <span class="setting-label">{{ lang === 'en' ? 'Dark Mode' : '深色模式' }}</span>
         <FluentToggle :model-value="settingsStore.darkMode" @update:model-value="settingsStore.toggleDarkMode()" />
       </div>
+      <div v-if="isDesktop" class="setting-row">
+        <span class="setting-label">{{ lang === 'en' ? 'Check for Updates' : '检查更新' }}</span>
+        <FluentButton variant="secondary" size="sm" :disabled="updateState.checking" @click="doCheckUpdate">
+          <FluentIcon icon="arrow-sync-16-regular" :width="14" />
+          {{ updateState.checking ? (lang === 'en' ? 'Checking...' : '检查中...') : (lang === 'en' ? 'Check' : '检查') }}
+        </FluentButton>
+      </div>
+      <div v-if="updateState.available" class="update-info">
+        <FluentIcon icon="arrow-download-16-regular" :width="14" />
+        <span>{{ lang === 'en' ? 'New version:' : '发现新版本：' }}{{ updateState.version }}</span>
+        <FluentButton variant="primary" size="sm" @click="downloadUpdate">{{ lang === 'en' ? 'Download' : '下载' }}</FluentButton>
+      </div>
+      <p v-if="updateState.error" class="setting-note" style="color: var(--accent);">{{ updateState.error }}</p>
     </FluentCard>
 
     <!-- 主题与显示 -->

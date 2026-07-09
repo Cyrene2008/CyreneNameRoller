@@ -210,7 +210,7 @@ const bottomItems = [
   .dock {
     position: fixed;
     left: 0;
-    top: var(--titlebar-height);
+    top: 0;
     bottom: 0;
     z-index: 100;
     width: 48px;

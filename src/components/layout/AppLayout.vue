@@ -15,7 +15,7 @@
     <div class="version-badge">
       <span class="v-num">{{ APP_VERSION }}</span>
       <span class="v-sep">build:</span>
-      <span class="v-num">{{ APP_BUILD }}</span>
+      <span class="v-num">{{ APP_BUILD_FULL }}</span>
     </div>
 
     <Transition name="update-slide">
@@ -44,7 +44,7 @@ import { useSettingsStore } from '../../stores/settings'
 import { useNamesStore } from '../../stores/names'
 import { useStatisticsStore } from '../../stores/statistics'
 import { useRecordsStore } from '../../stores/records'
-import { APP_VERSION, APP_BUILD, APP_NAME } from '../../utils/version'
+import { APP_VERSION, APP_BUILD_FULL, APP_NAME } from '../../utils/version'
 import { updateState, checkForUpdates, downloadUpdate } from '../../utils/updater'
 
 const settingsStore = useSettingsStore()
