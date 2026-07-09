@@ -9,7 +9,7 @@ const translations = {
     stop: '停止',
     settings: '设置',
     recordCounts: '记录中签次数',
-    rainbowNames: '使用彩虹名称',
+    rainbowNames: '渐变名称',
     dataManagement: '数据管理',
     clear: '清除',
     statistics: '数据统计',
@@ -43,7 +43,12 @@ const translations = {
     about: '关于',
     darkMode: '深色模式',
     uiScale: '界面缩放',
-    fontSize: '名字字体大小'
+    fontSize: '名字字体大小',
+    nameColorMode: '名称颜色模式',
+    gradientMode: '渐变',
+    customColorMode: '自定义单色',
+    customColorLight: '浅色模式颜色',
+    customColorDark: '深色模式颜色'
   },
   en: {
     title: 'CyreneNameRoller',
@@ -55,7 +60,7 @@ const translations = {
     stop: 'Stop',
     settings: 'Settings',
     recordCounts: 'Record Counts',
-    rainbowNames: 'Rainbow Names',
+    rainbowNames: 'Gradient Names',
     dataManagement: 'Data Management',
     clear: 'Clear',
     statistics: 'Statistics',
@@ -89,7 +94,12 @@ const translations = {
     about: 'About',
     darkMode: 'Dark Mode',
     uiScale: 'UI Scale',
-    fontSize: 'Name Font Size'
+    fontSize: 'Name Font Size',
+    nameColorMode: 'Name Color Mode',
+    gradientMode: 'Gradient',
+    customColorMode: 'Custom Solid',
+    customColorLight: 'Light Mode Color',
+    customColorDark: 'Dark Mode Color'
   }
 }
 

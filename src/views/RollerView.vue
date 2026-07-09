@@ -7,8 +7,8 @@
         v-for="(display, i) in nameDisplays"
         :key="i"
         class="name-display"
-        :class="{ rainbow: settings.rainbowNames, final: display.animating }"
-        :style="{ opacity: display.opacity }"
+        :class="{ rainbow: settings.rainbowNames && settings.nameColorMode === 'gradient', final: display.animating }"
+        :style="getNameStyle(display, i)"
       >
         {{ display.text }}
       </div>
@@ -90,6 +90,17 @@ onMounted(async () => { const saved = await dataBridge.load('balance'); if (save
 function initializeDisplays(count) {
   nameDisplays.splice(0); lastPickedNames.value = []
   for (let i = 0; i < count; i++) { nameDisplays.push({ text: '...', opacity: 0, animating: false }); lastPickedNames.value.push('') }
+}
+
+function getNameStyle(display) {
+  const style = { opacity: display.opacity }
+  if (settings.value.rainbowNames && settings.value.nameColorMode === 'custom') {
+    const color = settingsStore.darkMode
+      ? (settings.value.customNameColorDark || '#f09bd7')
+      : (settings.value.customNameColorLight || '#d04a9d')
+    style.color = color
+  }
+  return style
 }
 
 function saveSetting(key, value) { settingsStore.update(key, value) }

@@ -16,7 +16,10 @@ const DEFAULT_SETTINGS = {
   animSpeed: 1,
   uiScale: 100,
   nameFontSize: 1.0,
-  darkMode: false
+  darkMode: false,
+  nameColorMode: 'gradient',
+  customNameColorLight: '#d04a9d',
+  customNameColorDark: '#f09bd7'
 }
 
 export const useSettingsStore = defineStore('settings', () => {

@@ -25,6 +25,32 @@
         <span class="setting-label">{{ t('rainbowNames', lang) }}</span>
         <FluentToggle :model-value="settings.rainbowNames" @update:model-value="update('rainbowNames', $event)" />
       </div>
+      <Transition name="toggle-expand">
+        <div v-if="settings.rainbowNames" class="sub-setting">
+          <div class="setting-row">
+            <span class="setting-label">{{ t('nameColorMode', lang) }}</span>
+            <FluentSelect :model-value="settings.nameColorMode" :options="colorModeOptions" @update:model-value="update('nameColorMode', $event)" />
+          </div>
+        </div>
+      </Transition>
+      <Transition name="toggle-expand">
+        <div v-if="settings.rainbowNames && settings.nameColorMode === 'custom'" class="sub-setting">
+          <div class="setting-row">
+            <span class="setting-label">{{ t('customColorLight', lang) }}</span>
+            <div class="color-picker-row">
+              <input type="color" :value="settings.customNameColorLight" class="color-input" @input="update('customNameColorLight', $event.target.value)" />
+              <span class="color-value">{{ settings.customNameColorLight }}</span>
+            </div>
+          </div>
+          <div class="setting-row">
+            <span class="setting-label">{{ t('customColorDark', lang) }}</span>
+            <div class="color-picker-row">
+              <input type="color" :value="settings.customNameColorDark" class="color-input" @input="update('customNameColorDark', $event.target.value)" />
+              <span class="color-value">{{ settings.customNameColorDark }}</span>
+            </div>
+          </div>
+        </div>
+      </Transition>
       <div class="setting-row">
         <span class="setting-label">{{ t('uiScale', lang) }}</span>
         <FluentSelect :model-value="settings.uiScale" :options="uiScaleOptions" @update:model-value="update('uiScale', $event)" />
@@ -168,6 +194,11 @@ const fontSizeOptions = [
   { value: 1.5, label: '1.5x' }, { value: 1.75, label: '1.75x' }, { value: 2.0, label: '2.0x' }
 ]
 
+const colorModeOptions = [
+  { value: 'gradient', label: lang.value === 'en' ? 'Gradient' : '渐变' },
+  { value: 'custom', label: lang.value === 'en' ? 'Custom Solid' : '自定义单色' }
+]
+
 const balance = ref(JSON.parse(JSON.stringify(DEFAULT_BALANCE_SETTINGS)))
 const changelog = ref([])
 const showBalanceEditor = ref(false)
@@ -248,6 +279,10 @@ function resetBalance() { balance.value = JSON.parse(JSON.stringify(DEFAULT_BALA
 .setting-desc { font-size: 12px; color: var(--text-muted); }
 .balance-sub { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border-default); display: flex; flex-direction: column; gap: 10px; }
 .balance-explain { font-size: 13px; color: var(--text-secondary); line-height: 1.6; }
+.sub-setting { padding-left: 16px; border-left: 2px solid var(--accent-200); margin-left: 0; }
+.color-picker-row { display: flex; align-items: center; gap: 10px; }
+.color-input { width: 40px; height: 32px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); cursor: pointer; padding: 2px; background: transparent; }
+.color-value { font-size: 13px; color: var(--text-muted); font-family: var(--font-ui); font-variant-numeric: tabular-nums; }
 .action-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
 .pw-modal-body { padding: 8px 0; }
 .pw-hint { font-size: 14px; color: var(--text-secondary); margin-bottom: 12px; }
