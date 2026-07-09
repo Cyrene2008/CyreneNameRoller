@@ -30,26 +30,46 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
+import { isTauri } from '../../utils/tauriAPI'
 
 const isMaximized = ref(false)
 
 function minimize() {
-  window.electronAPI?.minimize()
+  if (isTauri()) {
+    import('@tauri-apps/api/window').then(w => w.getCurrentWindow().minimize())
+  } else {
+    window.electronAPI?.minimize()
+  }
 }
 
 async function maximize() {
-  window.electronAPI?.maximize()
-  setTimeout(async () => {
-    isMaximized.value = await window.electronAPI?.isMaximized() || false
-  }, 100)
+  if (isTauri()) {
+    const w = await import('@tauri-apps/api/window')
+    const win = w.getCurrentWindow()
+    const maxed = await win.isMaximized()
+    maxed ? await win.unmaximize() : await win.maximize()
+    isMaximized.value = await win.isMaximized()
+  } else {
+    window.electronAPI?.maximize()
+    setTimeout(async () => {
+      isMaximized.value = await window.electronAPI?.isMaximized() || false
+    }, 100)
+  }
 }
 
 function close() {
-  window.electronAPI?.close()
+  if (isTauri()) {
+    import('@tauri-apps/api/window').then(w => w.getCurrentWindow().close())
+  } else {
+    window.electronAPI?.close()
+  }
 }
 
 onMounted(async () => {
-  if (window.electronAPI) {
+  if (isTauri()) {
+    const w = await import('@tauri-apps/api/window')
+    isMaximized.value = await w.getCurrentWindow().isMaximized()
+  } else if (window.electronAPI) {
     isMaximized.value = await window.electronAPI.isMaximized() || false
   }
 })
