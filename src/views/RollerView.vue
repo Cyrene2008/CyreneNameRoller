@@ -67,7 +67,7 @@ const settingsStore = useSettingsStore()
 const statisticsStore = useStatisticsStore()
 const recordsStore = useRecordsStore()
 
-const lang = computed(() => 'zh')
+const lang = computed(() => settingsStore.settings.language)
 const settings = computed(() => settingsStore.settings)
 const listOptions = computed(() => namesStore.allLists.map(l => ({ value: l.id, label: l.name })))
 
