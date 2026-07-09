@@ -98,4 +98,14 @@ watch(() => settingsStore.settings.nameFontSize, (val) => {
   opacity: 0;
   transform: translateX(-10px);
 }
+
+@media (max-width: 768px) {
+  .app-body {
+    flex-direction: column;
+  }
+
+  .app-content {
+    padding-left: 56px;
+  }
+}
 </style>

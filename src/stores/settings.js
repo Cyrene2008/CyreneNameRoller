@@ -22,7 +22,8 @@ const DEFAULT_SETTINGS = {
   customNameColorDark: '#f09bd7',
   perfBlur: true,
   perfShadows: true,
-  perfAnimations: true
+  perfAnimations: true,
+  dockCollapsed: false
 }
 
 export const useSettingsStore = defineStore('settings', () => {

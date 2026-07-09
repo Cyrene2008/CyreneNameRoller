@@ -1,8 +1,11 @@
 <template>
-  <nav class="dock">
-    <div class="dock-logo">
+  <nav class="dock" :class="{ collapsed: dockCollapsed }">
+    <div class="dock-top">
+      <button class="dock-toggle" @click="toggleDock" :title="dockCollapsed ? '展开' : '收起'">
+        <Icon icon="fluent:line-horizontal-3-20-regular" :width="20" />
+      </button>
       <img src="/cyrene.png" class="dock-logo-img" alt="" />
-      <span class="dock-logo-text">Cyreneの随机点名器</span>
+      <span v-if="!dockCollapsed" class="dock-logo-text">Cyreneの随机点名器</span>
     </div>
 
     <div class="dock-items">
@@ -13,10 +16,11 @@
         class="dock-item"
         :class="{ active: route.path === item.path }"
         draggable="false"
+        :title="item.label[lang]"
       >
         <div class="dock-item-indicator" />
         <Icon :icon="item.icon" :width="20" class="dock-item-icon" />
-        <span class="dock-item-label">{{ item.label[lang] }}</span>
+        <span v-if="!dockCollapsed" class="dock-item-label">{{ item.label[lang] }}</span>
       </router-link>
     </div>
 
@@ -28,12 +32,13 @@
         class="dock-item"
         :class="{ active: route.path === item.path }"
         draggable="false"
+        :title="item.label[lang]"
       >
         <div class="dock-item-indicator" />
         <Icon :icon="item.icon" :width="20" class="dock-item-icon" />
-        <span class="dock-item-label">{{ item.label[lang] }}</span>
+        <span v-if="!dockCollapsed" class="dock-item-label">{{ item.label[lang] }}</span>
       </router-link>
-      <div class="dock-build">{{ APP_VERSION }} build:{{ buildHash }}</div>
+      <div class="dock-build">{{ APP_VERSION }} build:{{ APP_BUILD }}</div>
     </div>
   </nav>
 </template>
@@ -43,7 +48,7 @@ import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { Icon } from '@iconify/vue'
 import { useSettingsStore } from '../../stores/settings'
-import { APP_VERSION } from '../../utils/version'
+import { APP_VERSION, APP_BUILD } from '../../utils/version'
 
 const props = defineProps({
   buildHash: { type: String, default: '' }
@@ -52,6 +57,11 @@ const props = defineProps({
 const route = useRoute()
 const settingsStore = useSettingsStore()
 const lang = computed(() => settingsStore.settings.englishMode ? 'en' : 'zh')
+const dockCollapsed = computed(() => settingsStore.settings.dockCollapsed || false)
+
+function toggleDock() {
+  settingsStore.update('dockCollapsed', !dockCollapsed.value)
+}
 
 const mainItems = [
   { path: '/roller', icon: 'fluent:flash-24-regular', label: { zh: '随机点名', en: 'Roller' } },
@@ -80,21 +90,46 @@ const bottomItems = [
   flex-shrink: 0;
   overflow-y: auto;
   overflow-x: hidden;
+  transition: width var(--duration-normal) var(--ease-standard);
 }
 
-.dock-logo {
+.dock.collapsed {
+  width: 56px;
+}
+
+.dock-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.dock-toggle {
+  width: 32px;
+  height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  padding: 20px 0 16px;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background var(--duration-fast) ease;
+  flex-shrink: 0;
+}
+
+.dock-toggle:hover {
+  background: var(--bg-hover);
 }
 
 .dock-logo-img {
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
   object-fit: cover;
+  flex-shrink: 0;
 }
 
 .dock-logo-text {
@@ -102,6 +137,8 @@ const bottomItems = [
   font-weight: 600;
   color: var(--text-primary);
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .dock-items {
@@ -109,7 +146,7 @@ const bottomItems = [
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: 0 8px;
+  padding: 8px;
 }
 
 .dock-item {
@@ -128,6 +165,11 @@ const bottomItems = [
   width: 100%;
   font-size: 14px;
   font-family: var(--font-ui);
+}
+
+.dock.collapsed .dock-item {
+  justify-content: center;
+  padding: 10px 0;
 }
 
 .dock-item:hover { background: var(--bg-hover); color: var(--text-primary); }
@@ -167,5 +209,26 @@ const bottomItems = [
   padding: 6px 0 0;
   font-family: var(--font-ui);
   letter-spacing: 0.3px;
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+  .dock {
+    position: fixed;
+    left: 0;
+    top: var(--titlebar-height);
+    bottom: 0;
+    z-index: 100;
+    width: 56px;
+    box-shadow: var(--shadow-8);
+  }
+
+  .dock:not(.collapsed) {
+    width: var(--dock-width);
+  }
+
+  .dock.collapsed {
+    width: 56px;
+  }
 }
 </style>
