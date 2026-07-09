@@ -16,7 +16,7 @@
         :key="item.path"
         :to="item.path"
         class="dock-item"
-        :class="{ active: route.path === item.path }"
+        :class="{ active: route.path === item.path || (item.path === '/settings' && route.path.startsWith('/settings/')) || (item.path === '/about' && route.path.startsWith('/about/')) }"
         draggable="false"
         :title="item.label[lang]"
       >
@@ -32,7 +32,7 @@
         :key="item.path"
         :to="item.path"
         class="dock-item"
-        :class="{ active: route.path === item.path }"
+        :class="{ active: route.path === item.path || (item.path === '/settings' && route.path.startsWith('/settings/')) || (item.path === '/about' && route.path.startsWith('/about/')) }"
         draggable="false"
         :title="item.label[lang]"
       >

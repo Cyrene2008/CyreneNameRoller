@@ -16,14 +16,21 @@
 
       <div class="about-divider" />
 
+      <div class="about-section about-actions">
+        <FluentButton variant="secondary" size="sm" @click="router.push('/about/contributors')">
+          <FluentIcon icon="people-team-16-regular" :width="14" />
+          {{ lang === 'en' ? 'Contributors' : '贡献人员' }}
+        </FluentButton>
+      </div>
+
       <div class="about-section">
         <h3>{{ lang === 'en' ? 'Author' : '作者' }}</h3>
-        <p><a href="https://github.com/Cyrene2008" target="_blank">Cyrene2008</a></p>
+        <p><a href="#" @click.prevent="openLink('https://github.com/Cyrene2008')">Cyrene2008</a></p>
       </div>
 
       <div class="about-section">
         <h3>{{ lang === 'en' ? 'Repository' : '仓库' }}</h3>
-        <a href="https://github.com/Cyrene2008/CyreneNameRoller" target="_blank">github.com/Cyrene2008/CyreneNameRoller</a>
+        <a href="#" @click.prevent="openLink('https://github.com/Cyrene2008/CyreneNameRoller')">github.com/Cyrene2008/CyreneNameRoller</a>
       </div>
 
       <div class="about-section">
@@ -38,7 +45,7 @@
 
       <div class="about-section">
         <h3>{{ lang === 'en' ? 'Copyright' : '版权声明' }}</h3>
-        <p>Copyright &copy; 2025-2026 <a href="https://github.com/Cyrene2008" target="_blank">Cyrene2008</a>, All Rights Reserved.</p>
+        <p>Copyright &copy; 2025-2026 <a href="#" @click.prevent="openLink('https://github.com/Cyrene2008')">Cyrene2008</a>, All Rights Reserved.</p>
       </div>
 
       <div class="about-section">
@@ -52,14 +59,20 @@
 
 <script setup>
 import { computed } from 'vue'
+import { useRouter } from 'vue-router'
 import { useSettingsStore } from '../stores/settings'
 import { t } from '../utils/i18n'
 import { APP_VERSION, APP_NAME } from '../utils/version'
+import { openExternal } from '../utils/openExternal'
 import FluentCard from '../components/FluentCard.vue'
+import FluentButton from '../components/FluentButton.vue'
 import FluentIcon from '../components/FluentIcon.vue'
 
+const router = useRouter()
 const settingsStore = useSettingsStore()
 const lang = computed(() => settingsStore.settings.language)
+
+function openLink(url) { openExternal(url) }
 </script>
 
 <style scoped>
@@ -157,5 +170,9 @@ const lang = computed(() => settingsStore.settings.language)
 .icp-link a {
   font-size: 12px;
   color: var(--text-muted);
+}
+
+.about-actions {
+  margin: 16px 0;
 }
 </style>
