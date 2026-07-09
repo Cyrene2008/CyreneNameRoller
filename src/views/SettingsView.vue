@@ -135,9 +135,10 @@
       </div>
       <Transition name="toggle-expand">
         <div v-if="balance.enabled" class="balance-sub">
-          <p class="balance-explain">{{ lang === 'en' ? 'Names picked fewer times get higher probability next round.' : '被抽中次数越少，下次被抽中的概率越高。' }}</p>
-          <FluentButton variant="secondary" size="sm" @click="router.push('/settings/balance-curve')">
-            <FluentIcon icon="data-line-16-regular" :width="14" /> {{ lang === 'en' ? 'Edit Curve' : '编辑曲线' }}
+          <p class="balance-explain">{{ lang === 'en' ? 'Names picked fewer times get higher probability next round. Drag points on the curve to adjust.' : '被抽中次数越少，下次被抽中的概率越高。拖动曲线上的点来调整。' }}</p>
+          <BalanceEditor v-model="balance.points" :lang="lang" @update:model-value="saveBalance" />
+          <FluentButton variant="secondary" size="sm" @click="resetBalance">
+            <FluentIcon icon="arrow-reset-16-regular" :width="14" /> {{ lang === 'en' ? 'Reset Curve' : '重置曲线' }}
           </FluentButton>
         </div>
       </Transition>
@@ -197,6 +198,7 @@ import FluentToggle from '../components/FluentToggle.vue'
 import FluentInput from '../components/FluentInput.vue'
 import FluentSelect from '../components/FluentSelect.vue'
 import FluentModal from '../components/FluentModal.vue'
+import BalanceEditor from '../components/BalanceEditor.vue'
 
 const router = useRouter()
 const settingsStore = useSettingsStore()
@@ -300,6 +302,7 @@ async function doClearAllNow() {
   alert(lang.value === 'en' ? 'All data cleared. Please close and restart.' : '所有数据已清除，请关闭并重启应用。')
 }
 async function saveBalance() { const n = normalizeSettings(balance.value); balance.value = n; await dataBridge.save('balance', n) }
+function resetBalance() { balance.value = JSON.parse(JSON.stringify(DEFAULT_BALANCE_SETTINGS)); saveBalance() }
 </script>
 
 <style scoped>
