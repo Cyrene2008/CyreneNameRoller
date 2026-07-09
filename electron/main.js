@@ -137,9 +137,9 @@ ipcMain.handle('data:loadNames', () => {
 
 ipcMain.handle('data:loadChangelog', () => {
   const paths = [
-    path.join(__dirname, '../.origin/up.json'),
-    path.join(__dirname, '../dist/up.json'),
-    path.join(__dirname, '../public/up.json')
+    path.join(__dirname, '../dist/updatelogs/up.json'),
+    path.join(__dirname, '../public/updatelogs/up.json'),
+    path.join(__dirname, '../.origin/up.json')
   ]
   for (const p of paths) {
     try {

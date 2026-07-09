@@ -63,10 +63,15 @@ export const dataBridge = {
       } catch {}
     }
     try {
-      const res = await fetch('./up.json')
+      const res = await fetch('./updatelogs/up.json')
       return await res.json()
     } catch {
-      return []
+      try {
+        const res = await fetch('./up.json')
+        return await res.json()
+      } catch {
+        return []
+      }
     }
   },
 
