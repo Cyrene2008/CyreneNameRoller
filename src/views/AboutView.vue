@@ -18,8 +18,13 @@
 
       <div class="about-section">
         <h3>{{ lang === 'en' ? 'Author' : '作者' }}</h3>
-        <p>Cyrene</p>
+        <p><a href="https://github.com/Cyrene2008" target="_blank">Cyrene2008</a></p>
         <a href="https://昔涟.cn" target="_blank">昔涟.cn</a>
+      </div>
+
+      <div class="about-section">
+        <h3>{{ lang === 'en' ? 'Repository' : '仓库' }}</h3>
+        <a href="https://github.com/Cyrene2008/CyreneNameRoller" target="_blank">github.com/Cyrene2008/CyreneNameRoller</a>
       </div>
 
       <div class="about-section">
@@ -34,7 +39,7 @@
 
       <div class="about-section">
         <h3>{{ lang === 'en' ? 'Copyright' : '版权声明' }}</h3>
-        <p>Copyright &copy; 2025-2026 <a href="https://昔涟.cn" target="_blank">昔涟.cn</a> by Cyrene, All Rights Reserved.</p>
+        <p>Copyright &copy; 2025-2026 <a href="https://github.com/Cyrene2008" target="_blank">Cyrene2008</a>, All Rights Reserved.</p>
       </div>
 
       <div class="about-section">
