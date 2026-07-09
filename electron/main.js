@@ -90,19 +90,6 @@ function getDataFilePath(key) {
 console.log('[main] userData:', userDataPath)
 console.log('[main] dataDir:', dataDir)
 
-// 同步写入 - 确保数据立即落盘
-ipcMain.on('data:saveSync', (event, key, data) => {
-  ensureDataDir()
-  const filePath = getDataFilePath(key)
-  try {
-    fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8')
-    event.returnValue = true
-  } catch (e) {
-    console.error(`[data:saveSync] Failed for "${key}":`, e.message)
-    event.returnValue = false
-  }
-})
-
 // 数据操作 IPC
 ipcMain.handle('data:load', (_, key) => {
   ensureDataDir()
@@ -114,7 +101,7 @@ ipcMain.handle('data:load', (_, key) => {
     }
     return null
   } catch (e) {
-    console.error(`[data] Failed to load ${key}:`, e.message)
+    console.error(`[data:load] Failed for "${key}":`, e.message)
     return null
   }
 })
@@ -123,10 +110,33 @@ ipcMain.handle('data:save', (_, key, data) => {
   ensureDataDir()
   const filePath = getDataFilePath(key)
   try {
-    fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8')
+    const json = JSON.stringify(data, null, 2)
+    fs.writeFileSync(filePath, json, 'utf-8')
+    // 验证写入
+    const verify = fs.readFileSync(filePath, 'utf-8')
+    if (verify !== json) {
+      console.error(`[data:save] Verification failed for "${key}"`)
+      return false
+    }
     return true
   } catch (e) {
-    console.error(`[data] Failed to save ${key}:`, e.message)
+    console.error(`[data:save] Failed for "${key}":`, e.message)
+    return false
+  }
+})
+
+ipcMain.handle('data:clearAll', () => {
+  ensureDataDir()
+  try {
+    const files = fs.readdirSync(dataDir)
+    for (const file of files) {
+      if (file.endsWith('.json')) {
+        fs.unlinkSync(path.join(dataDir, file))
+      }
+    }
+    return true
+  } catch (e) {
+    console.error('[data:clearAll] Failed:', e.message)
     return false
   }
 })

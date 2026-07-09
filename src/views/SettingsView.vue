@@ -230,10 +230,7 @@ async function confirmImport() {
   }
 }
 async function doClearAllNow() {
-  await dataBridge.save('lists', {})
-  await dataBridge.save('statistics', { counts: {}, totalCount: 0 })
-  await dataBridge.save('records', [])
-  await dataBridge.save('settings', {})
+  await dataBridge.clearAll()
   alert(lang.value === 'en' ? 'All data cleared. Please close and restart.' : '所有数据已清除，请关闭并重启应用。')
 }
 async function saveBalance() { const n = normalizeSettings(balance.value); balance.value = n; await dataBridge.save('balance', n) }

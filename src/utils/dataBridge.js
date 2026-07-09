@@ -2,11 +2,29 @@ export function isElectron() {
   return typeof window !== 'undefined' && !!window.electronAPI
 }
 
+// 待写入队列（关闭前刷新）
+const pendingWrites = new Map()
+
+// 页面关闭前刷新所有待写入数据
+if (typeof window !== 'undefined') {
+  window.addEventListener('beforeunload', () => {
+    for (const [key, data] of pendingWrites) {
+      try { localStorage.setItem(`db_${key}`, JSON.stringify(data)) } catch {}
+      if (isElectron()) {
+        try {
+          // 使用 navigator.sendBeacon 或同步 XHR 无法用于 IPC，所以用 localStorage 兜底
+          // 下次启动时 load 会从 localStorage 恢复到文件系统
+        } catch {}
+      }
+    }
+    pendingWrites.clear()
+  })
+}
+
 export const dataBridge = {
   async load(key) {
     let result = null
 
-    // 1. 尝试从 Electron 文件系统加载
     if (isElectron()) {
       try {
         result = await window.electronAPI.loadData(key)
@@ -15,20 +33,17 @@ export const dataBridge = {
       }
     }
 
-    // 2. 如果文件系统有数据，备份到 localStorage
     if (result !== null && result !== undefined) {
       try { localStorage.setItem(`db_${key}`, JSON.stringify(result)) } catch {}
       return result
     }
 
-    // 3. 文件系统没有，从 localStorage 读取
     try {
       const raw = localStorage.getItem(`db_${key}`)
       if (raw !== null) {
         const parsed = JSON.parse(raw)
-        // localStorage 有数据但文件系统没有，写回文件系统
         if (isElectron() && parsed !== null) {
-          try { window.electronAPI.saveDataSync(key, parsed) } catch {}
+          try { await window.electronAPI.saveData(key, parsed) } catch {}
         }
         return parsed
       }
@@ -37,20 +52,37 @@ export const dataBridge = {
     return null
   },
 
-  save(key, data) {
-    // localStorage 写入（即时）
-    try { localStorage.setItem(`db_${key}`, JSON.stringify(data)) } catch (e) {
-      console.warn(`[dataBridge] localStorage save failed for "${key}":`, e)
-    }
+  async save(key, data) {
+    // 立即写入 localStorage
+    try { localStorage.setItem(`db_${key}`, JSON.stringify(data)) } catch {}
 
-    // Electron 文件系统同步写入（确保落盘）
+    // 异步写入文件系统
     if (isElectron()) {
       try {
-        const ok = window.electronAPI.saveDataSync(key, data)
-        if (!ok) console.warn(`[dataBridge] Electron saveDataSync returned false for "${key}"`)
+        pendingWrites.delete(key)
+        const ok = await window.electronAPI.saveData(key, data)
+        if (!ok) console.warn(`[dataBridge] save returned false for "${key}"`)
       } catch (e) {
-        console.warn(`[dataBridge] Electron saveDataSync failed for "${key}":`, e)
+        console.warn(`[dataBridge] save failed for "${key}":`, e)
       }
+    }
+
+    return true
+  },
+
+  async clearAll() {
+    // 清除 localStorage 中所有 db_ 前缀的 key
+    const keysToRemove = []
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i)
+      if (key.startsWith('db_')) keysToRemove.push(key)
+    }
+    keysToRemove.forEach(k => localStorage.removeItem(k))
+    pendingWrites.clear()
+
+    // 清除文件系统
+    if (isElectron()) {
+      try { await window.electronAPI.clearAllData() } catch {}
     }
 
     return true
@@ -61,9 +93,7 @@ export const dataBridge = {
       try {
         const result = await window.electronAPI.loadNames()
         if (result && result.names) return result
-      } catch (e) {
-        console.warn('[dataBridge] Electron loadNames failed:', e)
-      }
+      } catch {}
     }
     try {
       const res = await fetch('./names.json')
