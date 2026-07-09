@@ -41,13 +41,13 @@
       "target": [
         "nsis"
       ],
-      "icon": "public/cyrene256.png"
+      "icon": "public/icon.png"
     },
     "mac": {
       "target": [
         "dmg"
       ],
-      "icon": "public/cyrene256.png"
+      "icon": "public/icon.png"
     },
     "nsis": {
       "oneClick": false,

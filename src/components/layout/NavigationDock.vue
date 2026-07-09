@@ -1,7 +1,7 @@
 <template>
   <nav class="dock">
     <div class="dock-logo">
-      <Icon icon="fluent:heart-24-filled" :width="28" class="dock-logo-icon" />
+      <img src="/cyrene.png" class="dock-logo-img" alt="" />
       <span class="dock-logo-text">Cyreneの随机点名器</span>
     </div>
 
@@ -90,7 +90,12 @@ const bottomItems = [
   padding: 20px 0 16px;
 }
 
-.dock-logo-icon { color: var(--accent); }
+.dock-logo-img {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  object-fit: cover;
+}
 
 .dock-logo-text {
   font-size: 13px;

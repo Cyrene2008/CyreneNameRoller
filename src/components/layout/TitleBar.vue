@@ -1,7 +1,7 @@
 <template>
   <div class="titlebar">
     <div class="titlebar-drag">
-      <Icon icon="fluent:heart-24-filled" class="titlebar-icon" :width="14" />
+      <img src="/cyrene.png" class="titlebar-logo" alt="" />
       <span class="titlebar-text">Cyreneの随机点名器</span>
     </div>
     <div class="titlebar-controls">
@@ -62,8 +62,11 @@ function close() {
   height: 100%;
 }
 
-.titlebar-icon {
-  color: var(--accent);
+.titlebar-logo {
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  object-fit: cover;
 }
 
 .titlebar-text {
