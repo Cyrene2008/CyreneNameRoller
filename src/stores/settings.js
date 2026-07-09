@@ -19,7 +19,8 @@ const DEFAULT_SETTINGS = {
   darkMode: false,
   nameColorMode: 'gradient',
   customNameColorLight: '#d04a9d',
-  customNameColorDark: '#f09bd7'
+  customNameColorDark: '#f09bd7',
+  performanceMode: false
 }
 
 export const useSettingsStore = defineStore('settings', () => {

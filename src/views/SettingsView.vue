@@ -51,6 +51,13 @@
         <span class="setting-label">{{ t('fontSize', lang) }}</span>
         <FluentSelect :model-value="settings.nameFontSize" :options="fontSizeOptions" @update:model-value="update('nameFontSize', $event)" />
       </div>
+      <div class="setting-row">
+        <div class="setting-label-group">
+          <span class="setting-label">{{ lang === 'en' ? 'Performance Mode' : '性能模式' }}</span>
+          <span class="setting-desc">{{ lang === 'en' ? 'Disable blur/shadow/animation for integrated GPU' : '禁用模糊/阴影/动画，适合核显设备' }}</span>
+        </div>
+        <FluentToggle :model-value="settings.performanceMode" @update:model-value="update('performanceMode', $event)" />
+      </div>
     </FluentCard>
 
     <!-- 数据管理 -->
