@@ -1,16 +1,36 @@
-import { isElectron } from './safeStorage'
+import { isTauri, tauriAPI } from './tauriAPI'
+
+export function isElectron() {
+  return typeof window !== 'undefined' && !!window.electronAPI
+}
+
+function isBrowser() {
+  return !isTauri() && !isElectron()
+}
 
 export const dataBridge = {
   async load(key) {
-    // electron-store 或 localStorage
+    // Tauri
+    if (isTauri()) {
+      try {
+        const val = await tauriAPI.storageGet(key)
+        if (val !== null && val !== undefined) return val
+      } catch (e) {
+        console.warn(`[dataBridge] Tauri load failed for "${key}":`, e)
+      }
+    }
+
+    // Electron
     if (isElectron()) {
       try {
         const val = await window.electronAPI.storageGet(key)
         if (val !== null && val !== undefined) return val
       } catch (e) {
-        console.warn(`[dataBridge] load failed for "${key}":`, e)
+        console.warn(`[dataBridge] Electron load failed for "${key}":`, e)
       }
     }
+
+    // Browser fallback
     try {
       const raw = localStorage.getItem(key)
       return raw ? JSON.parse(raw) : null
@@ -20,20 +40,28 @@ export const dataBridge = {
   },
 
   async save(key, data) {
-    // 写入 electron-store（Electron）或 localStorage（Web）
-    if (isElectron()) {
-      try {
-        await window.electronAPI.storageSet(key, data)
-      } catch (e) {
-        console.warn(`[dataBridge] save failed for "${key}":`, e)
+    // Tauri
+    if (isTauri()) {
+      try { await tauriAPI.storageSet(key, data) } catch (e) {
+        console.warn(`[dataBridge] Tauri save failed for "${key}":`, e)
       }
     }
-    try {
-      localStorage.setItem(key, JSON.stringify(data))
-    } catch {}
+
+    // Electron
+    if (isElectron()) {
+      try { await window.electronAPI.storageSet(key, data) } catch (e) {
+        console.warn(`[dataBridge] Electron save failed for "${key}":`, e)
+      }
+    }
+
+    // Browser fallback
+    try { localStorage.setItem(key, JSON.stringify(data)) } catch {}
   },
 
   async clearAll() {
+    if (isTauri()) {
+      try { await tauriAPI.storageClear() } catch {}
+    }
     if (isElectron()) {
       try { await window.electronAPI.storageClear() } catch {}
     }
@@ -41,6 +69,12 @@ export const dataBridge = {
   },
 
   async loadNames() {
+    if (isTauri()) {
+      try {
+        const result = await tauriAPI.loadNames()
+        if (result && result.names) return result
+      } catch {}
+    }
     if (isElectron()) {
       try {
         const result = await window.electronAPI.loadNames()
@@ -56,6 +90,12 @@ export const dataBridge = {
   },
 
   async loadChangelog() {
+    if (isTauri()) {
+      try {
+        const result = await tauriAPI.loadChangelog()
+        if (Array.isArray(result)) return result
+      } catch {}
+    }
     if (isElectron()) {
       try {
         const result = await window.electronAPI.loadChangelog()
@@ -79,10 +119,18 @@ export const dataBridge = {
     if (isElectron()) {
       try { return await window.electronAPI.exportData() } catch {}
     }
+    // Tauri & Browser: download as JSON
     const allData = {}
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i)
-      try { allData[key] = JSON.parse(localStorage.getItem(key)) } catch {}
+    if (isTauri()) {
+      const keys = ['settings', 'lists', 'currentListId', 'statistics', 'records', 'balance', 'password']
+      for (const k of keys) {
+        try { allData[k] = await tauriAPI.storageGet(k) } catch {}
+      }
+    } else {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i)
+        try { allData[key] = JSON.parse(localStorage.getItem(key)) } catch {}
+      }
     }
     const blob = new Blob([JSON.stringify(allData, null, 2)], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
@@ -104,7 +152,10 @@ export const dataBridge = {
         if (!file) { resolve({ success: false, cancelled: true }); return }
         try {
           const data = JSON.parse(await file.text())
-          for (const [k, v] of Object.entries(data)) localStorage.setItem(k, JSON.stringify(v))
+          for (const [k, v] of Object.entries(data)) {
+            if (isTauri()) await tauriAPI.storageSet(k, v)
+            else localStorage.setItem(k, JSON.stringify(v))
+          }
           resolve({ success: true })
         } catch { resolve({ success: false, error: 'Parse error' }) }
       }

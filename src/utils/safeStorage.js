@@ -1,16 +1,16 @@
+import { isTauri, tauriAPI } from './tauriAPI'
+
 export function isElectron() {
   return typeof window !== 'undefined' && !!window.electronAPI
 }
 
 export const safeStorage = {
   async get(key) {
+    if (isTauri()) {
+      try { return await tauriAPI.storageGet(key) } catch {}
+    }
     if (isElectron()) {
-      try {
-        const val = await window.electronAPI.storageGet(key)
-        return val !== null && val !== undefined ? val : null
-      } catch (e) {
-        console.warn(`[safeStorage] get failed for "${key}":`, e)
-      }
+      try { return await window.electronAPI.storageGet(key) } catch {}
     }
     try {
       const raw = localStorage.getItem(key)
@@ -21,19 +21,19 @@ export const safeStorage = {
   },
 
   async set(key, value) {
-    if (isElectron()) {
-      try {
-        await window.electronAPI.storageSet(key, value)
-      } catch (e) {
-        console.warn(`[safeStorage] set failed for "${key}":`, e)
-      }
+    if (isTauri()) {
+      try { await tauriAPI.storageSet(key, value) } catch {}
     }
-    try {
-      localStorage.setItem(key, JSON.stringify(value))
-    } catch {}
+    if (isElectron()) {
+      try { await window.electronAPI.storageSet(key, value) } catch {}
+    }
+    try { localStorage.setItem(key, JSON.stringify(value)) } catch {}
   },
 
   async remove(key) {
+    if (isTauri()) {
+      try { await tauriAPI.storageDelete(key) } catch {}
+    }
     if (isElectron()) {
       try { await window.electronAPI.storageDelete(key) } catch {}
     }
@@ -41,6 +41,9 @@ export const safeStorage = {
   },
 
   async clear() {
+    if (isTauri()) {
+      try { await tauriAPI.storageClear() } catch {}
+    }
     if (isElectron()) {
       try { await window.electronAPI.storageClear() } catch {}
     }
