@@ -1,7 +1,8 @@
 {
   "name": "cyrene-name-roller",
   "version": "26.0.0",
-  "description": "Cyrene's Name Roller - Fluent Design Desktop App",
+  "description": "随机点名器 - 支持多人模式、平衡算法、翻牌模式的桌面端点名应用",
+  "author": "Cyrene2008 <https://github.com/Cyrene2008>",
   "main": "electron/main.js",
   "scripts": {
     "dev": "vite",
@@ -30,6 +31,7 @@
   "build": {
     "appId": "cn.xilian.cyrene-name-roller",
     "productName": "CyreneNameRoller",
+    "copyright": "Copyright © 2025-2026 Cyrene2008",
     "directories": {
       "output": "release"
     },
@@ -41,7 +43,8 @@
       "target": [
         "nsis"
       ],
-      "icon": "public/icon.png"
+      "icon": "public/icon.png",
+      "legalTrademarks": "昔涟.cn"
     },
     "mac": {
       "target": [
