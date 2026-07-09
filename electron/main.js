@@ -1,25 +1,22 @@
 const { app, BrowserWindow, ipcMain, dialog } = require('electron')
 const path = require('path')
 const fs = require('fs')
+const Store = require('electron-store')
 
 let win
 const isDev = !app.isPackaged
 
-const userDataPath = app.getPath('userData')
-const dataDir = path.join(userDataPath, 'data')
-const windowStatePath = path.join(userDataPath, 'window-state.json')
-
-function ensureDataDir() {
-  if (!fs.existsSync(dataDir)) {
-    fs.mkdirSync(dataDir, { recursive: true })
-  }
-}
+const store = new Store({ name: 'cyrene-data' })
+const windowStatePath = new Store({ name: 'window-state' })
 
 function loadWindowState() {
   try {
-    if (fs.existsSync(windowStatePath)) {
-      return JSON.parse(fs.readFileSync(windowStatePath, 'utf-8'))
-    }
+    const x = windowStatePath.get('x')
+    const y = windowStatePath.get('y')
+    const width = windowStatePath.get('width')
+    const height = windowStatePath.get('height')
+    const isMaximized = windowStatePath.get('isMaximized')
+    if (width && height) return { x, y, width, height, isMaximized }
   } catch {}
   return null
 }
@@ -28,16 +25,16 @@ function saveWindowState() {
   if (!win || win.isDestroyed()) return
   try {
     const bounds = win.getBounds()
-    const isMaximized = win.isMaximized()
-    const state = { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height, isMaximized }
-    fs.writeFileSync(windowStatePath, JSON.stringify(state), 'utf-8')
+    windowStatePath.set('x', bounds.x)
+    windowStatePath.set('y', bounds.y)
+    windowStatePath.set('width', bounds.width)
+    windowStatePath.set('height', bounds.height)
+    windowStatePath.set('isMaximized', win.isMaximized())
   } catch {}
 }
 
 function createWindow() {
-  ensureDataDir()
   const saved = loadWindowState()
-
   const defaults = { width: 1200, height: 900, minWidth: 1200, minHeight: 900 }
   const opts = { ...defaults }
   if (saved) {
@@ -58,9 +55,7 @@ function createWindow() {
     }
   })
 
-  if (saved && saved.isMaximized) {
-    win.maximize()
-  }
+  if (saved && saved.isMaximized) win.maximize()
 
   win.on('close', saveWindowState)
   win.on('resize', saveWindowState)
@@ -73,87 +68,60 @@ function createWindow() {
   }
 }
 
-// 窗口控制 IPC
+// 窗口控制
 ipcMain.on('window-minimize', () => win.minimize())
-ipcMain.on('window-maximize', () => {
-  win.isMaximized() ? win.unmaximize() : win.maximize()
-})
+ipcMain.on('window-maximize', () => { win.isMaximized() ? win.unmaximize() : win.maximize() })
 ipcMain.on('window-close', () => win.close())
 ipcMain.handle('window-is-maximized', () => win.isMaximized())
 
-// 数据文件路径
-function getDataFilePath(key) {
-  return path.join(dataDir, `${key}.json`)
-}
-
-// 启动时打印数据目录
-console.log('[main] userData:', userDataPath)
-console.log('[main] dataDir:', dataDir)
-
-// 数据操作 IPC
-ipcMain.handle('data:load', (_, key) => {
-  ensureDataDir()
-  const filePath = getDataFilePath(key)
+// electron-store 存储 IPC
+ipcMain.handle('storage-get', (_, key) => {
   try {
-    if (fs.existsSync(filePath)) {
-      const raw = fs.readFileSync(filePath, 'utf-8')
-      return JSON.parse(raw)
-    }
-    return null
+    const val = store.get(key)
+    return val !== undefined ? val : null
   } catch (e) {
-    console.error(`[data:load] Failed for "${key}":`, e.message)
+    console.error(`[storage-get] Failed for "${key}":`, e.message)
     return null
   }
 })
 
-ipcMain.handle('data:save', (_, key, data) => {
-  ensureDataDir()
-  const filePath = getDataFilePath(key)
+ipcMain.handle('storage-set', (_, key, value) => {
   try {
-    const json = JSON.stringify(data, null, 2)
-    fs.writeFileSync(filePath, json, 'utf-8')
-    // 验证写入
-    const verify = fs.readFileSync(filePath, 'utf-8')
-    if (verify !== json) {
-      console.error(`[data:save] Verification failed for "${key}"`)
-      return false
-    }
+    store.set(key, value)
     return true
   } catch (e) {
-    console.error(`[data:save] Failed for "${key}":`, e.message)
+    console.error(`[storage-set] Failed for "${key}":`, e.message)
     return false
   }
 })
 
-ipcMain.handle('data:clearAll', () => {
-  ensureDataDir()
+ipcMain.handle('storage-delete', (_, key) => {
   try {
-    const files = fs.readdirSync(dataDir)
-    for (const file of files) {
-      if (file.endsWith('.json')) {
-        fs.unlinkSync(path.join(dataDir, file))
-      }
-    }
+    store.delete(key)
     return true
   } catch (e) {
-    console.error('[data:clearAll] Failed:', e.message)
     return false
   }
 })
 
+ipcMain.handle('storage-clear', () => {
+  try {
+    store.clear()
+    return true
+  } catch (e) {
+    return false
+  }
+})
+
+// 名单加载（从 .origin 目录）
 ipcMain.handle('data:loadNames', () => {
-  // 优先从 .origin 读取，不存在则从 userData/data 读取
   const bundledPath = path.join(__dirname, '../.origin/names.json')
-  const userDataPath2 = getDataFilePath('defaultNames')
   try {
     if (fs.existsSync(bundledPath)) {
       return JSON.parse(fs.readFileSync(bundledPath, 'utf-8'))
     }
-    if (fs.existsSync(userDataPath2)) {
-      return JSON.parse(fs.readFileSync(userDataPath2, 'utf-8'))
-    }
   } catch (e) {
-    console.error('[data] Failed to load names:', e.message)
+    console.error('[data:loadNames] Failed:', e.message)
   }
   return { names: [] }
 })
@@ -164,23 +132,14 @@ ipcMain.handle('data:loadChangelog', () => {
     if (fs.existsSync(bundledPath)) {
       return JSON.parse(fs.readFileSync(bundledPath, 'utf-8'))
     }
-  } catch (e) {
-    console.error('[data] Failed to load changelog:', e.message)
-  }
+  } catch {}
   return []
 })
 
+// 导出/导入
 ipcMain.handle('data:exportData', async () => {
-  ensureDataDir()
   try {
-    const allData = {}
-    const files = fs.readdirSync(dataDir)
-    for (const file of files) {
-      if (file.endsWith('.json')) {
-        const key = file.replace('.json', '')
-        allData[key] = JSON.parse(fs.readFileSync(path.join(dataDir, file), 'utf-8'))
-      }
-    }
+    const allData = store.store
     const { filePath: savePath } = await dialog.showSaveDialog(win, {
       title: '导出数据',
       defaultPath: 'cyrene-data.cyrene',
@@ -188,7 +147,7 @@ ipcMain.handle('data:exportData', async () => {
     })
     if (savePath) {
       fs.writeFileSync(savePath, JSON.stringify(allData, null, 2), 'utf-8')
-      return { success: true, path: savePath }
+      return { success: true }
     }
     return { success: false, cancelled: true }
   } catch (e) {
@@ -197,7 +156,6 @@ ipcMain.handle('data:exportData', async () => {
 })
 
 ipcMain.handle('data:importData', async () => {
-  ensureDataDir()
   try {
     const { filePaths } = await dialog.showOpenDialog(win, {
       title: '导入数据',
@@ -207,34 +165,17 @@ ipcMain.handle('data:importData', async () => {
     if (filePaths.length > 0) {
       const raw = fs.readFileSync(filePaths[0], 'utf-8')
       const allData = JSON.parse(raw)
-      const writtenKeys = []
       for (const [key, value] of Object.entries(allData)) {
-        const filePath = path.join(dataDir, `${key}.json`)
-        fs.writeFileSync(filePath, JSON.stringify(value, null, 2), 'utf-8')
-        writtenKeys.push(key)
+        store.set(key, value)
       }
-      // 验证写入
-      for (const key of writtenKeys) {
-        const filePath = path.join(dataDir, `${key}.json`)
-        if (!fs.existsSync(filePath)) {
-          throw new Error(`Verification failed: ${key}.json not written`)
-        }
-      }
-      return { success: true, keys: writtenKeys }
+      return { success: true }
     }
     return { success: false, cancelled: true }
   } catch (e) {
-    console.error('[import] Failed:', e.message)
     return { success: false, error: e.message }
   }
 })
 
 app.whenReady().then(createWindow)
-
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit()
-})
-
-app.on('activate', () => {
-  if (BrowserWindow.getAllWindows().length === 0) createWindow()
-})
+app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit() })
+app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow() })
