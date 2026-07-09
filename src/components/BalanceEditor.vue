@@ -123,7 +123,10 @@ function fitMonotoneHermite(pts) {
 
   return (x) => {
     if (x <= pts[0].x) return pts[0].y
-    if (x >= pts[n - 1].x) return pts[n - 1].y
+    if (x >= pts[n - 1].x) {
+      const slope = m[n - 1]
+      return pts[n - 1].y + slope * (x - pts[n - 1].x)
+    }
 
     let seg = 0
     for (let i = 0; i < n - 1; i++) {
