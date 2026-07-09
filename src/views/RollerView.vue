@@ -172,7 +172,7 @@ onBeforeUnmount(() => { if (intervalId) clearTimeout(intervalId) })
 
 .name-display { font-family: var(--font-display); font-size: calc(52px * var(--name-font-factor, 1)); font-weight: 700; color: var(--text-primary); min-width: 120px; text-align: center; white-space: nowrap; overflow: hidden; transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); text-shadow: 0 4px 20px rgba(234, 94, 193, 0.15); position: relative; }
 .name-display::before { content: ''; position: absolute; inset: -4px; background: var(--accent); border-radius: var(--radius-sm); z-index: -1; opacity: 0; transition: opacity 0.3s ease; }
-.name-display.rainbow { background: linear-gradient(90deg, #E50012, #FF8C00, #FFEF00, #00811F, #0044FF, #760089, #E50012); background-size: 400% 100%; -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; animation: rainbow-flow 5s linear infinite; text-shadow: none; }
+.name-display.rainbow { background: linear-gradient(90deg, #FFA9E9, #A6CAEE, #FFA9E9, #A6CAEE); background-size: 400% 100%; -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; animation: rainbow-flow 4s linear infinite; text-shadow: none; }
 @keyframes rainbow-flow { 0% { background-position: 0% 50%; } 100% { background-position: 400% 50%; } }
 .name-display.final { animation: final-reveal 0.5s cubic-bezier(0.1, 0.9, 0.2, 1); }
 @keyframes final-reveal { 0% { transform: scale(4); opacity: 0; filter: brightness(2); } 100% { transform: scale(1); filter: brightness(1); } }
