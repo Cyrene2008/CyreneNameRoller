@@ -26,7 +26,8 @@ import FluentInput from './FluentInput.vue'
 
 const props = defineProps({
   modelValue: { type: Array, default: () => [{ x: 0, y: 100 }, { x: 1, y: 300 }, { x: 2, y: 700 }] },
-  lang: { type: String, default: 'zh' }
+  lang: { type: String, default: 'zh' },
+  maxY: { type: Number, default: 1400 }
 })
 
 const emit = defineEmits(['update:modelValue'])
@@ -147,7 +148,7 @@ function dataToCanvas(pt) {
   const w = canvas.width, h = canvas.height
   const padL = 60, padR = 30, padT = 20, padB = 40
   const plotW = w - padL - padR, plotH = h - padT - padB
-  const xMax = 10, yMin = 100, yMax = 1400
+  const xMax = 10, yMin = 100, yMax = props.maxY
   return {
     cx: padL + (Math.min(pt.x, xMax) / xMax) * plotW,
     cy: padT + (1 - (Math.min(pt.y, yMax) - yMin) / (yMax - yMin)) * plotH
@@ -160,7 +161,7 @@ function canvasToData(cx, cy) {
   const w = canvas.width, h = canvas.height
   const padL = 60, padR = 30, padT = 20, padB = 40
   const plotW = w - padL - padR, plotH = h - padT - padB
-  const xMax = 10, yMin = 100, yMax = 1400
+  const xMax = 10, yMin = 100, yMax = props.maxY
   return {
     x: Math.max(0, Math.min(xMax, ((cx - padL) / plotW) * xMax)),
     y: Math.max(yMin, Math.min(yMax, yMin + (1 - (cy - padT) / plotH) * (yMax - yMin)))
@@ -211,7 +212,7 @@ function render() {
 
   const padL = 60, padR = 30, padT = 20, padB = 40
   const plotW = w - padL - padR, plotH = h - padT - padB
-  const xMax = 10, yMin = 100, yMax = 1400
+  const xMax = 10, yMin = 100, yMax = props.maxY
 
   function xToPx(x) { return padL + (x / xMax) * plotW }
   function yToPx(y) { return padT + (1 - (y - yMin) / (yMax - yMin)) * plotH }

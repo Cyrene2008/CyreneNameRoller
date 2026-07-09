@@ -93,8 +93,7 @@ import FluentInput from '../components/FluentInput.vue'
 const router = useRouter()
 const namesStore = useNamesStore()
 const settingsStore = useSettingsStore()
-const lang = computed(() => settingsStore.settings.englishMode ? 'en' : 'zh')
-const toastRef = inject('toast')
+const lang = computed(() => settingsStore.settings.language)
 
 const listOptions = computed(() => namesStore.allLists.map(l => ({ value: l.id, label: l.name })))
 

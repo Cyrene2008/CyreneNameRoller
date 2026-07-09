@@ -1,5 +1,39 @@
 [
   {
+    "version": "26.0.2",
+    "date": "2026-07-09",
+    "logs": {
+      "zh": [
+        "【新功能】贡献人员页面：展示团队成员头像、角色分工、GitHub 链接",
+        "【新功能】非商用资源引用声明（崩坏：星穹铁道资源，版权归 miHoYo/HoYoverse 所有）",
+        "【新功能】平衡曲线编辑器内嵌参数调节（平衡因子、最大阈值、最大提升值）",
+        "【改进】平衡曲线编辑器升级为独立子页面（设置 > 编辑曲线）",
+        "【改进】Dock 栏子页面焦点联动（进入子页面时父级高亮）",
+        "【改进】数据持久化迁移到 electron-store，重启后数据完整保留",
+        "【修复】更新检测：Web 端隐藏，桌面端支持 gh-proxy.com 备用镜像",
+        "【修复】修复合并冲突导致的 CSS 语法错误和页面空白问题",
+        "【修复】English Mode 现在正确影响所有页面的文字显示",
+        "【UI】标题栏 1.25x 放大，hamburger 按钮移入标题栏",
+        "【UI】渐变名称动画优化（无缝循环）",
+        "【UI】滚动条、Dock 栏粉色系配色统一"
+      ],
+      "en": [
+        "[Feature] Contributors page with avatars, roles, and GitHub links",
+        "[Feature] Non-commercial resource attribution (Honkai: Star Rail, miHoYo/HoYoverse)",
+        "[Feature] Balance curve editor with inline parameter controls (factor, threshold, max boost)",
+        "[Improvement] Balance curve editor promoted to standalone sub-page (Settings > Edit Curve)",
+        "[Improvement] Dock highlights parent item when navigating to sub-pages",
+        "[Improvement] Data persistence migrated to electron-store for reliable restart retention",
+        "[Fix] Update checker hidden in web mode, gh-proxy.com fallback for desktop",
+        "[Fix] Merge conflict CSS errors and blank page issues",
+        "[Fix] English Mode now correctly affects all page text",
+        "[UI] Titlebar scaled 1.25x, hamburger button moved into titlebar",
+        "[UI] Gradient name animation optimized (seamless loop)",
+        "[UI] Scrollbar and dock unified pink color scheme"
+      ]
+    }
+  },
+  {
     "version": "26.0.1",
     "date": "2026-07-09",
     "logs": {

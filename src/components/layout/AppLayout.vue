@@ -18,7 +18,7 @@
     </div>
 
     <Transition name="update-slide">
-      <div v-if="updateState.available" class="update-banner">
+      <div v-if="isDesktopApp && updateState.available" class="update-banner">
         <FluentIcon icon="arrow-download-24-regular" :width="18" />
         <span>{{ lang === 'en' ? 'Update available:' : '发现新版本：' }}{{ updateState.version }}</span>
         <button class="update-btn" @click="downloadUpdate">{{ lang === 'en' ? 'Download' : '下载' }}</button>
@@ -35,8 +35,8 @@
 <script setup>
 
 
-import { onMounted, watch, provide, ref, computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { onMounted, watch, provide, ref, computed, nextTick } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import TitleBar from './TitleBar.vue'
 import NavigationDock from './NavigationDock.vue'
 import FluentToast from '../FluentToast.vue'
@@ -48,36 +48,42 @@ import { useStatisticsStore } from '../../stores/statistics'
 import { useRecordsStore } from '../../stores/records'
 import { APP_VERSION, APP_VERSION_PREFIX, APP_BUILD, APP_PLATFORM, APP_NAME } from '../../utils/version'
 import { updateState, checkForUpdates, downloadUpdate } from '../../utils/updater'
+import { isTauri } from '../../utils/tauriAPI'
 
 const router = useRouter()
+const currentRoute = useRoute()
 const settingsStore = useSettingsStore()
 const namesStore = useNamesStore()
 const statisticsStore = useStatisticsStore()
 const recordsStore = useRecordsStore()
 
 const lang = computed(() => settingsStore.settings.language)
+const isDesktopApp = computed(() => !!window.electronAPI || isTauri())
 
 const globalToast = ref(null)
 provide('toast', globalToast)
 
-const transitionName = ref('page-slide')
+const routeOrder = ['/', '/roller', '/card', '/statistics', '/records', '/lists', '/lists/manage', '/settings', '/settings/balance-curve', '/about', '/about/contributors']
+const transitionName = ref('page-forward')
 
-// Track navigation direction for reverse animations
-const routeHistory = ref([])
-router.afterEach((to, from) => {
-  const toDepth = to.path.split('/').length
-  const fromDepth = from.path.split('/').length
-  
-  // Check if going back (to a parent route)
-  if (toDepth < fromDepth || routeHistory.value.includes(to.path)) {
-    transitionName.value = 'page-slide-reverse'
-    routeHistory.value = routeHistory.value.filter(p => p !== from.path)
-  } else {
-    transitionName.value = 'page-slide'
-    if (!routeHistory.value.includes(from.path)) {
-      routeHistory.value.push(from.path)
-    }
-  }
+function getRouteIndex(path) {
+  const clean = path.replace(/\/$/, '') || '/'
+  const idx = routeOrder.indexOf(clean)
+  return idx >= 0 ? idx : routeOrder.length
+}
+
+router.beforeEach((to, from) => {
+  const toIdx = getRouteIndex(to.path)
+  const fromIdx = getRouteIndex(from.path)
+  transitionName.value = toIdx >= fromIdx ? 'page-forward' : 'page-back'
+})
+
+// Scroll to top on route change
+router.afterEach(() => {
+  nextTick(() => {
+    const content = document.querySelector('.app-content')
+    if (content) content.scrollTop = 0
+  })
 })
 
 document.title = APP_NAME
@@ -87,7 +93,7 @@ onMounted(async () => {
   await namesStore.initialize()
   await statisticsStore.initialize()
   await recordsStore.initialize()
-  checkForUpdates()
+  if (isDesktopApp.value) checkForUpdates()
 })
 
 watch(() => settingsStore.settings.uiScale, (val) => {
@@ -221,40 +227,62 @@ watch(() => settingsStore.settings.nameFontSize, (val) => {
   opacity: 0;
 }
 
-.page-slide-enter-active {
-  transition: all 0.25s cubic-bezier(0.1, 0.9, 0.2, 1);
+.page-fade-enter-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
 }
 
-.page-slide-leave-active {
-  transition: all 0.15s ease-in;
+.page-fade-leave-active {
+  transition: opacity 0.12s ease, transform 0.12s ease;
 }
 
-.page-slide-enter-from {
+.page-fade-enter-from {
   opacity: 0;
-  transform: translateX(20px);
+  transform: translateY(8px);
 }
 
-.page-slide-leave-to {
+.page-fade-leave-to {
   opacity: 0;
-  transform: translateX(-10px);
+  transform: translateY(-4px);
 }
 
-.page-slide-reverse-enter-active {
-  transition: all 0.25s cubic-bezier(0.1, 0.9, 0.2, 1);
+.page-forward-enter-active {
+  transition: all 0.4s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.page-slide-reverse-leave-active {
-  transition: all 0.15s ease-in;
+.page-forward-leave-active {
+  transition: all 0.28s cubic-bezier(0.55, 0, 1, 0.45);
 }
 
-.page-slide-reverse-enter-from {
+.page-forward-enter-from {
   opacity: 0;
-  transform: translateX(-20px);
+  transform: translateX(40px) scale(0.97);
+  filter: blur(4px);
 }
 
-.page-slide-reverse-leave-to {
+.page-forward-leave-to {
   opacity: 0;
-  transform: translateX(10px);
+  transform: translateX(-24px) scale(0.98);
+  filter: blur(2px);
+}
+
+.page-back-enter-active {
+  transition: all 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.page-back-leave-active {
+  transition: all 0.28s cubic-bezier(0.55, 0, 1, 0.45);
+}
+
+.page-back-enter-from {
+  opacity: 0;
+  transform: translateX(-40px) scale(0.97);
+  filter: blur(4px);
+}
+
+.page-back-leave-to {
+  opacity: 0;
+  transform: translateX(24px) scale(0.98);
+  filter: blur(2px);
 }
 
 @media (max-width: 768px) {

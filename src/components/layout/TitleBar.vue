@@ -143,8 +143,6 @@ onMounted(async () => {
 }
 
 .titlebar-app-title {
-  font-size: 12px;
-.titlebar-text {
   font-size: 14px;
   font-weight: 600;
   color: var(--text-secondary);
