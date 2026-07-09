@@ -8,6 +8,10 @@ fn get_data_dir(app: &tauri::AppHandle) -> PathBuf {
     dir
 }
 
+fn get_resource_dir(app: &tauri::AppHandle) -> PathBuf {
+    app.path().resource_dir().unwrap_or_else(|_| PathBuf::from("."))
+}
+
 #[tauri::command]
 fn storage_get(app: tauri::AppHandle, key: String) -> Option<serde_json::Value> {
     let path = get_data_dir(&app).join(format!("{}.json", key));
@@ -42,14 +46,14 @@ fn storage_clear(app: tauri::AppHandle) -> bool {
 }
 
 #[tauri::command]
-fn load_names() -> serde_json::Value {
+fn load_names(app: tauri::AppHandle) -> serde_json::Value {
+    let resource_dir = get_resource_dir(&app);
     let paths = [
-        "public/names.json",
-        "dist/names.json",
-        "../public/names.json",
-        "../.origin/names.json",
+        resource_dir.join("names.json"),
+        PathBuf::from("public/names.json"),
+        PathBuf::from("dist/names.json"),
     ];
-    for p in paths {
+    for p in &paths {
         if let Ok(s) = fs::read_to_string(p) {
             if let Ok(v) = serde_json::from_str(&s) {
                 return v;
@@ -60,15 +64,14 @@ fn load_names() -> serde_json::Value {
 }
 
 #[tauri::command]
-fn load_changelog() -> serde_json::Value {
+fn load_changelog(app: tauri::AppHandle) -> serde_json::Value {
+    let resource_dir = get_resource_dir(&app);
     let paths = [
-        "public/updatelogs/up.json",
-        "dist/updatelogs/up.json",
-        "public/up.json",
-        "../public/updatelogs/up.json",
-        "../.origin/up.json",
+        resource_dir.join("updatelogs").join("up.json"),
+        PathBuf::from("public/updatelogs/up.json"),
+        PathBuf::from("dist/updatelogs/up.json"),
     ];
-    for p in paths {
+    for p in &paths {
         if let Ok(s) = fs::read_to_string(p) {
             if let Ok(v) = serde_json::from_str(&s) {
                 return v;
