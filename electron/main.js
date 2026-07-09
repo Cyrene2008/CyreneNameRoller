@@ -1,6 +1,7 @@
-const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron')
+const { app, BrowserWindow, ipcMain, dialog, shell, net } = require('electron')
 const path = require('path')
 const fs = require('fs')
+const https = require('https')
 
 let win
 let store
@@ -126,6 +127,33 @@ ipcMain.handle('storage-clear', () => {
   } catch (e) {
     return false
   }
+})
+
+// 检查更新（通过主进程避免 CORS）
+ipcMain.handle('check-update', async () => {
+  const urls = [
+    'https://api.github.com/repos/Cyrene2008/CyreneNameRoller/releases/latest',
+    'https://api.kkgithub.com/repos/Cyrene2008/CyreneNameRoller/releases/latest'
+  ]
+  for (const url of urls) {
+    try {
+      const data = await new Promise((resolve, reject) => {
+        const req = https.get(url, {
+          headers: { 'User-Agent': 'CyreneNameRoller', 'Accept': 'application/vnd.github.v3+json' },
+          timeout: 8000
+        }, (res) => {
+          if (res.statusCode !== 200) { res.resume(); reject(new Error(`HTTP ${res.statusCode}`)); return }
+          let body = ''
+          res.on('data', c => body += c)
+          res.on('end', () => { try { resolve(JSON.parse(body)) } catch (e) { reject(e) } })
+        })
+        req.on('error', reject)
+        req.on('timeout', () => { req.destroy(); reject(new Error('timeout')) })
+      })
+      return { ok: true, data }
+    } catch {}
+  }
+  return { ok: false, error: '无法连接到更新服务器' }
 })
 
 // 名单加载（从 .origin 目录）

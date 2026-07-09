@@ -15,5 +15,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   loadNames: () => ipcRenderer.invoke('data:loadNames'),
   loadChangelog: () => ipcRenderer.invoke('data:loadChangelog'),
   exportData: () => ipcRenderer.invoke('data:exportData'),
-  importData: () => ipcRenderer.invoke('data:importData')
+  importData: () => ipcRenderer.invoke('data:importData'),
+  checkUpdate: () => ipcRenderer.invoke('check-update')
 })

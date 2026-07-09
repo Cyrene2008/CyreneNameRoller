@@ -28,7 +28,7 @@
         <span>{{ lang === 'en' ? 'New version:' : '发现新版本：' }}{{ updateState.version }}</span>
         <FluentButton variant="primary" size="sm" @click="downloadUpdate">{{ lang === 'en' ? 'Download' : '下载' }}</FluentButton>
       </div>
-      <p v-if="updateState.error" class="setting-note" style="color: var(--accent);">{{ updateState.error }}</p>
+      <p v-if="isDesktop && updateState.error" class="setting-note" style="color: var(--accent);">{{ updateState.error }}</p>
     </FluentCard>
 
     <!-- 主题与显示 -->

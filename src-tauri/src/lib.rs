@@ -83,6 +83,32 @@ fn load_changelog(app: tauri::AppHandle) -> serde_json::Value {
 }
 
 #[tauri::command]
+async fn check_update() -> Result<serde_json::Value, String> {
+    let urls = [
+        "https://api.github.com/repos/Cyrene2008/CyreneNameRoller/releases/latest",
+        "https://api.kkgithub.com/repos/Cyrene2008/CyreneNameRoller/releases/latest",
+    ];
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(8))
+        .build()
+        .map_err(|e| e.to_string())?;
+    for url in &urls {
+        if let Ok(resp) = client
+            .get(*url)
+            .header("User-Agent", "CyreneNameRoller")
+            .header("Accept", "application/vnd.github.v3+json")
+            .send()
+            .await
+        {
+            if let Ok(json) = resp.json::<serde_json::Value>().await {
+                return Ok(json);
+            }
+        }
+    }
+    Err("无法连接到更新服务器".into())
+}
+
+#[tauri::command]
 fn open_external(url: String) {
     #[cfg(target_os = "windows")]
     { let _ = Command::new("cmd").args(["/C", "start", &url]).spawn(); }
@@ -103,6 +129,7 @@ pub fn run() {
             storage_clear,
             load_names,
             load_changelog,
+            check_update,
             open_external
         ])
         .run(tauri::generate_context!())

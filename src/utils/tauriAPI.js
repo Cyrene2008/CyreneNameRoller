@@ -18,5 +18,6 @@ export const tauriAPI = {
   async storageClear() { return this.invoke('storage_clear', {}) },
   async loadNames() { return this.invoke('load_names', {}) },
   async loadChangelog() { return this.invoke('load_changelog', {}) },
-  async openExternal(url) { return this.invoke('open_external', { url }) }
+  async openExternal(url) { return this.invoke('open_external', { url }) },
+  async checkUpdate() { return this.invoke('check_update', {}) }
 }

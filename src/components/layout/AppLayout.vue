@@ -77,7 +77,7 @@ onMounted(async () => {
   await namesStore.initialize()
   await statisticsStore.initialize()
   await recordsStore.initialize()
-  checkForUpdates()
+  if (isDesktopApp.value) checkForUpdates()
 })
 
 watch(() => settingsStore.settings.uiScale, (val) => {
