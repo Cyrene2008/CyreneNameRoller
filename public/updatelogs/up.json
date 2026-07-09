@@ -1,5 +1,31 @@
 [
   {
+    "version": "26.0.1",
+    "date": "2026-07-09",
+    "logs": {
+      "zh": [
+        "【新功能】自动更新检测：Tauri/Electron 版启动时自动检查 GitHub Releases，发现新版本顶部弹出下载横幅",
+        "【新功能】手动检查更新：设置页面添加「检查更新」按钮，支持 gh-proxy.com 备用镜像",
+        "【新功能】PWA 支持：Web 版支持离线使用，Service Worker 缓存所有资源",
+        "【新功能】Web 全屏按钮：Web 端右上角显示全屏切换按钮（桌面端不显示）",
+        "【改进】版本号格式改为 YYYYMMDDHH-平台后缀（如 2026070917-electron-win64）",
+        "【改进】版本号时区统一为 UTC+8",
+        "【改进】Tauri 更新日志修复：up.json 作为资源嵌入，打包后可正常显示",
+        "【修复】移动端布局修复：修复 Dock 栏顶部空白导致底部按钮无法点击的问题"
+      ],
+      "en": [
+        "[Feature] Auto update checker: Tauri/Electron checks GitHub Releases on startup",
+        "[Feature] Manual update check: Settings page button with gh-proxy.com fallback mirror",
+        "[Feature] PWA support: Web version works offline with Service Worker caching",
+        "[Feature] Web fullscreen button: top-right corner, hidden in desktop apps",
+        "[Improvement] Build format: YYYYMMDDHH-platform suffix (e.g. 2026070917-electron-win64)",
+        "[Improvement] Build timezone unified to UTC+8",
+        "[Fix] Tauri changelog: up.json bundled as resource, displays correctly after packaging",
+        "[Fix] Mobile layout: dock top gap causing bottom buttons to be unclickable"
+      ]
+    }
+  },
+  {
     "version": "26.0.0",
     "date": "2026-07-09",
     "logs": {

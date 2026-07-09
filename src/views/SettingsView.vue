@@ -10,12 +10,25 @@
       <h3 class="section-title"><FluentIcon icon="options-24-regular" :width="20" /> {{ lang === 'en' ? 'General' : '基本设置' }}</h3>
       <div class="setting-row">
         <span class="setting-label">{{ lang === 'en' ? 'Language' : '语言' }}</span>
-        <FluentSelect :model-value="settings.englishMode" :options="langOptions" @update:model-value="update('englishMode', $event)" />
+        <FluentSelect :model-value="settings.language" :options="langOptions" @update:model-value="update('language', $event)" />
       </div>
       <div class="setting-row">
         <span class="setting-label">{{ lang === 'en' ? 'Dark Mode' : '深色模式' }}</span>
         <FluentToggle :model-value="settingsStore.darkMode" @update:model-value="settingsStore.toggleDarkMode()" />
       </div>
+      <div class="setting-row">
+        <span class="setting-label">{{ lang === 'en' ? 'Check for Updates' : '检查更新' }}</span>
+        <FluentButton variant="secondary" size="sm" :disabled="updateState.checking" @click="doCheckUpdate">
+          <FluentIcon icon="arrow-sync-16-regular" :width="14" />
+          {{ updateState.checking ? (lang === 'en' ? 'Checking...' : '检查中...') : (lang === 'en' ? 'Check' : '检查') }}
+        </FluentButton>
+      </div>
+      <div v-if="updateState.available" class="update-info">
+        <FluentIcon icon="arrow-download-16-regular" :width="14" />
+        <span>{{ lang === 'en' ? 'New version:' : '发现新版本：' }}{{ updateState.version }}</span>
+        <FluentButton variant="primary" size="sm" @click="downloadUpdate">{{ lang === 'en' ? 'Download' : '下载' }}</FluentButton>
+      </div>
+      <p v-if="updateState.error" class="setting-note" style="color: var(--accent);">{{ updateState.error }}</p>
     </FluentCard>
 
     <!-- 主题与显示 -->
@@ -173,6 +186,8 @@ import { useSettingsStore } from '../stores/settings'
 import { useRecordsStore } from '../stores/records'
 import { useStatisticsStore } from '../stores/statistics'
 import { dataBridge } from '../utils/dataBridge'
+import { isTauri } from '../utils/tauriAPI'
+import { updateState, checkForUpdates, downloadUpdate } from '../utils/updater'
 import { t } from '../utils/i18n'
 import { DEFAULT_BALANCE_SETTINGS, normalizeSettings } from '../utils/balance'
 import FluentCard from '../components/FluentCard.vue'
@@ -189,12 +204,14 @@ const namesStore = useNamesStore()
 const recordsStore = useRecordsStore()
 const statisticsStore = useStatisticsStore()
 
-const lang = computed(() => settingsStore.settings.englishMode ? 'en' : 'zh')
+const lang = computed(() => settingsStore.settings.language)
 const settings = computed(() => settingsStore.settings)
 
+const isDesktop = computed(() => !!window.electronAPI || isTauri())
+
 const langOptions = [
-  { value: false, label: '中文' },
-  { value: true, label: 'English' }
+  { value: 'zh', label: '中文' },
+  { value: 'en', label: 'English' }
 ]
 const uiScaleOptions = [
   { value: 75, label: '75%' }, { value: 100, label: '100%' }, { value: 125, label: '125%' },
@@ -232,6 +249,8 @@ const pwModalHint = computed(() => {
 })
 
 function update(key, value) { settingsStore.update(key, value) }
+
+function doCheckUpdate() { checkForUpdates(false) }
 
 function getLogEntries(log) {
   if (!log.logs) return []

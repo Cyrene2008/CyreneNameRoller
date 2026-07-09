@@ -1,6 +1,6 @@
 <template>
   <div class="roller-view">
-    <h1 class="roller-title">{{ lang === 'en' ? 'Name Roller' : '随机点名' }}</h1>
+    <h1 class="roller-title">{{ t('h1', lang) }}</h1>
 
     <div class="display-container">
       <div
@@ -67,7 +67,7 @@ const settingsStore = useSettingsStore()
 const statisticsStore = useStatisticsStore()
 const recordsStore = useRecordsStore()
 
-const lang = computed(() => 'zh')
+const lang = computed(() => settingsStore.settings.language)
 const settings = computed(() => settingsStore.settings)
 const listOptions = computed(() => namesStore.allLists.map(l => ({ value: l.id, label: l.name })))
 
@@ -78,6 +78,7 @@ const canStart = computed(() => nonWhiteListCount.value >= 2 && !(settings.value
 const nameDisplays = reactive([])
 const isRunning = ref(false)
 const lastPickedNames = ref([])
+const sessionCounts = ref({})
 let intervalId = null
 
 const balanceSettings = ref({
@@ -132,9 +133,13 @@ function getDisplayName(person) {
 function doPick(excludeList = []) {
   const names = namesStore.currentNames; const wl = namesStore.currentWhiteList
   const forbidDup = settings.value.multiMode && settings.value.forbidDuplicates
+  const combinedCounts = { ...statisticsStore.counts }
+  for (const [k, v] of Object.entries(sessionCounts.value)) {
+    combinedCounts[k] = (combinedCounts[k] || 0) + v
+  }
   if (forbidDup) return pickUniform(names, excludeList, false)
-  if (settings.value.multiMode) return pickBalanced(names, wl, statisticsStore.counts, balanceSettings.value, excludeList, true)
-  if (balanceSettings.value.enabled) return pickBalanced(names, wl, statisticsStore.counts, balanceSettings.value, [], true)
+  if (settings.value.multiMode) return pickBalanced(names, wl, combinedCounts, balanceSettings.value, excludeList, true)
+  if (balanceSettings.value.enabled) return pickBalanced(names, wl, combinedCounts, balanceSettings.value, [], true)
   return pickUniform(names, [], true)
 }
 
@@ -144,6 +149,9 @@ function animationLoop() {
   for (let i = 0; i < count; i++) {
     const pick = doPick([])
     if (nameDisplays[i]) { nameDisplays[i].text = getDisplayName(pick); nameDisplays[i].opacity = 1 }
+    if (pick.cn && pick.cn !== '再来一次' && !namesStore.isWhiteList(pick.cn)) {
+      sessionCounts.value[pick.cn] = (sessionCounts.value[pick.cn] || 0) + 1
+    }
   }
   intervalId = setTimeout(animationLoop, 50)
 }
@@ -151,7 +159,10 @@ function animationLoop() {
 function toggleRoll() {
   if (isRunning.value) { clearTimeout(intervalId); isRunning.value = false; finishRoll(); return }
   if (!canStart.value) return
-  isRunning.value = true; initializeDisplays(settings.value.multiMode ? (settings.value.peopleCount || 2) : 1); animationLoop()
+  isRunning.value = true
+  sessionCounts.value = {}
+  initializeDisplays(settings.value.multiMode ? (settings.value.peopleCount || 2) : 1)
+  animationLoop()
 }
 
 function finishRoll() {

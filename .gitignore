@@ -2,6 +2,9 @@
 node_modules
 dist
 release
+release-electron
+release-win
+release-v26
 build-output
 *.log
 public/names.json

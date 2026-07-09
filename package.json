@@ -1,6 +1,6 @@
 {
   "name": "cyrene-name-roller",
-  "version": "26.0.0",
+  "version": "26.0.1",
   "description": "随机点名器 - 支持多人模式、平衡算法、翻牌模式的桌面端点名应用",
   "author": "Cyrene2008 <https://github.com/Cyrene2008>",
   "main": "electron/main.js",

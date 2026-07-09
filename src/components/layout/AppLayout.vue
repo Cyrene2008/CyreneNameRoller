@@ -11,32 +11,51 @@
         </router-view>
       </main>
     </div>
+    <FullscreenToggle />
     <div class="version-badge">
-      <span class="v-num">{{ APP_VERSION }}</span>
-      <span class="v-sep">build:</span>
-      <span class="v-num">{{ APP_BUILD }}</span>
+      <span class="v-prefix">{{ APP_VERSION_PREFIX }}</span><span class="v-num">{{ APP_VERSION }}</span>
+      <span class="v-sep">build:</span><span class="v-num">{{ APP_BUILD }}</span><span class="v-sep">-{{ APP_PLATFORM }}</span>
     </div>
+
+    <Transition name="update-slide">
+      <div v-if="updateState.available" class="update-banner">
+        <FluentIcon icon="arrow-download-24-regular" :width="18" />
+        <span>{{ lang === 'en' ? 'Update available:' : '发现新版本：' }}{{ updateState.version }}</span>
+        <button class="update-btn" @click="downloadUpdate">{{ lang === 'en' ? 'Download' : '下载' }}</button>
+        <button class="update-dismiss" @click="updateState.available = false">
+          <FluentIcon icon="dismiss-16-regular" :width="14" />
+        </button>
+      </div>
+    </Transition>
+
     <FluentToast ref="globalToast" />
   </div>
 </template>
 
 <script setup>
-import { onMounted, watch, provide, ref } from 'vue'
+
+
+import { onMounted, watch, provide, ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import TitleBar from './TitleBar.vue'
 import NavigationDock from './NavigationDock.vue'
 import FluentToast from '../FluentToast.vue'
+import FullscreenToggle from '../FullscreenToggle.vue'
+import FluentIcon from '../FluentIcon.vue'
 import { useSettingsStore } from '../../stores/settings'
 import { useNamesStore } from '../../stores/names'
 import { useStatisticsStore } from '../../stores/statistics'
 import { useRecordsStore } from '../../stores/records'
-import { APP_VERSION, APP_BUILD, APP_NAME } from '../../utils/version'
+import { APP_VERSION, APP_VERSION_PREFIX, APP_BUILD, APP_PLATFORM, APP_NAME } from '../../utils/version'
+import { updateState, checkForUpdates, downloadUpdate } from '../../utils/updater'
 
 const router = useRouter()
 const settingsStore = useSettingsStore()
 const namesStore = useNamesStore()
 const statisticsStore = useStatisticsStore()
 const recordsStore = useRecordsStore()
+
+const lang = computed(() => settingsStore.settings.language)
 
 const globalToast = ref(null)
 provide('toast', globalToast)
@@ -68,6 +87,7 @@ onMounted(async () => {
   await namesStore.initialize()
   await statisticsStore.initialize()
   await recordsStore.initialize()
+  checkForUpdates()
 })
 
 watch(() => settingsStore.settings.uiScale, (val) => {
@@ -109,8 +129,8 @@ watch(() => settingsStore.settings.nameFontSize, (val) => {
 
 .version-badge {
   position: fixed;
-  bottom: 8px;
-  right: 16px;
+  bottom: 0px;
+  right: 24px;
   font-size: 12px;
   color: var(--text-muted);
   opacity: 0.5;
@@ -118,7 +138,12 @@ watch(() => settingsStore.settings.nameFontSize, (val) => {
   z-index: 999999;
   display: flex;
   align-items: baseline;
-  gap: 4px;
+  gap: 3px;
+}
+
+.v-prefix {
+  font-family: var(--font-ui);
+  font-size: 12px;
 }
 
 .v-num {
@@ -129,6 +154,71 @@ watch(() => settingsStore.settings.nameFontSize, (val) => {
 .v-sep {
   font-family: var(--font-ui);
   font-size: 12px;
+}
+
+.update-banner {
+  position: fixed;
+  top: 0;
+  left: var(--dock-width);
+  right: 0;
+  height: 40px;
+  background: var(--accent);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 16px;
+  font-size: 13px;
+  font-weight: 500;
+  z-index: 99999;
+}
+
+.update-btn {
+  margin-left: auto;
+  padding: 4px 16px;
+  background: rgba(255,255,255,0.2);
+  border: 1px solid rgba(255,255,255,0.3);
+  border-radius: var(--radius-sm);
+  color: #fff;
+  font-size: 13px;
+  cursor: pointer;
+  font-family: var(--font-ui);
+}
+
+.update-btn:hover {
+  background: rgba(255,255,255,0.3);
+}
+
+.update-dismiss {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: rgba(255,255,255,0.7);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+
+.update-dismiss:hover {
+  background: rgba(255,255,255,0.15);
+  color: #fff;
+}
+
+.update-slide-enter-active {
+  transition: all 0.3s cubic-bezier(0.1, 0.9, 0.2, 1);
+}
+
+.update-slide-leave-active {
+  transition: all 0.2s ease-in;
+}
+
+.update-slide-enter-from,
+.update-slide-leave-to {
+  transform: translateY(-100%);
+  opacity: 0;
 }
 
 .page-slide-enter-active {
@@ -174,6 +264,10 @@ watch(() => settingsStore.settings.nameFontSize, (val) => {
 
   .app-content {
     padding-left: 56px;
+  }
+
+  .update-banner {
+    left: 56px;
   }
 }
 </style>

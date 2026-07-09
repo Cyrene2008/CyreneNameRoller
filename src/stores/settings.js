@@ -6,6 +6,7 @@ const DEFAULT_SETTINGS = {
   recordCounts: true,
   rainbowNames: true,
   englishMode: false,
+  language: 'zh',
   multiMode: false,
   peopleCount: 2,
   allowDuplicates: false,

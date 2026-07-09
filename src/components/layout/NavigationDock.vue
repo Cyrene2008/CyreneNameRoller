@@ -57,7 +57,7 @@ const props = defineProps({
 
 const route = useRoute()
 const settingsStore = useSettingsStore()
-const lang = computed(() => settingsStore.settings.englishMode ? 'en' : 'zh')
+const lang = computed(() => settingsStore.settings.language)
 const dockCollapsed = computed(() => settingsStore.settings.dockCollapsed || false)
 const isDesktopApp = computed(() => !!window.electronAPI || isTauri())
 
@@ -69,7 +69,7 @@ const mainItems = [
   { path: '/roller', icon: 'fluent:flash-24-regular', label: { zh: '随机点名', en: 'Roller' } },
   { path: '/card', icon: 'fluent:card-ui-portrait-flip-24-regular', label: { zh: '翻牌点名', en: 'Card Mode' } },
   { path: '/statistics', icon: 'fluent:chart-multiple-24-regular', label: { zh: '统计', en: 'Statistics' } },
-  { path: '/records', icon: 'fluent:clipboard-text-24-regular', label: { zh: '抽取记录', en: 'Records' } },
+  { path: '/records', icon: 'fluent:history-24-regular', label: { zh: '抽取记录', en: 'Records' } },
   { path: '/lists', icon: 'fluent:people-list-24-regular', label: { zh: '名单管理', en: 'Lists' } }
 ]
 
@@ -212,7 +212,7 @@ const bottomItems = [
   .dock {
     position: fixed;
     left: 0;
-    top: var(--titlebar-height);
+    top: 0;
     bottom: 0;
     z-index: 100;
     width: 48px;

@@ -92,7 +92,7 @@ onMounted(async () => {
 
 <style scoped>
 .titlebar {
-  height: var(--titlebar-height);
+  height: 40px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -127,12 +127,15 @@ onMounted(async () => {
 
 .dark .titlebar-hamburger:hover {
   background: rgba(255, 255, 255, 0.08);
+  gap: 10px;
+  padding-left: 14px;
+  height: 100%;
 }
 
 .titlebar-logo {
-  width: 16px;
-  height: 16px;
-  border-radius: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
   object-fit: cover;
   flex-shrink: 0;
   -webkit-app-region: drag;
@@ -141,6 +144,8 @@ onMounted(async () => {
 
 .titlebar-app-title {
   font-size: 12px;
+.titlebar-text {
+  font-size: 14px;
   font-weight: 600;
   color: var(--text-secondary);
   -webkit-app-region: drag;
@@ -161,7 +166,7 @@ onMounted(async () => {
 }
 
 .titlebar-btn {
-  width: 46px;
+  width: 50px;
   height: 100%;
   display: flex;
   align-items: center;
