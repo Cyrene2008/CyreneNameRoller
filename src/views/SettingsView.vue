@@ -33,13 +33,6 @@
         <span class="setting-label">{{ t('fontSize', lang) }}</span>
         <FluentSelect :model-value="settings.nameFontSize" :options="fontSizeOptions" @update:model-value="update('nameFontSize', $event)" />
       </div>
-      <div class="setting-row">
-        <span class="setting-label">{{ t('animSpeed', lang) }}</span>
-        <div class="slider-group">
-          <input type="range" :value="settings.animSpeed" min="0.5" max="2" step="0.1" class="speed-slider" @input="update('animSpeed', parseFloat($event.target.value))" />
-          <span class="speed-value">{{ settings.animSpeed }}x</span>
-        </div>
-      </div>
     </FluentCard>
 
     <!-- 数据管理 -->
@@ -240,9 +233,6 @@ function resetBalance() { balance.value = JSON.parse(JSON.stringify(DEFAULT_BALA
 .setting-label { font-size: 14px; color: var(--text-secondary); }
 .setting-label-group { display: flex; flex-direction: column; gap: 2px; }
 .setting-desc { font-size: 12px; color: var(--text-muted); }
-.speed-slider { width: 200px; accent-color: var(--accent); }
-.speed-value { font-size: 13px; color: var(--text-muted); min-width: 32px; text-align: right; }
-.slider-group { display: flex; align-items: center; gap: 12px; }
 .balance-sub { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border-default); display: flex; flex-direction: column; gap: 10px; }
 .balance-explain { font-size: 13px; color: var(--text-secondary); line-height: 1.6; }
 .action-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }

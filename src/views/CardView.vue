@@ -16,15 +16,16 @@
       </FluentButton>
       <span class="control-sep" />
       <span class="control-label">{{ lang === 'en' ? 'Quick:' : '一键多抽:' }}</span>
-      <FluentInput v-model="quickCount" type="number" :min="1" :max="maxQuick" style="width: 60px;" />
-      <FluentButton variant="secondary" @click="quickFlip">
+      <FluentInput v-model="quickCount" type="number" :min="1" :max="maxCards" style="width: 60px;" />
+      <FluentButton variant="secondary" @click="quickDraw">
         <FluentIcon icon="flash-24-regular" :width="16" />
-        {{ lang === 'en' ? 'Flip' : '翻开' }}
+        {{ lang === 'en' ? 'Draw & Flip' : '抽翻' }}
       </FluentButton>
       <FluentButton variant="secondary" @click="reset">
         <FluentIcon icon="arrow-undo-16-regular" :width="14" />
         {{ lang === 'en' ? 'Reset' : '重置' }}
       </FluentButton>
+      <span class="remaining-badge">{{ lang === 'en' ? 'Remaining:' : '剩余待抽取:' }} {{ remainingCount }}</span>
     </div>
 
     <div class="cards-grid">
@@ -48,11 +49,11 @@
     <div class="tray">
       <div class="tray-label">
         <FluentIcon icon="archive-16-regular" :width="14" />
-        {{ lang === 'en' ? 'History' : '收牌区域' }}
+        {{ lang === 'en' ? 'History' : '收牌区域' }} ({{ trayHistory.length }})
       </div>
       <div class="tray-stack">
         <TransitionGroup name="tray-item">
-          <div v-for="item in history" :key="item.id" class="history-chip">{{ item.name }}</div>
+          <div v-for="item in trayHistory" :key="item.id" class="history-chip">{{ item.name }}</div>
         </TransitionGroup>
       </div>
     </div>
@@ -60,17 +61,16 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useNamesStore } from '../stores/names'
-import { useSettingsStore } from '../stores/settings'
 import { useRecordsStore } from '../stores/records'
+import { dataBridge } from '../utils/dataBridge'
 import FluentButton from '../components/FluentButton.vue'
 import FluentIcon from '../components/FluentIcon.vue'
 import FluentInput from '../components/FluentInput.vue'
 import FluentToggle from '../components/FluentToggle.vue'
 
 const namesStore = useNamesStore()
-const settingsStore = useSettingsStore()
 const recordsStore = useRecordsStore()
 
 const lang = computed(() => 'zh')
@@ -78,32 +78,44 @@ const englishMode = ref(false)
 const cardCount = ref(5)
 const quickCount = ref(4)
 const cards = ref([])
-const history = ref([])
+const trayHistory = ref([])
 const usedNames = ref(new Set())
 let cardIdCounter = 0
 let historyIdCounter = 0
 
-const nonWLCount = computed(() => getAvailableNames().length)
-const maxCards = computed(() => Math.max(2, nonWLCount.value))
-const maxQuick = computed(() => {
-  const unflipped = cards.value.filter(c => !c.flipped).length
-  return Math.max(1, Math.min(unflipped, nonWLCount.value))
-})
+const TRAY_KEY = 'cardTrayHistory'
+const USED_KEY = 'cardUsedNames'
+
+const allNonWL = computed(() => namesStore.currentNames.filter(n => n.cn !== '再来一次'))
+const remainingCount = computed(() => allNonWL.value.length - usedNames.value.size)
+const maxCards = computed(() => Math.max(2, allNonWL.value.length - usedNames.value.size))
 
 function getAvailableNames() {
-  const names = namesStore.currentNames
+  return allNonWL.value
     .map(n => ({ cn: n.cn, en: n.en }))
-    .filter(n => n.cn !== '再来一次' && !usedNames.value.has(n.cn))
-  return names
+    .filter(n => !usedNames.value.has(n.cn))
 }
 
 function getDisplayName(person) {
   return englishMode.value && person.en ? person.en : person.cn
 }
 
+async function saveTrayState() {
+  await dataBridge.save(TRAY_KEY, trayHistory.value)
+  await dataBridge.save(USED_KEY, [...usedNames.value])
+}
+
+async function loadTrayState() {
+  const savedTray = await dataBridge.load(TRAY_KEY)
+  const savedUsed = await dataBridge.load(USED_KEY)
+  if (savedTray && Array.isArray(savedTray)) trayHistory.value = savedTray
+  if (savedUsed && Array.isArray(savedUsed)) usedNames.value = new Set(savedUsed)
+  if (trayHistory.value.length > 0) historyIdCounter = Math.max(...trayHistory.value.map(t => t.id)) + 1
+}
+
 function shuffle() {
   const available = getAvailableNames()
-  const k = Math.min(parseInt(cardCount.value) || 5, available.length, maxCards.value)
+  const k = Math.min(parseInt(cardCount.value) || 5, available.length)
   if (k < 2) return
 
   const chosen = []
@@ -127,25 +139,51 @@ function flipCard(index) {
   if (!card || card.flipped) return
   card.flipped = true
   usedNames.value.add(card.cn)
-  history.value.unshift({ id: ++historyIdCounter, name: card.displayName })
+  trayHistory.value.unshift({ id: ++historyIdCounter, name: card.displayName })
   recordsStore.addRecord({ cn: card.cn, en: card.en, listName: namesStore.currentList.name, source: 'card' })
+  saveTrayState()
 }
 
-function quickFlip() {
-  const count = Math.min(parseInt(quickCount.value) || 4, maxQuick.value)
-  const unflipped = cards.value.map((c, i) => ({ card: c, index: i })).filter(x => !x.card.flipped)
-  const toFlip = unflipped.slice(0, count)
-  toFlip.forEach((item, i) => {
-    setTimeout(() => flipCard(item.index), i * 200)
+function quickDraw() {
+  const count = Math.min(parseInt(quickCount.value) || 4, maxCards.value)
+  const available = getAvailableNames()
+  if (available.length < count) return
+
+  const chosen = []
+  const copy = [...available]
+  while (chosen.length < count && copy.length > 0) {
+    const idx = Math.floor(Math.random() * copy.length)
+    chosen.push(copy.splice(idx, 1)[0])
+  }
+
+  cards.value = chosen.map(p => ({
+    id: ++cardIdCounter,
+    cn: p.cn, en: p.en,
+    displayName: getDisplayName(p),
+    visible: false, flipped: false
+  }))
+
+  cards.value.forEach((card, i) => {
+    setTimeout(() => {
+      card.visible = true
+      setTimeout(() => flipCard(i), 300 + i * 200)
+    }, i * 80)
   })
 }
 
 function reset() {
-  cards.value = []; history.value = []; usedNames.value.clear()
+  cards.value = []
+  trayHistory.value = []
+  usedNames.value.clear()
+  saveTrayState()
 }
 
-onMounted(() => {
-  if (namesStore.isLoaded && namesStore.currentNames.length > 0) shuffle()
+onMounted(async () => {
+  await loadTrayState()
+  if (namesStore.isLoaded && allNonWL.value.length > 0 && remainingCount.value >= 2) shuffle()
+  watch(() => namesStore.isLoaded, (loaded) => {
+    if (loaded && remainingCount.value >= 2) shuffle()
+  })
 })
 </script>
 
@@ -155,6 +193,7 @@ onMounted(() => {
 .card-controls { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; background: var(--bg-card); backdrop-filter: blur(20px); padding: 12px 20px; border-radius: var(--radius-lg); border: 1px solid var(--border-default); box-shadow: var(--shadow-4); margin-bottom: 32px; }
 .control-label { font-size: 14px; color: var(--text-secondary); font-weight: 500; }
 .control-sep { width: 1px; height: 24px; background: var(--border-default); }
+.remaining-badge { font-size: 13px; color: var(--accent); background: var(--accent-50); padding: 4px 10px; border-radius: var(--radius-full); font-weight: 600; margin-left: auto; }
 .cards-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 20px; width: 100%; justify-items: center; margin-bottom: 40px; }
 .card { width: 140px; height: 200px; perspective: 1500px; cursor: pointer; opacity: 0; transform: translateY(30px); }
 .card.show { animation: card-deal 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }

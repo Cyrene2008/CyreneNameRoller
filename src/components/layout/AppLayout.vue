@@ -2,7 +2,7 @@
   <div class="app-layout" :class="{ dark: settingsStore.darkMode }" :style="{ fontSize: (14 * (settingsStore.settings.uiScale || 100) / 100) + 'px' }">
     <TitleBar />
     <div class="app-body">
-      <NavigationDock />
+      <NavigationDock :build-hash="APP_BUILD" />
       <main class="app-content">
         <router-view v-slot="{ Component, route }">
           <Transition :name="route.meta.transition || 'page-slide'" mode="out-in">
@@ -11,13 +11,12 @@
         </router-view>
       </main>
     </div>
-    <div class="version-badge"><span class="v-num">v26.0.0</span> <span class="v-label">build</span>:<span class="v-num">{{ buildHash }}</span></div>
     <FluentToast ref="globalToast" />
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, watch, provide } from 'vue'
+import { onMounted, watch, provide, ref } from 'vue'
 import TitleBar from './TitleBar.vue'
 import NavigationDock from './NavigationDock.vue'
 import FluentToast from '../FluentToast.vue'
@@ -25,16 +24,17 @@ import { useSettingsStore } from '../../stores/settings'
 import { useNamesStore } from '../../stores/names'
 import { useStatisticsStore } from '../../stores/statistics'
 import { useRecordsStore } from '../../stores/records'
+import { APP_VERSION, APP_BUILD, APP_NAME } from '../../utils/version'
 
 const settingsStore = useSettingsStore()
 const namesStore = useNamesStore()
 const statisticsStore = useStatisticsStore()
 const recordsStore = useRecordsStore()
 
-const buildHash = ref(Date.now().toString(36).toUpperCase())
 const globalToast = ref(null)
-
 provide('toast', globalToast)
+
+document.title = APP_NAME
 
 onMounted(async () => {
   await settingsStore.initialize()
@@ -78,28 +78,6 @@ watch(() => settingsStore.settings.nameFontSize, (val) => {
   overflow-x: hidden;
   background: var(--bg-base);
   position: relative;
-}
-
-.version-badge {
-  position: fixed;
-  bottom: 6px;
-  right: 12px;
-  font-size: 11px;
-  color: var(--text-muted);
-  opacity: 0.6;
-  pointer-events: none;
-  font-family: var(--font-ui);
-  font-variant-numeric: tabular-nums;
-  z-index: 999999;
-}
-
-.version-badge .v-num {
-  font-family: var(--font-num);
-  font-size: calc(11px * 1.15);
-}
-
-.version-badge .v-label {
-  font-family: var(--font-ui);
 }
 
 .page-slide-enter-active {

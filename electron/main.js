@@ -17,9 +17,9 @@ function ensureDataDir() {
 function createWindow() {
   win = new BrowserWindow({
     width: 1200,
-    height: 800,
-    minWidth: 900,
-    minHeight: 600,
+    height: 900,
+    minWidth: 1200,
+    minHeight: 900,
     frame: false,
     backgroundColor: '#00000000',
     webPreferences: {

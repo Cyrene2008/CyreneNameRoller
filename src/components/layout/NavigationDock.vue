@@ -31,6 +31,7 @@
         <Icon :icon="item.icon" :width="20" class="dock-item-icon" />
         <span class="dock-item-label">{{ item.label[lang] }}</span>
       </router-link>
+      <div class="dock-build">{{ APP_VERSION }} build:{{ buildHash }}</div>
     </div>
   </nav>
 </template>
@@ -40,6 +41,11 @@ import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { Icon } from '@iconify/vue'
 import { useSettingsStore } from '../../stores/settings'
+import { APP_VERSION } from '../../utils/version'
+
+const props = defineProps({
+  buildHash: { type: String, default: '' }
+})
 
 const route = useRoute()
 const settingsStore = useSettingsStore()
@@ -144,5 +150,15 @@ const bottomItems = [
   display: flex;
   flex-direction: column;
   gap: 2px;
+}
+
+.dock-build {
+  font-size: 10px;
+  color: var(--text-muted);
+  opacity: 0.5;
+  text-align: center;
+  padding: 6px 0 0;
+  font-family: var(--font-ui);
+  letter-spacing: 0.3px;
 }
 </style>

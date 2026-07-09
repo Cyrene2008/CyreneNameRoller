@@ -10,8 +10,8 @@
         <img src="/cyrene256.png" alt="CyreneNameRoller" class="logo-img" />
       </div>
 
-      <h2 class="app-name">CyreneNameRoller</h2>
-      <p class="app-version">v3.0.0</p>
+      <h2 class="app-name">{{ APP_NAME }}</h2>
+      <p class="app-version">{{ APP_VERSION }}</p>
       <p class="app-desc">{{ lang === 'en' ? 'A random name picker with Fluent Design' : '一个采用 Fluent Design 的随机点名器' }}</p>
 
       <div class="about-divider" />
@@ -50,6 +50,7 @@
 import { computed } from 'vue'
 import { useSettingsStore } from '../stores/settings'
 import { t } from '../utils/i18n'
+import { APP_VERSION, APP_NAME } from '../utils/version'
 import FluentCard from '../components/FluentCard.vue'
 import FluentIcon from '../components/FluentIcon.vue'
 
