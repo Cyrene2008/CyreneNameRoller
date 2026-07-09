@@ -1,7 +1,7 @@
 <template>
   <div class="card-view">
     <h1 class="card-title">
-      <FluentIcon icon="playing-cards-24-regular" :width="28" />
+      <FluentIcon icon="card-ui-portrait-flip-24-regular" :width="28" />
       {{ lang === 'en' ? 'Card Mode' : '翻牌抽名器' }}
     </h1>
 

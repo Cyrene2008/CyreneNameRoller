@@ -32,29 +32,41 @@ export const useNamesStore = defineStore('names', () => {
   }
 
   async function initialize() {
-    const savedLists = await dataBridge.load('lists')
-    const savedCurrentId = await dataBridge.load('currentListId')
-    const namesJson = await dataBridge.loadNames()
+    try {
+      const savedLists = await dataBridge.load('lists')
+      const savedCurrentId = await dataBridge.load('currentListId')
+      const namesJson = await dataBridge.loadNames()
 
-    defaultNamesData.value = namesJson || { names: [], whiteList: [{ cn: '再来一次', en: 'Again!' }] }
+      defaultNamesData.value = namesJson || { names: [], whiteList: [{ cn: '再来一次', en: 'Again!' }] }
 
-    if (savedLists && Object.keys(savedLists).length > 0) {
-      nameLists.value = savedLists
-    } else {
+      if (savedLists && typeof savedLists === 'object' && Object.keys(savedLists).length > 0) {
+        nameLists.value = savedLists
+      } else {
+        nameLists.value = {
+          [DEFAULT_LIST_ID]: {
+            id: DEFAULT_LIST_ID,
+            name: '默认名单',
+            names: defaultNamesData.value.names || [],
+            whiteList: [{ cn: '再来一次', en: 'Again!' }]
+          }
+        }
+        await save()
+      }
+
+      if (savedCurrentId && nameLists.value[savedCurrentId]) {
+        currentListId.value = savedCurrentId
+      }
+    } catch (e) {
+      console.error('[names] initialize failed:', e)
       nameLists.value = {
         [DEFAULT_LIST_ID]: {
           id: DEFAULT_LIST_ID,
           name: '默认名单',
-          names: defaultNamesData.value.names || [],
+          names: [],
           whiteList: [{ cn: '再来一次', en: 'Again!' }]
         }
       }
     }
-
-    if (savedCurrentId && nameLists.value[savedCurrentId]) {
-      currentListId.value = savedCurrentId
-    }
-
     isLoaded.value = true
   }
 

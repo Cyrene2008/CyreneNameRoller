@@ -7,6 +7,7 @@ const isDev = !app.isPackaged
 
 const userDataPath = app.getPath('userData')
 const dataDir = path.join(userDataPath, 'data')
+const windowStatePath = path.join(userDataPath, 'window-state.json')
 
 function ensureDataDir() {
   if (!fs.existsSync(dataDir)) {
@@ -14,12 +15,40 @@ function ensureDataDir() {
   }
 }
 
+function loadWindowState() {
+  try {
+    if (fs.existsSync(windowStatePath)) {
+      return JSON.parse(fs.readFileSync(windowStatePath, 'utf-8'))
+    }
+  } catch {}
+  return null
+}
+
+function saveWindowState() {
+  if (!win || win.isDestroyed()) return
+  try {
+    const bounds = win.getBounds()
+    const isMaximized = win.isMaximized()
+    const state = { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height, isMaximized }
+    fs.writeFileSync(windowStatePath, JSON.stringify(state), 'utf-8')
+  } catch {}
+}
+
 function createWindow() {
+  ensureDataDir()
+  const saved = loadWindowState()
+
+  const defaults = { width: 1200, height: 900, minWidth: 1200, minHeight: 900 }
+  const opts = { ...defaults }
+  if (saved) {
+    opts.x = saved.x
+    opts.y = saved.y
+    opts.width = Math.max(saved.width, defaults.minWidth)
+    opts.height = Math.max(saved.height, defaults.minHeight)
+  }
+
   win = new BrowserWindow({
-    width: 1200,
-    height: 900,
-    minWidth: 1200,
-    minHeight: 900,
+    ...opts,
     frame: false,
     backgroundColor: '#00000000',
     webPreferences: {
@@ -28,6 +57,14 @@ function createWindow() {
       nodeIntegration: false
     }
   })
+
+  if (saved && saved.isMaximized) {
+    win.maximize()
+  }
+
+  win.on('close', saveWindowState)
+  win.on('resize', saveWindowState)
+  win.on('move', saveWindowState)
 
   if (isDev) {
     win.loadURL('http://localhost:5173')
@@ -60,7 +97,7 @@ ipcMain.handle('data:load', (_, key) => {
     }
     return null
   } catch (e) {
-    console.error(`Failed to load ${key}:`, e)
+    console.error(`[data] Failed to load ${key}:`, e.message)
     return null
   }
 })
@@ -72,31 +109,38 @@ ipcMain.handle('data:save', (_, key, data) => {
     fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8')
     return true
   } catch (e) {
-    console.error(`Failed to save ${key}:`, e)
+    console.error(`[data] Failed to save ${key}:`, e.message)
     return false
   }
 })
 
 ipcMain.handle('data:loadNames', () => {
+  // 优先从 .origin 读取，不存在则从 userData/data 读取
   const bundledPath = path.join(__dirname, '../.origin/names.json')
+  const userDataPath2 = getDataFilePath('defaultNames')
   try {
-    const raw = fs.readFileSync(bundledPath, 'utf-8')
-    return JSON.parse(raw)
+    if (fs.existsSync(bundledPath)) {
+      return JSON.parse(fs.readFileSync(bundledPath, 'utf-8'))
+    }
+    if (fs.existsSync(userDataPath2)) {
+      return JSON.parse(fs.readFileSync(userDataPath2, 'utf-8'))
+    }
   } catch (e) {
-    console.error('Failed to load names.json:', e)
-    return { names: [] }
+    console.error('[data] Failed to load names:', e.message)
   }
+  return { names: [] }
 })
 
 ipcMain.handle('data:loadChangelog', () => {
   const bundledPath = path.join(__dirname, '../.origin/up.json')
   try {
-    const raw = fs.readFileSync(bundledPath, 'utf-8')
-    return JSON.parse(raw)
+    if (fs.existsSync(bundledPath)) {
+      return JSON.parse(fs.readFileSync(bundledPath, 'utf-8'))
+    }
   } catch (e) {
-    console.error('Failed to load up.json:', e)
-    return []
+    console.error('[data] Failed to load changelog:', e.message)
   }
+  return []
 })
 
 ipcMain.handle('data:exportData', async () => {
@@ -107,17 +151,14 @@ ipcMain.handle('data:exportData', async () => {
     for (const file of files) {
       if (file.endsWith('.json')) {
         const key = file.replace('.json', '')
-        const raw = fs.readFileSync(path.join(dataDir, file), 'utf-8')
-        allData[key] = JSON.parse(raw)
+        allData[key] = JSON.parse(fs.readFileSync(path.join(dataDir, file), 'utf-8'))
       }
     }
-
     const { filePath: savePath } = await dialog.showSaveDialog(win, {
       title: '导出数据',
       defaultPath: 'cyrene-data.cyrene',
       filters: [{ name: 'Cyrene Data', extensions: ['cyrene'] }]
     })
-
     if (savePath) {
       fs.writeFileSync(savePath, JSON.stringify(allData, null, 2), 'utf-8')
       return { success: true, path: savePath }
@@ -136,17 +177,27 @@ ipcMain.handle('data:importData', async () => {
       filters: [{ name: 'Cyrene Data', extensions: ['cyrene', 'json'] }],
       properties: ['openFile']
     })
-
     if (filePaths.length > 0) {
       const raw = fs.readFileSync(filePaths[0], 'utf-8')
       const allData = JSON.parse(raw)
+      const writtenKeys = []
       for (const [key, value] of Object.entries(allData)) {
-        fs.writeFileSync(path.join(dataDir, `${key}.json`), JSON.stringify(value, null, 2), 'utf-8')
+        const filePath = path.join(dataDir, `${key}.json`)
+        fs.writeFileSync(filePath, JSON.stringify(value, null, 2), 'utf-8')
+        writtenKeys.push(key)
       }
-      return { success: true }
+      // 验证写入
+      for (const key of writtenKeys) {
+        const filePath = path.join(dataDir, `${key}.json`)
+        if (!fs.existsSync(filePath)) {
+          throw new Error(`Verification failed: ${key}.json not written`)
+        }
+      }
+      return { success: true, keys: writtenKeys }
     }
     return { success: false, cancelled: true }
   } catch (e) {
+    console.error('[import] Failed:', e.message)
     return { success: false, error: e.message }
   }
 })

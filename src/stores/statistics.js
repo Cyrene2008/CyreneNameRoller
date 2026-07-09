@@ -8,10 +8,14 @@ export const useStatisticsStore = defineStore('statistics', () => {
   const isLoaded = ref(false)
 
   async function initialize() {
-    const saved = await dataBridge.load('statistics')
-    if (saved) {
-      counts.value = saved.counts || {}
-      totalCount.value = saved.totalCount || 0
+    try {
+      const saved = await dataBridge.load('statistics')
+      if (saved && typeof saved === 'object') {
+        counts.value = saved.counts || {}
+        totalCount.value = saved.totalCount || 0
+      }
+    } catch (e) {
+      console.error('[statistics] initialize failed:', e)
     }
     isLoaded.value = true
   }

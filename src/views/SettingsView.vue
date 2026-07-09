@@ -218,8 +218,24 @@ function doImport() { requirePassword('import') }
 function doClearRecords() { requirePassword('clearRecords') }
 function doClearAll() { requirePassword('clearAll') }
 async function doExportNow() { await dataBridge.exportData() }
-async function confirmImport() { showImportWarning.value = false; await dataBridge.importData(); location.reload() }
-async function doClearAllNow() { await dataBridge.save('lists', {}); await dataBridge.save('statistics', { counts: {}, totalCount: 0 }); await dataBridge.save('records', []); location.reload() }
+async function confirmImport() {
+  showImportWarning.value = false
+  const result = await dataBridge.importData()
+  if (result.success) {
+    alert(lang.value === 'en'
+      ? 'Import successful. Please close and restart the app manually.'
+      : '导入成功。请手动关闭并重启应用。')
+  } else if (!result.cancelled) {
+    alert(lang.value === 'en' ? 'Import failed: ' + (result.error || 'Unknown') : '导入失败：' + (result.error || '未知错误'))
+  }
+}
+async function doClearAllNow() {
+  await dataBridge.save('lists', {})
+  await dataBridge.save('statistics', { counts: {}, totalCount: 0 })
+  await dataBridge.save('records', [])
+  await dataBridge.save('settings', {})
+  alert(lang.value === 'en' ? 'All data cleared. Please close and restart.' : '所有数据已清除，请关闭并重启应用。')
+}
 async function saveBalance() { const n = normalizeSettings(balance.value); balance.value = n; await dataBridge.save('balance', n) }
 function resetBalance() { balance.value = JSON.parse(JSON.stringify(DEFAULT_BALANCE_SETTINGS)); saveBalance() }
 </script>

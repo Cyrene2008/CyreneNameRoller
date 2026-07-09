@@ -1,6 +1,6 @@
 {
   "name": "cyrene-name-roller",
-  "version": "3.0.0",
+  "version": "26.0.0",
   "description": "Cyrene's Name Roller - Fluent Design Desktop App",
   "main": "electron/main.js",
   "scripts": {

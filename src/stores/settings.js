@@ -15,7 +15,8 @@ const DEFAULT_SETTINGS = {
   blur: true,
   animSpeed: 1,
   uiScale: 100,
-  nameFontSize: 1.0
+  nameFontSize: 1.0,
+  darkMode: false
 }
 
 export const useSettingsStore = defineStore('settings', () => {
@@ -24,16 +25,23 @@ export const useSettingsStore = defineStore('settings', () => {
   const darkMode = ref(false)
 
   async function initialize() {
-    const saved = await dataBridge.load('settings')
-    if (saved) {
-      settings.value = { ...DEFAULT_SETTINGS, ...saved }
+    try {
+      const saved = await dataBridge.load('settings')
+      if (saved && typeof saved === 'object') {
+        settings.value = { ...DEFAULT_SETTINGS, ...saved }
+        darkMode.value = !!saved.darkMode
+      }
+    } catch (e) {
+      console.error('[settings] initialize failed:', e)
     }
     isLoaded.value = true
     applyUIScale()
     applyNameFontSize()
+    applyDarkMode()
   }
 
   async function save() {
+    settings.value.darkMode = darkMode.value
     await dataBridge.save('settings', settings.value)
   }
 
@@ -46,6 +54,13 @@ export const useSettingsStore = defineStore('settings', () => {
 
   function toggleDarkMode() {
     darkMode.value = !darkMode.value
+    settings.value.darkMode = darkMode.value
+    save()
+    applyDarkMode()
+  }
+
+  function applyDarkMode() {
+    // darkMode is applied via :class binding in AppLayout
   }
 
   function applyUIScale() {

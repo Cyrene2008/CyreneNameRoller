@@ -4,15 +4,19 @@ export function isElectron() {
 
 export const dataBridge = {
   async load(key) {
+    // Electron: 从文件系统加载，同时备份到 localStorage
     if (isElectron()) {
       try {
         const result = await window.electronAPI.loadData(key)
         if (result !== null && result !== undefined) {
-          localStorage.setItem(`db_${key}`, JSON.stringify(result))
+          try { localStorage.setItem(`db_${key}`, JSON.stringify(result)) } catch {}
           return result
         }
-      } catch {}
+      } catch (e) {
+        console.warn('[dataBridge] Electron load failed for', key, e)
+      }
     }
+    // 回退: 从 localStorage 加载
     try {
       const raw = localStorage.getItem(`db_${key}`)
       return raw ? JSON.parse(raw) : null
@@ -22,16 +26,28 @@ export const dataBridge = {
   },
 
   async save(key, data) {
-    try { localStorage.setItem(`db_${key}`, JSON.stringify(data)) } catch {}
+    // 同时写入 localStorage 和 Electron 文件系统
+    try { localStorage.setItem(`db_${key}`, JSON.stringify(data)) } catch (e) {
+      console.warn('[dataBridge] localStorage save failed for', key, e)
+    }
     if (isElectron()) {
-      try { await window.electronAPI.saveData(key, data) } catch {}
+      try {
+        await window.electronAPI.saveData(key, data)
+      } catch (e) {
+        console.warn('[dataBridge] Electron save failed for', key, e)
+      }
     }
     return true
   },
 
   async loadNames() {
     if (isElectron()) {
-      try { return await window.electronAPI.loadNames() } catch {}
+      try {
+        const result = await window.electronAPI.loadNames()
+        if (result && result.names) return result
+      } catch (e) {
+        console.warn('[dataBridge] Electron loadNames failed', e)
+      }
     }
     try {
       const res = await fetch('./names.json')
@@ -43,7 +59,10 @@ export const dataBridge = {
 
   async loadChangelog() {
     if (isElectron()) {
-      try { return await window.electronAPI.loadChangelog() } catch {}
+      try {
+        const result = await window.electronAPI.loadChangelog()
+        if (Array.isArray(result)) return result
+      } catch {}
     }
     try {
       const res = await fetch('./up.json')

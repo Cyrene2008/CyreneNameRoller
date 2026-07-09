@@ -7,9 +7,13 @@ export const useRecordsStore = defineStore('records', () => {
   const isLoaded = ref(false)
 
   async function initialize() {
-    const saved = await dataBridge.load('records')
-    if (saved && Array.isArray(saved)) {
-      records.value = saved
+    try {
+      const saved = await dataBridge.load('records')
+      if (saved && Array.isArray(saved)) {
+        records.value = saved
+      }
+    } catch (e) {
+      console.error('[records] initialize failed:', e)
     }
     isLoaded.value = true
   }
