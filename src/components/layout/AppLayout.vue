@@ -89,7 +89,7 @@ watch(() => settingsStore.settings.nameFontSize, (val) => {
   position: fixed;
   bottom: 8px;
   right: 16px;
-  font-size: 22px;
+  font-size: 12px;
   color: var(--text-muted);
   opacity: 0.5;
   pointer-events: none;
@@ -101,12 +101,12 @@ watch(() => settingsStore.settings.nameFontSize, (val) => {
 
 .v-num {
   font-family: var(--font-num);
-  font-size: calc(22px * var(--font-num-scale, 1.6));
+  font-size: calc(12px * var(--font-num-scale, 1.6));
 }
 
 .v-sep {
   font-family: var(--font-ui);
-  font-size: 22px;
+  font-size: 12px;
 }
 
 .page-slide-enter-active {
