@@ -12,6 +12,7 @@
         :to="item.path"
         class="dock-item"
         :class="{ active: route.path === item.path }"
+        draggable="false"
       >
         <div class="dock-item-indicator" />
         <Icon :icon="item.icon" :width="20" class="dock-item-icon" />
@@ -26,6 +27,7 @@
         :to="item.path"
         class="dock-item"
         :class="{ active: route.path === item.path }"
+        draggable="false"
       >
         <div class="dock-item-indicator" />
         <Icon :icon="item.icon" :width="20" class="dock-item-icon" />

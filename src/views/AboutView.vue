@@ -19,7 +19,6 @@
       <div class="about-section">
         <h3>{{ lang === 'en' ? 'Author' : '作者' }}</h3>
         <p><a href="https://github.com/Cyrene2008" target="_blank">Cyrene2008</a></p>
-        <a href="https://昔涟.cn" target="_blank">昔涟.cn</a>
       </div>
 
       <div class="about-section">
