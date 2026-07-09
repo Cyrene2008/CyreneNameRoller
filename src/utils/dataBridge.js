@@ -21,14 +21,14 @@ export const dataBridge = {
       return result
     }
 
-    // 3. 文件系统没有，从 localStorage 读取（首次运行或文件系统故障时的回退）
+    // 3. 文件系统没有，从 localStorage 读取
     try {
       const raw = localStorage.getItem(`db_${key}`)
       if (raw !== null) {
         const parsed = JSON.parse(raw)
-        // 如果 localStorage 有数据但文件系统没有，写回文件系统
+        // localStorage 有数据但文件系统没有，写回文件系统
         if (isElectron() && parsed !== null) {
-          try { await window.electronAPI.saveData(key, parsed) } catch {}
+          try { window.electronAPI.saveDataSync(key, parsed) } catch {}
         }
         return parsed
       }
@@ -37,20 +37,19 @@ export const dataBridge = {
     return null
   },
 
-  async save(key, data) {
-    // 同时写入 localStorage（即时生效）和 Electron 文件系统（持久化）
+  save(key, data) {
+    // localStorage 写入（即时）
     try { localStorage.setItem(`db_${key}`, JSON.stringify(data)) } catch (e) {
       console.warn(`[dataBridge] localStorage save failed for "${key}":`, e)
     }
 
+    // Electron 文件系统同步写入（确保落盘）
     if (isElectron()) {
       try {
-        const ok = await window.electronAPI.saveData(key, data)
-        if (!ok) {
-          console.warn(`[dataBridge] Electron save returned false for "${key}"`)
-        }
+        const ok = window.electronAPI.saveDataSync(key, data)
+        if (!ok) console.warn(`[dataBridge] Electron saveDataSync returned false for "${key}"`)
       } catch (e) {
-        console.warn(`[dataBridge] Electron save failed for "${key}":`, e)
+        console.warn(`[dataBridge] Electron saveDataSync failed for "${key}":`, e)
       }
     }
 
@@ -93,7 +92,6 @@ export const dataBridge = {
     if (isElectron()) {
       try { return await window.electronAPI.exportData() } catch {}
     }
-    // 浏览器模式: 从 localStorage 导出
     const allData = {}
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i)

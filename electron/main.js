@@ -90,6 +90,19 @@ function getDataFilePath(key) {
 console.log('[main] userData:', userDataPath)
 console.log('[main] dataDir:', dataDir)
 
+// 同步写入 - 确保数据立即落盘
+ipcMain.on('data:saveSync', (event, key, data) => {
+  ensureDataDir()
+  const filePath = getDataFilePath(key)
+  try {
+    fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8')
+    event.returnValue = true
+  } catch (e) {
+    console.error(`[data:saveSync] Failed for "${key}":`, e.message)
+    event.returnValue = false
+  }
+})
+
 // 数据操作 IPC
 ipcMain.handle('data:load', (_, key) => {
   ensureDataDir()
