@@ -1,6 +1,8 @@
-# Cyreneの随机点名器
+<img width="1329" height="805" alt="image" src="https://github.com/user-attachments/assets/35b1fcb9-1ee7-4437-a615-2f0478b757d7" /># Cyreneの随机点名器
 
-基于 Vue 3 + Electron 的随机点名桌面应用，采用 Windows 11 Fluent Design 设计语言。
+基于 Vue 3 + Electron/Tauri 的随机点名桌面应用，采用 Windows 11 Fluent Design 设计语言。
+
+在线使用→ [立即使用](https://xn--web-t33et1i480d.xn--8hvv1o.cn/)
 
 ## 功能
 
@@ -43,7 +45,7 @@ npm run electron:build
 
 ## 技术栈
 
-Vue 3 + Vite + Electron + Pinia + Vue Router + @iconify/vue (Fluent UI Icons)
+Vue 3 + Vite + Electron/Tauri + Pinia + Vue Router + @iconify/vue (Fluent UI Icons)
 
 ## 许可证
 
