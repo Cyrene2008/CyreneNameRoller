@@ -5,7 +5,7 @@
       <NavigationDock />
       <main class="app-content">
         <router-view v-slot="{ Component, route }">
-          <Transition name="page-fade" mode="out-in">
+          <Transition :name="transitionName" mode="out-in">
             <component :is="Component" :key="route.path" />
           </Transition>
         </router-view>
@@ -36,7 +36,7 @@
 
 
 import { onMounted, watch, provide, ref, computed, nextTick } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import TitleBar from './TitleBar.vue'
 import NavigationDock from './NavigationDock.vue'
 import FluentToast from '../FluentToast.vue'
@@ -51,6 +51,7 @@ import { updateState, checkForUpdates, downloadUpdate } from '../../utils/update
 import { isTauri } from '../../utils/tauriAPI'
 
 const router = useRouter()
+const currentRoute = useRoute()
 const settingsStore = useSettingsStore()
 const namesStore = useNamesStore()
 const statisticsStore = useStatisticsStore()
@@ -61,6 +62,21 @@ const isDesktopApp = computed(() => !!window.electronAPI || isTauri())
 
 const globalToast = ref(null)
 provide('toast', globalToast)
+
+const routeOrder = ['/', '/roller', '/card', '/statistics', '/records', '/lists', '/lists/manage', '/settings', '/settings/balance-curve', '/about', '/about/contributors']
+const transitionName = ref('page-forward')
+
+function getRouteIndex(path) {
+  const clean = path.replace(/\/$/, '') || '/'
+  const idx = routeOrder.indexOf(clean)
+  return idx >= 0 ? idx : routeOrder.length
+}
+
+router.beforeEach((to, from) => {
+  const toIdx = getRouteIndex(to.path)
+  const fromIdx = getRouteIndex(from.path)
+  transitionName.value = toIdx >= fromIdx ? 'page-forward' : 'page-back'
+})
 
 // Scroll to top on route change
 router.afterEach(() => {
@@ -227,6 +243,46 @@ watch(() => settingsStore.settings.nameFontSize, (val) => {
 .page-fade-leave-to {
   opacity: 0;
   transform: translateY(-4px);
+}
+
+.page-forward-enter-active {
+  transition: all 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.page-forward-leave-active {
+  transition: all 0.28s cubic-bezier(0.55, 0, 1, 0.45);
+}
+
+.page-forward-enter-from {
+  opacity: 0;
+  transform: translateX(40px) scale(0.97);
+  filter: blur(4px);
+}
+
+.page-forward-leave-to {
+  opacity: 0;
+  transform: translateX(-24px) scale(0.98);
+  filter: blur(2px);
+}
+
+.page-back-enter-active {
+  transition: all 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.page-back-leave-active {
+  transition: all 0.28s cubic-bezier(0.55, 0, 1, 0.45);
+}
+
+.page-back-enter-from {
+  opacity: 0;
+  transform: translateX(-40px) scale(0.97);
+  filter: blur(4px);
+}
+
+.page-back-leave-to {
+  opacity: 0;
+  transform: translateX(24px) scale(0.98);
+  filter: blur(2px);
 }
 
 @media (max-width: 768px) {

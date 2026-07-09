@@ -100,6 +100,7 @@ a:hover {
 
 .perf-no-anim *:not(.name-display):not(.card) {
   transition-duration: 0s !important;
+  animation-duration: 0s !important;
 }
 
 .perf-no-anim .name-display:not(.rainbow):not(.final) {
@@ -108,4 +109,11 @@ a:hover {
 
 .perf-no-anim .card:not(.show) {
   animation: none !important;
+}
+
+.perf-no-blur .page-forward-enter-from,
+.perf-no-blur .page-forward-leave-to,
+.perf-no-blur .page-back-enter-from,
+.perf-no-blur .page-back-leave-to {
+  filter: none !important;
 }
