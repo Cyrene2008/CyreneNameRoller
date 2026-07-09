@@ -2,7 +2,7 @@ const { flipFuses, FuseVersion, FuseV1Options } = require('@electron/fuses')
 const path = require('path')
 
 async function activateFuses() {
-  const appPath = path.join(__dirname, '..', 'release-electron', 'win-unpacked', 'CyreneNameRoller.exe')
+  const appPath = path.join('C:\\Users\\Admin\\AppData\\Local\\Temp\\cyrene-build', 'win-unpacked', 'CyreneNameRoller.exe')
   
   try {
     await flipFuses(appPath, {
