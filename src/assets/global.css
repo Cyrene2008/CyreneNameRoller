@@ -39,13 +39,21 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--text-muted);
+  background: var(--accent-light);
   border-radius: var(--radius-full);
-  opacity: 0.5;
+  opacity: 0.4;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--text-secondary);
+  background: var(--accent);
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: rgba(234, 94, 193, 0.3);
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: rgba(234, 94, 193, 0.5);
 }
 
 input, button, select, textarea {
