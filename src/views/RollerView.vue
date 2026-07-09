@@ -166,9 +166,9 @@ onBeforeUnmount(() => { if (intervalId) clearTimeout(intervalId) })
 </script>
 
 <style scoped>
-.roller-view { padding: 32px; display: flex; flex-direction: column; align-items: center; min-height: 100%; position: relative; }
-.roller-title { font-family: var(--font-display); font-size: 28px; font-weight: 700; color: var(--text-primary); margin-bottom: 24px; width: 100%; text-align: center; }
-.display-container { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 32px; margin-bottom: 40px; min-height: 80px; }
+.roller-view { padding: 32px; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100%; position: relative; }
+.roller-title { font-family: var(--font-display); font-size: 28px; font-weight: 700; color: var(--text-primary); margin-bottom: 24px; width: 100%; text-align: center; position: absolute; top: 32px; left: 0; right: 0; }
+.display-container { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 32px; min-height: 80px; }
 
 .name-display { font-family: var(--font-display); font-size: calc(52px * var(--name-font-factor, 1)); font-weight: 700; color: var(--text-primary); min-width: 120px; text-align: center; white-space: nowrap; overflow: hidden; transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); text-shadow: 0 4px 20px rgba(234, 94, 193, 0.15); position: relative; }
 .name-display::before { content: ''; position: absolute; inset: -4px; background: var(--accent); border-radius: var(--radius-sm); z-index: -1; opacity: 0; transition: opacity 0.3s ease; }
