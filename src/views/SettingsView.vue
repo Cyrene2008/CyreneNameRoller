@@ -22,19 +22,11 @@
     <FluentCard class="settings-section">
       <h3 class="section-title"><FluentIcon icon="color-24-regular" :width="20" /> {{ lang === 'en' ? 'Theme & Display' : '主题与显示' }}</h3>
       <div class="setting-row">
-        <span class="setting-label">{{ t('rainbowNames', lang) }}</span>
-        <FluentToggle :model-value="settings.rainbowNames" @update:model-value="update('rainbowNames', $event)" />
+        <span class="setting-label">{{ t('nameColorMode', lang) }}</span>
+        <FluentSelect :model-value="settings.nameColorMode" :options="colorModeOptions" @update:model-value="update('nameColorMode', $event)" />
       </div>
       <Transition name="toggle-expand">
-        <div v-if="settings.rainbowNames" class="sub-setting">
-          <div class="setting-row">
-            <span class="setting-label">{{ t('nameColorMode', lang) }}</span>
-            <FluentSelect :model-value="settings.nameColorMode" :options="colorModeOptions" @update:model-value="update('nameColorMode', $event)" />
-          </div>
-        </div>
-      </Transition>
-      <Transition name="toggle-expand">
-        <div v-if="settings.rainbowNames && settings.nameColorMode === 'custom'" class="sub-setting">
+        <div v-if="settings.nameColorMode === 'custom'" class="sub-setting">
           <div class="setting-row">
             <span class="setting-label">{{ t('customColorLight', lang) }}</span>
             <div class="color-picker-row">

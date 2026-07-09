@@ -7,8 +7,8 @@
         v-for="(display, i) in nameDisplays"
         :key="i"
         class="name-display"
-        :class="{ rainbow: settings.rainbowNames && settings.nameColorMode === 'gradient', final: display.animating }"
-        :style="getNameStyle(display, i)"
+        :class="{ rainbow: settings.nameColorMode === 'gradient', final: display.animating }"
+        :style="getNameStyle(display)"
       >
         {{ display.text }}
       </div>
@@ -94,7 +94,7 @@ function initializeDisplays(count) {
 
 function getNameStyle(display) {
   const style = { opacity: display.opacity }
-  if (settings.value.rainbowNames && settings.value.nameColorMode === 'custom') {
+  if (settings.value.nameColorMode === 'custom') {
     const color = settingsStore.darkMode
       ? (settings.value.customNameColorDark || '#f09bd7')
       : (settings.value.customNameColorLight || '#d04a9d')
@@ -184,18 +184,19 @@ onBeforeUnmount(() => { if (intervalId) clearTimeout(intervalId) })
 .name-display { font-family: var(--font-display); font-size: calc(52px * var(--name-font-factor, 1)); font-weight: 700; color: var(--text-primary); min-width: 120px; text-align: center; white-space: nowrap; overflow: hidden; transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); text-shadow: 0 4px 20px rgba(234, 94, 193, 0.15); position: relative; }
 .name-display::before { content: ''; position: absolute; inset: -4px; background: var(--accent); border-radius: var(--radius-sm); z-index: -1; opacity: 0; transition: opacity 0.3s ease; }
 .name-display.rainbow {
-  background: linear-gradient(90deg, #FFA9E9, #A6CAEE, #FFA9E9);
-  background-size: 200% 100%;
+  background: linear-gradient(90deg, #ff6ad9, #72afec, #ff6ad9, #72afec, #ff6ad9);
+  background-size: 400% 100%;
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
-  animation: gradient-shift 4s linear infinite;
+  animation: gradient-shift 3s linear infinite both;
   text-shadow: none;
+  animation-delay: -0s !important;
 }
 
 @keyframes gradient-shift {
   0% { background-position: 0% 50%; }
-  100% { background-position: 100% 50%; }
+  100% { background-position: 400% 50%; }
 }
 .name-display.final { animation: final-reveal 0.5s cubic-bezier(0.1, 0.9, 0.2, 1); }
 @keyframes final-reveal { 0% { transform: scale(4); opacity: 0; filter: brightness(2); } 100% { transform: scale(1); filter: brightness(1); } }
