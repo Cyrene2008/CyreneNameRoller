@@ -41,6 +41,7 @@ onMounted(async () => {
   await namesStore.initialize()
   await statisticsStore.initialize()
   await recordsStore.initialize()
+  console.log('[App] All stores initialized. isElectron:', !!window.electronAPI)
 })
 
 watch(() => settingsStore.settings.uiScale, (val) => {

@@ -4,39 +4,56 @@ export function isElectron() {
 
 export const dataBridge = {
   async load(key) {
-    // Electron: 从文件系统加载，同时备份到 localStorage
+    let result = null
+
+    // 1. 尝试从 Electron 文件系统加载
     if (isElectron()) {
       try {
-        const result = await window.electronAPI.loadData(key)
-        if (result !== null && result !== undefined) {
-          try { localStorage.setItem(`db_${key}`, JSON.stringify(result)) } catch {}
-          return result
-        }
+        result = await window.electronAPI.loadData(key)
       } catch (e) {
-        console.warn('[dataBridge] Electron load failed for', key, e)
+        console.warn(`[dataBridge] Electron load failed for "${key}":`, e)
       }
     }
-    // 回退: 从 localStorage 加载
+
+    // 2. 如果文件系统有数据，备份到 localStorage
+    if (result !== null && result !== undefined) {
+      try { localStorage.setItem(`db_${key}`, JSON.stringify(result)) } catch {}
+      return result
+    }
+
+    // 3. 文件系统没有，从 localStorage 读取（首次运行或文件系统故障时的回退）
     try {
       const raw = localStorage.getItem(`db_${key}`)
-      return raw ? JSON.parse(raw) : null
-    } catch {
-      return null
-    }
+      if (raw !== null) {
+        const parsed = JSON.parse(raw)
+        // 如果 localStorage 有数据但文件系统没有，写回文件系统
+        if (isElectron() && parsed !== null) {
+          try { await window.electronAPI.saveData(key, parsed) } catch {}
+        }
+        return parsed
+      }
+    } catch {}
+
+    return null
   },
 
   async save(key, data) {
-    // 同时写入 localStorage 和 Electron 文件系统
+    // 同时写入 localStorage（即时生效）和 Electron 文件系统（持久化）
     try { localStorage.setItem(`db_${key}`, JSON.stringify(data)) } catch (e) {
-      console.warn('[dataBridge] localStorage save failed for', key, e)
+      console.warn(`[dataBridge] localStorage save failed for "${key}":`, e)
     }
+
     if (isElectron()) {
       try {
-        await window.electronAPI.saveData(key, data)
+        const ok = await window.electronAPI.saveData(key, data)
+        if (!ok) {
+          console.warn(`[dataBridge] Electron save returned false for "${key}"`)
+        }
       } catch (e) {
-        console.warn('[dataBridge] Electron save failed for', key, e)
+        console.warn(`[dataBridge] Electron save failed for "${key}":`, e)
       }
     }
+
     return true
   },
 
@@ -46,7 +63,7 @@ export const dataBridge = {
         const result = await window.electronAPI.loadNames()
         if (result && result.names) return result
       } catch (e) {
-        console.warn('[dataBridge] Electron loadNames failed', e)
+        console.warn('[dataBridge] Electron loadNames failed:', e)
       }
     }
     try {
@@ -76,6 +93,7 @@ export const dataBridge = {
     if (isElectron()) {
       try { return await window.electronAPI.exportData() } catch {}
     }
+    // 浏览器模式: 从 localStorage 导出
     const allData = {}
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i)

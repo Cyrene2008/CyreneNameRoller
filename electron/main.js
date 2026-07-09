@@ -86,6 +86,10 @@ function getDataFilePath(key) {
   return path.join(dataDir, `${key}.json`)
 }
 
+// 启动时打印数据目录
+console.log('[main] userData:', userDataPath)
+console.log('[main] dataDir:', dataDir)
+
 // 数据操作 IPC
 ipcMain.handle('data:load', (_, key) => {
   ensureDataDir()
