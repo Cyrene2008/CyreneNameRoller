@@ -2,10 +2,12 @@
   <nav class="dock" :class="{ collapsed: dockCollapsed }">
     <div class="dock-top">
       <button class="dock-toggle" @click="toggleDock" :title="dockCollapsed ? '展开' : '收起'">
-        <Icon icon="fluent:line-horizontal-3-20-regular" :width="20" />
+        <Icon icon="fluent:line-horizontal-3-20-regular" :width="18" />
       </button>
-      <img src="/cyrene.png" class="dock-logo-img" alt="" />
-      <span v-if="!dockCollapsed" class="dock-logo-text">Cyreneの随机点名器</span>
+      <template v-if="!dockCollapsed">
+        <img src="/cyrene.png" class="dock-logo-img" alt="" />
+        <span class="dock-logo-text">Cyreneの随机点名器</span>
+      </template>
     </div>
 
     <div class="dock-items">
@@ -38,8 +40,9 @@
         <Icon :icon="item.icon" :width="20" class="dock-item-icon" />
         <span v-if="!dockCollapsed" class="dock-item-label">{{ item.label[lang] }}</span>
       </router-link>
-      <div class="dock-build">{{ APP_VERSION }} build:{{ APP_BUILD }}</div>
     </div>
+
+    <div class="dock-build">{{ APP_VERSION }} build:{{ APP_BUILD }}</div>
   </nav>
 </template>
 
@@ -88,26 +91,28 @@ const bottomItems = [
   -webkit-backdrop-filter: blur(20px);
   border-right: 1px solid var(--border-subtle);
   flex-shrink: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow: visible;
   transition: width var(--duration-normal) var(--ease-standard);
+  position: relative;
+  z-index: 50;
 }
 
 .dock.collapsed {
-  width: 56px;
+  width: 48px;
 }
 
 .dock-top {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 12px;
+  gap: 6px;
+  padding: 12px 10px;
   border-bottom: 1px solid var(--border-subtle);
+  overflow: hidden;
 }
 
 .dock-toggle {
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -125,20 +130,21 @@ const bottomItems = [
 }
 
 .dock-logo-img {
-  width: 28px;
-  height: 28px;
-  border-radius: 6px;
+  width: 24px;
+  height: 24px;
+  border-radius: 5px;
   object-fit: cover;
   flex-shrink: 0;
 }
 
 .dock-logo-text {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  min-width: 0;
 }
 
 .dock-items {
@@ -146,14 +152,15 @@ const bottomItems = [
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: 8px;
+  padding: 8px 6px;
+  overflow: hidden;
 }
 
 .dock-item {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 10px 12px;
+  gap: 10px;
+  padding: 9px 10px;
   border-radius: var(--radius-md);
   cursor: pointer;
   transition: background var(--duration-fast) ease;
@@ -163,13 +170,14 @@ const bottomItems = [
   border: none;
   background: transparent;
   width: 100%;
-  font-size: 14px;
+  font-size: 13px;
   font-family: var(--font-ui);
+  overflow: hidden;
 }
 
 .dock.collapsed .dock-item {
   justify-content: center;
-  padding: 10px 0;
+  padding: 9px 0;
 }
 
 .dock-item:hover { background: var(--bg-hover); color: var(--text-primary); }
@@ -193,25 +201,29 @@ const bottomItems = [
 .dock-item-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .dock-bottom {
-  padding: 8px;
+  padding: 8px 6px;
   border-top: 1px solid var(--border-subtle);
-  margin-top: auto;
   display: flex;
   flex-direction: column;
   gap: 2px;
+  overflow: hidden;
 }
 
 .dock-build {
-  font-size: 10px;
+  font-size: 9px;
   color: var(--text-muted);
   opacity: 0.5;
   text-align: center;
-  padding: 6px 0 0;
-  font-family: var(--font-ui);
+  padding: 6px 0 2px;
+  font-family: var(--font-num);
   letter-spacing: 0.3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  position: relative;
+  z-index: 60;
 }
 
-/* Mobile responsive */
 @media (max-width: 768px) {
   .dock {
     position: fixed;
@@ -219,7 +231,7 @@ const bottomItems = [
     top: var(--titlebar-height);
     bottom: 0;
     z-index: 100;
-    width: 56px;
+    width: 48px;
     box-shadow: var(--shadow-8);
   }
 
@@ -228,7 +240,7 @@ const bottomItems = [
   }
 
   .dock.collapsed {
-    width: 56px;
+    width: 48px;
   }
 }
 </style>
