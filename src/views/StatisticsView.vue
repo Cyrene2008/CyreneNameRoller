@@ -5,6 +5,14 @@
       {{ t('statistics', lang) }}
     </h1>
 
+    <div class="stats-header">
+      <FluentSelect
+        :model-value="selectedListId"
+        :options="listOptions"
+        @update:model-value="selectedListId = $event"
+      />
+    </div>
+
     <FluentCard class="stats-summary">
       <div class="summary-item">
         <span class="summary-label">{{ lang === 'en' ? 'Total Rolls' : '总计抽取' }}</span>
@@ -12,7 +20,7 @@
       </div>
       <div class="summary-item">
         <span class="summary-label">{{ lang === 'en' ? 'Candidates' : '候选人数' }}</span>
-        <span class="summary-value">{{ namesStore.currentNames.filter(n => n.cn !== '再来一次').length }}</span>
+        <span class="summary-value">{{ selectedNames.filter(n => n.cn !== '再来一次').length }}</span>
       </div>
     </FluentCard>
 
@@ -50,25 +58,39 @@ import { dataBridge } from '../utils/dataBridge'
 import { t } from '../utils/i18n'
 import FluentCard from '../components/FluentCard.vue'
 import FluentIcon from '../components/FluentIcon.vue'
+import FluentSelect from '../components/FluentSelect.vue'
 
 const namesStore = useNamesStore()
 const settingsStore = useSettingsStore()
 const statisticsStore = useStatisticsStore()
 
-const lang = computed(() => settingsStore.settings.englishMode ? 'en' : 'zh')
+const lang = computed(() => settingsStore.settings.language)
 const balanceSettings = ref({ ...DEFAULT_BALANCE_SETTINGS })
+
+const selectedListId = ref(namesStore.currentListId)
+
+const listOptions = computed(() =>
+  namesStore.allLists.map(l => ({ value: l.id, label: l.name }))
+)
+
+const selectedList = computed(() =>
+  namesStore.nameLists[selectedListId.value] || namesStore.currentList
+)
+
+const selectedNames = computed(() => selectedList.value.names || [])
+const selectedWhiteList = computed(() => selectedList.value.whiteList || [])
 
 const statsData = computed(() => {
   return statisticsStore.getStatsForList(
-    namesStore.currentNames,
-    namesStore.currentWhiteList
+    selectedNames.value,
+    selectedWhiteList.value
   )
 })
 
 const statsWithBalance = computed(() => {
   const probMap = computeBalancedProbability(
-    namesStore.currentNames,
-    namesStore.currentWhiteList,
+    selectedNames.value,
+    selectedWhiteList.value,
     statisticsStore.counts,
     balanceSettings.value
   )
@@ -98,6 +120,10 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   gap: 10px;
+}
+
+.stats-header {
+  margin-bottom: 16px;
 }
 
 .stats-summary {

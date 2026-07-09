@@ -51,7 +51,7 @@ const namesStore = useNamesStore()
 const statisticsStore = useStatisticsStore()
 const recordsStore = useRecordsStore()
 
-const lang = computed(() => settingsStore.settings.englishMode ? 'en' : 'zh')
+const lang = computed(() => settingsStore.settings.language)
 
 const globalToast = ref(null)
 provide('toast', globalToast)
@@ -105,8 +105,8 @@ watch(() => settingsStore.settings.nameFontSize, (val) => {
 
 .version-badge {
   position: fixed;
-  bottom: 8px;
-  right: 16px;
+  bottom: 0px;
+  right: 24px;
   font-size: 12px;
   color: var(--text-muted);
   opacity: 0.5;
@@ -114,7 +114,7 @@ watch(() => settingsStore.settings.nameFontSize, (val) => {
   z-index: 999999;
   display: flex;
   align-items: baseline;
-  gap: 4px;
+  gap: 3px;
 }
 
 .v-prefix {

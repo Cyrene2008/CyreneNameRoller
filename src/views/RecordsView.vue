@@ -37,7 +37,7 @@ import FluentIcon from '../components/FluentIcon.vue'
 const settingsStore = useSettingsStore()
 const recordsStore = useRecordsStore()
 
-const lang = computed(() => settingsStore.settings.englishMode ? 'en' : 'zh')
+const lang = computed(() => settingsStore.settings.language)
 const records = computed(() => recordsStore.records)
 const listRef = ref(null)
 

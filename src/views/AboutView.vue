@@ -59,7 +59,7 @@ import FluentCard from '../components/FluentCard.vue'
 import FluentIcon from '../components/FluentIcon.vue'
 
 const settingsStore = useSettingsStore()
-const lang = computed(() => settingsStore.settings.englishMode ? 'en' : 'zh')
+const lang = computed(() => settingsStore.settings.language)
 </script>
 
 <style scoped>

@@ -56,7 +56,7 @@ const props = defineProps({
 
 const route = useRoute()
 const settingsStore = useSettingsStore()
-const lang = computed(() => settingsStore.settings.englishMode ? 'en' : 'zh')
+const lang = computed(() => settingsStore.settings.language)
 const dockCollapsed = computed(() => settingsStore.settings.dockCollapsed || false)
 
 function toggleDock() {
