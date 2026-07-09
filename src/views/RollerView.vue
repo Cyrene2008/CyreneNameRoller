@@ -189,16 +189,22 @@ onBeforeUnmount(() => { if (intervalId) clearTimeout(intervalId) })
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
-  animation: gradient-shift 16s linear infinite both;
   text-shadow: none;
-  animation-delay: -0s !important;
+  animation: gradient-shift 32s linear infinite;
+}
+
+.name-display.rainbow.final {
+  animation: gradient-shift 32s linear infinite, final-reveal 0.5s cubic-bezier(0.1, 0.9, 0.2, 1);
 }
 
 @keyframes gradient-shift {
   0% { background-position: 0% 50%; }
   100% { background-position: 800% 50%; }
 }
-.name-display.final { animation: final-reveal 0.5s cubic-bezier(0.1, 0.9, 0.2, 1); }
+
+.name-display:not(.rainbow).final {
+  animation: final-reveal 0.5s cubic-bezier(0.1, 0.9, 0.2, 1);
+}
 @keyframes final-reveal { 0% { transform: scale(4); opacity: 0; filter: brightness(2); } 100% { transform: scale(1); filter: brightness(1); } }
 
 .controls-center { position: fixed; bottom: 24px; right: 24px; display: flex; flex-direction: column; gap: 10px; align-items: flex-end; z-index: 10; }
