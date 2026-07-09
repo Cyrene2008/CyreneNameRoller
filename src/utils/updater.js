@@ -1,11 +1,11 @@
 import { ref } from 'vue'
 import { APP_VERSION } from './version'
+import { tauriAPI, isTauri } from './tauriAPI'
 
 const GITHUB_REPO = 'Cyrene2008/CyreneNameRoller'
-const API_URLS = [
+const FALLBACK_URLS = [
   `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`,
-  `https://gh-proxy.com/https://api.github.com/repos/${GITHUB_REPO}/releases/latest`,
-  `https://ghfast.top/https://api.github.com/repos/${GITHUB_REPO}/releases/latest`
+  `https://api.kkgithub.com/repos/${GITHUB_REPO}/releases/latest`
 ]
 
 export const updateState = ref({
@@ -18,7 +18,7 @@ export const updateState = ref({
 })
 
 function getPlatform() {
-  if (typeof window !== 'undefined' && window.__TAURI_INTERNALS__) return 'tauri-win64'
+  if (isTauri()) return 'tauri-win64'
   if (typeof window !== 'undefined' && window.electronAPI) return 'electron-win64'
   return 'web'
 }
@@ -27,21 +27,33 @@ function normalizeVersion(v) {
   return v.replace(/^v/i, '').trim()
 }
 
-async function fetchWithTimeout(url, timeout = 10000) {
-  const ctrl = new AbortController()
-  const timer = setTimeout(() => ctrl.abort(), timeout)
-  try {
-    const resp = await fetch(url, {
-      headers: { 'Accept': 'application/vnd.github.v3+json' },
-      signal: ctrl.signal
-    })
-    clearTimeout(timer)
-    if (resp.ok) return await resp.json()
-  } catch (e) {
-    clearTimeout(timer)
-    throw e
+async function fetchRelease() {
+  // Electron: 通过主进程 IPC
+  if (typeof window !== 'undefined' && window.electronAPI?.checkUpdate) {
+    const result = await window.electronAPI.checkUpdate()
+    if (result?.ok && result.data) return result.data
+    throw new Error(result?.error || 'update check failed')
   }
-  throw new Error('Failed')
+  // Tauri: 通过 Rust 后端
+  if (isTauri()) {
+    const data = await tauriAPI.checkUpdate()
+    if (data) return data
+    throw new Error('tauri update check failed')
+  }
+  // Web fallback: 直接 fetch
+  for (const url of FALLBACK_URLS) {
+    try {
+      const ctrl = new AbortController()
+      const timer = setTimeout(() => ctrl.abort(), 10000)
+      const resp = await fetch(url, {
+        headers: { 'Accept': 'application/vnd.github.v3+json' },
+        signal: ctrl.signal
+      })
+      clearTimeout(timer)
+      if (resp.ok) return await resp.json()
+    } catch {}
+  }
+  throw new Error('all sources failed')
 }
 
 export async function checkForUpdates(silent = true) {
@@ -50,12 +62,9 @@ export async function checkForUpdates(silent = true) {
   updateState.value.error = null
 
   let release = null
-  for (const url of API_URLS) {
-    try {
-      release = await fetchWithTimeout(url)
-      break
-    } catch {}
-  }
+  try {
+    release = await fetchRelease()
+  } catch {}
 
   if (!release) {
     updateState.value = { available: false, checking: false, version: '', url: '', body: '', error: '无法连接到更新服务器' }
@@ -72,7 +81,7 @@ export async function checkForUpdates(silent = true) {
     if (platform === 'tauri-win64') {
       targetAsset = assets.find(a => a.name.includes('Tauri') && a.name.endsWith('.exe'))
     } else if (platform === 'electron-win64') {
-      targetAsset = assets.find(a => a.name.includes('Setup') && a.name.endsWith('.exe') && !a.name.includes('Tauri'))
+      targetAsset = assets.find(a => a.name.includes('electron-win64') && a.name.endsWith('.exe'))
     }
     updateState.value = {
       available: true, checking: false,
@@ -88,5 +97,9 @@ export async function checkForUpdates(silent = true) {
 
 export async function downloadUpdate() {
   if (!updateState.value.url) return
-  window.open(updateState.value.url, '_blank')
+  if (isTauri()) {
+    await tauriAPI.openExternal(updateState.value.url)
+  } else {
+    window.open(updateState.value.url, '_blank')
+  }
 }

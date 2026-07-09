@@ -5,7 +5,7 @@
       <NavigationDock />
       <main class="app-content">
         <router-view v-slot="{ Component, route }">
-          <Transition :name="transitionName" mode="out-in">
+          <Transition name="page-fade" mode="out-in">
             <component :is="Component" :key="route.path" />
           </Transition>
         </router-view>
@@ -35,7 +35,7 @@
 <script setup>
 
 
-import { onMounted, watch, provide, ref, computed } from 'vue'
+import { onMounted, watch, provide, ref, computed, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import TitleBar from './TitleBar.vue'
 import NavigationDock from './NavigationDock.vue'
@@ -62,24 +62,12 @@ const isDesktopApp = computed(() => !!window.electronAPI || isTauri())
 const globalToast = ref(null)
 provide('toast', globalToast)
 
-const transitionName = ref('page-slide')
-
-// Track navigation direction for reverse animations
-const routeHistory = ref([])
-router.afterEach((to, from) => {
-  const toDepth = to.path.split('/').length
-  const fromDepth = from.path.split('/').length
-  
-  // Check if going back (to a parent route)
-  if (toDepth < fromDepth || routeHistory.value.includes(to.path)) {
-    transitionName.value = 'page-slide-reverse'
-    routeHistory.value = routeHistory.value.filter(p => p !== from.path)
-  } else {
-    transitionName.value = 'page-slide'
-    if (!routeHistory.value.includes(from.path)) {
-      routeHistory.value.push(from.path)
-    }
-  }
+// Scroll to top on route change
+router.afterEach(() => {
+  nextTick(() => {
+    const content = document.querySelector('.app-content')
+    if (content) content.scrollTop = 0
+  })
 })
 
 document.title = APP_NAME
@@ -89,7 +77,7 @@ onMounted(async () => {
   await namesStore.initialize()
   await statisticsStore.initialize()
   await recordsStore.initialize()
-  checkForUpdates()
+  if (isDesktopApp.value) checkForUpdates()
 })
 
 watch(() => settingsStore.settings.uiScale, (val) => {
@@ -223,40 +211,22 @@ watch(() => settingsStore.settings.nameFontSize, (val) => {
   opacity: 0;
 }
 
-.page-slide-enter-active {
-  transition: all 0.25s cubic-bezier(0.1, 0.9, 0.2, 1);
+.page-fade-enter-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
 }
 
-.page-slide-leave-active {
-  transition: all 0.15s ease-in;
+.page-fade-leave-active {
+  transition: opacity 0.12s ease, transform 0.12s ease;
 }
 
-.page-slide-enter-from {
+.page-fade-enter-from {
   opacity: 0;
-  transform: translateX(20px);
+  transform: translateY(8px);
 }
 
-.page-slide-leave-to {
+.page-fade-leave-to {
   opacity: 0;
-  transform: translateX(-10px);
-}
-
-.page-slide-reverse-enter-active {
-  transition: all 0.25s cubic-bezier(0.1, 0.9, 0.2, 1);
-}
-
-.page-slide-reverse-leave-active {
-  transition: all 0.15s ease-in;
-}
-
-.page-slide-reverse-enter-from {
-  opacity: 0;
-  transform: translateX(-20px);
-}
-
-.page-slide-reverse-leave-to {
-  opacity: 0;
-  transform: translateX(10px);
+  transform: translateY(-4px);
 }
 
 @media (max-width: 768px) {
