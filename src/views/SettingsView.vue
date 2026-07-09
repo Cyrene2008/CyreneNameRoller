@@ -51,13 +51,33 @@
         <span class="setting-label">{{ t('fontSize', lang) }}</span>
         <FluentSelect :model-value="settings.nameFontSize" :options="fontSizeOptions" @update:model-value="update('nameFontSize', $event)" />
       </div>
+    </FluentCard>
+
+    <!-- 性能设置 -->
+    <FluentCard class="settings-section">
+      <h3 class="section-title"><FluentIcon icon="gauge-24-regular" :width="20" /> {{ lang === 'en' ? 'Performance' : '性能设置' }}</h3>
       <div class="setting-row">
         <div class="setting-label-group">
-          <span class="setting-label">{{ lang === 'en' ? 'Performance Mode' : '性能模式' }}</span>
-          <span class="setting-desc">{{ lang === 'en' ? 'Disable blur/shadow/animation for integrated GPU' : '禁用模糊/阴影/动画，适合核显设备' }}</span>
+          <span class="setting-label">{{ lang === 'en' ? 'Acrylic Blur' : '亚克力模糊' }}</span>
+          <span class="setting-desc">{{ lang === 'en' ? 'Glass blur on cards, dock, titlebar' : '卡片、侧边栏、标题栏的毛玻璃效果' }}</span>
         </div>
-        <FluentToggle :model-value="settings.performanceMode" @update:model-value="update('performanceMode', $event)" />
+        <FluentToggle :model-value="settings.perfBlur" @update:model-value="update('perfBlur', $event)" />
       </div>
+      <div class="setting-row">
+        <div class="setting-label-group">
+          <span class="setting-label">{{ lang === 'en' ? 'Shadows' : '阴影效果' }}</span>
+          <span class="setting-desc">{{ lang === 'en' ? 'Card and button drop shadows' : '卡片和按钮的投影效果' }}</span>
+        </div>
+        <FluentToggle :model-value="settings.perfShadows" @update:model-value="update('perfShadows', $event)" />
+      </div>
+      <div class="setting-row">
+        <div class="setting-label-group">
+          <span class="setting-label">{{ lang === 'en' ? 'Animations' : '过渡动画' }}</span>
+          <span class="setting-desc">{{ lang === 'en' ? 'Page transitions, hover effects' : '页面切换动画、悬停效果' }}</span>
+        </div>
+        <FluentToggle :model-value="settings.perfAnimations" @update:model-value="update('perfAnimations', $event)" />
+      </div>
+      <p class="setting-note">{{ lang === 'en' ? 'Disable options to improve performance on integrated GPUs.' : '关闭选项可提升核显设备性能。' }}</p>
     </FluentCard>
 
     <!-- 数据管理 -->

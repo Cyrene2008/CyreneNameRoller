@@ -70,44 +70,42 @@ a:hover {
   color: var(--accent-dark);
 }
 
-/* Performance Mode - reduces GPU load for integrated graphics */
-.performance-mode * {
+/* Performance Settings - individual toggles */
+.perf-no-blur * {
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
-  transition-duration: 0s !important;
 }
 
-.performance-mode .name-display.rainbow {
-  background-size: 200% 100% !important;
-}
-
-.performance-mode .name-display:not(.rainbow) {
-  animation: none !important;
-}
-
-.performance-mode .name-display.final {
-  animation: final-reveal 0.5s cubic-bezier(0.1, 0.9, 0.2, 1) !important;
-}
-
-.performance-mode .fluent-card {
+.perf-no-blur .fluent-card,
+.perf-no-blur .list-selector-bar,
+.perf-no-blur .card-controls,
+.perf-no-blur .dock,
+.perf-no-blur .titlebar {
   background: var(--bg-card-solid) !important;
-  backdrop-filter: none !important;
+}
+
+.perf-no-blur .fluent-modal-overlay {
+  background: rgba(0, 0, 0, 0.4) !important;
+}
+
+.perf-no-shadow .fluent-card,
+.perf-no-shadow .list-selector-bar,
+.perf-no-shadow .card-controls {
   box-shadow: var(--shadow-2) !important;
 }
 
-.performance-mode .list-selector-bar,
-.performance-mode .card-controls,
-.performance-mode .dock {
-  background: var(--bg-card-solid) !important;
-  backdrop-filter: none !important;
+.perf-no-shadow .name-display {
+  text-shadow: none !important;
 }
 
-.performance-mode .titlebar {
-  background: var(--bg-card-solid) !important;
-  backdrop-filter: none !important;
+.perf-no-anim *:not(.name-display):not(.card) {
+  transition-duration: 0s !important;
 }
 
-.performance-mode .fluent-modal-overlay {
-  backdrop-filter: none !important;
-  background: rgba(0, 0, 0, 0.4) !important;
+.perf-no-anim .name-display:not(.rainbow):not(.final) {
+  animation: none !important;
+}
+
+.perf-no-anim .card:not(.show) {
+  animation: none !important;
 }

@@ -136,12 +136,18 @@ ipcMain.handle('data:loadNames', () => {
 })
 
 ipcMain.handle('data:loadChangelog', () => {
-  const bundledPath = path.join(__dirname, '../.origin/up.json')
-  try {
-    if (fs.existsSync(bundledPath)) {
-      return JSON.parse(fs.readFileSync(bundledPath, 'utf-8'))
-    }
-  } catch {}
+  const paths = [
+    path.join(__dirname, '../.origin/up.json'),
+    path.join(__dirname, '../dist/up.json'),
+    path.join(__dirname, '../public/up.json')
+  ]
+  for (const p of paths) {
+    try {
+      if (fs.existsSync(p)) {
+        return JSON.parse(fs.readFileSync(p, 'utf-8'))
+      }
+    } catch {}
+  }
   return []
 })
 

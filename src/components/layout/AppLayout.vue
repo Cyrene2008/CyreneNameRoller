@@ -1,5 +1,5 @@
 <template>
-  <div class="app-layout" :class="{ dark: settingsStore.darkMode, 'performance-mode': settingsStore.settings.performanceMode }" :style="{ fontSize: (14 * (settingsStore.settings.uiScale || 100) / 100) + 'px' }">
+  <div class="app-layout" :class="{ dark: settingsStore.darkMode, 'perf-no-blur': !settingsStore.settings.perfBlur, 'perf-no-shadow': !settingsStore.settings.perfShadows, 'perf-no-anim': !settingsStore.settings.perfAnimations }" :style="{ fontSize: (14 * (settingsStore.settings.uiScale || 100) / 100) + 'px' }">
     <TitleBar />
     <div class="app-body">
       <NavigationDock :build-hash="APP_BUILD" />
