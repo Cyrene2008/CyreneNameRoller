@@ -5,29 +5,6 @@
       {{ lang === 'en' ? 'Card Mode' : '翻牌抽名器' }}
     </h1>
 
-    <div class="card-controls">
-      <FluentToggle v-model="englishMode" label="English Mode" />
-      <span class="control-sep" />
-      <span class="control-label">{{ lang === 'en' ? 'Cards:' : '牌子数量:' }}</span>
-      <FluentInput v-model="cardCount" type="number" :min="2" :max="maxCards" style="width: 70px;" />
-      <FluentButton variant="primary" @click="shuffle">
-        <FluentIcon icon="arrow-shuffle-24-regular" :width="16" />
-        {{ lang === 'en' ? 'Shuffle' : '洗牌' }}
-      </FluentButton>
-      <span class="control-sep" />
-      <span class="control-label">{{ lang === 'en' ? 'Quick:' : '一键多抽:' }}</span>
-      <FluentInput v-model="quickCount" type="number" :min="1" :max="maxCards" style="width: 60px;" />
-      <FluentButton variant="secondary" @click="quickDraw">
-        <FluentIcon icon="flash-24-regular" :width="16" />
-        {{ lang === 'en' ? 'Draw & Flip' : '抽翻' }}
-      </FluentButton>
-      <FluentButton variant="secondary" @click="reset">
-        <FluentIcon icon="arrow-undo-16-regular" :width="14" />
-        {{ lang === 'en' ? 'Reset' : '重置' }}
-      </FluentButton>
-      <span class="remaining-badge">{{ lang === 'en' ? 'Remaining:' : '剩余待抽取:' }} {{ remainingCount }}</span>
-    </div>
-
     <div class="cards-grid">
       <div
         v-for="(card, i) in cards"
@@ -46,22 +23,50 @@
       </div>
     </div>
 
-    <div class="tray">
-      <div class="tray-label">
-        <FluentIcon icon="archive-16-regular" :width="14" />
-        {{ lang === 'en' ? 'History' : '收牌区域' }} ({{ trayHistory.length }})
+    <div class="bottom-section">
+      <div class="tray">
+        <div class="tray-label">
+          <FluentIcon icon="archive-16-regular" :width="14" />
+          {{ lang === 'en' ? 'History' : '收牌区域' }} ({{ trayHistory.length }})
+        </div>
+        <div class="tray-stack">
+          <TransitionGroup name="tray-item">
+            <div v-for="item in trayHistory" :key="item.id" class="history-chip">{{ item.name }}</div>
+          </TransitionGroup>
+        </div>
       </div>
-      <div class="tray-stack">
-        <TransitionGroup name="tray-item">
-          <div v-for="item in trayHistory" :key="item.id" class="history-chip">{{ item.name }}</div>
-        </TransitionGroup>
+
+      <div class="card-controls">
+        <div class="ctrl-row">
+          <FluentToggle v-model="englishMode" label="English Mode" />
+          <span class="control-sep" />
+          <span class="control-label">{{ lang === 'en' ? 'Cards:' : '牌子数量:' }}</span>
+          <FluentInput v-model="cardCount" type="number" :min="2" :max="maxCards" style="width: 70px;" />
+          <FluentButton variant="primary" @click="shuffle">
+            <FluentIcon icon="arrow-shuffle-24-regular" :width="16" />
+            {{ lang === 'en' ? 'Shuffle' : '洗牌' }}
+          </FluentButton>
+        </div>
+        <div class="ctrl-row">
+          <span class="control-label">{{ lang === 'en' ? 'Quick:' : '一键多抽:' }}</span>
+          <FluentInput v-model="quickCount" type="number" :min="1" :max="maxCards" style="width: 60px;" />
+          <FluentButton variant="secondary" @click="quickDraw">
+            <FluentIcon icon="flash-24-regular" :width="16" />
+            {{ lang === 'en' ? 'Draw' : '多抽' }}
+          </FluentButton>
+          <FluentButton variant="secondary" @click="reset">
+            <FluentIcon icon="arrow-undo-16-regular" :width="14" />
+            {{ lang === 'en' ? 'Reset' : '重置' }}
+          </FluentButton>
+          <span class="remaining-badge">{{ lang === 'en' ? 'Remaining:' : '剩余待抽取:' }} {{ remainingCount }}</span>
+        </div>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useNamesStore } from '../stores/names'
 import { useRecordsStore } from '../stores/records'
 import { dataBridge } from '../utils/dataBridge'
@@ -91,9 +96,7 @@ const remainingCount = computed(() => allNonWL.value.length - usedNames.value.si
 const maxCards = computed(() => Math.max(2, allNonWL.value.length - usedNames.value.size))
 
 function getAvailableNames() {
-  return allNonWL.value
-    .map(n => ({ cn: n.cn, en: n.en }))
-    .filter(n => !usedNames.value.has(n.cn))
+  return allNonWL.value.map(n => ({ cn: n.cn, en: n.en })).filter(n => !usedNames.value.has(n.cn))
 }
 
 function getDisplayName(person) {
@@ -117,20 +120,10 @@ function shuffle() {
   const available = getAvailableNames()
   const k = Math.min(parseInt(cardCount.value) || 5, available.length)
   if (k < 2) return
-
   const chosen = []
   const copy = [...available]
-  while (chosen.length < k && copy.length > 0) {
-    const idx = Math.floor(Math.random() * copy.length)
-    chosen.push(copy.splice(idx, 1)[0])
-  }
-
-  cards.value = chosen.map(p => ({
-    id: ++cardIdCounter,
-    cn: p.cn, en: p.en,
-    displayName: getDisplayName(p),
-    visible: false, flipped: false
-  }))
+  while (chosen.length < k && copy.length > 0) { const idx = Math.floor(Math.random() * copy.length); chosen.push(copy.splice(idx, 1)[0]) }
+  cards.value = chosen.map(p => ({ id: ++cardIdCounter, cn: p.cn, en: p.en, displayName: getDisplayName(p), visible: false, flipped: false }))
   cards.value.forEach((card, i) => { setTimeout(() => { card.visible = true }, i * 80) })
 }
 
@@ -148,26 +141,12 @@ function quickDraw() {
   const count = Math.min(parseInt(quickCount.value) || 4, maxCards.value)
   const available = getAvailableNames()
   if (available.length < count) return
-
   const chosen = []
   const copy = [...available]
-  while (chosen.length < count && copy.length > 0) {
-    const idx = Math.floor(Math.random() * copy.length)
-    chosen.push(copy.splice(idx, 1)[0])
-  }
-
-  cards.value = chosen.map(p => ({
-    id: ++cardIdCounter,
-    cn: p.cn, en: p.en,
-    displayName: getDisplayName(p),
-    visible: false, flipped: false
-  }))
-
+  while (chosen.length < count && copy.length > 0) { const idx = Math.floor(Math.random() * copy.length); chosen.push(copy.splice(idx, 1)[0]) }
+  cards.value = chosen.map(p => ({ id: ++cardIdCounter, cn: p.cn, en: p.en, displayName: getDisplayName(p), visible: false, flipped: false }))
   cards.value.forEach((card, i) => {
-    setTimeout(() => {
-      card.visible = true
-      setTimeout(() => flipCard(i), 300 + i * 200)
-    }, i * 80)
+    setTimeout(() => { card.visible = true; setTimeout(() => flipCard(i), 300 + i * 200) }, i * 80)
   })
 }
 
@@ -181,20 +160,14 @@ function reset() {
 onMounted(async () => {
   await loadTrayState()
   if (namesStore.isLoaded && allNonWL.value.length > 0 && remainingCount.value >= 2) shuffle()
-  watch(() => namesStore.isLoaded, (loaded) => {
-    if (loaded && remainingCount.value >= 2) shuffle()
-  })
+  watch(() => namesStore.isLoaded, (loaded) => { if (loaded && remainingCount.value >= 2) shuffle() })
 })
 </script>
 
 <style scoped>
 .card-view { padding: 32px; display: flex; flex-direction: column; align-items: center; min-height: 100%; }
 .card-title { font-family: var(--font-display); font-size: 28px; font-weight: 700; color: var(--text-primary); margin-bottom: 24px; display: flex; align-items: center; gap: 10px; }
-.card-controls { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; background: var(--bg-card); backdrop-filter: blur(20px); padding: 12px 20px; border-radius: var(--radius-lg); border: 1px solid var(--border-default); box-shadow: var(--shadow-4); margin-bottom: 32px; }
-.control-label { font-size: 14px; color: var(--text-secondary); font-weight: 500; }
-.control-sep { width: 1px; height: 24px; background: var(--border-default); }
-.remaining-badge { font-size: 13px; color: var(--accent); background: var(--accent-50); padding: 4px 10px; border-radius: var(--radius-full); font-weight: 600; margin-left: auto; }
-.cards-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 20px; width: 100%; justify-items: center; margin-bottom: 40px; }
+.cards-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 20px; width: 100%; justify-items: center; flex: 1; align-content: center; padding-bottom: 24px; }
 .card { width: 140px; height: 200px; perspective: 1500px; cursor: pointer; opacity: 0; transform: translateY(30px); }
 .card.show { animation: card-deal 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
 @keyframes card-deal { to { opacity: 1; transform: translateY(0); } }
@@ -205,11 +178,19 @@ onMounted(async () => {
 .card-back { background: linear-gradient(135deg, var(--bg-card-solid), var(--bg-hover)); }
 .card-q-icon { color: var(--accent); opacity: 0.3; }
 .card-front { transform: rotateY(180deg); background: var(--bg-card-solid); font-family: var(--font-display); font-weight: 700; font-size: 20px; color: var(--accent); padding: 12px; text-align: center; border-color: var(--accent); text-shadow: 0 0 12px rgba(234, 94, 193, 0.3); }
-.tray { width: 100%; }
+
+.bottom-section { width: 100%; margin-top: auto; }
+.tray { margin-bottom: 12px; }
 .tray-label { font-size: 13px; color: var(--text-muted); margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
-.tray-stack { display: flex; gap: 8px; flex-wrap: wrap; min-height: 48px; padding: 12px; background: var(--bg-card); border: 1px dashed var(--border-strong); border-radius: var(--radius-lg); }
-.history-chip { background: linear-gradient(135deg, var(--accent), var(--accent-dark)); color: #fff; padding: 6px 14px; border-radius: var(--radius-full); font-size: 13px; font-weight: 600; white-space: nowrap; }
+.tray-stack { display: flex; gap: 8px; flex-wrap: wrap; min-height: 40px; padding: 10px; background: var(--bg-card); border: 1px dashed var(--border-strong); border-radius: var(--radius-lg); }
+.history-chip { background: linear-gradient(135deg, var(--accent), var(--accent-dark)); color: #fff; padding: 5px 12px; border-radius: var(--radius-full); font-size: 13px; font-weight: 600; white-space: nowrap; }
 .tray-item-enter-active { animation: slide-in 0.3s ease-out; }
 .tray-item-leave-active { animation: slide-in 0.2s ease-in reverse; }
 @keyframes slide-in { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
+
+.card-controls { background: var(--bg-card); backdrop-filter: blur(20px); padding: 12px 20px; border-radius: var(--radius-lg); border: 1px solid var(--border-default); box-shadow: var(--shadow-4); display: flex; flex-direction: column; gap: 8px; }
+.ctrl-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.control-label { font-size: 14px; color: var(--text-secondary); font-weight: 500; }
+.control-sep { width: 1px; height: 24px; background: var(--border-default); }
+.remaining-badge { font-size: 13px; color: var(--accent); background: var(--accent-50); padding: 4px 10px; border-radius: var(--radius-full); font-weight: 600; margin-left: auto; }
 </style>

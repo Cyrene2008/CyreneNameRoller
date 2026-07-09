@@ -166,7 +166,7 @@ onBeforeUnmount(() => { if (intervalId) clearTimeout(intervalId) })
 </script>
 
 <style scoped>
-.roller-view { padding: 32px; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100%; position: relative; }
+.roller-view { padding: 32px; display: flex; flex-direction: column; align-items: center; min-height: 100%; position: relative; }
 .roller-title { font-family: var(--font-display); font-size: 28px; font-weight: 700; color: var(--text-primary); margin-bottom: 24px; width: 100%; text-align: center; }
 .display-container { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 32px; margin-bottom: 40px; min-height: 80px; }
 
