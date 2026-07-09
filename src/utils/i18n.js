@@ -48,7 +48,16 @@ const translations = {
     gradientMode: '渐变',
     customColorMode: '自定义单色',
     customColorLight: '浅色模式颜色',
-    customColorDark: '深色模式颜色'
+    customColorDark: '深色模式颜色',
+    cardMode: '翻牌抽名器',
+    history: '收牌区域',
+    listLabel: '名单',
+    cardsLabel: '牌子数量',
+    shuffle: '洗牌',
+    quickDraw: '一键多抽',
+    draw: '多抽',
+    reset: '重置',
+    remaining: '剩余待抽取'
   },
   en: {
     title: 'CyreneNameRoller',
@@ -99,7 +108,16 @@ const translations = {
     gradientMode: 'Gradient',
     customColorMode: 'Custom Solid',
     customColorLight: 'Light Mode Color',
-    customColorDark: 'Dark Mode Color'
+    customColorDark: 'Dark Mode Color',
+    cardMode: 'Card Flip',
+    history: 'History',
+    listLabel: 'List',
+    cardsLabel: 'Cards',
+    shuffle: 'Shuffle',
+    quickDraw: 'Quick Draw',
+    draw: 'Draw',
+    reset: 'Reset',
+    remaining: 'Remaining'
   }
 }
 

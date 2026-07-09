@@ -2,6 +2,7 @@
 node_modules
 dist
 release
+release-electron
 build-output
 *.log
 public/names.json

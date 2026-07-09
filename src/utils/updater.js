@@ -1,11 +1,12 @@
 import { ref } from 'vue'
-import { isTauri } from './tauriAPI'
-import { isElectron } from './dataBridge'
 import { APP_VERSION } from './version'
 
 const GITHUB_REPO = 'Cyrene2008/CyreneNameRoller'
-const API_PRIMARY = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`
-const API_FALLBACK = `https://gh-proxy.com/https://api.github.com/repos/${GITHUB_REPO}/releases/latest`
+const API_URLS = [
+  `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`,
+  `https://gh-proxy.com/https://api.github.com/repos/${GITHUB_REPO}/releases/latest`,
+  `https://ghfast.top/https://api.github.com/repos/${GITHUB_REPO}/releases/latest`
+]
 
 export const updateState = ref({
   available: false,
@@ -17,8 +18,8 @@ export const updateState = ref({
 })
 
 function getPlatform() {
-  if (isTauri()) return 'tauri-win64'
-  if (isElectron()) return 'electron-win64'
+  if (typeof window !== 'undefined' && window.__TAURI_INTERNALS__) return 'tauri-win64'
+  if (typeof window !== 'undefined' && window.electronAPI) return 'electron-win64'
   return 'web'
 }
 
@@ -26,61 +27,62 @@ function normalizeVersion(v) {
   return v.replace(/^v/i, '').trim()
 }
 
-async function fetchWithFallback() {
+async function fetchWithTimeout(url, timeout = 10000) {
+  const ctrl = new AbortController()
+  const timer = setTimeout(() => ctrl.abort(), timeout)
   try {
-    const resp = await fetch(API_PRIMARY, {
-      headers: { 'Accept': 'application/vnd.github.v3+json' }
+    const resp = await fetch(url, {
+      headers: { 'Accept': 'application/vnd.github.v3+json' },
+      signal: ctrl.signal
     })
+    clearTimeout(timer)
     if (resp.ok) return await resp.json()
-  } catch {}
-
-  try {
-    const resp = await fetch(API_FALLBACK, {
-      headers: { 'Accept': 'application/vnd.github.v3+json' }
-    })
-    if (resp.ok) return await resp.json()
-  } catch {}
-
-  throw new Error('无法连接到更新服务器')
+  } catch (e) {
+    clearTimeout(timer)
+    throw e
+  }
+  throw new Error('Failed')
 }
 
 export async function checkForUpdates(silent = true) {
-  if (!isTauri() && !isElectron()) return
   if (updateState.value.checking) return
-
   updateState.value.checking = true
   updateState.value.error = null
 
-  try {
-    const release = await fetchWithFallback()
-    const remoteVersion = normalizeVersion(release.tag_name)
-    const currentVersion = normalizeVersion(APP_VERSION)
+  let release = null
+  for (const url of API_URLS) {
+    try {
+      release = await fetchWithTimeout(url)
+      break
+    } catch {}
+  }
 
-    if (remoteVersion !== currentVersion) {
-      const platform = getPlatform()
-      const assets = release.assets || []
+  if (!release) {
+    updateState.value = { available: false, checking: false, version: '', url: '', body: '', error: '无法连接到更新服务器' }
+    return
+  }
 
-      let targetAsset = null
-      if (platform === 'tauri-win64') {
-        targetAsset = assets.find(a => a.name.includes('Tauri') && a.name.endsWith('.exe'))
-      } else if (platform === 'electron-win64') {
-        targetAsset = assets.find(a => a.name.includes('Setup') && a.name.endsWith('.exe') && !a.name.includes('Tauri'))
-      }
+  const remoteVersion = normalizeVersion(release.tag_name)
+  const currentVersion = normalizeVersion(APP_VERSION)
 
-      updateState.value = {
-        available: true,
-        checking: false,
-        version: release.tag_name,
-        url: targetAsset ? targetAsset.browser_download_url : release.html_url,
-        body: release.body || '',
-        error: null
-      }
-    } else {
-      updateState.value = { available: false, checking: false, version: '', url: '', body: '', error: null }
-      if (!silent) updateState.value.error = '已是最新版本'
+  if (remoteVersion !== currentVersion) {
+    const platform = getPlatform()
+    const assets = release.assets || []
+    let targetAsset = null
+    if (platform === 'tauri-win64') {
+      targetAsset = assets.find(a => a.name.includes('Tauri') && a.name.endsWith('.exe'))
+    } else if (platform === 'electron-win64') {
+      targetAsset = assets.find(a => a.name.includes('Setup') && a.name.endsWith('.exe') && !a.name.includes('Tauri'))
     }
-  } catch (e) {
-    updateState.value = { available: false, checking: false, version: '', url: '', body: '', error: e.message }
+    updateState.value = {
+      available: true, checking: false,
+      version: release.tag_name,
+      url: targetAsset ? targetAsset.browser_download_url : release.html_url,
+      body: release.body || '', error: null
+    }
+  } else {
+    updateState.value = { available: false, checking: false, version: '', url: '', body: '', error: null }
+    if (!silent) updateState.value.error = '已是最新版本'
   }
 }
 

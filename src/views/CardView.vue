@@ -2,7 +2,7 @@
   <div class="card-view">
     <h1 class="card-title">
       <FluentIcon icon="card-ui-portrait-flip-24-regular" :width="28" />
-      {{ lang === 'en' ? 'Card Mode' : '翻牌抽名器' }}
+      {{ t('cardMode', lang) }}
     </h1>
 
     <div class="cards-grid">
@@ -27,7 +27,7 @@
       <div class="tray">
         <div class="tray-label">
           <FluentIcon icon="archive-16-regular" :width="14" />
-          {{ lang === 'en' ? 'History' : '收牌区域' }} ({{ trayHistory.length }})
+          {{ t('history', lang) }} ({{ trayHistory.length }})
         </div>
         <div class="tray-stack">
           <TransitionGroup name="tray-item">
@@ -40,28 +40,28 @@
         <div class="ctrl-row">
           <FluentToggle v-model="englishMode" label="English Mode" />
           <span class="control-sep" />
-          <span class="control-label">{{ lang === 'en' ? 'List:' : '名单:' }}</span>
+          <span class="control-label">{{ t('listLabel', lang) }}:</span>
           <FluentSelect :model-value="namesStore.currentListId" :options="listOptions" @update:model-value="onListChange" />
           <span class="control-sep" />
-          <span class="control-label">{{ lang === 'en' ? 'Cards:' : '牌子数量:' }}</span>
+          <span class="control-label">{{ t('cardsLabel', lang) }}:</span>
           <FluentInput v-model="cardCount" type="number" :min="2" :max="maxCards" style="width: 70px;" @update:model-value="saveCardSettings" />
           <FluentButton variant="primary" @click="shuffle">
             <FluentIcon icon="arrow-shuffle-24-regular" :width="16" />
-            {{ lang === 'en' ? 'Shuffle' : '洗牌' }}
+            {{ t('shuffle', lang) }}
           </FluentButton>
         </div>
         <div class="ctrl-row">
-          <span class="control-label">{{ lang === 'en' ? 'Quick:' : '一键多抽:' }}</span>
+          <span class="control-label">{{ t('quickDraw', lang) }}:</span>
           <FluentInput v-model="quickCount" type="number" :min="1" :max="maxCards" style="width: 60px;" @update:model-value="saveCardSettings" />
           <FluentButton variant="secondary" @click="quickDraw">
             <FluentIcon icon="flash-24-regular" :width="16" />
-            {{ lang === 'en' ? 'Draw' : '多抽' }}
+            {{ t('draw', lang) }}
           </FluentButton>
           <FluentButton variant="secondary" @click="reset">
             <FluentIcon icon="arrow-undo-16-regular" :width="14" />
-            {{ lang === 'en' ? 'Reset' : '重置' }}
+            {{ t('reset', lang) }}
           </FluentButton>
-          <span class="remaining-badge">{{ lang === 'en' ? 'Remaining:' : '剩余待抽取:' }} {{ remainingCount }}</span>
+          <span class="remaining-badge">{{ t('remaining', lang) }}: {{ remainingCount }}</span>
         </div>
       </div>
     </div>
@@ -71,8 +71,10 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import { useNamesStore } from '../stores/names'
+import { useSettingsStore } from '../stores/settings'
 import { useRecordsStore } from '../stores/records'
 import { dataBridge } from '../utils/dataBridge'
+import { t } from '../utils/i18n'
 import FluentButton from '../components/FluentButton.vue'
 import FluentIcon from '../components/FluentIcon.vue'
 import FluentInput from '../components/FluentInput.vue'
@@ -80,9 +82,10 @@ import FluentToggle from '../components/FluentToggle.vue'
 import FluentSelect from '../components/FluentSelect.vue'
 
 const namesStore = useNamesStore()
+const settingsStore = useSettingsStore()
 const recordsStore = useRecordsStore()
 
-const lang = computed(() => 'zh')
+const lang = computed(() => settingsStore.settings.language)
 const listOptions = computed(() => namesStore.allLists.map(l => ({ value: l.id, label: l.name })))
 
 const englishMode = ref(false)

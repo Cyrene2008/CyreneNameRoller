@@ -1,7 +1,7 @@
 <template>
   <div class="records-view">
     <h1 class="page-title">
-      <FluentIcon icon="clipboard-text-24-regular" :width="28" />
+      <FluentIcon icon="history-24-regular" :width="28" />
       {{ lang === 'en' ? 'Extraction Records' : '抽取记录' }}
     </h1>
 
