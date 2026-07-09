@@ -1,26 +1,35 @@
 <template>
   <div class="titlebar">
     <div class="titlebar-drag">
-      <img src="/cyrene.png" class="titlebar-logo" alt="" />
+      <img src="/cyrene.png" class="titlebar-logo" alt="" draggable="false" />
       <span class="titlebar-text">Cyreneの随机点名器</span>
     </div>
     <div class="titlebar-controls">
-      <button class="titlebar-btn" @click="minimize" title="最小化">
-        <Icon icon="fluent:subtract-16-regular" :width="12" />
+      <button class="titlebar-btn minimize-btn" @click="minimize" title="最小化">
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+          <rect x="2" y="5.5" width="8" height="1" rx="0.5" fill="currentColor"/>
+        </svg>
       </button>
-      <button class="titlebar-btn" @click="maximize" title="最大化">
-        <Icon :icon="isMaximized ? 'fluent:window-restore-16-regular' : 'fluent:maximize-16-regular'" :width="12" />
+      <button class="titlebar-btn maximize-btn" @click="maximize" :title="isMaximized ? '还原' : '最大化'">
+        <svg v-if="!isMaximized" width="12" height="12" viewBox="0 0 12 12" fill="none">
+          <rect x="2" y="2" width="8" height="8" rx="1" stroke="currentColor" stroke-width="1" fill="none"/>
+        </svg>
+        <svg v-else width="12" height="12" viewBox="0 0 12 12" fill="none">
+          <rect x="3.5" y="1" width="7" height="7" rx="1" stroke="currentColor" stroke-width="1" fill="none"/>
+          <rect x="1.5" y="4" width="7" height="7" rx="1" stroke="currentColor" stroke-width="1" fill="none" class="restore-back"/>
+        </svg>
       </button>
       <button class="titlebar-btn close-btn" @click="close" title="关闭">
-        <Icon icon="fluent:dismiss-16-regular" :width="12" />
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" class="close-icon">
+          <path d="M2.5 2.5L9.5 9.5M9.5 2.5L2.5 9.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+        </svg>
       </button>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue'
-import { Icon } from '@iconify/vue'
+import { ref, onMounted } from 'vue'
 
 const isMaximized = ref(false)
 
@@ -30,12 +39,20 @@ function minimize() {
 
 async function maximize() {
   window.electronAPI?.maximize()
-  isMaximized.value = await window.electronAPI?.isMaximized() || false
+  setTimeout(async () => {
+    isMaximized.value = await window.electronAPI?.isMaximized() || false
+  }, 100)
 }
 
 function close() {
   window.electronAPI?.close()
 }
+
+onMounted(async () => {
+  if (window.electronAPI) {
+    isMaximized.value = await window.electronAPI.isMaximized() || false
+  }
+})
 </script>
 
 <style scoped>
@@ -91,15 +108,38 @@ function close() {
   border: none;
   color: var(--text-secondary);
   cursor: pointer;
-  transition: background var(--duration-fast) ease;
+  transition: background 0.15s ease, color 0.15s ease;
+  outline: none;
 }
 
 .titlebar-btn:hover {
-  background: var(--bg-hover);
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--text-primary);
+}
+
+.dark .titlebar-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .close-btn:hover {
-  background: #c42b1c;
-  color: #ffffff;
+  background: #c42b1c !important;
+  color: #ffffff !important;
+}
+
+.close-icon {
+  transition: transform 0.25s cubic-bezier(0.1, 0.9, 0.2, 1);
+}
+
+.close-btn:hover .close-icon {
+  transform: rotate(90deg);
+}
+
+.close-btn:not(:hover) .close-icon {
+  transform: rotate(0deg);
+  transition: transform 0.25s cubic-bezier(0.1, 0.9, 0.2, 1);
+}
+
+.restore-back {
+  fill: var(--bg-acrylic);
 }
 </style>
