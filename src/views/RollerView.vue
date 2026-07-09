@@ -7,16 +7,16 @@
         v-for="(display, i) in nameDisplays"
         :key="i"
         class="name-display"
-        :class="{ rainbow: settings.rainbowNames, final: display.animating, entering: display.entering }"
+        :class="{ rainbow: settings.rainbowNames, final: display.animating }"
         :style="{ opacity: display.opacity }"
       >
         {{ display.text }}
       </div>
     </div>
 
-    <div class="controls">
+    <div class="controls-center">
       <div class="switches">
-        <FluentToggle v-model="settings.englishMode" :label="t('englishMode', lang)" @update:model-value="saveSetting('englishMode', $event)" />
+        <FluentToggle v-model="settings.englishMode" label="English Mode" @update:model-value="saveSetting('englishMode', $event)" />
         <FluentToggle v-model="settings.multiMode" :label="t('multiMode', lang)" @update:model-value="onMultiModeChange" />
         <Transition name="toggle-expand">
           <FluentToggle v-if="settings.multiMode" v-model="settings.forbidDuplicates" :label="t('allowDuplicates', lang)" @update:model-value="onForbidDuplicatesChange" />
@@ -39,12 +39,10 @@
         <FluentSelect :model-value="namesStore.currentListId" :options="listOptions" @update:model-value="namesStore.switchList" />
       </div>
 
-      <div class="start-row">
-        <FluentButton :variant="isRunning ? 'danger' : 'primary'" size="lg" class="start-btn" :disabled="!canStart" @click="toggleRoll">
-          <FluentIcon :icon="isRunning ? 'stop-24-filled' : 'play-24-filled'" :width="18" />
-          {{ isRunning ? t('stop', lang) : t('start', lang) }}
-        </FluentButton>
-      </div>
+      <FluentButton :variant="isRunning ? 'danger' : 'primary'" size="lg" class="start-btn" :disabled="!canStart" @click="toggleRoll">
+        <FluentIcon :icon="isRunning ? 'stop-24-filled' : 'play-24-filled'" :width="18" />
+        {{ isRunning ? t('stop', lang) : t('start', lang) }}
+      </FluentButton>
     </div>
   </div>
 </template>
@@ -69,21 +67,13 @@ const settingsStore = useSettingsStore()
 const statisticsStore = useStatisticsStore()
 const recordsStore = useRecordsStore()
 
-const lang = computed(() => settingsStore.settings.englishMode ? 'en' : 'zh')
+const lang = computed(() => 'zh')
 const settings = computed(() => settingsStore.settings)
 const listOptions = computed(() => namesStore.allLists.map(l => ({ value: l.id, label: l.name })))
 
-const nonWhiteListCount = computed(() => {
-  return namesStore.currentNames.filter(n => !namesStore.isWhiteList(n.cn) && n.cn !== '再来一次').length
-})
-
+const nonWhiteListCount = computed(() => namesStore.currentNames.filter(n => !namesStore.isWhiteList(n.cn) && n.cn !== '再来一次').length)
 const maxPeopleCount = computed(() => Math.max(2, nonWhiteListCount.value))
-
-const canStart = computed(() => {
-  if (nonWhiteListCount.value < 2) return false
-  if (settings.value.multiMode && (settings.value.peopleCount || 2) > nonWhiteListCount.value) return false
-  return true
-})
+const canStart = computed(() => nonWhiteListCount.value >= 2 && !(settings.value.multiMode && (settings.value.peopleCount || 2) > nonWhiteListCount.value))
 
 const nameDisplays = reactive([])
 const isRunning = ref(false)
@@ -95,69 +85,45 @@ const balanceSettings = ref({
   points: [{ x: 0.3, y: 150 }, { x: 1.5, y: 420 }, { x: 2.4, y: 800 }]
 })
 
-onMounted(async () => {
-  const saved = await dataBridge.load('balance')
-  if (saved) balanceSettings.value = { ...balanceSettings.value, ...saved }
-})
+onMounted(async () => { const saved = await dataBridge.load('balance'); if (saved) balanceSettings.value = { ...balanceSettings.value, ...saved } })
 
 function initializeDisplays(count) {
-  nameDisplays.splice(0)
-  lastPickedNames.value = []
-  for (let i = 0; i < count; i++) {
-    nameDisplays.push({ text: '...', opacity: 0, animating: false, entering: false })
-    lastPickedNames.value.push('')
-  }
+  nameDisplays.splice(0); lastPickedNames.value = []
+  for (let i = 0; i < count; i++) { nameDisplays.push({ text: '...', opacity: 0, animating: false }); lastPickedNames.value.push('') }
 }
 
 function saveSetting(key, value) { settingsStore.update(key, value) }
 
 function onMultiModeChange(val) {
   settingsStore.update('multiMode', val)
-  if (!val) {
-    settingsStore.update('forbidDuplicates', false)
-    initializeDisplays(1)
-  } else {
-    const count = Math.min(settings.value.peopleCount || 2, maxPeopleCount.value)
-    settingsStore.update('peopleCount', count)
-    initializeDisplays(count)
-  }
+  if (!val) { settingsStore.update('forbidDuplicates', false); initializeDisplays(1) }
+  else { const c = Math.min(settings.value.peopleCount || 2, maxPeopleCount.value); settingsStore.update('peopleCount', c); initializeDisplays(c) }
 }
 
-function onForbidDuplicatesChange(val) {
-  settingsStore.update('forbidDuplicates', val)
-}
+function onForbidDuplicatesChange(val) { settingsStore.update('forbidDuplicates', val) }
 
 function onPeopleCountChange(val) {
-  const count = Math.max(2, Math.min(maxPeopleCount.value, parseInt(val) || 2))
-  settingsStore.update('peopleCount', count)
-  if (settings.value.multiMode) initializeDisplays(count)
+  const c = Math.max(2, Math.min(maxPeopleCount.value, parseInt(val) || 2))
+  settingsStore.update('peopleCount', c); if (settings.value.multiMode) initializeDisplays(c)
 }
 
 function changeCount(delta) {
-  const count = Math.max(2, Math.min(maxPeopleCount.value, (settings.value.peopleCount || 2) + delta))
-  settingsStore.update('peopleCount', count)
-  if (settings.value.multiMode) initializeDisplays(count)
+  const c = Math.max(2, Math.min(maxPeopleCount.value, (settings.value.peopleCount || 2) + delta))
+  settingsStore.update('peopleCount', c); if (settings.value.multiMode) initializeDisplays(c)
 }
 
-function emphasize(index) {
-  nameDisplays[index].animating = true
-  setTimeout(() => { nameDisplays[index].animating = false }, 1200)
+function emphasize(index) { nameDisplays[index].animating = true; setTimeout(() => { nameDisplays[index].animating = false }, 1200) }
+
+function getDisplayName(person) {
+  return settings.value.englishMode && person.en ? person.en : person.cn
 }
 
 function doPick(excludeList = []) {
-  const names = namesStore.currentNames
-  const whiteList = namesStore.currentWhiteList
+  const names = namesStore.currentNames; const wl = namesStore.currentWhiteList
   const forbidDup = settings.value.multiMode && settings.value.forbidDuplicates
-
-  if (forbidDup) {
-    return pickUniform(names, excludeList, false)
-  }
-  if (settings.value.multiMode) {
-    return pickBalanced(names, whiteList, statisticsStore.counts, balanceSettings.value, excludeList, true)
-  }
-  if (balanceSettings.value.enabled) {
-    return pickBalanced(names, whiteList, statisticsStore.counts, balanceSettings.value, [], true)
-  }
+  if (forbidDup) return pickUniform(names, excludeList, false)
+  if (settings.value.multiMode) return pickBalanced(names, wl, statisticsStore.counts, balanceSettings.value, excludeList, true)
+  if (balanceSettings.value.enabled) return pickBalanced(names, wl, statisticsStore.counts, balanceSettings.value, [], true)
   return pickUniform(names, [], true)
 }
 
@@ -166,46 +132,27 @@ function animationLoop() {
   const count = settings.value.multiMode ? (settings.value.peopleCount || 2) : 1
   for (let i = 0; i < count; i++) {
     const pick = doPick([])
-    if (nameDisplays[i]) {
-      nameDisplays[i].text = settings.value.englishMode && pick.en ? pick.en : pick.cn
-      nameDisplays[i].opacity = 1
-    }
+    if (nameDisplays[i]) { nameDisplays[i].text = getDisplayName(pick); nameDisplays[i].opacity = 1 }
   }
   intervalId = setTimeout(animationLoop, 50)
 }
 
 function toggleRoll() {
-  if (isRunning.value) {
-    clearTimeout(intervalId)
-    isRunning.value = false
-    finishRoll()
-    return
-  }
+  if (isRunning.value) { clearTimeout(intervalId); isRunning.value = false; finishRoll(); return }
   if (!canStart.value) return
-  isRunning.value = true
-  initializeDisplays(settings.value.multiMode ? (settings.value.peopleCount || 2) : 1)
-  animationLoop()
+  isRunning.value = true; initializeDisplays(settings.value.multiMode ? (settings.value.peopleCount || 2) : 1); animationLoop()
 }
 
 function finishRoll() {
   const count = settings.value.multiMode ? (settings.value.peopleCount || 2) : 1
-  const names = namesStore.currentNames
-  const whiteList = namesStore.currentWhiteList
+  const names = namesStore.currentNames; const wl = namesStore.currentWhiteList
   const forbidDup = settings.value.multiMode && settings.value.forbidDuplicates
   lastPickedNames.value = []
-
   for (let i = 0; i < count; i++) {
-    const excludeList = lastPickedNames.value.filter(n => n)
-    let pick
-    if (forbidDup) {
-      pick = pickUniform(names, excludeList, false)
-    } else {
-      pick = pickBalanced(names, whiteList, statisticsStore.counts, balanceSettings.value, excludeList, true)
-    }
-    nameDisplays[i].text = settings.value.englishMode && pick.en ? pick.en : pick.cn
-    nameDisplays[i].opacity = 1
-    lastPickedNames.value.push(pick.cn)
-    if (settings.value.recordCounts && !whiteList.some(w => w.cn === pick.cn)) statisticsStore.incrementCount(pick.cn)
+    const ex = lastPickedNames.value.filter(n => n)
+    const pick = forbidDup ? pickUniform(names, ex, false) : pickBalanced(names, wl, statisticsStore.counts, balanceSettings.value, ex, true)
+    nameDisplays[i].text = getDisplayName(pick); nameDisplays[i].opacity = 1; lastPickedNames.value.push(pick.cn)
+    if (settings.value.recordCounts && !wl.some(w => w.cn === pick.cn)) statisticsStore.incrementCount(pick.cn)
     recordsStore.addRecord({ cn: pick.cn, en: pick.en, listName: namesStore.currentList.name, source: 'roller' })
     setTimeout(() => emphasize(i), 50 * i)
   }
@@ -219,34 +166,25 @@ onBeforeUnmount(() => { if (intervalId) clearTimeout(intervalId) })
 </script>
 
 <style scoped>
-.roller-view { padding: 32px; display: flex; flex-direction: column; align-items: center; min-height: 100%; position: relative; }
-.roller-title { font-family: var(--font-display); font-size: 28px; font-weight: 700; color: var(--text-primary); margin-bottom: 32px; }
-.display-container { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 32px; margin-bottom: 32px; min-height: 80px; }
+.roller-view { padding: 32px; display: flex; flex-direction: column; align-items: center; min-height: 100%; }
+.roller-title { font-family: var(--font-display); font-size: 28px; font-weight: 700; color: var(--text-primary); margin-bottom: 24px; width: 100%; text-align: center; }
+.display-container { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 32px; margin-bottom: 40px; min-height: 80px; }
 
-.name-display {
-  font-family: var(--font-display);
-  font-size: calc(52px * var(--name-font-factor, 1));
-  font-weight: 700; color: var(--text-primary); min-width: 120px; text-align: center;
-  white-space: nowrap; overflow: hidden; transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-  text-shadow: 0 4px 20px rgba(234, 94, 193, 0.15); position: relative;
-}
+.name-display { font-family: var(--font-display); font-size: calc(52px * var(--name-font-factor, 1)); font-weight: 700; color: var(--text-primary); min-width: 120px; text-align: center; white-space: nowrap; overflow: hidden; transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); text-shadow: 0 4px 20px rgba(234, 94, 193, 0.15); position: relative; }
 .name-display::before { content: ''; position: absolute; inset: -4px; background: var(--accent); border-radius: var(--radius-sm); z-index: -1; opacity: 0; transition: opacity 0.3s ease; }
 .name-display.rainbow { background: linear-gradient(90deg, #E50012, #FF8C00, #FFEF00, #00811F, #0044FF, #760089, #E50012); background-size: 400% 100%; -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; animation: rainbow-flow 5s linear infinite; text-shadow: none; }
 @keyframes rainbow-flow { 0% { background-position: 0% 50%; } 100% { background-position: 400% 50%; } }
-.name-display.entering { animation: name-enter 0.8s cubic-bezier(0.34, 1.56, 0.64, 1); }
-@keyframes name-enter { 0% { transform: scale(0.3) rotate(-10deg); opacity: 0; filter: blur(10px); } 50% { transform: scale(1.1) rotate(2deg); filter: blur(0); } 100% { transform: scale(1) rotate(0deg); opacity: 1; filter: blur(0); } }
 .name-display.final { animation: final-reveal 0.5s cubic-bezier(0.1, 0.9, 0.2, 1); }
 @keyframes final-reveal { 0% { transform: scale(4); opacity: 0; filter: brightness(2); } 100% { transform: scale(1); filter: brightness(1); } }
 
-.controls { position: fixed; bottom: 24px; right: 24px; display: flex; flex-direction: column; gap: 10px; align-items: flex-end; z-index: 10; }
-.switches { display: flex; flex-direction: column; gap: 6px; align-items: flex-end; }
+.controls-center { display: flex; flex-direction: column; align-items: center; gap: 12px; width: 100%; max-width: 400px; }
+.switches { display: flex; flex-direction: column; gap: 8px; align-items: center; }
 .multi-settings { display: flex; align-items: center; gap: 12px; }
 .setting-label { font-size: 14px; color: var(--text-secondary); }
 .count-control { display: flex; align-items: center; gap: 8px; }
-.list-selector-bar { display: flex; align-items: center; gap: 12px; background: var(--bg-card); backdrop-filter: blur(20px); padding: 8px 16px; border-radius: var(--radius-lg); border: 1px solid var(--border-default); box-shadow: var(--shadow-4); align-self: stretch; }
+.list-selector-bar { display: flex; align-items: center; gap: 12px; background: var(--bg-card); backdrop-filter: blur(20px); padding: 8px 16px; border-radius: var(--radius-lg); border: 1px solid var(--border-default); box-shadow: var(--shadow-4); width: 100%; justify-content: center; }
 .selector-label { font-size: 14px; font-weight: 600; color: var(--text-secondary); white-space: nowrap; }
-.start-row { display: flex; justify-content: flex-end; align-self: stretch; }
-.start-btn { min-width: 280px; font-size: 16px; min-height: 48px; }
+.start-btn { min-width: 280px; font-size: 16px; min-height: 48px; margin-top: 8px; }
 
 .toggle-expand-enter-active { animation: toggle-in 0.25s cubic-bezier(0.1, 0.9, 0.2, 1); }
 .toggle-expand-leave-active { animation: toggle-in 0.15s ease-in reverse; }

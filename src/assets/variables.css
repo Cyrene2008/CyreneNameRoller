@@ -6,12 +6,12 @@
   --accent-200: #fce4f0;
   --accent-50: #fef5fa;
 
-  --bg-base: #fdf2f8;
-  --bg-card: rgba(255, 240, 248, 0.75);
-  --bg-card-solid: #fff5f9;
-  --bg-hover: #fce7f3;
-  --bg-acrylic: rgba(255, 240, 248, 0.78);
-  --bg-mica: linear-gradient(135deg, rgba(255,240,248,0.95), rgba(253,242,248,0.95));
+  --bg-base: #fdf5fa;
+  --bg-card: rgba(255, 245, 252, 0.75);
+  --bg-card-solid: #fff8fc;
+  --bg-hover: #fdf0f6;
+  --bg-acrylic: rgba(255, 240, 248, 0.82);
+  --bg-mica: linear-gradient(135deg, rgba(255,240,248,0.97), rgba(253,245,250,0.97));
 
   --text-primary: #3d1a2e;
   --text-secondary: #6b3a55;

@@ -9,13 +9,18 @@
     <FluentCard class="settings-section">
       <h3 class="section-title"><FluentIcon icon="color-24-regular" :width="20" /> {{ t('themeSettings', lang) }}</h3>
       <div class="setting-row">
-        <span class="setting-label">{{ t('recordCounts', lang) }}</span>
+        <span class="setting-label">{{ lang === 'en' ? 'Dark Mode' : '深色模式' }}</span>
+        <FluentToggle :model-value="settingsStore.darkMode" @update:model-value="settingsStore.toggleDarkMode()" />
+      </div>
+      <div class="setting-row">
+        <span class="setting-label">{{ lang === 'en' ? 'Enable Statistics' : '启用数据统计' }}</span>
         <FluentToggle :model-value="settings.recordCounts" @update:model-value="update('recordCounts', $event)" />
       </div>
       <div class="setting-row">
         <span class="setting-label">{{ t('rainbowNames', lang) }}</span>
         <FluentToggle :model-value="settings.rainbowNames" @update:model-value="update('rainbowNames', $event)" />
       </div>
+      <p class="setting-note">{{ lang === 'en' ? 'When disabled, no statistics or extraction history will be recorded. Auto re-enabled on restart.' : '关闭后不再记录统计数据和抽取历史，下次重启自动开启。' }}</p>
     </FluentCard>
 
     <!-- 显示设置 -->
@@ -29,60 +34,30 @@
         <span class="setting-label">{{ t('fontSize', lang) }}</span>
         <FluentSelect :model-value="settings.nameFontSize" :options="fontSizeOptions" @update:model-value="update('nameFontSize', $event)" />
       </div>
+      <div class="setting-row">
+        <span class="setting-label">{{ t('animSpeed', lang) }}</span>
+        <div class="slider-group">
+          <input type="range" :value="settings.animSpeed" min="0.5" max="2" step="0.1" class="speed-slider" @input="update('animSpeed', parseFloat($event.target.value))" />
+          <span class="speed-value">{{ settings.animSpeed }}x</span>
+        </div>
+      </div>
     </FluentCard>
 
     <!-- 平衡算法 -->
     <FluentCard class="settings-section">
       <h3 class="section-title"><FluentIcon icon="data-line-24-regular" :width="20" /> {{ t('balanceSettings', lang) }}</h3>
       <div class="setting-row">
-        <span class="setting-label">{{ lang === 'en' ? 'Enable Balance' : '启用平衡算法' }}</span>
-        <FluentToggle v-model="balance.enabled" @update:model-value="saveBalance" />
+        <span class="setting-label">{{ lang === 'en' ? 'Enable Balance Algorithm' : '启用平衡算法' }}</span>
+        <FluentToggle :model-value="balance.enabled" @update:model-value="val => { balance.enabled = val; saveBalance() }" />
       </div>
-      <div class="setting-row">
-        <span class="setting-label">{{ lang === 'en' ? 'Factor' : '平衡因子' }}</span>
-        <FluentInput v-model="balance.factor" type="number" :step="0.1" style="width: 100px;" @update:model-value="saveBalance" />
-      </div>
-      <div class="setting-row">
-        <span class="setting-label">{{ lang === 'en' ? 'Max Threshold' : '最大阈值' }}</span>
-        <FluentInput v-model="balance.maxThreshold" type="number" :step="0.1" style="width: 100px;" @update:model-value="saveBalance" />
-      </div>
-      <div class="setting-row">
-        <span class="setting-label">{{ lang === 'en' ? 'Max Boost (%)' : '最大提升值（%）' }}</span>
-        <FluentInput v-model="balance.maxBoostPercent" type="number" :step="1" style="width: 100px;" @update:model-value="saveBalance" />
-      </div>
-      <div class="curve-section">
-        <h4 class="curve-title">{{ lang === 'en' ? 'Curve Points' : '三点曲线（拟合函数）' }}</h4>
-        <div class="points-grid">
-          <template v-for="(pt, idx) in balance.points" :key="idx">
-            <span class="point-label">{{ lang === 'en' ? `P${idx+1} X` : `点${idx+1} X（差值）` }}</span>
-            <FluentInput v-model="pt.x" type="number" :step="0.1" @update:model-value="saveBalance" />
-            <span class="point-label">{{ lang === 'en' ? `P${idx+1} Y` : `点${idx+1} Y（倍率%）` }}</span>
-            <FluentInput v-model="pt.y" type="number" :step="1" @update:model-value="saveBalance" />
-          </template>
+      <Transition name="toggle-expand">
+        <div v-if="balance.enabled" class="balance-sub">
+          <p class="balance-explain">{{ lang === 'en' ? 'The fewer times a name is picked, the higher its probability of being picked next. The curve controls how aggressively this adjustment is applied.' : '被抽中次数越少的名字，下次被抽中的概率越高。曲线控制这种调整的力度。' }}</p>
+          <FluentButton variant="secondary" size="sm" @click="showBalanceEditor = true">
+            <FluentIcon icon="data-line-16-regular" :width="14" /> {{ lang === 'en' ? 'Edit Curve' : '编辑曲线' }}
+          </FluentButton>
         </div>
-        <div class="preview-wrap">
-          <canvas ref="balanceCanvasRef" class="balance-canvas" />
-          <div class="preview-summary">{{ balanceSummary }}</div>
-        </div>
-        <div class="curve-actions">
-          <FluentButton variant="primary" size="sm" @click="saveBalance"><FluentIcon icon="save-16-regular" :width="14" /> {{ lang === 'en' ? 'Save' : '保存设置' }}</FluentButton>
-          <FluentButton variant="secondary" size="sm" @click="resetBalance"><FluentIcon icon="arrow-undo-16-regular" :width="14" /> {{ lang === 'en' ? 'Reset' : '恢复默认' }}</FluentButton>
-        </div>
-      </div>
-      <p class="setting-note">{{ t('balanceNote', lang) }}</p>
-    </FluentCard>
-
-    <!-- 性能设置 -->
-    <FluentCard class="settings-section">
-      <h3 class="section-title"><FluentIcon icon="gauge-24-regular" :width="20" /> {{ t('performance', lang) }}</h3>
-      <div class="setting-row">
-        <span class="setting-label">{{ t('animSpeed', lang) }}</span>
-        <div class="slider-group">
-          <input type="range" :value="settings.animSpeed" min="0.5" max="2" step="0.1" class="speed-slider" @input="update('animSpeed', parseFloat($event.target.value))" />
-          <span class="speed-value num-font">{{ settings.animSpeed }}x</span>
-        </div>
-      </div>
-      <p class="setting-note">{{ t('perfNote', lang) }}</p>
+      </Transition>
     </FluentCard>
 
     <!-- 数据安全 -->
@@ -102,18 +77,10 @@
     <FluentCard class="settings-section">
       <h3 class="section-title"><FluentIcon icon="database-24-regular" :width="20" /> {{ t('dataManagement', lang) }}</h3>
       <div class="action-row">
-        <FluentButton variant="secondary" :disabled="!hasPassword" @click="doExport">
-          <FluentIcon icon="arrow-download-16-regular" :width="14" /> {{ lang === 'en' ? 'Export All' : '导出全部数据' }}
-        </FluentButton>
-        <FluentButton variant="secondary" :disabled="!hasPassword" @click="doImport">
-          <FluentIcon icon="arrow-upload-16-regular" :width="14" /> {{ lang === 'en' ? 'Import Data' : '导入数据' }}
-        </FluentButton>
-        <FluentButton variant="secondary" :disabled="!hasPassword" @click="doClearRecords">
-          <FluentIcon icon="broom-16-regular" :width="14" /> {{ lang === 'en' ? 'Clear Records' : '清空抽取记录' }}
-        </FluentButton>
-        <FluentButton variant="danger" :disabled="!hasPassword" @click="doClearAll">
-          <FluentIcon icon="delete-16-regular" :width="14" /> {{ lang === 'en' ? 'Clear All Data' : '清除所有数据' }}
-        </FluentButton>
+        <FluentButton variant="secondary" :disabled="!hasPassword" @click="doExport"><FluentIcon icon="arrow-download-16-regular" :width="14" /> {{ lang === 'en' ? 'Export All' : '导出全部数据' }}</FluentButton>
+        <FluentButton variant="secondary" :disabled="!hasPassword" @click="doImport"><FluentIcon icon="arrow-upload-16-regular" :width="14" /> {{ lang === 'en' ? 'Import Data' : '导入数据' }}</FluentButton>
+        <FluentButton variant="secondary" :disabled="!hasPassword" @click="doClearRecords"><FluentIcon icon="broom-16-regular" :width="14" /> {{ lang === 'en' ? 'Clear Records' : '清空抽取记录' }}</FluentButton>
+        <FluentButton variant="danger" :disabled="!hasPassword" @click="doClearAll"><FluentIcon icon="delete-16-regular" :width="14" /> {{ lang === 'en' ? 'Clear All Data' : '清除所有数据' }}</FluentButton>
       </div>
     </FluentCard>
 
@@ -128,6 +95,15 @@
       </div>
     </FluentCard>
 
+    <!-- 平衡曲线编辑器弹窗 -->
+    <FluentModal v-model="showBalanceEditor" :title="lang === 'en' ? 'Balance Curve Editor' : '平衡曲线编辑器'" max-width="600px">
+      <BalanceEditor v-model="balance.points" :lang="lang" @update:model-value="saveBalance" />
+      <template #footer>
+        <FluentButton variant="secondary" size="sm" @click="showBalanceEditor = false">{{ lang === 'en' ? 'Close' : '关闭' }}</FluentButton>
+        <FluentButton variant="primary" size="sm" @click="resetBalance">{{ lang === 'en' ? 'Reset' : '恢复默认' }}</FluentButton>
+      </template>
+    </FluentModal>
+
     <!-- 密码弹窗 -->
     <FluentModal v-model="showPwModal" :title="pwModalTitle" max-width="400px">
       <div class="pw-modal-body">
@@ -141,10 +117,10 @@
       </template>
     </FluentModal>
 
-    <!-- 导入警告弹窗 -->
+    <!-- 导入警告 -->
     <FluentModal v-model="showImportWarning" :title="lang === 'en' ? 'Import Warning' : '导入警告'" max-width="440px">
       <div class="pw-modal-body">
-        <p class="pw-hint">{{ lang === 'en' ? 'Importing will overwrite all current data (lists, settings, records). This cannot be undone. Continue?' : '导入将覆盖当前所有数据（名单、设置、记录等），此操作不可撤销。是否继续？' }}</p>
+        <p class="pw-hint">{{ lang === 'en' ? 'Importing will overwrite all current data. This cannot be undone. Continue?' : '导入将覆盖当前所有数据，此操作不可撤销。是否继续？' }}</p>
       </div>
       <template #footer>
         <FluentButton variant="secondary" size="sm" @click="showImportWarning = false">{{ lang === 'en' ? 'Cancel' : '取消' }}</FluentButton>
@@ -162,7 +138,7 @@ import { useRecordsStore } from '../stores/records'
 import { useStatisticsStore } from '../stores/statistics'
 import { dataBridge } from '../utils/dataBridge'
 import { t } from '../utils/i18n'
-import { DEFAULT_BALANCE_SETTINGS, normalizeSettings, interpolateQuadratic } from '../utils/balance'
+import { DEFAULT_BALANCE_SETTINGS, normalizeSettings } from '../utils/balance'
 import FluentCard from '../components/FluentCard.vue'
 import FluentButton from '../components/FluentButton.vue'
 import FluentIcon from '../components/FluentIcon.vue'
@@ -170,19 +146,19 @@ import FluentToggle from '../components/FluentToggle.vue'
 import FluentInput from '../components/FluentInput.vue'
 import FluentSelect from '../components/FluentSelect.vue'
 import FluentModal from '../components/FluentModal.vue'
+import BalanceEditor from '../components/BalanceEditor.vue'
 
 const settingsStore = useSettingsStore()
 const namesStore = useNamesStore()
 const recordsStore = useRecordsStore()
 const statisticsStore = useStatisticsStore()
 
-const lang = computed(() => settingsStore.settings.englishMode ? 'en' : 'zh')
+const lang = computed(() => 'zh')
 const settings = computed(() => settingsStore.settings)
 
 const balance = ref(JSON.parse(JSON.stringify(DEFAULT_BALANCE_SETTINGS)))
 const changelog = ref([])
-const balanceCanvasRef = ref(null)
-const balanceSummary = ref('')
+const showBalanceEditor = ref(false)
 
 const uiScaleOptions = [
   { value: 75, label: '75%' }, { value: 100, label: '100%' }, { value: 125, label: '125%' },
@@ -202,197 +178,89 @@ const pendingAction = ref(null)
 const showImportWarning = ref(false)
 
 const pwModalTitle = computed(() => {
-  if (pwModalMode.value === 'set') return lang.value === 'en' ? 'Set Password' : '设置密码'
-  if (pwModalMode.value === 'change') return lang.value === 'en' ? 'Change Password' : '修改密码'
-  return lang.value === 'en' ? 'Verify Password' : '验证密码'
+  if (pwModalMode.value === 'set') return '设置密码'
+  if (pwModalMode.value === 'change') return '修改密码'
+  return '验证密码'
 })
 const pwModalHint = computed(() => {
-  if (pwModalMode.value === 'set') return lang.value === 'en' ? 'Set a password to protect data operations:' : '设置密码以保护数据操作：'
-  if (pwModalMode.value === 'change') return lang.value === 'en' ? 'Enter current password, then new password:' : '请输入当前密码，然后设置新密码：'
-  return lang.value === 'en' ? 'Enter password to continue:' : '请输入密码以继续：'
+  if (pwModalMode.value === 'set') return '设置密码以保护数据操作：'
+  if (pwModalMode.value === 'change') return '请输入当前密码验证后设置新密码：'
+  return '请输入密码以继续：'
 })
 
 function update(key, value) { settingsStore.update(key, value) }
 
+onMounted(async () => {
+  if (!settings.value.recordCounts) settingsStore.update('recordCounts', true)
+})
+
 async function sha256(str) {
-  const encoder = new TextEncoder()
-  const data = encoder.encode(str)
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data)
-  return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('')
+  const data = new TextEncoder().encode(str)
+  const hash = await crypto.subtle.digest('SHA-256', data)
+  return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, '0')).join('')
 }
 
 async function loadPasswordHash() {
   const stored = await dataBridge.load('password')
   if (stored && stored.hash) { hasPassword.value = true; return stored.hash }
-  hasPassword.value = false
-  return null
+  hasPassword.value = false; return null
 }
 
-async function savePasswordHash(hash) {
-  await dataBridge.save('password', { hash })
-  hasPassword.value = true
-}
+async function savePasswordHash(hash) { await dataBridge.save('password', { hash }); hasPassword.value = true }
 
 function openPasswordModal() {
   pwModalMode.value = hasPassword.value ? 'change' : 'set'
-  pwInput.value = ''
-  pwError.value = ''
-  showPwModal.value = true
+  pwInput.value = ''; pwError.value = ''; showPwModal.value = true
 }
 
 async function confirmPassword() {
   pwError.value = ''
-
   if (pwModalMode.value === 'set') {
-    if (!pwInput.value || pwInput.value.length < 1) { pwError.value = lang.value === 'en' ? 'Password required' : '请输入密码'; return }
-    const hash = await sha256(pwInput.value)
-    await savePasswordHash(hash)
-    showPwModal.value = false
-    pwInput.value = ''
+    if (!pwInput.value) { pwError.value = '请输入密码'; return }
+    await savePasswordHash(await sha256(pwInput.value))
+    showPwModal.value = false; pwInput.value = ''
     if (pendingAction.value) { executePending(); pendingAction.value = null }
     return
   }
-
   if (pwModalMode.value === 'change') {
-    const storedHash = await loadPasswordHash()
-    if (storedHash) {
-      const inputHash = await sha256(pwInput.value)
-      if (inputHash !== storedHash) { pwError.value = lang.value === 'en' ? 'Wrong password' : '密码错误'; return }
-    }
-    pwModalMode.value = 'set'
-    pwInput.value = ''
-    pwError.value = ''
-    return
+    const stored = await loadPasswordHash()
+    if (stored && (await sha256(pwInput.value)) !== stored) { pwError.value = '密码错误'; return }
+    pwModalMode.value = 'set'; pwInput.value = ''; pwError.value = ''; return
   }
-
-  const storedHash = await loadPasswordHash()
-  if (!storedHash) { showPwModal.value = false; executePending(); return }
-  const inputHash = await sha256(pwInput.value)
-  if (inputHash !== storedHash) { pwError.value = lang.value === 'en' ? 'Wrong password' : '密码错误'; return }
-  showPwModal.value = false
-  pwInput.value = ''
+  const stored = await loadPasswordHash()
+  if (!stored) { showPwModal.value = false; executePending(); return }
+  if ((await sha256(pwInput.value)) !== stored) { pwError.value = '密码错误'; return }
+  showPwModal.value = false; pwInput.value = ''
   if (pendingAction.value) { executePending(); pendingAction.value = null }
 }
 
 function executePending() {
-  const action = pendingAction.value
-  if (action === 'export') doExportNow()
-  else if (action === 'import') showImportWarning.value = true
-  else if (action === 'clearRecords') { recordsStore.clearAll(); alert(lang.value === 'en' ? 'Records cleared' : '抽取记录已清空') }
-  else if (action === 'clearAll') doClearAllNow()
+  const a = pendingAction.value
+  if (a === 'export') doExportNow()
+  else if (a === 'import') showImportWarning.value = true
+  else if (a === 'clearRecords') { recordsStore.clearAll(); alert('抽取记录已清空') }
+  else if (a === 'clearAll') doClearAllNow()
 }
 
-function requirePassword(action) {
-  pendingAction.value = action
-  if (!hasPassword.value) { openPasswordModal(); return }
-  pwModalMode.value = 'verify'
-  pwInput.value = ''; pwError.value = ''
-  showPwModal.value = true
-}
-
+function requirePassword(action) { pendingAction.value = action; if (!hasPassword.value) { openPasswordModal(); return }; pwModalMode.value = 'verify'; pwInput.value = ''; pwError.value = ''; showPwModal.value = true }
 function doExport() { requirePassword('export') }
 function doImport() { requirePassword('import') }
 function doClearRecords() { requirePassword('clearRecords') }
 function doClearAll() { requirePassword('clearAll') }
 
-async function doExportNow() {
-  const result = await dataBridge.exportData()
-  if (result.success) alert(lang.value === 'en' ? 'Exported successfully' : '导出成功')
-}
-
-async function confirmImport() {
-  showImportWarning.value = false
-  const result = await dataBridge.importData()
-  if (result.success) alert(lang.value === 'en' ? 'Imported. Please restart.' : '导入成功，请重启应用。')
-}
-
-async function doClearAllNow() {
-  await dataBridge.save('lists', {})
-  await dataBridge.save('statistics', { counts: {}, totalCount: 0 })
-  await dataBridge.save('records', [])
-  await dataBridge.save('settings', {})
-  alert(lang.value === 'en' ? 'All data cleared. Please restart.' : '所有数据已清除，请重启应用。')
-}
+async function doExportNow() { const r = await dataBridge.exportData(); if (r.success) alert('导出成功') }
+async function confirmImport() { showImportWarning.value = false; const r = await dataBridge.importData(); if (r.success) alert('导入成功，请重启应用。') }
+async function doClearAllNow() { await dataBridge.save('lists', {}); await dataBridge.save('statistics', { counts: {}, totalCount: 0 }); await dataBridge.save('records', []); alert('所有数据已清除，请重启应用。') }
 
 async function saveBalance() {
   const normalized = normalizeSettings(balance.value)
   balance.value = normalized
   await dataBridge.save('balance', normalized)
-  renderBalanceCurve()
 }
 
 function resetBalance() {
   balance.value = JSON.parse(JSON.stringify(DEFAULT_BALANCE_SETTINGS))
   saveBalance()
-}
-
-function renderBalanceCurve() {
-  const canvas = balanceCanvasRef.value
-  if (!canvas) return
-  const ctx = canvas.getContext('2d')
-  if (!ctx) return
-
-  const rect = canvas.getBoundingClientRect()
-  if (rect.width < 10 || rect.height < 10) return
-
-  const dpr = window.devicePixelRatio || 1
-  const w = Math.round(rect.width * dpr)
-  const h = Math.round(rect.height * dpr)
-  canvas.width = w
-  canvas.height = h
-
-  const s = normalizeSettings(balance.value)
-  const padL = 56, padR = 18, padT = 18, padB = 38
-  const plotW = w - padL - padR
-  const plotH = h - padT - padB
-  ctx.clearRect(0, 0, w, h)
-
-  const names = namesStore.currentNames
-  const poolCount = Math.max(1, names.filter(n => n.cn !== '再来一次').length || 2)
-  const theoreticalThreshold = poolCount / Math.max(0.1, s.factor || 1)
-  const maxThreshold = Math.max(0, s.maxThreshold)
-  const maxBoost = Math.max(200, s.maxBoostPercent)
-  const points = s.points.map(p => ({ x: p.x / Math.max(theoreticalThreshold, 1e-6), y: p.y }))
-  const xMax = Math.max(1, (maxThreshold > 0 ? maxThreshold / Math.max(theoreticalThreshold, 1e-6) : 0), points[2].x * 1.2, 1.2)
-  const yMin = 100, yMax = Math.max(maxBoost, ...points.map(p => p.y), 220)
-
-  function xToPx(x) { return padL + (x / xMax) * plotW }
-  function yToPx(y) { return padT + (1 - (y - yMin) / (yMax - yMin)) * plotH }
-
-  ctx.save(); ctx.strokeStyle = '#e9e9e9'; ctx.lineWidth = 1
-  for (let i = 0; i <= 5; i++) { const gx = padL + (plotW * i / 5); ctx.beginPath(); ctx.moveTo(gx, padT); ctx.lineTo(gx, padT + plotH); ctx.stroke() }
-  for (let i = 0; i <= 4; i++) { const gy = padT + (plotH * i / 4); ctx.beginPath(); ctx.moveTo(padL, gy); ctx.lineTo(padL + plotW, gy); ctx.stroke() }
-  ctx.restore()
-
-  ctx.save(); ctx.strokeStyle = '#666'; ctx.lineWidth = 1.5
-  ctx.beginPath(); ctx.moveTo(padL, padT); ctx.lineTo(padL, padT + plotH); ctx.lineTo(padL + plotW, padT + plotH); ctx.stroke()
-  ctx.restore()
-
-  if (maxThreshold > 0) {
-    const nx = maxThreshold / Math.max(theoreticalThreshold, 1e-6)
-    if (Number.isFinite(nx)) { ctx.save(); ctx.setLineDash([6, 5]); ctx.strokeStyle = '#6b7280'; ctx.beginPath(); ctx.moveTo(xToPx(Math.min(nx, xMax)), padT); ctx.lineTo(xToPx(Math.min(nx, xMax)), padT + plotH); ctx.stroke(); ctx.restore() }
-  }
-
-  ctx.save(); ctx.strokeStyle = '#111'; ctx.lineWidth = 2.25; ctx.beginPath()
-  for (let i = 0; i <= 120; i++) {
-    const x = xMax * (i / 120); let y = interpolateQuadratic(points, x)
-    if (!Number.isFinite(y)) y = 100; y = Math.max(100, Math.min(y, maxBoost))
-    if (i === 0) ctx.moveTo(xToPx(x), yToPx(y)); else ctx.lineTo(xToPx(x), yToPx(y))
-  }
-  ctx.stroke(); ctx.restore()
-
-  ctx.save(); ctx.fillStyle = '#111'
-  points.forEach(p => { const px = xToPx(Math.min(p.x, xMax)); const py = yToPx(Math.max(100, Math.min(p.y, maxBoost))); ctx.beginPath(); ctx.arc(px, py, 4.2, 0, Math.PI * 2); ctx.fill() })
-  ctx.restore()
-
-  ctx.save(); ctx.fillStyle = '#222'; ctx.font = `${Math.round(dpr * 12)}px "Wengfaluosi", "HarmonyOS Sans SC", sans-serif`
-  ctx.textAlign = 'center'; ctx.fillText(lang.value === 'en' ? 'Deficit' : '差值', padL + plotW / 2, h - 10)
-  ctx.save(); ctx.translate(14, padT + plotH / 2); ctx.rotate(-Math.PI / 2); ctx.fillText(lang.value === 'en' ? 'Boost (%)' : '倍率(%)', 0, 0); ctx.restore()
-  ctx.textAlign = 'left'; ctx.fillText('100%', 8, yToPx(100) + 4); ctx.fillText(`${maxBoost.toFixed(0)}%`, 8, yToPx(maxBoost) + 4)
-  ctx.restore()
-
-  const activeState = s.enabled ? (lang.value === 'en' ? 'ON' : '开启') : (lang.value === 'en' ? 'OFF' : '关闭')
-  balanceSummary.value = `${activeState} | ${lang.value === 'en' ? 'Candidates' : '候选'}: ${poolCount} | ${lang.value === 'en' ? 'Threshold' : '阈值'}: ${theoreticalThreshold.toFixed(4)} | ${lang.value === 'en' ? 'Max' : '最大'}: ${maxBoost.toFixed(0)}%`
 }
 
 onMounted(async () => {
@@ -401,8 +269,6 @@ onMounted(async () => {
   if (saved) balance.value = normalizeSettings(saved)
   const logs = await dataBridge.loadChangelog()
   changelog.value = logs || []
-  await nextTick()
-  setTimeout(() => { renderBalanceCurve() }, 100)
 })
 </script>
 
@@ -417,18 +283,15 @@ onMounted(async () => {
 .slider-group { display: flex; align-items: center; gap: 12px; justify-content: flex-end; }
 .speed-slider { width: 200px; accent-color: var(--accent); }
 .speed-value { font-size: 13px; color: var(--text-muted); min-width: 32px; text-align: right; }
-.curve-section { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border-default); }
-.curve-title { font-size: 14px; font-weight: 600; color: var(--text-primary); margin-bottom: 12px; }
-.points-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 16px; align-items: center; margin-bottom: 16px; }
-.point-label { font-size: 13px; color: var(--text-secondary); }
-.preview-wrap { border: 1px solid var(--border-default); border-radius: var(--radius-md); padding: 16px; background: var(--bg-card-solid); margin-bottom: 12px; }
-.balance-canvas { width: 100%; height: 280px; display: block; border-radius: var(--radius-sm); }
-.preview-summary { margin-top: 12px; font-size: 13px; color: var(--text-secondary); line-height: 1.6; word-break: break-all; }
-.curve-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.balance-sub { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border-default); display: flex; flex-direction: column; gap: 10px; }
+.balance-explain { font-size: 13px; color: var(--text-secondary); line-height: 1.6; }
+
 .action-row { display: flex; gap: 8px; flex-wrap: wrap; }
 .pw-modal-body { padding: 8px 0; }
 .pw-hint { font-size: 14px; color: var(--text-secondary); margin-bottom: 12px; line-height: 1.5; }
 .pw-error { font-size: 13px; color: #c42b1c; margin-top: 8px; }
+
 .changelog-list { max-height: 400px; overflow-y: auto; }
 .changelog-item { padding: 12px 0; border-bottom: 1px solid var(--border-default); }
 .changelog-item:last-child { border-bottom: none; }
@@ -437,4 +300,8 @@ onMounted(async () => {
 .changelog-date { font-size: 12px; color: var(--text-muted); }
 .changelog-logs { list-style: disc; padding-left: 20px; font-size: 13px; color: var(--text-secondary); line-height: 1.6; }
 .changelog-logs li { margin-bottom: 2px; }
+
+.toggle-expand-enter-active { animation: toggle-in 0.25s cubic-bezier(0.1, 0.9, 0.2, 1); }
+.toggle-expand-leave-active { animation: toggle-in 0.15s ease-in reverse; }
+@keyframes toggle-in { from { opacity: 0; transform: translateY(-8px); max-height: 0; } to { opacity: 1; transform: translateY(0); max-height: 300px; } }
 </style>

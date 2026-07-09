@@ -31,10 +31,6 @@
         <Icon :icon="item.icon" :width="20" class="dock-item-icon" />
         <span class="dock-item-label">{{ item.label[lang] }}</span>
       </router-link>
-      <button class="dock-item dark-toggle" @click="settingsStore.toggleDarkMode()">
-        <Icon :icon="settingsStore.darkMode ? 'fluent:weather-moon-24-regular' : 'fluent:weather-sunny-24-regular'" :width="20" class="dock-item-icon" />
-        <span class="dock-item-label">{{ settingsStore.darkMode ? '深色' : '浅色' }}</span>
-      </button>
     </div>
   </nav>
 </template>
