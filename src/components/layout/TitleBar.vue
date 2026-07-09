@@ -1,5 +1,5 @@
 <template>
-  <div class="titlebar">
+  <div v-if="isDesktopApp" class="titlebar">
     <div class="titlebar-drag">
       <img src="/cyrene.png" class="titlebar-logo" alt="" draggable="false" />
       <span class="titlebar-text">Cyreneの随机点名器</span>
@@ -29,27 +29,51 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import { isTauri } from '../../utils/tauriAPI'
 
 const isMaximized = ref(false)
 
+const isDesktopApp = computed(() => {
+  return !!window.electronAPI || isTauri()
+})
+
 function minimize() {
-  window.electronAPI?.minimize()
+  if (isTauri()) {
+    import('@tauri-apps/api/window').then(w => w.getCurrentWindow().minimize())
+  } else {
+    window.electronAPI?.minimize()
+  }
 }
 
 async function maximize() {
-  window.electronAPI?.maximize()
-  setTimeout(async () => {
-    isMaximized.value = await window.electronAPI?.isMaximized() || false
-  }, 100)
+  if (isTauri()) {
+    const w = await import('@tauri-apps/api/window')
+    const win = w.getCurrentWindow()
+    const maxed = await win.isMaximized()
+    maxed ? await win.unmaximize() : await win.maximize()
+    isMaximized.value = await win.isMaximized()
+  } else {
+    window.electronAPI?.maximize()
+    setTimeout(async () => {
+      isMaximized.value = await window.electronAPI?.isMaximized() || false
+    }, 100)
+  }
 }
 
 function close() {
-  window.electronAPI?.close()
+  if (isTauri()) {
+    import('@tauri-apps/api/window').then(w => w.getCurrentWindow().close())
+  } else {
+    window.electronAPI?.close()
+  }
 }
 
 onMounted(async () => {
-  if (window.electronAPI) {
+  if (isTauri()) {
+    const w = await import('@tauri-apps/api/window')
+    isMaximized.value = await w.getCurrentWindow().isMaximized()
+  } else if (window.electronAPI) {
     isMaximized.value = await window.electronAPI.isMaximized() || false
   }
 })
@@ -127,7 +151,7 @@ onMounted(async () => {
 }
 
 .close-icon {
-  transition: transform 0.25s cubic-bezier(0.1, 0.9, 0.2, 1);
+  transition: transform 0.4s cubic-bezier(0.1, 0.9, 0.2, 1);
 }
 
 .close-btn:hover .close-icon {
@@ -136,7 +160,7 @@ onMounted(async () => {
 
 .close-btn:not(:hover) .close-icon {
   transform: rotate(0deg);
-  transition: transform 0.25s cubic-bezier(0.1, 0.9, 0.2, 1);
+  transition: transform 0.4s cubic-bezier(0.1, 0.9, 0.2, 1);
 }
 
 .restore-back {
