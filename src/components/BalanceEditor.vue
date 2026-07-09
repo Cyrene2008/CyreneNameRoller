@@ -2,7 +2,7 @@
   <div class="balance-editor">
     <div class="editor-toolbar">
       <span class="editor-label">{{ lang === 'en' ? 'Drag points to adjust curve' : '拖动点来调整曲线' }}</span>
-      <span class="curve-type-badge">{{ lang === 'en' ? 'Monotone Curve' : '单调递增曲线' }}</span>
+      <span class="curve-type-badge">{{ lang === 'en' ? 'Monotone Hermite' : '单调 Hermite 插值' }}</span>
     </div>
 
     <div class="canvas-wrap">
@@ -62,42 +62,80 @@ function emitChange() {
   emit('update:modelValue', points.value.map(p => ({ x: p.x, y: p.y })))
 }
 
-function fitMonotoneCurve(pts) {
-  const p0 = pts[0], p1 = pts[1], p2 = pts[2]
-  const dx1 = p1.x - p0.x, dx2 = p2.x - p0.x
-  const dy1 = p1.y - p0.y, dy2 = p2.y - p0.y
+function hermiteBasis(t) {
+  const t2 = t * t
+  const t3 = t2 * t
+  return {
+    h00: 2 * t3 - 3 * t2 + 1,
+    h10: t3 - 2 * t2 + t,
+    h01: -2 * t3 + 3 * t2,
+    h11: t3 - t2
+  }
+}
 
-  if (dx1 < 0.001 || dx2 < 0.001) return (x) => p0.y
-
-  const det = dx1 * dx1 * dx2 - dx2 * dx2 * dx1
-  if (Math.abs(det) < 0.0001) {
-    const slope = dy2 / dx2
-    return (x) => p0.y + slope * Math.max(0, x)
+function fitMonotoneHermite(pts) {
+  const n = pts.length
+  if (n < 2) return (x) => pts[0]?.y ?? 100
+  if (n === 2) {
+    return (x) => {
+      if (x <= pts[0].x) return pts[0].y
+      if (x >= pts[1].x) return pts[1].y
+      const t = (x - pts[0].x) / (pts[1].x - pts[0].x)
+      return pts[0].y + t * (pts[1].y - pts[0].y)
+    }
   }
 
-  const a = (dy1 * dx2 - dy2 * dx1) / det
-  const b = (dy2 * dx1 * dx1 - dy1 * dx2 * dx2) / det
-  const c = 0
-
-  const raw = (x) => a * x * x + b * x + c + p0.y
-
-  const xMax = Math.max(p2.x, 10)
-  let minY = 100
-  for (let i = 0; i <= 200; i++) {
-    const x = (i / 200) * xMax
-    const y = raw(x)
-    if (y < minY) minY = y
+  const deltas = []
+  const hs = []
+  for (let i = 0; i < n - 1; i++) {
+    const h = pts[i + 1].x - pts[i].x
+    hs.push(h)
+    deltas.push((pts[i + 1].y - pts[i].y) / h)
   }
 
-  const shift = Math.max(0, 100 - minY)
+  const m = new Array(n)
+  m[0] = deltas[0]
+  m[n - 1] = deltas[n - 2]
 
-  const mono = (x) => {
-    if (x <= 0) return 100
-    const y = raw(x) + shift
-    return Math.max(100, y)
+  for (let i = 1; i < n - 1; i++) {
+    if (deltas[i - 1] * deltas[i] <= 0) {
+      m[i] = 0
+    } else {
+      m[i] = (deltas[i - 1] + deltas[i]) / 2
+    }
   }
 
-  return mono
+  for (let i = 0; i < n - 1; i++) {
+    if (Math.abs(deltas[i]) < 1e-10) {
+      m[i] = 0
+      m[i + 1] = 0
+    } else {
+      const alpha = m[i] / deltas[i]
+      const beta = m[i + 1] / deltas[i]
+      const tau = alpha * alpha + beta * beta
+      if (tau > 9) {
+        const s = 3 / Math.sqrt(tau)
+        m[i] = s * alpha * deltas[i]
+        m[i + 1] = s * beta * deltas[i]
+      }
+    }
+  }
+
+  return (x) => {
+    if (x <= pts[0].x) return pts[0].y
+    if (x >= pts[n - 1].x) return pts[n - 1].y
+
+    let seg = 0
+    for (let i = 0; i < n - 1; i++) {
+      if (x >= pts[i].x && x <= pts[i + 1].x) { seg = i; break }
+    }
+
+    const h = hs[seg]
+    const t = (x - pts[seg].x) / h
+    const { h00, h10, h01, h11 } = hermiteBasis(t)
+
+    return h00 * pts[seg].y + h10 * h * m[seg] + h01 * pts[seg + 1].y + h11 * h * m[seg + 1]
+  }
 }
 
 function dataToCanvas(pt) {
@@ -192,7 +230,7 @@ function render() {
   ctx.save(); ctx.translate(12 * dpr, padT + plotH / 2); ctx.rotate(-Math.PI / 2); ctx.textAlign = 'center'; ctx.fillText(props.lang === 'en' ? 'Boost %' : '倍率 %', 0, 0); ctx.restore()
   ctx.restore()
 
-  const curve = fitMonotoneCurve(points.value)
+  const curve = fitMonotoneHermite(points.value)
 
   ctx.save(); ctx.strokeStyle = '#ea5ec1'; ctx.lineWidth = 3 * dpr; ctx.lineJoin = 'round'; ctx.lineCap = 'round'; ctx.beginPath()
   for (let i = 0; i <= 300; i++) {

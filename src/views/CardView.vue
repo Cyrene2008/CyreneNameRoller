@@ -40,8 +40,11 @@
         <div class="ctrl-row">
           <FluentToggle v-model="englishMode" label="English Mode" />
           <span class="control-sep" />
+          <span class="control-label">{{ lang === 'en' ? 'List:' : '名单:' }}</span>
+          <FluentSelect :model-value="namesStore.currentListId" :options="listOptions" @update:model-value="onListChange" />
+          <span class="control-sep" />
           <span class="control-label">{{ lang === 'en' ? 'Cards:' : '牌子数量:' }}</span>
-          <FluentInput v-model="cardCount" type="number" :min="2" :max="maxCards" style="width: 70px;" />
+          <FluentInput v-model="cardCount" type="number" :min="2" :max="maxCards" style="width: 70px;" @update:model-value="saveCardSettings" />
           <FluentButton variant="primary" @click="shuffle">
             <FluentIcon icon="arrow-shuffle-24-regular" :width="16" />
             {{ lang === 'en' ? 'Shuffle' : '洗牌' }}
@@ -49,7 +52,7 @@
         </div>
         <div class="ctrl-row">
           <span class="control-label">{{ lang === 'en' ? 'Quick:' : '一键多抽:' }}</span>
-          <FluentInput v-model="quickCount" type="number" :min="1" :max="maxCards" style="width: 60px;" />
+          <FluentInput v-model="quickCount" type="number" :min="1" :max="maxCards" style="width: 60px;" @update:model-value="saveCardSettings" />
           <FluentButton variant="secondary" @click="quickDraw">
             <FluentIcon icon="flash-24-regular" :width="16" />
             {{ lang === 'en' ? 'Draw' : '多抽' }}
@@ -74,11 +77,14 @@ import FluentButton from '../components/FluentButton.vue'
 import FluentIcon from '../components/FluentIcon.vue'
 import FluentInput from '../components/FluentInput.vue'
 import FluentToggle from '../components/FluentToggle.vue'
+import FluentSelect from '../components/FluentSelect.vue'
 
 const namesStore = useNamesStore()
 const recordsStore = useRecordsStore()
 
 const lang = computed(() => 'zh')
+const listOptions = computed(() => namesStore.allLists.map(l => ({ value: l.id, label: l.name })))
+
 const englishMode = ref(false)
 const cardCount = ref(5)
 const quickCount = ref(4)
@@ -90,6 +96,7 @@ let historyIdCounter = 0
 
 const TRAY_KEY = 'cardTrayHistory'
 const USED_KEY = 'cardUsedNames'
+const SETTINGS_KEY = 'cardSettings'
 
 const allNonWL = computed(() => namesStore.currentNames.filter(n => n.cn !== '再来一次'))
 const remainingCount = computed(() => allNonWL.value.length - usedNames.value.size)
@@ -101,6 +108,23 @@ function getAvailableNames() {
 
 function getDisplayName(person) {
   return englishMode.value && person.en ? person.en : person.cn
+}
+
+function onListChange(id) {
+  namesStore.switchList(id)
+  reset()
+}
+
+async function saveCardSettings() {
+  await dataBridge.save(SETTINGS_KEY, { cardCount: cardCount.value, quickCount: quickCount.value })
+}
+
+async function loadCardSettings() {
+  const saved = await dataBridge.load(SETTINGS_KEY)
+  if (saved) {
+    if (saved.cardCount) cardCount.value = saved.cardCount
+    if (saved.quickCount) quickCount.value = saved.quickCount
+  }
 }
 
 async function saveTrayState() {
@@ -158,6 +182,7 @@ function reset() {
 }
 
 onMounted(async () => {
+  await loadCardSettings()
   await loadTrayState()
   if (namesStore.isLoaded && allNonWL.value.length > 0 && remainingCount.value >= 2) shuffle()
   watch(() => namesStore.isLoaded, (loaded) => { if (loaded && remainingCount.value >= 2) shuffle() })
