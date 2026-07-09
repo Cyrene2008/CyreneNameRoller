@@ -39,7 +39,7 @@ function saveWindowState() {
 
 function createWindow() {
   const saved = loadWindowState()
-  const defaults = { width: 1200, height: 900, minWidth: 1200, minHeight: 900 }
+  const defaults = { width: 1200, height: 900, minWidth: 800, minHeight: 600 }
   const opts = { ...defaults }
   if (saved) {
     opts.x = saved.x

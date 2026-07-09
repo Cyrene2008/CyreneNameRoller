@@ -136,7 +136,7 @@
       <Transition name="toggle-expand">
         <div v-if="balance.enabled" class="balance-sub">
           <p class="balance-explain">{{ lang === 'en' ? 'Names picked fewer times get higher probability next round.' : '被抽中次数越少，下次被抽中的概率越高。' }}</p>
-          <FluentButton variant="secondary" size="sm" @click="showBalanceEditor = true">
+          <FluentButton variant="secondary" size="sm" @click="router.push('/settings/balance-curve')">
             <FluentIcon icon="data-line-16-regular" :width="14" /> {{ lang === 'en' ? 'Edit Curve' : '编辑曲线' }}
           </FluentButton>
         </div>
@@ -153,15 +153,6 @@
         </div>
       </div>
     </FluentCard>
-
-    <!-- 弹窗 -->
-    <FluentModal v-model="showBalanceEditor" :title="lang === 'en' ? 'Balance Curve Editor' : '平衡曲线编辑器'" max-width="600px">
-      <BalanceEditor v-model="balance.points" :lang="lang" @update:model-value="saveBalance" />
-      <template #footer>
-        <FluentButton variant="secondary" size="sm" @click="showBalanceEditor = false">{{ lang === 'en' ? 'Close' : '关闭' }}</FluentButton>
-        <FluentButton variant="primary" size="sm" @click="resetBalance">{{ lang === 'en' ? 'Reset' : '恢复默认' }}</FluentButton>
-      </template>
-    </FluentModal>
 
     <FluentModal v-model="showPwModal" :title="pwModalTitle" max-width="400px">
       <div class="pw-modal-body">
@@ -189,6 +180,7 @@
 
 <script setup>
 import { ref, computed, onMounted, nextTick } from 'vue'
+import { useRouter } from 'vue-router'
 import { useNamesStore } from '../stores/names'
 import { useSettingsStore } from '../stores/settings'
 import { useRecordsStore } from '../stores/records'
@@ -205,8 +197,8 @@ import FluentToggle from '../components/FluentToggle.vue'
 import FluentInput from '../components/FluentInput.vue'
 import FluentSelect from '../components/FluentSelect.vue'
 import FluentModal from '../components/FluentModal.vue'
-import BalanceEditor from '../components/BalanceEditor.vue'
 
+const router = useRouter()
 const settingsStore = useSettingsStore()
 const namesStore = useNamesStore()
 const recordsStore = useRecordsStore()
@@ -237,7 +229,6 @@ const colorModeOptions = [
 
 const balance = ref(JSON.parse(JSON.stringify(DEFAULT_BALANCE_SETTINGS)))
 const changelog = ref([])
-const showBalanceEditor = ref(false)
 const hasPassword = ref(false)
 const showPwModal = ref(false)
 const pwInput = ref('')
@@ -309,7 +300,6 @@ async function doClearAllNow() {
   alert(lang.value === 'en' ? 'All data cleared. Please close and restart.' : '所有数据已清除，请关闭并重启应用。')
 }
 async function saveBalance() { const n = normalizeSettings(balance.value); balance.value = n; await dataBridge.save('balance', n) }
-function resetBalance() { balance.value = JSON.parse(JSON.stringify(DEFAULT_BALANCE_SETTINGS)); saveBalance() }
 </script>
 
 <style scoped>

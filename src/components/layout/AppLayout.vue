@@ -5,7 +5,7 @@
       <NavigationDock />
       <main class="app-content">
         <router-view v-slot="{ Component, route }">
-          <Transition :name="route.meta.transition || 'page-slide'" mode="out-in">
+          <Transition :name="transitionName" mode="out-in">
             <component :is="Component" :key="route.path" />
           </Transition>
         </router-view>
@@ -33,7 +33,10 @@
 </template>
 
 <script setup>
+
+
 import { onMounted, watch, provide, ref, computed } from 'vue'
+import { useRouter } from 'vue-router'
 import TitleBar from './TitleBar.vue'
 import NavigationDock from './NavigationDock.vue'
 import FluentToast from '../FluentToast.vue'
@@ -46,6 +49,7 @@ import { useRecordsStore } from '../../stores/records'
 import { APP_VERSION, APP_VERSION_PREFIX, APP_BUILD, APP_PLATFORM, APP_NAME } from '../../utils/version'
 import { updateState, checkForUpdates, downloadUpdate } from '../../utils/updater'
 
+const router = useRouter()
 const settingsStore = useSettingsStore()
 const namesStore = useNamesStore()
 const statisticsStore = useStatisticsStore()
@@ -55,6 +59,26 @@ const lang = computed(() => settingsStore.settings.language)
 
 const globalToast = ref(null)
 provide('toast', globalToast)
+
+const transitionName = ref('page-slide')
+
+// Track navigation direction for reverse animations
+const routeHistory = ref([])
+router.afterEach((to, from) => {
+  const toDepth = to.path.split('/').length
+  const fromDepth = from.path.split('/').length
+  
+  // Check if going back (to a parent route)
+  if (toDepth < fromDepth || routeHistory.value.includes(to.path)) {
+    transitionName.value = 'page-slide-reverse'
+    routeHistory.value = routeHistory.value.filter(p => p !== from.path)
+  } else {
+    transitionName.value = 'page-slide'
+    if (!routeHistory.value.includes(from.path)) {
+      routeHistory.value.push(from.path)
+    }
+  }
+})
 
 document.title = APP_NAME
 
@@ -213,6 +237,24 @@ watch(() => settingsStore.settings.nameFontSize, (val) => {
 .page-slide-leave-to {
   opacity: 0;
   transform: translateX(-10px);
+}
+
+.page-slide-reverse-enter-active {
+  transition: all 0.25s cubic-bezier(0.1, 0.9, 0.2, 1);
+}
+
+.page-slide-reverse-leave-active {
+  transition: all 0.15s ease-in;
+}
+
+.page-slide-reverse-enter-from {
+  opacity: 0;
+  transform: translateX(-20px);
+}
+
+.page-slide-reverse-leave-to {
+  opacity: 0;
+  transform: translateX(10px);
 }
 
 @media (max-width: 768px) {
