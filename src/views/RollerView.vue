@@ -189,7 +189,7 @@ onBeforeUnmount(() => { if (intervalId) clearTimeout(intervalId) })
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
-  animation: gradient-shift 16s ease-in infinite both;
+  animation: gradient-shift 16s linear infinite both;
   text-shadow: none;
   animation-delay: -0s !important;
 }
