@@ -30,7 +30,6 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useSettingsStore } from '../stores/settings'
-import { useNamesStore } from '../stores/names'
 import { useRecordsStore } from '../stores/records'
 import FluentCard from '../components/FluentCard.vue'
 import FluentIcon from '../components/FluentIcon.vue'

@@ -166,7 +166,7 @@ onBeforeUnmount(() => { if (intervalId) clearTimeout(intervalId) })
 </script>
 
 <style scoped>
-.roller-view { padding: 32px; display: flex; flex-direction: column; align-items: center; min-height: 100%; }
+.roller-view { padding: 32px; display: flex; flex-direction: column; align-items: center; min-height: 100%; position: relative; }
 .roller-title { font-family: var(--font-display); font-size: 28px; font-weight: 700; color: var(--text-primary); margin-bottom: 24px; width: 100%; text-align: center; }
 .display-container { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 32px; margin-bottom: 40px; min-height: 80px; }
 
@@ -177,8 +177,8 @@ onBeforeUnmount(() => { if (intervalId) clearTimeout(intervalId) })
 .name-display.final { animation: final-reveal 0.5s cubic-bezier(0.1, 0.9, 0.2, 1); }
 @keyframes final-reveal { 0% { transform: scale(4); opacity: 0; filter: brightness(2); } 100% { transform: scale(1); filter: brightness(1); } }
 
-.controls-center { display: flex; flex-direction: column; align-items: center; gap: 12px; width: 100%; max-width: 400px; }
-.switches { display: flex; flex-direction: column; gap: 8px; align-items: center; }
+.controls-center { position: fixed; bottom: 24px; right: 24px; display: flex; flex-direction: column; gap: 10px; align-items: flex-end; z-index: 10; }
+.switches { display: flex; flex-direction: column; gap: 6px; align-items: flex-end; }
 .multi-settings { display: flex; align-items: center; gap: 12px; }
 .setting-label { font-size: 14px; color: var(--text-secondary); }
 .count-control { display: flex; align-items: center; gap: 8px; }

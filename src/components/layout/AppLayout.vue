@@ -11,7 +11,7 @@
         </router-view>
       </main>
     </div>
-    <div class="version-badge"><span class="v-num">v26.0.0</span> build:<span class="v-num">{{ buildHash }}</span></div>
+    <div class="version-badge"><span class="v-num">v26.0.0</span> <span class="v-label">build</span>:<span class="v-num">{{ buildHash }}</span></div>
     <FluentToast ref="globalToast" />
   </div>
 </template>
@@ -90,11 +90,16 @@ watch(() => settingsStore.settings.nameFontSize, (val) => {
   pointer-events: none;
   font-family: var(--font-ui);
   font-variant-numeric: tabular-nums;
-  z-index: 10;
+  z-index: 999999;
 }
 
 .version-badge .v-num {
   font-family: var(--font-num);
+  font-size: calc(11px * 1.15);
+}
+
+.version-badge .v-label {
+  font-family: var(--font-ui);
 }
 
 .page-slide-enter-active {
