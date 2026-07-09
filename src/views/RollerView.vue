@@ -1,6 +1,6 @@
 <template>
   <div class="roller-view">
-    <h1 class="roller-title">{{ lang === 'en' ? 'Name Roller' : '随机点名' }}</h1>
+    <h1 class="roller-title">{{ t('h1', lang) }}</h1>
 
     <div class="display-container">
       <div

@@ -16,7 +16,7 @@
         <span class="setting-label">{{ lang === 'en' ? 'Dark Mode' : '深色模式' }}</span>
         <FluentToggle :model-value="settingsStore.darkMode" @update:model-value="settingsStore.toggleDarkMode()" />
       </div>
-      <div v-if="isDesktop" class="setting-row">
+      <div class="setting-row">
         <span class="setting-label">{{ lang === 'en' ? 'Check for Updates' : '检查更新' }}</span>
         <FluentButton variant="secondary" size="sm" :disabled="updateState.checking" @click="doCheckUpdate">
           <FluentIcon icon="arrow-sync-16-regular" :width="14" />
