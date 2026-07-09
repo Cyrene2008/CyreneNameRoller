@@ -1,4 +1,4 @@
-<img width="1329" height="805" alt="image" src="https://github.com/user-attachments/assets/35b1fcb9-1ee7-4437-a615-2f0478b757d7" /># Cyreneの随机点名器
+# Cyreneの随机点名器
 
 基于 Vue 3 + Electron/Tauri 的随机点名桌面应用，采用 Windows 11 Fluent Design 设计语言。
 
