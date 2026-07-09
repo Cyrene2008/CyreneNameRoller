@@ -47,8 +47,7 @@
         "nsis"
       ],
       "icon": "public/icon.png",
-      "legalTrademarks": "昔涟.cn",
-      "signingHashAlgorithms": ["sha256"]
+      "legalTrademarks": "昔涟.cn"
     },
     "mac": {
       "target": [
