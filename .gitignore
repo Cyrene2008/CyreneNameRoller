@@ -6,3 +6,5 @@ build-output
 *.log
 public/names.json
 public/up.json
+src-tauri/target
+src-tauri/gen
