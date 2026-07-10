@@ -32,20 +32,21 @@
           </div>
           <div class="asset-meta">
             <span class="meta-item">
-              <FluentIcon icon="lock-closed-12-regular" :width="12" />
+              <FluentIcon icon="lock-closed-16-regular" :width="12" />
               sha256:<span class="num">{{ asset.digest ? asset.digest.split(':')[1]?.substring(0, 16) + '...' : 'N/A' }}</span>
             </span>
             <span class="meta-item">
-              <FluentIcon icon="arrow-download-12-regular" :width="12" />
+              <FluentIcon icon="arrow-download-16-regular" :width="12" />
               <span class="num">{{ asset.download_count }}</span> {{ lang === 'en' ? 'downloads' : '次下载' }}
             </span>
             <span class="meta-item">
-              <FluentIcon icon="database-12-regular" :width="12" />
-              <span class="num">{{ formatSize(asset.size) }}</span>
+              <FluentIcon icon="database-16-regular" :width="12" />
+              <span class="num">{{ formatSize(asset.size).num }}</span> {{ formatSize(asset.size).unit }}
             </span>
             <span class="meta-item">
-              <FluentIcon icon="clock-12-regular" :width="12" />
-              <span class="num">{{ formatTime(asset.updated_at) }}</span>
+              <FluentIcon icon="clock-16-regular" :width="12" />
+              <template v-if="formatTime(asset.updated_at).num"><span class="num">{{ formatTime(asset.updated_at).num }}</span> {{ formatTime(asset.updated_at).unit }}</template>
+              <template v-else>{{ formatTime(asset.updated_at).unit }}</template>
             </span>
           </div>
           <FluentButton variant="primary" size="sm" @click="downloadAsset(asset)">
@@ -93,22 +94,23 @@ const sortedAssets = computed(() => {
 })
 
 function formatSize(bytes) {
-  if (!bytes) return 'N/A'
+  if (!bytes) return { num: 'N/A', unit: '' }
   const mb = bytes / 1024 / 1024
-  return mb >= 1 ? `${mb.toFixed(1)} MB` : `${(bytes / 1024).toFixed(1)} KB`
+  if (mb >= 1) return { num: mb.toFixed(1), unit: 'MB' }
+  return { num: (bytes / 1024).toFixed(1), unit: 'KB' }
 }
 
 function formatTime(iso) {
-  if (!iso) return 'N/A'
+  if (!iso) return { num: 'N/A', unit: '' }
   const d = new Date(iso)
   const now = new Date()
   const diff = now - d
   const hours = Math.floor(diff / 3600000)
   const days = Math.floor(diff / 86400000)
-  if (hours < 1) return lang.value === 'en' ? 'Just now' : '刚刚'
-  if (hours < 24) return `${hours} ${lang.value === 'en' ? 'hours ago' : '小时前'}`
-  if (days < 30) return `${days} ${lang.value === 'en' ? 'days ago' : '天前'}`
-  return d.toLocaleDateString()
+  if (hours < 1) return { num: '', unit: lang.value === 'en' ? 'Just now' : '刚刚' }
+  if (hours < 24) return { num: hours, unit: lang.value === 'en' ? 'hours ago' : '小时前' }
+  if (days < 30) return { num: days, unit: lang.value === 'en' ? 'days ago' : '天前' }
+  return { num: '', unit: d.toLocaleDateString() }
 }
 
 async function fetchAssets() {
@@ -248,7 +250,7 @@ onMounted(fetchAssets)
 
 .asset-name {
   font-family: var(--font-num);
-  font-size: calc(13px * var(--font-num-scale, 1.6));
+  font-size: 13px;
   font-weight: 600;
   color: var(--text-primary);
   word-break: break-all;
