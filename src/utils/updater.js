@@ -150,6 +150,7 @@ export async function downloadUpdate(bannerFn = null) {
       message: `正在下载新版本: ${updateState.value.version}`,
       icon: 'arrow-download-16-regular',
       type: 'download',
+      duration: 0,
       dismissible: false,
       progress: 0
     })
@@ -185,10 +186,35 @@ export async function downloadUpdate(bannerFn = null) {
     }
 
     const blob = new Blob([allChunks])
-    saveBlob(blob, updateState.value.fileName || 'update.exe')
+    const fileName = updateState.value.fileName || 'update.exe'
+    const arrayBuffer = await blob.arrayBuffer()
+    const uint8 = new Uint8Array(arrayBuffer)
 
-    if (bannerHandle) {
-      bannerHandle.update({ message: '下载完成，请手动运行安装程序', icon: 'checkmark-circle-16-regular', type: 'success', progress: 100, duration: 8000 })
+    // 优先弹出保存对话框并自动运行
+    let saved = false
+    if (window.electronAPI?.saveAndLaunch) {
+      const result = await window.electronAPI.saveAndLaunch(uint8, fileName)
+      if (result?.success) {
+        saved = true
+        if (bannerHandle) bannerHandle.update({ message: '已保存并启动安装程序', icon: 'checkmark-circle-16-regular', type: 'success', progress: 100, duration: 8000 })
+      } else if (result?.cancelled) {
+        // 用户取消了保存对话框
+        if (bannerHandle) bannerHandle.update({ message: '下载已取消', icon: 'dismiss-circle-16-regular', type: 'warning', progress: 0, duration: 8000 })
+      }
+    } else if (isTauri() && tauriAPI.saveAndLaunch) {
+      const result = await tauriAPI.saveAndLaunch(uint8, fileName)
+      if (result?.success) {
+        saved = true
+        if (bannerHandle) bannerHandle.update({ message: '已保存并启动安装程序', icon: 'checkmark-circle-16-regular', type: 'success', progress: 100, duration: 8000 })
+      } else if (result?.cancelled) {
+        if (bannerHandle) bannerHandle.update({ message: '下载已取消', icon: 'dismiss-circle-16-regular', type: 'warning', progress: 0, duration: 8000 })
+      }
+    }
+
+    // 如果没有saveAndLaunch或者用户取消了，回退到浏览器下载
+    if (!saved && !window.electronAPI?.saveAndLaunch) {
+      saveBlob(blob, fileName)
+      if (bannerHandle) bannerHandle.update({ message: '下载完成', icon: 'checkmark-circle-16-regular', type: 'success', progress: 100, duration: 8000 })
     }
 
     updateState.value.downloading = false

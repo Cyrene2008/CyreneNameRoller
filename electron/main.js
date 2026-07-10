@@ -86,6 +86,37 @@ ipcMain.handle('open-external', (_, url) => {
   }
 })
 
+ipcMain.handle('save-and-launch', async (_, uint8Array, fileName) => {
+  try {
+    const { filePath } = await dialog.showSaveDialog(win, {
+      title: '保存安装程序',
+      defaultPath: fileName,
+      filters: [{ name: '安装程序', extensions: ['exe'] }]
+    })
+    if (!filePath) return { cancelled: true }
+    fs.writeFileSync(filePath, Buffer.from(uint8Array))
+    await shell.openPath(filePath)
+    return { success: true, filePath }
+  } catch (e) {
+    return { success: false, error: e.message }
+  }
+})
+
+ipcMain.handle('save-file-dialog', async (_, uint8Array, fileName) => {
+  try {
+    const { filePath } = await dialog.showSaveDialog(win, {
+      title: '另存为',
+      defaultPath: fileName,
+      filters: [{ name: '安装程序', extensions: ['exe'] }]
+    })
+    if (!filePath) return { cancelled: true }
+    fs.writeFileSync(filePath, Buffer.from(uint8Array))
+    return { success: true, filePath }
+  } catch (e) {
+    return { success: false, error: e.message }
+  }
+})
+
 // electron-store 存储 IPC
 ipcMain.handle('storage-get', (_, key) => {
   try {

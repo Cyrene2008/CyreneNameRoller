@@ -6,6 +6,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   close: () => ipcRenderer.send('window-close'),
   isMaximized: () => ipcRenderer.invoke('window-is-maximized'),
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
+  saveAndLaunch: (uint8Array, fileName) => ipcRenderer.invoke('save-and-launch', uint8Array, fileName),
+  saveFileDialog: (uint8Array, fileName) => ipcRenderer.invoke('save-file-dialog', uint8Array, fileName),
 
   storageGet: (key) => ipcRenderer.invoke('storage-get', key),
   storageSet: (key, value) => ipcRenderer.invoke('storage-set', key, value),
