@@ -48,7 +48,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, onBeforeUnmount, watch } from 'vue'
+import { ref, reactive, computed, onMounted, onBeforeUnmount, watch, inject } from 'vue'
 import { useNamesStore } from '../stores/names'
 import { useSettingsStore } from '../stores/settings'
 import { useStatisticsStore } from '../stores/statistics'
@@ -66,6 +66,7 @@ const namesStore = useNamesStore()
 const settingsStore = useSettingsStore()
 const statisticsStore = useStatisticsStore()
 const recordsStore = useRecordsStore()
+const showBanner = inject('banner')
 
 const lang = computed(() => settingsStore.settings.language)
 const settings = computed(() => settingsStore.settings)
@@ -158,7 +159,14 @@ function animationLoop() {
 
 function toggleRoll() {
   if (isRunning.value) { clearTimeout(intervalId); isRunning.value = false; finishRoll(); return }
-  if (!canStart.value) return
+  if (!canStart.value) {
+    if (nonWhiteListCount.value < 2) {
+      showBanner({ message: lang.value === 'en' ? 'No names available yet' : '唔...你还没添加名单呢♪', icon: 'info-16-regular', type: 'warning', duration: 5000 })
+    } else {
+      showBanner({ message: lang.value === 'en' ? 'Too many people for available names' : '人数超过了可用名单数量', icon: 'warning-16-regular', type: 'warning', duration: 5000 })
+    }
+    return
+  }
   isRunning.value = true
   sessionCounts.value = {}
   initializeDisplays(settings.value.multiMode ? (settings.value.peopleCount || 2) : 1)

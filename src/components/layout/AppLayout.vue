@@ -17,31 +17,38 @@
       <span class="v-sep">build:</span><span class="v-num">{{ APP_BUILD }}</span><span class="v-sep">-{{ APP_PLATFORM }}</span>
     </div>
 
-    <Transition name="update-slide">
-      <div v-if="isDesktopApp && updateState.available" class="update-banner">
-        <div class="update-banner-bg"></div>
-        <div class="update-banner-content">
-          <FluentIcon icon="arrow-download-24-regular" :width="18" />
-          <span>{{ lang === 'en' ? 'Update available:' : '发现新版本：' }}{{ updateState.version }}</span>
-          <button class="update-btn" @click="downloadUpdate" :disabled="updateState.downloading">
-            <span v-if="updateState.downloading" class="btn-progress">{{ updateState.downloadProgress }}%</span>
-            {{ updateState.downloading ? (lang === 'en' ? 'Downloading...' : '下载中...') : (lang === 'en' ? 'Download' : '下载') }}
-          </button>
-          <button class="update-dismiss" @click="updateState.available = false">
-            <FluentIcon icon="dismiss-16-regular" :width="14" />
+    <!-- Banner Notification System -->
+    <TransitionGroup name="banner-enter" tag="div" class="banner-container">
+      <div
+        v-for="b in banners"
+        :key="b.id"
+        class="notify-banner"
+        :class="{ 'banner-download': b.type === 'download', 'banner-info': b.type === 'info', 'banner-success': b.type === 'success', 'banner-warning': b.type === 'warning' }"
+        @mouseenter="b.hovered = true"
+        @mouseleave="b.hovered = false"
+      >
+        <div class="banner-progress-bg" :style="{ width: b.type === 'download' ? b.progress + '%' : '0%' }"></div>
+        <div class="banner-scanline"></div>
+        <div class="banner-glow"></div>
+        <div class="banner-content">
+          <span class="banner-icon" v-if="b.icon">
+            <FluentIcon :icon="b.icon" :width="16" />
+          </span>
+          <span class="banner-text">{{ b.message }}</span>
+          <span v-if="b.type === 'download'" class="banner-progress-num">{{ b.progress }}%</span>
+          <button v-if="b.dismissible && b.type !== 'download'" class="banner-dismiss" @click="dismissBanner(b.id)">
+            <FluentIcon icon="dismiss-12-regular" :width="12" />
           </button>
         </div>
       </div>
-    </Transition>
+    </TransitionGroup>
 
     <FluentToast ref="globalToast" />
   </div>
 </template>
 
 <script setup>
-
-
-import { onMounted, watch, provide, ref, computed, nextTick } from 'vue'
+import { onMounted, watch, provide, ref, computed, nextTick, reactive } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import TitleBar from './TitleBar.vue'
 import NavigationDock from './NavigationDock.vue'
@@ -54,7 +61,7 @@ import { useStatisticsStore } from '../../stores/statistics'
 import { useRecordsStore } from '../../stores/records'
 import { APP_VERSION, APP_VERSION_PREFIX, APP_BUILD, APP_PLATFORM, APP_NAME } from '../../utils/version'
 import { updateState, checkForUpdates, downloadUpdate } from '../../utils/updater'
-import { isTauri } from '../../utils/tauriAPI'
+import { isTauri, tauriAPI } from '../../utils/tauriAPI'
 
 const router = useRouter()
 const currentRoute = useRoute()
@@ -68,6 +75,43 @@ const isDesktopApp = computed(() => !!window.electronAPI || isTauri())
 
 const globalToast = ref(null)
 provide('toast', globalToast)
+
+// Banner notification system
+const banners = ref([])
+let bannerIdCounter = 0
+
+function showBanner({ message, icon = 'info-16-regular', type = 'info', duration = 0, dismissible = true, progress = 0 }) {
+  const id = ++bannerIdCounter
+  const banner = reactive({ id, message, icon, type, dismissible, progress, hovered: false })
+  banners.value.push(banner)
+  if (duration > 0) {
+    const startTimer = () => {
+      const timer = setTimeout(() => {
+        dismissBanner(id)
+      }, duration)
+      banner._timer = timer
+    }
+    startTimer()
+  }
+  return {
+    id,
+    update(opts) {
+      Object.assign(banner, opts)
+    },
+    dismiss() {
+      dismissBanner(id)
+    }
+  }
+}
+
+function dismissBanner(id) {
+  const idx = banners.value.findIndex(b => b.id === id)
+  if (idx !== -1) {
+    banners.value.splice(idx, 1)
+  }
+}
+
+provide('banner', showBanner)
 
 const routeOrder = ['/', '/roller', '/card', '/statistics', '/records', '/lists', '/lists/manage', '/settings', '/settings/balance-curve', '/about', '/about/contributors']
 const transitionName = ref('page-forward')
@@ -84,7 +128,6 @@ router.beforeEach((to, from) => {
   transitionName.value = toIdx >= fromIdx ? 'page-forward' : 'page-back'
 })
 
-// Scroll to top on route change
 router.afterEach(() => {
   nextTick(() => {
     const content = document.querySelector('.app-content')
@@ -99,7 +142,7 @@ onMounted(async () => {
   await namesStore.initialize()
   await statisticsStore.initialize()
   await recordsStore.initialize()
-  if (isDesktopApp.value) checkForUpdates()
+  if (isDesktopApp.value) checkForUpdates(true, showBanner)
 })
 
 watch(() => settingsStore.settings.uiScale, (val) => {
@@ -153,207 +196,220 @@ watch(() => settingsStore.settings.nameFontSize, (val) => {
   gap: 3px;
 }
 
-.v-prefix {
-  font-family: var(--font-ui);
-  font-size: 12px;
-}
+.v-prefix { font-family: var(--font-ui); font-size: 12px; }
+.v-num { font-family: var(--font-num); font-size: calc(12px * var(--font-num-scale, 1.6)); }
+.v-sep { font-family: var(--font-ui); font-size: 12px; }
 
-.v-num {
-  font-family: var(--font-num);
-  font-size: calc(12px * var(--font-num-scale, 1.6));
-}
-
-.v-sep {
-  font-family: var(--font-ui);
-  font-size: 12px;
-}
-
-.update-banner {
+/* Banner Container */
+.banner-container {
   position: fixed;
   top: 0;
   left: var(--dock-width);
   right: 0;
-  height: 40px;
-  background: var(--accent);
-  color: #fff;
   z-index: 99999;
-  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  pointer-events: none;
 }
 
-.update-banner-bg {
+/* Banner Notification */
+.notify-banner {
+  position: relative;
+  height: 40px;
+  overflow: hidden;
+  pointer-events: all;
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+
+.notify-banner.banner-info {
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  color: #e0e0ff;
+}
+
+.notify-banner.banner-success {
+  background: linear-gradient(135deg, #0a2e1a 0%, #1a3e16 100%);
+  color: #b0ffc0;
+}
+
+.notify-banner.banner-warning {
+  background: linear-gradient(135deg, #2e2a1a 0%, #3e3616 100%);
+  color: #ffe0b0;
+}
+
+.notify-banner.banner-download {
+  background: linear-gradient(135deg, var(--accent-dark) 0%, var(--accent) 100%);
+  color: #fff;
+}
+
+/* Progress bar background for download */
+.banner-progress-bg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  background: linear-gradient(90deg, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0.25) 100%);
+  transition: width 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+  z-index: 0;
+}
+
+/* Scanline effect */
+.banner-scanline {
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background: linear-gradient(90deg, 
-    rgba(255,255,255,0) 0%, 
-    rgba(255,255,255,0.1) 25%, 
-    rgba(255,255,255,0) 50%, 
-    rgba(255,255,255,0.1) 75%, 
-    rgba(255,255,255,0) 100%
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(255,255,255,0.02) 2px,
+    rgba(255,255,255,0.02) 4px
   );
-  background-size: 200% 100%;
-  animation: banner-shimmer 3s ease-in-out infinite;
+  z-index: 1;
+  pointer-events: none;
 }
 
-.update-banner-content {
+/* Glow effect */
+.banner-glow {
+  position: absolute;
+  top: -2px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg,
+    transparent 0%,
+    rgba(255,255,255,0.4) 20%,
+    rgba(255,255,255,0.8) 50%,
+    rgba(255,255,255,0.4) 80%,
+    transparent 100%
+  );
+  animation: glow-sweep 3s ease-in-out infinite;
+  z-index: 2;
+}
+
+@keyframes glow-sweep {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+.banner-content {
   position: relative;
+  z-index: 3;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   padding: 0 16px;
   height: 100%;
+  width: 100%;
   font-size: 13px;
   font-weight: 500;
 }
 
-@keyframes banner-shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
-}
-
-.update-btn {
-  margin-left: auto;
-  padding: 4px 16px;
-  background: rgba(255,255,255,0.2);
-  border: 1px solid rgba(255,255,255,0.3);
-  border-radius: var(--radius-sm);
-  color: #fff;
-  font-size: 13px;
-  cursor: pointer;
-  font-family: var(--font-ui);
-  transition: all 0.2s ease;
+.banner-icon {
   display: flex;
   align-items: center;
-  gap: 6px;
+  flex-shrink: 0;
 }
 
-.update-btn:hover:not(:disabled) {
-  background: rgba(255,255,255,0.3);
-  transform: translateY(-1px);
+.banner-text {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.update-btn:disabled {
-  opacity: 0.7;
-  cursor: not-allowed;
-}
-
-.btn-progress {
+.banner-progress-num {
   font-family: var(--font-num);
   font-variant-numeric: tabular-nums;
-  font-size: 12px;
+  font-size: calc(13px * 1.6);
+  font-weight: 700;
+  flex-shrink: 0;
+  text-shadow: 0 0 8px rgba(255,255,255,0.3);
 }
 
-.update-dismiss {
-  width: 24px;
-  height: 24px;
+.banner-dismiss {
+  width: 20px;
+  height: 20px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: transparent;
+  background: rgba(255,255,255,0.1);
   border: none;
-  color: rgba(255,255,255,0.7);
+  color: inherit;
   cursor: pointer;
-  border-radius: var(--radius-sm);
+  border-radius: 2px;
   transition: all 0.2s ease;
+  flex-shrink: 0;
 }
 
-.update-dismiss:hover {
-  background: rgba(255,255,255,0.15);
-  color: #fff;
+.banner-dismiss:hover {
+  background: rgba(255,255,255,0.2);
   transform: rotate(90deg);
 }
 
-.update-slide-enter-active {
-  transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+/* Banner entrance animation */
+.banner-enter-enter-active {
+  animation: banner-in 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
 
-.update-slide-leave-active {
-  transition: all 0.3s cubic-bezier(0.55, 0, 1, 0.45);
+.banner-enter-leave-active {
+  animation: banner-out 0.35s cubic-bezier(0.55, 0, 1, 0.45) both;
 }
 
-.update-slide-enter-from {
-  transform: translateY(-100%) scale(0.95);
-  opacity: 0;
-  filter: blur(4px);
+@keyframes banner-in {
+  0% {
+    opacity: 0;
+    transform: translateY(-100%) scaleX(0.8);
+    filter: blur(8px) brightness(2);
+    max-height: 0;
+  }
+  30% {
+    opacity: 0.6;
+    filter: blur(3px) brightness(1.5);
+    max-height: 40px;
+  }
+  60% {
+    opacity: 1;
+    transform: translateY(4px) scaleX(1.01);
+    filter: blur(0) brightness(1.1);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scaleX(1);
+    filter: blur(0) brightness(1);
+    max-height: 40px;
+  }
 }
 
-.update-slide-leave-to {
-  transform: translateY(-100%) scale(0.95);
-  opacity: 0;
-  filter: blur(2px);
+@keyframes banner-out {
+  0% {
+    opacity: 1;
+    transform: translateX(0);
+    max-height: 40px;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(60px);
+    max-height: 0;
+  }
 }
 
-.page-fade-enter-active {
-  transition: opacity 0.2s ease, transform 0.2s ease;
-}
-
-.page-fade-leave-active {
-  transition: opacity 0.12s ease, transform 0.12s ease;
-}
-
-.page-fade-enter-from {
-  opacity: 0;
-  transform: translateY(8px);
-}
-
-.page-fade-leave-to {
-  opacity: 0;
-  transform: translateY(-4px);
-}
-
-.page-forward-enter-active {
-  transition: all 0.4s cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.page-forward-leave-active {
-  transition: all 0.28s cubic-bezier(0.55, 0, 1, 0.45);
-}
-
-.page-forward-enter-from {
-  opacity: 0;
-  transform: translateX(40px) scale(0.97);
-  filter: blur(4px);
-}
-
-.page-forward-leave-to {
-  opacity: 0;
-  transform: translateX(-24px) scale(0.98);
-  filter: blur(2px);
-}
-
-.page-back-enter-active {
-  transition: all 0.4s cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.page-back-leave-active {
-  transition: all 0.28s cubic-bezier(0.55, 0, 1, 0.45);
-}
-
-.page-back-enter-from {
-  opacity: 0;
-  transform: translateX(-40px) scale(0.97);
-  filter: blur(4px);
-}
-
-.page-back-leave-to {
-  opacity: 0;
-  transform: translateX(24px) scale(0.98);
-  filter: blur(2px);
-}
+/* Page transitions */
+.page-forward-enter-active { transition: all 0.4s cubic-bezier(0.22, 1, 0.36, 1); }
+.page-forward-leave-active { transition: all 0.28s cubic-bezier(0.55, 0, 1, 0.45); }
+.page-forward-enter-from { opacity: 0; transform: translateX(40px) scale(0.97); filter: blur(4px); }
+.page-forward-leave-to { opacity: 0; transform: translateX(-24px) scale(0.98); filter: blur(2px); }
+.page-back-enter-active { transition: all 0.4s cubic-bezier(0.22, 1, 0.36, 1); }
+.page-back-leave-active { transition: all 0.28s cubic-bezier(0.55, 0, 1, 0.45); }
+.page-back-enter-from { opacity: 0; transform: translateX(-40px) scale(0.97); filter: blur(4px); }
+.page-back-leave-to { opacity: 0; transform: translateX(24px) scale(0.98); filter: blur(2px); }
 
 @media (max-width: 768px) {
-  .app-body {
-    flex-direction: column;
-  }
-
-  .app-content {
-    padding-left: 56px;
-  }
-
-  .update-banner {
-    left: 56px;
-  }
+  .app-body { flex-direction: column; }
+  .app-content { padding-left: 56px; }
+  .banner-container { left: 56px; }
 }
 </style>
