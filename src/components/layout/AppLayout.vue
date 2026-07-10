@@ -12,7 +12,7 @@
       </main>
     </div>
     <FullscreenToggle />
-    <div class="version-badge" v-num>
+    <div class="version-badge">
       <span class="v-prefix">{{ APP_VERSION_PREFIX }}</span><span class="v-num">{{ APP_VERSION }}</span>
       <span class="v-sep">build:</span><span class="v-num">{{ APP_BUILD }}</span><span class="v-sep">-{{ APP_PLATFORM }}</span>
     </div>

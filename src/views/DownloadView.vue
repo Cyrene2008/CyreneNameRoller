@@ -19,7 +19,7 @@
     </div>
 
     <template v-else>
-      <div class="version-info" v-num>
+      <div class="version-info">
         <span class="version-tag">{{ tagName }}</span>
         <span class="version-time">{{ publishedAt }}</span>
       </div>
@@ -28,9 +28,9 @@
         <div v-for="asset in sortedAssets" :key="asset.name" class="asset-card">
           <div class="asset-header">
             <FluentIcon :icon="asset.name.includes('Tauri') ? 'box-24-regular' : 'laptop-24-regular'" :width="20" />
-            <span class="asset-name" v-num>{{ asset.name }}</span>
+            <span class="asset-name">{{ asset.name }}</span>
           </div>
-          <div class="asset-meta" v-num>
+          <div class="asset-meta">
             <span class="meta-item">
               <FluentIcon icon="lock-closed-16-regular" :width="12" />
               sha256:{{ asset.digest ? asset.digest.split(':')[1]?.substring(0, 16) + '...' : 'N/A' }}
