@@ -214,8 +214,9 @@ const langOptions = [
   { value: 'en', label: 'English' }
 ]
 const uiScaleOptions = [
-  { value: 75, label: '75%' }, { value: 100, label: '100%' }, { value: 125, label: '125%' },
-  { value: 150, label: '150%' }, { value: 175, label: '175%' }, { value: 200, label: '200%' }
+  { value: 50, label: '50%' }, { value: 75, label: '75%' }, { value: 100, label: '100%' },
+  { value: 125, label: '125%' }, { value: 150, label: '150%' }, { value: 175, label: '175%' },
+  { value: 200, label: '200%' }
 ]
 const fontSizeOptions = [
   { value: 0.75, label: '0.75x' }, { value: 1.0, label: '1.0x' }, { value: 1.25, label: '1.25x' },

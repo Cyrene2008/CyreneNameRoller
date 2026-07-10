@@ -97,7 +97,7 @@ onMounted(async () => {
 })
 
 watch(() => settingsStore.settings.uiScale, (val) => {
-  document.documentElement.style.setProperty('--ui-scale', (val || 100) / 100)
+  document.documentElement.style.setProperty('--ui-scale', (val || 100) / 100 * 1.25)
 }, { immediate: true })
 
 watch(() => settingsStore.settings.nameFontSize, (val) => {
