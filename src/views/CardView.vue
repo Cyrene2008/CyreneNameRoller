@@ -44,7 +44,11 @@
           <FluentSelect :model-value="namesStore.currentListId" :options="listOptions" @update:model-value="onListChange" />
           <span class="control-sep" />
           <span class="control-label">{{ t('cardsLabel', lang) }}:</span>
-          <FluentInput v-model="cardCount" type="number" :min="2" :max="maxCards" style="width: 70px;" @update:model-value="saveCardSettings" />
+          <div class="count-control">
+            <FluentButton variant="secondary" size="sm" icon-only @click="cardCount = Math.max(1, cardCount - 1); saveCardSettings()"><FluentIcon icon="subtract-16-regular" :width="14" /></FluentButton>
+            <FluentInput v-model="cardCount" type="number" :min="1" :max="maxCards" style="width: 60px; text-align: center;" @update:model-value="saveCardSettings" />
+            <FluentButton variant="secondary" size="sm" icon-only @click="cardCount = Math.min(maxCards, cardCount + 1); saveCardSettings()"><FluentIcon icon="add-16-regular" :width="14" /></FluentButton>
+          </div>
           <FluentButton variant="primary" @click="shuffle">
             <FluentIcon icon="arrow-shuffle-24-regular" :width="16" />
             {{ t('shuffle', lang) }}
@@ -69,7 +73,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch, inject } from 'vue'
 import { useNamesStore } from '../stores/names'
 import { useSettingsStore } from '../stores/settings'
 import { useRecordsStore } from '../stores/records'
@@ -84,6 +88,7 @@ import FluentSelect from '../components/FluentSelect.vue'
 const namesStore = useNamesStore()
 const settingsStore = useSettingsStore()
 const recordsStore = useRecordsStore()
+const showBanner = inject('banner')
 
 const lang = computed(() => settingsStore.settings.language)
 const listOptions = computed(() => namesStore.allLists.map(l => ({ value: l.id, label: l.name })))
@@ -103,7 +108,7 @@ const SETTINGS_KEY = 'cardSettings'
 
 const allNonWL = computed(() => namesStore.currentNames.filter(n => n.cn !== '再来一次'))
 const remainingCount = computed(() => allNonWL.value.length - usedNames.value.size)
-const maxCards = computed(() => Math.max(2, allNonWL.value.length - usedNames.value.size))
+const maxCards = computed(() => Math.max(1, allNonWL.value.length - usedNames.value.size))
 
 function getAvailableNames() {
   return allNonWL.value.map(n => ({ cn: n.cn, en: n.en })).filter(n => !usedNames.value.has(n.cn))
@@ -145,8 +150,12 @@ async function loadTrayState() {
 
 function shuffle() {
   const available = getAvailableNames()
+  if (available.length === 0) {
+    showBanner({ message: lang.value === 'en' ? 'No names available' : '唔...你还没添加名单呢♪', icon: 'info-16-regular', type: 'warning', duration: 5000 })
+    return
+  }
   const k = Math.min(parseInt(cardCount.value) || 5, available.length)
-  if (k < 2) return
+  if (k < 1) return
   const chosen = []
   const copy = [...available]
   while (chosen.length < k && copy.length > 0) { const idx = Math.floor(Math.random() * copy.length); chosen.push(copy.splice(idx, 1)[0]) }
@@ -165,9 +174,18 @@ function flipCard(index) {
 }
 
 function quickDraw() {
-  const count = Math.min(parseInt(quickCount.value) || 4, maxCards.value)
   const available = getAvailableNames()
-  if (available.length < count) return
+  if (available.length === 0) {
+    showBanner({ message: lang.value === 'en' ? 'No names available' : '唔...你还没添加名单呢♪', icon: 'info-16-regular', type: 'warning', duration: 5000 })
+    return
+  }
+  let count = Math.min(parseInt(quickCount.value) || 4, maxCards.value)
+  if (available.length === 1 && count >= 2) {
+    showBanner({ message: lang.value === 'en' ? 'Only one left, drawing it for you' : '嘻...多抽嘛？可是只剩一个啦，不过人家还是帮你抽啦♪', icon: 'heart-16-regular', type: 'info', duration: 5000 })
+    count = 1
+  } else if (available.length < count) {
+    count = available.length
+  }
   const chosen = []
   const copy = [...available]
   while (chosen.length < count && copy.length > 0) { const idx = Math.floor(Math.random() * copy.length); chosen.push(copy.splice(idx, 1)[0]) }
@@ -187,8 +205,8 @@ function reset() {
 onMounted(async () => {
   await loadCardSettings()
   await loadTrayState()
-  if (namesStore.isLoaded && allNonWL.value.length > 0 && remainingCount.value >= 2) shuffle()
-  watch(() => namesStore.isLoaded, (loaded) => { if (loaded && remainingCount.value >= 2) shuffle() })
+  if (namesStore.isLoaded && allNonWL.value.length > 0 && remainingCount.value >= 1) shuffle()
+  watch(() => namesStore.isLoaded, (loaded) => { if (loaded && remainingCount.value >= 1) shuffle() })
 })
 </script>
 
@@ -221,4 +239,5 @@ onMounted(async () => {
 .control-label { font-size: 14px; color: var(--text-secondary); font-weight: 500; }
 .control-sep { width: 1px; height: 24px; background: var(--border-default); }
 .remaining-badge { font-size: 13px; color: var(--accent); background: var(--accent-50); padding: 4px 10px; border-radius: var(--radius-full); font-weight: 600; margin-left: auto; }
+.count-control { display: flex; align-items: center; gap: 8px; }
 </style>

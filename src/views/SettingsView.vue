@@ -19,31 +19,17 @@
       <div v-if="isDesktop" class="setting-row">
         <span class="setting-label">{{ lang === 'en' ? 'Check for Updates' : '检查更新' }}</span>
         <div class="update-actions">
-          <FluentButton variant="primary" size="sm" :disabled="updateState.checking" @click="doForceUpdate">
-            <FluentIcon icon="arrow-download-16-regular" :width="14" />
-            {{ lang === 'en' ? 'Force Update' : '强制更新' }}
-          </FluentButton>
-          <FluentButton variant="secondary" size="sm" :disabled="updateState.checking" @click="doCheckUpdate">
+          <FluentButton variant="primary" size="sm" :disabled="updateState.checking || updateState.downloading" @click="doCheckUpdate">
             <FluentIcon icon="search-16-regular" :width="14" />
             {{ updateState.checking ? (lang === 'en' ? 'Checking...' : '检查中...') : (lang === 'en' ? 'Check' : '检查') }}
           </FluentButton>
+          <FluentButton variant="secondary" size="sm" :disabled="updateState.checking || updateState.downloading" @click="doForceUpdate">
+            <FluentIcon icon="arrow-download-16-regular" :width="14" />
+            {{ lang === 'en' ? 'Force Update' : '强制更新' }}
+          </FluentButton>
         </div>
       </div>
-      <div v-if="isDesktop && updateState.available" class="update-info">
-        <div class="update-info-content">
-          <FluentIcon icon="arrow-download-16-regular" :width="16" />
-          <div class="update-text">
-            <span class="update-version">{{ lang === 'en' ? 'New version available' : '发现新版本' }}</span>
-            <span class="update-version-num">{{ updateState.version }}</span>
-          </div>
-        </div>
-        <FluentButton variant="primary" size="sm" :disabled="updateState.downloading" @click="downloadUpdate">
-          <FluentIcon v-if="!updateState.downloading" icon="arrow-download-16-regular" :width="14" />
-          <span v-if="updateState.downloading" class="download-progress">{{ updateState.downloadProgress }}%</span>
-          {{ updateState.downloading ? (lang === 'en' ? 'Downloading...' : '下载中...') : (lang === 'en' ? 'Download' : '下载') }}
-        </FluentButton>
-      </div>
-      <p v-if="isDesktop && updateState.error" class="setting-note" :class="{ 'update-success': updateState.error === '已是最新版本' }">{{ updateState.error }}</p>
+
     </FluentCard>
 
     <!-- 主题与显示 -->
@@ -197,7 +183,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, nextTick } from 'vue'
+import { ref, computed, onMounted, nextTick, inject } from 'vue'
 import { useRouter } from 'vue-router'
 import { useNamesStore } from '../stores/names'
 import { useSettingsStore } from '../stores/settings'
@@ -221,6 +207,7 @@ const settingsStore = useSettingsStore()
 const namesStore = useNamesStore()
 const recordsStore = useRecordsStore()
 const statisticsStore = useStatisticsStore()
+const showBanner = inject('banner')
 
 const lang = computed(() => settingsStore.settings.language)
 const settings = computed(() => settingsStore.settings)
@@ -269,7 +256,7 @@ const pwModalHint = computed(() => {
 
 function update(key, value) { settingsStore.update(key, value) }
 
-function doCheckUpdate() { checkForUpdates(false) }
+function doCheckUpdate() { checkForUpdates(false, showBanner) }
 
 async function doForceUpdate() {
   updateState.value.checking = true
@@ -293,13 +280,14 @@ async function doForceUpdate() {
         fileName: targetAsset ? targetAsset.name : '',
         body: release.body || '', error: null
       }
+      downloadUpdate(showBanner)
     } else {
       updateState.value.checking = false
-      updateState.value.error = '无法连接到更新服务器'
+      showBanner({ message: '无法连接到更新服务器', icon: 'warning-16-regular', type: 'warning', duration: 3000 })
     }
   } catch {
     updateState.value.checking = false
-    updateState.value.error = '无法连接到更新服务器'
+    showBanner({ message: '无法连接到更新服务器', icon: 'warning-16-regular', type: 'warning', duration: 3000 })
   }
 }
 
