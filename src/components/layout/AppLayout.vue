@@ -27,7 +27,7 @@
         @mouseenter="onBannerEnter(b)"
         @mouseleave="onBannerLeave(b)"
       >
-        <div class="banner-progress-bg" :style="{ width: b.duration > 0 ? b.countdown + '%' : (b.type === 'download' ? b.progress + '%' : '0%'), transition: b.hovered ? 'none' : 'width 0.1s linear', background: b.duration > 0 ? `rgba(255,255,255,${Math.max(0, b.countdown / 100 - 0.1)})` : 'rgba(255,255,255,0.15)' }"></div>
+        <div class="banner-progress-bg" :style="{ width: b.duration > 0 ? b.countdown + '%' : (b.type === 'download' ? b.progress + '%' : '0%'), transition: b.hovered ? 'none' : 'width 0.1s linear' }"></div>
         <div class="banner-scanline"></div>
         <div class="banner-content">
           <span class="banner-icon" v-if="b.icon">
@@ -105,10 +105,12 @@ function showBanner({ message, icon = 'info-16-regular', type = 'info', duration
 
 function startBannerTimer(banner, id) {
   banner._startTime = Date.now()
+  banner._countdownStart = banner.countdown
   banner._timer = setTimeout(() => dismissBanner(id), banner._remaining)
   banner._countdownInterval = setInterval(() => {
     const elapsed = Date.now() - banner._startTime
-    banner.countdown = Math.max(0, 100 - (elapsed / banner._remaining) * 100)
+    const pct = (elapsed / banner._remaining) * banner._countdownStart
+    banner.countdown = Math.max(0, banner._countdownStart - pct)
   }, 100)
 }
 
@@ -272,13 +274,9 @@ watch(() => settingsStore.settings.nameFontSize, (val) => {
   position: absolute;
   top: 0;
   left: 0;
-  height: 100%;
-  background: rgba(0,0,0,0.08);
+  bottom: 0;
+  background: rgba(255,255,255,0.1);
   z-index: 0;
-}
-
-.dark .banner-progress-bg {
-  background: rgba(255,255,255,0.08);
 }
 
 /* Scanline effect */
