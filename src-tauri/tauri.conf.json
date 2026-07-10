@@ -39,9 +39,6 @@
     ],
     "resources": {
       "../public/updatelogs/up.json": "updatelogs/up.json"
-    },
-    "nsis": {
-      "installerFilename": "CyreneNameRoller-Tauri_{{version}}_win64_setup.exe"
     }
   }
 }
