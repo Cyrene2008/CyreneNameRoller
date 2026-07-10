@@ -231,7 +231,7 @@ watch(() => settingsStore.settings.nameFontSize, (val) => {
 }
 
 .v-prefix { font-family: var(--font-ui); font-size: 12px; }
-.v-num { font-family: var(--font-num); font-size: calc(12px * var(--font-num-scale, 1.6)); transform: translateY(-3px); display: inline-block; }
+.v-num { font-family: var(--font-num); font-size: calc(12px * var(--font-num-scale, 1.6)); }
 .v-sep { font-family: var(--font-ui); font-size: 12px; }
 
 /* Banner Container */
