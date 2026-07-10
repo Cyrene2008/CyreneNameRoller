@@ -84,6 +84,10 @@ function showBanner({ message, icon = 'info-16-regular', type = 'info', duration
   const id = ++bannerIdCounter
   const banner = reactive({ id, message, icon, type, dismissible, progress, hovered: false })
   banners.value.push(banner)
+  // 最多保留3条，移除最早的
+  while (banners.value.length > 3) {
+    banners.value.shift()
+  }
   if (duration > 0) {
     const startTimer = () => {
       const timer = setTimeout(() => {
@@ -224,17 +228,17 @@ watch(() => settingsStore.settings.nameFontSize, (val) => {
 }
 
 .notify-banner.banner-info {
-  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-  color: #e0e0ff;
+  background: linear-gradient(135deg, #3d1a2e 0%, #4a1636 100%);
+  color: #ffd6ec;
 }
 
 .notify-banner.banner-success {
-  background: linear-gradient(135deg, #0a2e1a 0%, #1a3e16 100%);
-  color: #b0ffc0;
+  background: linear-gradient(135deg, #2e1a3d 0%, #36164a 100%);
+  color: #e8b0ff;
 }
 
 .notify-banner.banner-warning {
-  background: linear-gradient(135deg, #2e2a1a 0%, #3e3616 100%);
+  background: linear-gradient(135deg, #3d2a1a 0%, #4a3616 100%);
   color: #ffe0b0;
 }
 
