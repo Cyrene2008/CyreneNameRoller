@@ -240,7 +240,7 @@ function importList() {
   flex: 1;
   display: flex;
   flex-direction: column;
-  min-height: 0;
+  min-height: 128px;
 }
 
 .list-table-header {

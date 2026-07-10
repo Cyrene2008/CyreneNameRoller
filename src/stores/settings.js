@@ -16,6 +16,7 @@ const DEFAULT_SETTINGS = {
   blur: true,
   animSpeed: 1,
   uiScale: 100,
+  uiScaleVersion: 2,
   nameFontSize: 1.0,
   darkMode: false,
   nameColorMode: 'gradient',
@@ -38,6 +39,14 @@ export const useSettingsStore = defineStore('settings', () => {
       if (saved && typeof saved === 'object') {
         settings.value = { ...DEFAULT_SETTINGS, ...saved }
         darkMode.value = !!saved.darkMode
+        
+        // 迁移旧版本的uiScale值（从v1到v2）
+        if (!saved.uiScaleVersion || saved.uiScaleVersion < 2) {
+          // 旧版本的100%对应新版本的80%（因为新版本100% * 1.25 = 125%）
+          settings.value.uiScale = Math.round((saved.uiScale || 100) * 0.8)
+          settings.value.uiScaleVersion = 2
+          save() // 保存迁移后的设置
+        }
       }
     } catch (e) {
       console.error('[settings] initialize failed:', e)
@@ -72,7 +81,7 @@ export const useSettingsStore = defineStore('settings', () => {
   }
 
   function applyUIScale() {
-    const scale = (settings.value.uiScale || 100) / 100
+    const scale = (settings.value.uiScale || 100) / 100 * 1.25
     document.documentElement.style.setProperty('--ui-scale', scale)
   }
 
