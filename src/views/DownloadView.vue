@@ -76,7 +76,6 @@ const settingsStore = useSettingsStore()
 const lang = computed(() => settingsStore.settings.language)
 
 const GITHUB_REPO = 'Cyrene2008/CyreneNameRoller'
-const GHPROXY_API = 'https://gh.昔涟.cn/https://api.github.com/repos/'
 const GITHUB_API = 'https://api.github.com/repos/'
 
 const loading = ref(true)
@@ -118,8 +117,8 @@ async function fetchAssets() {
   assets.value = []
 
   const urls = [
-    GHPROXY_API + GITHUB_REPO + '/releases/latest',
-    GITHUB_API + GITHUB_REPO + '/releases/latest'
+    GITHUB_API + GITHUB_REPO + '/releases/latest',
+    'https://api.kkgithub.com/repos/' + GITHUB_REPO + '/releases/latest'
   ]
 
   let data = null
