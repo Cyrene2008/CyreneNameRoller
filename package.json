@@ -36,7 +36,7 @@
     "wait-on": "^8.0.3"
   },
   "build": {
-    "appId": "cn.xilian.cyrene-name-roller",
+    "appId": "cn.cyrene2008.nameroller",
     "productName": "Cyreneの随机点名器",
     "copyright": "Copyright © 2025-2026 Cyrene2008",
     "asar": true,
@@ -65,7 +65,8 @@
     },
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true
+      "allowToChangeInstallationDirectory": true,
+      "artifactName": "CyreneNameRoller-Electron_${version}_win64_setup.exe"
     }
   },
   "license": "GPL-3.0"

@@ -17,6 +17,7 @@ export const updateState = ref({
   version: '',
   url: '',
   fileName: '',
+  fileSize: 0,
   body: '',
   error: null
 })
@@ -107,11 +108,14 @@ export async function checkForUpdates(silent = true, bannerFn = null) {
       version: release.tag_name,
       url: targetAsset ? targetAsset.browser_download_url : release.html_url,
       fileName: targetAsset ? targetAsset.name : '',
+      fileSize: targetAsset ? targetAsset.size : 0,
       body: release.body || '', error: null
     }
     if (bannerFn) {
+      const sizeMB = targetAsset ? (targetAsset.size / 1024 / 1024).toFixed(1) : ''
+      const sizeText = sizeMB ? ` (${sizeMB} MB)` : ''
       bannerFn({
-        message: `发现新版本 ${release.tag_name}`,
+        message: `发现新版本 ${release.tag_name}${sizeText}`,
         icon: 'arrow-download-16-regular',
         type: 'info',
         duration: 0,

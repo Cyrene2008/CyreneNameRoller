@@ -145,9 +145,9 @@ function fitMonotoneHermite(pts) {
 function dataToCanvas(pt) {
   const canvas = canvasRef.value
   if (!canvas) return { cx: 0, cy: 0 }
-  const w = canvas.width, h = canvas.height
+  const rect = canvas.getBoundingClientRect()
   const padL = 60, padR = 30, padT = 20, padB = 40
-  const plotW = w - padL - padR, plotH = h - padT - padB
+  const plotW = rect.width - padL - padR, plotH = 280 - padT - padB
   const xMax = 10, yMin = 100, yMax = props.maxY
   return {
     cx: padL + (Math.min(pt.x, xMax) / xMax) * plotW,
@@ -158,9 +158,9 @@ function dataToCanvas(pt) {
 function canvasToData(cx, cy) {
   const canvas = canvasRef.value
   if (!canvas) return { x: 0, y: 100 }
-  const w = canvas.width, h = canvas.height
+  const rect = canvas.getBoundingClientRect()
   const padL = 60, padR = 30, padT = 20, padB = 40
-  const plotW = w - padL - padR, plotH = h - padT - padB
+  const plotW = rect.width - padL - padR, plotH = 280 - padT - padB
   const xMax = 10, yMin = 100, yMax = props.maxY
   return {
     x: Math.max(0, Math.min(xMax, ((cx - padL) / plotW) * xMax)),
@@ -169,26 +169,26 @@ function canvasToData(cx, cy) {
 }
 
 function findPointAt(mouseX, mouseY) {
-  const dpr = window.devicePixelRatio || 1
   for (let i = 1; i < points.value.length; i++) {
     const { cx, cy } = dataToCanvas(points.value[i])
-    if (Math.abs(mouseX * dpr - cx) < 16 * dpr && Math.abs(mouseY * dpr - cy) < 16 * dpr) return i
+    if (Math.abs(mouseX - cx) < 16 && Math.abs(mouseY - cy) < 16) return i
   }
   return -1
 }
 
 function onMouseDown(e) {
   const rect = canvasRef.value.getBoundingClientRect()
-  const idx = findPointAt(e.clientX - rect.left, e.clientY - rect.top)
+  const mx = e.clientX - rect.left
+  const my = e.clientY - rect.top
+  const idx = findPointAt(mx, my)
   if (idx >= 0) dragging.value = idx
 }
 
 function onMouseMove(e) {
   if (dragging.value <= 0) return
   const rect = canvasRef.value.getBoundingClientRect()
-  const dpr = window.devicePixelRatio || 1
-  const mx = (e.clientX - rect.left) * dpr
-  const my = (e.clientY - rect.top) * dpr
+  const mx = e.clientX - rect.left
+  const my = e.clientY - rect.top
   const data = canvasToData(mx, my)
   points.value[dragging.value].x = Math.round(data.x * 10) / 10
   points.value[dragging.value].y = Math.round(data.y / 10) * 10
@@ -275,8 +275,8 @@ onMounted(() => { initFromModel(); nextTick(render) })
 .editor-toolbar { display: flex; gap: 8px; align-items: center; }
 .editor-label { font-size: 13px; color: var(--text-muted); margin-left: auto; }
 .curve-type-badge { font-size: 12px; color: var(--accent); background: var(--accent-50); padding: 2px 8px; border-radius: var(--radius-full); font-weight: 600; }
-.canvas-wrap { border: 1px solid var(--border-default); border-radius: var(--radius-md); padding: 12px; background: var(--bg-card-solid); cursor: crosshair; }
-.balance-canvas { width: 100%; height: 280px; display: block; border-radius: var(--radius-sm); }
+.canvas-wrap { border: 1px solid var(--border-default); border-radius: var(--radius-md); padding: 12px; background: var(--bg-card-solid); cursor: crosshair; user-select: none; -webkit-user-select: none; }
+.balance-canvas { width: 100%; height: 280px; display: block; border-radius: var(--radius-sm); touch-action: none; }
 .points-grid { display: grid; grid-template-columns: auto 80px auto 80px; gap: 6px 10px; align-items: center; }
 .point-label { font-size: 13px; color: var(--text-secondary); }
 .point-label.locked { color: var(--text-muted); opacity: 0.6; }
