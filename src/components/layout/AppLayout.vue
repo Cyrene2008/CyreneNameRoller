@@ -24,12 +24,11 @@
         :key="b.id"
         class="notify-banner"
         :class="{ 'banner-download': b.type === 'download', 'banner-info': b.type === 'info', 'banner-success': b.type === 'success', 'banner-warning': b.type === 'warning' }"
-        @mouseenter="b.hovered = true"
-        @mouseleave="b.hovered = false"
+        @mouseenter="onBannerEnter(b)"
+        @mouseleave="onBannerLeave(b)"
       >
-        <div class="banner-progress-bg" :style="{ width: b.duration > 0 ? b.countdown + '%' : (b.type === 'download' ? b.progress + '%' : '0%'), transition: b.hovered ? 'none' : (b.type === 'download' ? 'width 0.4s cubic-bezier(0.22, 1, 0.36, 1)' : 'width 0.1s linear') }"></div>
+        <div class="banner-progress-bg" :style="{ width: b.duration > 0 ? b.countdown + '%' : (b.type === 'download' ? b.progress + '%' : '0%'), transition: b.hovered ? 'none' : 'width 0.1s linear', background: b.duration > 0 ? `rgba(255,255,255,${Math.max(0, b.countdown / 100 - 0.1)})` : 'rgba(255,255,255,0.15)' }"></div>
         <div class="banner-scanline"></div>
-        <div class="banner-glow"></div>
         <div class="banner-content">
           <span class="banner-icon" v-if="b.icon">
             <FluentIcon :icon="b.icon" :width="16" />
@@ -39,7 +38,7 @@
           <button v-if="b.undoAction" class="banner-undo" @click="b.undoAction(); dismissBanner(b.id)">
             <FluentIcon icon="arrow-undo-16-regular" :width="12" /> {{ lang === 'en' ? 'Undo' : '撤销' }}
           </button>
-          <button v-if="b.dismissible && b.type !== 'download'" class="banner-dismiss" @click="dismissBanner(b.id)">
+          <button v-if="b.dismissible" class="banner-dismiss" @click="dismissBanner(b.id)">
             <FluentIcon icon="dismiss-12-regular" :width="12" />
           </button>
         </div>
@@ -83,32 +82,41 @@ provide('toast', globalToast)
 const banners = ref([])
 let bannerIdCounter = 0
 
-function showBanner({ message, icon = 'info-16-regular', type = 'info', duration = 0, dismissible = true, progress = 0, undoAction = null }) {
+function showBanner({ message, icon = 'info-16-regular', type = 'info', duration = 8000, dismissible = false, progress = 0, undoAction = null }) {
   const id = ++bannerIdCounter
-  const banner = reactive({ id, message, icon, type, dismissible, progress, undoAction, hovered: false, countdown: 100, duration, _timer: null, _countdownInterval: null })
+  const banner = reactive({
+    id, message, icon, type, dismissible, progress, undoAction,
+    hovered: false, countdown: 100, duration,
+    _timer: null, _countdownInterval: null, _remaining: duration, _startTime: Date.now()
+  })
   banners.value.push(banner)
   while (banners.value.length > 3) {
     banners.value.shift()
   }
   if (duration > 0) {
-    banner._timer = setTimeout(() => dismissBanner(id), duration)
-    // 倒计时进度条：每100ms更新一次
-    const startTime = Date.now()
-    banner._countdownInterval = setInterval(() => {
-      if (banner.hovered) return // hover时暂停
-      const elapsed = Date.now() - startTime
-      banner.countdown = Math.max(0, 100 - (elapsed / duration) * 100)
-    }, 100)
+    startBannerTimer(banner, id)
   }
   return {
     id,
-    update(opts) {
-      Object.assign(banner, opts)
-    },
-    dismiss() {
-      dismissBanner(id)
-    }
+    update(opts) { Object.assign(banner, opts) },
+    dismiss() { dismissBanner(id) }
   }
+}
+
+function startBannerTimer(banner, id) {
+  banner._startTime = Date.now()
+  banner._timer = setTimeout(() => dismissBanner(id), banner._remaining)
+  banner._countdownInterval = setInterval(() => {
+    const elapsed = Date.now() - banner._startTime
+    banner.countdown = Math.max(0, 100 - (elapsed / banner._remaining) * 100)
+  }, 100)
+}
+
+function pauseBannerTimer(banner) {
+  if (banner._timer) clearTimeout(banner._timer)
+  if (banner._countdownInterval) clearInterval(banner._countdownInterval)
+  const elapsed = Date.now() - banner._startTime
+  banner._remaining = Math.max(0, banner._remaining - elapsed)
 }
 
 function dismissBanner(id) {
@@ -119,6 +127,16 @@ function dismissBanner(id) {
     if (b._countdownInterval) clearInterval(b._countdownInterval)
     banners.value.splice(idx, 1)
   }
+}
+
+function onBannerEnter(b) {
+  b.hovered = true
+  if (b.duration > 0) pauseBannerTimer(b)
+}
+
+function onBannerLeave(b) {
+  b.hovered = false
+  if (b.duration > 0) startBannerTimer(b, b.id)
 }
 
 provide('banner', showBanner)
@@ -287,34 +305,8 @@ watch(() => settingsStore.settings.nameFontSize, (val) => {
   100% { background-position: 0 100px; }
 }
 
-/* Glow sweep effect */
-.banner-glow {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: linear-gradient(90deg,
-    transparent 0%,
-    rgba(255,255,255,0) 30%,
-    rgba(255,255,255,0.25) 50%,
-    rgba(255,255,255,0) 70%,
-    transparent 100%
-  );
-  background-size: 200% 100%;
-  animation: glow-sweep 2.5s ease-in-out infinite;
-  z-index: 1;
-  pointer-events: none;
-}
-
-@keyframes glow-sweep {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
-}
-
-/* Performance: disable scanline and glow */
-.perf-no-anim .banner-scanline,
-.perf-no-anim .banner-glow {
+/* Performance: disable scanline */
+.perf-no-anim .banner-scanline {
   animation: none !important;
 }
 

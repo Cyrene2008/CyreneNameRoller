@@ -129,7 +129,7 @@ function deleteList(list) {
     message: `${lang.value === 'en' ? 'List deleted' : '名单已删除'}: ${deletedList.name}`,
     icon: 'delete-16-regular',
     type: 'warning',
-    duration: 5000,
+    duration: 8000,
     undoAction: () => {
       namesStore.restoreList(deletedList)
       if (wasCurrent) namesStore.switchList(deletedList.id)
