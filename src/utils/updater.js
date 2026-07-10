@@ -3,7 +3,7 @@ import { APP_VERSION } from './version'
 import { tauriAPI, isTauri } from './tauriAPI'
 
 const GITHUB_REPO = 'Cyrene2008/CyreneNameRoller'
-const GHPROXY_BASE = 'https://gh.xn--8hvv1o.cn/'
+const GHPROXY_BASE = 'https://gh.昔涟.cn/'
 const FALLBACK_URLS = [
   `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`,
   `https://api.kkgithub.com/repos/${GITHUB_REPO}/releases/latest`

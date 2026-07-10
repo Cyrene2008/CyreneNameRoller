@@ -11,7 +11,8 @@ const routes = [
   { path: '/settings', name: 'Settings', component: () => import('../views/SettingsView.vue') },
   { path: '/settings/balance-curve', name: 'BalanceCurve', component: () => import('../views/BalanceCurveView.vue') },
   { path: '/about', name: 'About', component: () => import('../views/AboutView.vue') },
-  { path: '/about/contributors', name: 'Contributors', component: () => import('../views/ContributorsView.vue') }
+  { path: '/about/contributors', name: 'Contributors', component: () => import('../views/ContributorsView.vue') },
+  { path: '/download', name: 'Download', component: () => import('../views/DownloadView.vue') }
 ]
 
 const router = createRouter({
