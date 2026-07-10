@@ -78,8 +78,9 @@ router.beforeEach((to, from) => {
   transitionName.value = toIdx >= fromIdx ? 'page-forward' : 'page-back'
 })
 
-// Scroll to top on route change
-router.afterEach(() => {
+// Scroll to top on route change (skip for child routes like /settings/balance-curve)
+router.afterEach((to, from) => {
+  if (to.path.startsWith(from.path + '/')) return
   nextTick(() => {
     const content = document.querySelector('.app-content')
     if (content) content.scrollTop = 0
