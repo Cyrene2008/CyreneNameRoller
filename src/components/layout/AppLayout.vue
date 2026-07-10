@@ -83,6 +83,10 @@ const banners = ref([])
 let bannerIdCounter = 0
 
 function showBanner({ message, icon = 'info-16-regular', type = 'info', duration = 8000, dismissible = false, progress = 0, undoAction = null }) {
+  // 去重：相同消息的通知不重复添加
+  const existing = banners.value.find(b => b.message === message)
+  if (existing) return { id: existing.id, update(opts) { Object.assign(existing, opts) }, dismiss() { dismissBanner(existing.id) } }
+
   const id = ++bannerIdCounter
   const banner = reactive({
     id, message, icon, type, dismissible, progress, undoAction,

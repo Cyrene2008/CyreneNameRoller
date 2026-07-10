@@ -29,6 +29,19 @@
           </FluentButton>
         </div>
       </div>
+      <div v-if="isDesktop && updateState.available" class="update-info">
+        <div class="update-info-content">
+          <FluentIcon icon="arrow-download-16-regular" :width="16" />
+          <div class="update-text">
+            <span class="update-version">{{ lang === 'en' ? 'New version available' : '发现新版本' }}</span>
+            <span class="update-version-num">{{ updateState.version }}{{ updateState.fileSize ? ` (${(updateState.fileSize / 1024 / 1024).toFixed(1)} MB)` : '' }}</span>
+          </div>
+        </div>
+        <FluentButton variant="primary" size="sm" :disabled="updateState.downloading" @click="downloadUpdate(showBanner)">
+          <FluentIcon icon="arrow-download-16-regular" :width="14" />
+          {{ updateState.downloading ? (lang === 'en' ? 'Downloading...' : '下载中...') : (lang === 'en' ? 'Download' : '下载') }}
+        </FluentButton>
+      </div>
 
     </FluentCard>
 
@@ -278,9 +291,12 @@ async function doForceUpdate() {
         version: release.tag_name,
         url: targetAsset ? targetAsset.browser_download_url : release.html_url,
         fileName: targetAsset ? targetAsset.name : '',
+        fileSize: targetAsset ? targetAsset.size : 0,
         body: release.body || '', error: null
       }
-      showBanner({ message: `发现新版本 ${release.tag_name}`, icon: 'arrow-download-16-regular', type: 'info', duration: 0, dismissible: true })
+      const sizeMB = targetAsset ? (targetAsset.size / 1024 / 1024).toFixed(1) : ''
+      const sizeText = sizeMB ? ` (${sizeMB} MB)` : ''
+      showBanner({ message: `发现新版本 ${release.tag_name}${sizeText}`, icon: 'arrow-download-16-regular', type: 'info', duration: 0, dismissible: true })
     } else {
       updateState.value.checking = false
       showBanner({ message: '无法连接到更新服务器', icon: 'warning-16-regular', type: 'warning', duration: 3000 })
