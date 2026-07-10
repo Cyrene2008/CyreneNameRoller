@@ -188,6 +188,17 @@ watch(() => settingsStore.settings.uiScale, (val) => {
 watch(() => settingsStore.settings.nameFontSize, (val) => {
   document.documentElement.style.setProperty('--name-font-factor', val || 1)
 }, { immediate: true })
+
+function applyFontFamily(val) {
+  const font = val === 'MiSans' ? 'MiSans' : 'HarmonyOS'
+  document.documentElement.style.setProperty('--font-ui', `'${font}', 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif`)
+  document.documentElement.style.setProperty('--font-display', `'${font}', 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif`)
+  document.documentElement.style.setProperty('--font-num', `'Wengfaluosi', '${font}', system-ui, sans-serif`)
+}
+
+watch(() => settingsStore.settings.fontFamily, (val) => {
+  applyFontFamily(val)
+}, { immediate: true })
 </script>
 
 <style scoped>

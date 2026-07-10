@@ -78,6 +78,10 @@
         <span class="setting-label">{{ t('fontSize', lang) }}</span>
         <FluentSelect :model-value="settings.nameFontSize" :options="fontSizeOptions" @update:model-value="update('nameFontSize', $event)" />
       </div>
+      <div class="setting-row">
+        <span class="setting-label">{{ lang === 'en' ? 'Font' : '字体' }}</span>
+        <FluentSelect :model-value="settings.fontFamily" :options="fontOptions" @update:model-value="update('fontFamily', $event)" />
+      </div>
     </FluentCard>
 
     <!-- 性能设置 -->
@@ -244,6 +248,11 @@ const fontSizeOptions = [
 const colorModeOptions = [
   { value: 'gradient', label: lang.value === 'en' ? 'Gradient' : '渐变' },
   { value: 'custom', label: lang.value === 'en' ? 'Custom Solid' : '自定义单色' }
+]
+
+const fontOptions = [
+  { value: 'HarmonyOS', label: 'HarmonyOS Sans SC' },
+  { value: 'MiSans', label: 'Mi Sans' }
 ]
 
 const balance = ref(JSON.parse(JSON.stringify(DEFAULT_BALANCE_SETTINGS)))

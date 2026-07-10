@@ -18,6 +18,7 @@ const DEFAULT_SETTINGS = {
   uiScale: 100,
   uiScaleVersion: 2,
   nameFontSize: 1.0,
+  fontFamily: 'HarmonyOS',
   darkMode: false,
   nameColorMode: 'gradient',
   customNameColorLight: '#d04a9d',
