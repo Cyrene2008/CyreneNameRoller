@@ -96,6 +96,16 @@ defineExpose({ focus })
   cursor: not-allowed;
 }
 
+/* Hide native number spinners - Fluent style uses clean input */
+.fluent-input::-webkit-inner-spin-button,
+.fluent-input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.fluent-input[type="number"] {
+  -moz-appearance: textfield;
+}
+
 .input-prefix,
 .input-suffix {
   display: flex;

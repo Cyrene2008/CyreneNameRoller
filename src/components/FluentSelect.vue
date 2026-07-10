@@ -113,7 +113,7 @@ onBeforeUnmount(() => {
   background: var(--bg-card);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm);
-  font-family: 'HarmonyOS Sans SC', var(--font-ui);
+  font-family: var(--font-ui);
   font-size: 14px;
   color: var(--text-primary);
   cursor: pointer;
@@ -185,7 +185,7 @@ onBeforeUnmount(() => {
   background: transparent;
   border: none;
   border-radius: var(--radius-sm);
-  font-family: 'HarmonyOS Sans SC', var(--font-ui);
+  font-family: var(--font-ui);
   font-size: 14px;
   color: var(--text-primary);
   cursor: pointer;

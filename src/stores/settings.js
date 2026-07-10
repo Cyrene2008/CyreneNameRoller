@@ -40,6 +40,9 @@ export const useSettingsStore = defineStore('settings', () => {
         settings.value = { ...DEFAULT_SETTINGS, ...saved }
         darkMode.value = !!saved.darkMode
         
+        // 启动时复位多人模式抽取数量到2
+        settings.value.peopleCount = 2
+        
         // 迁移旧版本的uiScale值（从v1到v2）
         if (!saved.uiScaleVersion || saved.uiScaleVersion < 2) {
           // 旧版本的100%对应新版本的80%（因为新版本100% * 1.25 = 125%）

@@ -33,9 +33,9 @@
   --radius-xl: 16px;
   --radius-full: 9999px;
 
-  --font-ui: 'HarmonyOS Sans SC', 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
-  --font-display: 'HarmonyOS Sans SC', 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
-  --font-num: 'Wengfaluosi', 'HarmonyOS Sans SC', system-ui, sans-serif;
+--font-ui: 'MiSans', 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
+--font-display: 'MiSans', 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
+--font-num: 'Wengfaluosi', 'MiSans', system-ui, sans-serif;
   --font-num-scale: 1.6;
 
   --ease-standard: cubic-bezier(0.1, 0.9, 0.2, 1);

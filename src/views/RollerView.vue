@@ -28,7 +28,7 @@
           <span class="setting-label">{{ t('peopleCount', lang) }}</span>
           <div class="count-control">
             <FluentButton variant="secondary" size="sm" @click="changeCount(-1)"><FluentIcon icon="subtract-16-regular" :width="14" /></FluentButton>
-            <FluentInput v-model="settings.peopleCount" type="number" :min="2" :max="maxPeopleCount" style="width: 60px; text-align: center;" @update:model-value="onPeopleCountChange" />
+            <FluentInput v-model="settings.peopleCount" type="number" :min="2" :max="maxPeopleCount" class="count-input" @update:model-value="onPeopleCountChange" />
             <FluentButton variant="secondary" size="sm" @click="changeCount(1)"><FluentIcon icon="add-16-regular" :width="14" /></FluentButton>
           </div>
         </div>
@@ -109,7 +109,7 @@ function saveSetting(key, value) { settingsStore.update(key, value) }
 
 function onMultiModeChange(val) {
   settingsStore.update('multiMode', val)
-  if (!val) { settingsStore.update('forbidDuplicates', false); initializeDisplays(1) }
+  if (!val) initializeDisplays(1)
   else { const c = Math.min(settings.value.peopleCount || 2, maxPeopleCount.value); settingsStore.update('peopleCount', c); initializeDisplays(c) }
 }
 
@@ -231,6 +231,10 @@ onBeforeUnmount(() => { if (intervalId) clearTimeout(intervalId) })
 .multi-settings { display: flex; align-items: center; gap: 12px; }
 .setting-label { font-size: 14px; color: var(--text-secondary); }
 .count-control { display: flex; align-items: center; gap: 8px; }
+.count-input { width: 60px; text-align: center; }
+.count-input :deep(input) { text-align: center; -moz-appearance: textfield; }
+.count-input :deep(input)::-webkit-inner-spin-button,
+.count-input :deep(input)::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 .list-selector-bar { display: flex; align-items: center; gap: 12px; background: var(--bg-card); backdrop-filter: blur(20px); padding: 8px 16px; border-radius: var(--radius-lg); border: 1px solid var(--border-default); box-shadow: var(--shadow-4); width: 100%; justify-content: center; }
 .selector-label { font-size: 14px; font-weight: 600; color: var(--text-secondary); white-space: nowrap; }
 .start-btn { min-width: 280px; font-size: 16px; min-height: 48px; margin-top: 8px; }
