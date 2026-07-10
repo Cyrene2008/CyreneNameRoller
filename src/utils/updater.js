@@ -111,7 +111,7 @@ export async function checkForUpdates(silent = true, bannerFn = null) {
     }
     if (bannerFn) {
       bannerFn({
-        message: `发现新版本 ${release.tag_name}，请前往设置页下载`,
+        message: `发现新版本 ${release.tag_name}`,
         icon: 'arrow-download-16-regular',
         type: 'info',
         duration: 0,
@@ -181,47 +181,11 @@ export async function downloadUpdate(bannerFn = null) {
     }
 
     const blob = new Blob([allChunks])
+    saveBlob(blob, updateState.value.fileName || 'update.exe')
 
-    if (isTauri()) {
-      try {
-        const fileName = updateState.value.fileName || 'update.exe'
-        const arrayBuffer = await blob.arrayBuffer()
-        const uint8 = new Uint8Array(arrayBuffer)
-        await tauriAPI.saveAndLaunch(uint8, fileName)
-        if (bannerHandle) {
-          bannerHandle.update({ message: '下载完成，正在启动安装程序...', icon: 'checkmark-circle-16-regular', type: 'success', progress: 100, dismissible: true })
-          setTimeout(() => bannerHandle.dismiss(), 3000)
-        }
-      } catch (e) {
-        saveBlob(blob, updateState.value.fileName || 'update.exe')
-        if (bannerHandle) {
-          bannerHandle.update({ message: '下载完成', icon: 'checkmark-circle-16-regular', type: 'success', progress: 100, dismissible: true })
-          setTimeout(() => bannerHandle.dismiss(), 3000)
-        }
-      }
-    } else if (window.electronAPI?.saveAndLaunch) {
-      try {
-        const fileName = updateState.value.fileName || 'update.exe'
-        const arrayBuffer = await blob.arrayBuffer()
-        const uint8 = new Uint8Array(arrayBuffer)
-        await window.electronAPI.saveAndLaunch(uint8, fileName)
-        if (bannerHandle) {
-          bannerHandle.update({ message: '下载完成，正在启动安装程序...', icon: 'checkmark-circle-16-regular', type: 'success', progress: 100, dismissible: true })
-          setTimeout(() => bannerHandle.dismiss(), 3000)
-        }
-      } catch (e) {
-        saveBlob(blob, updateState.value.fileName || 'update.exe')
-        if (bannerHandle) {
-          bannerHandle.update({ message: '下载完成', icon: 'checkmark-circle-16-regular', type: 'success', progress: 100, dismissible: true })
-          setTimeout(() => bannerHandle.dismiss(), 3000)
-        }
-      }
-    } else {
-      saveBlob(blob, updateState.value.fileName || 'update.exe')
-      if (bannerHandle) {
-        bannerHandle.update({ message: '下载完成', icon: 'checkmark-circle-16-regular', type: 'success', progress: 100, dismissible: true })
-        setTimeout(() => bannerHandle.dismiss(), 3000)
-      }
+    if (bannerHandle) {
+      bannerHandle.update({ message: '下载完成，请手动运行安装程序', icon: 'checkmark-circle-16-regular', type: 'success', progress: 100, dismissible: true })
+      setTimeout(() => bannerHandle.dismiss(), 5000)
     }
 
     updateState.value.downloading = false

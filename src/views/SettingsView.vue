@@ -19,13 +19,13 @@
       <div v-if="isDesktop" class="setting-row">
         <span class="setting-label">{{ lang === 'en' ? 'Check for Updates' : '检查更新' }}</span>
         <div class="update-actions">
-          <FluentButton variant="primary" size="sm" :disabled="updateState.checking || updateState.downloading" @click="doCheckUpdate">
-            <FluentIcon icon="search-16-regular" :width="14" />
-            {{ updateState.checking ? (lang === 'en' ? 'Checking...' : '检查中...') : (lang === 'en' ? 'Check' : '检查') }}
-          </FluentButton>
           <FluentButton variant="secondary" size="sm" :disabled="updateState.checking || updateState.downloading" @click="doForceUpdate">
             <FluentIcon icon="arrow-download-16-regular" :width="14" />
             {{ lang === 'en' ? 'Force Update' : '强制更新' }}
+          </FluentButton>
+          <FluentButton variant="primary" size="sm" :disabled="updateState.checking || updateState.downloading" @click="doCheckUpdate">
+            <FluentIcon icon="search-16-regular" :width="14" />
+            {{ updateState.checking ? (lang === 'en' ? 'Checking...' : '检查中...') : (lang === 'en' ? 'Check' : '检查') }}
           </FluentButton>
         </div>
       </div>
@@ -280,7 +280,7 @@ async function doForceUpdate() {
         fileName: targetAsset ? targetAsset.name : '',
         body: release.body || '', error: null
       }
-      downloadUpdate(showBanner)
+      showBanner({ message: `发现新版本 ${release.tag_name}`, icon: 'arrow-download-16-regular', type: 'info', duration: 0, dismissible: true })
     } else {
       updateState.value.checking = false
       showBanner({ message: '无法连接到更新服务器', icon: 'warning-16-regular', type: 'warning', duration: 3000 })

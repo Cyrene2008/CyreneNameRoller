@@ -124,6 +124,12 @@ export const useNamesStore = defineStore('names', () => {
     return true
   }
 
+  function restoreList(listData) {
+    if (!listData || !listData.id) return
+    nameLists.value[listData.id] = listData
+    save()
+  }
+
   function resetCurrentList() {
     currentList.value.names = [...defaultNamesData.value.names]
     currentList.value.whiteList = [{ cn: '再来一次', en: 'Again!' }]
@@ -156,6 +162,7 @@ export const useNamesStore = defineStore('names', () => {
     editPerson,
     createList,
     deleteList,
+    restoreList,
     resetCurrentList,
     clearCurrentList,
     isWhiteList

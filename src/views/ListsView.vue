@@ -79,7 +79,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, inject } from 'vue'
 import { useRouter } from 'vue-router'
 import { useNamesStore } from '../stores/names'
 import { useSettingsStore } from '../stores/settings'
@@ -94,6 +94,7 @@ const router = useRouter()
 const namesStore = useNamesStore()
 const settingsStore = useSettingsStore()
 const lang = computed(() => settingsStore.settings.language)
+const showBanner = inject('banner')
 
 const listOptions = computed(() => namesStore.allLists.map(l => ({ value: l.id, label: l.name })))
 
@@ -145,8 +146,18 @@ function saveEdit(index) {
 
 function batchDelete() {
   const indices = [...selectedIndices.value].sort((a, b) => b - a)
+  const deletedPersons = indices.map(i => ({ ...namesStore.currentNames[i] }))
   indices.forEach(i => namesStore.deletePerson(i))
   selectedSet.value = new Set()
+  showBanner({
+    message: lang.value === 'en' ? `Deleted ${deletedPersons.length} names` : `已删除 ${deletedPersons.length} 个名字`,
+    icon: 'delete-16-regular',
+    type: 'warning',
+    duration: 5000,
+    undoAction: () => {
+      deletedPersons.forEach(p => namesStore.addPerson(p.cn, p.en))
+    }
+  })
 }
 </script>
 

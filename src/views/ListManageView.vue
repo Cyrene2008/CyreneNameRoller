@@ -122,13 +122,18 @@ function saveListName(listId) {
 
 function deleteList(list) {
   if (namesStore.allLists.length <= 1) return
-  const deletedName = list.name
+  const deletedList = JSON.parse(JSON.stringify(list))
+  const wasCurrent = list.id === namesStore.currentListId
   namesStore.deleteList(list.id)
   showBanner({
-    message: `${lang.value === 'en' ? 'List deleted' : '名单已删除'}: ${deletedName}`,
+    message: `${lang.value === 'en' ? 'List deleted' : '名单已删除'}: ${deletedList.name}`,
     icon: 'delete-16-regular',
     type: 'warning',
-    duration: 5000
+    duration: 5000,
+    undoAction: () => {
+      namesStore.restoreList(deletedList)
+      if (wasCurrent) namesStore.switchList(deletedList.id)
+    }
   })
 }
 
