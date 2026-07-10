@@ -234,22 +234,22 @@ watch(() => settingsStore.settings.nameFontSize, (val) => {
 }
 
 .notify-banner.banner-info {
-  background: linear-gradient(135deg, #3d1a2e 0%, #4a1636 100%);
-  color: #ffd6ec;
+  background: linear-gradient(135deg, var(--accent-dark) 0%, var(--accent) 100%);
+  color: #fff;
 }
 
 .notify-banner.banner-success {
-  background: linear-gradient(135deg, #2e1a3d 0%, #36164a 100%);
-  color: #e8b0ff;
+  background: linear-gradient(135deg, #2e8b57 0%, #3cb371 100%);
+  color: #fff;
 }
 
 .notify-banner.banner-warning {
-  background: linear-gradient(135deg, #3d2a1a 0%, #4a3616 100%);
-  color: #ffe0b0;
+  background: linear-gradient(135deg, #cc7a00 0%, #ffaa33 100%);
+  color: #fff;
 }
 
 .notify-banner.banner-download {
-  background: linear-gradient(135deg, var(--accent-dark) 0%, var(--accent) 100%);
+  background: linear-gradient(135deg, var(--accent-dark) 0%, var(--accent-light) 100%);
   color: #fff;
 }
 

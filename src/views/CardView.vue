@@ -56,7 +56,11 @@
         </div>
         <div class="ctrl-row">
           <span class="control-label">{{ t('quickDraw', lang) }}:</span>
-          <FluentInput v-model="quickCount" type="number" :min="1" :max="maxCards" style="width: 60px;" @update:model-value="saveCardSettings" />
+          <div class="count-control">
+            <FluentButton variant="secondary" size="sm" icon-only @click="quickCount = Math.max(2, quickCount - 1); saveCardSettings()"><FluentIcon icon="subtract-16-regular" :width="14" /></FluentButton>
+            <FluentInput v-model="quickCount" type="number" :min="2" :max="maxCards" style="width: 60px; text-align: center;" @update:model-value="saveCardSettings" />
+            <FluentButton variant="secondary" size="sm" icon-only @click="quickCount = Math.min(maxCards, quickCount + 1); saveCardSettings()"><FluentIcon icon="add-16-regular" :width="14" /></FluentButton>
+          </div>
           <FluentButton variant="secondary" @click="quickDraw">
             <FluentIcon icon="flash-24-regular" :width="16" />
             {{ t('draw', lang) }}
