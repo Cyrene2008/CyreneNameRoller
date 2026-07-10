@@ -1,6 +1,6 @@
 {
   "$schema": "https://raw.githubusercontent.com/tauri-apps/tauri/dev/crates/tauri-cli/schema.json",
-  "productName": "CyreneNameRoller-Tauri",
+  "productName": "Cyreneの随机点名器",
   "version": "26.0.2",
   "identifier": "cn.xilian.cyrene-name-roller",
   "build": {

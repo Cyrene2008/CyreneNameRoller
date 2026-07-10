@@ -18,17 +18,32 @@
       </div>
       <div v-if="isDesktop" class="setting-row">
         <span class="setting-label">{{ lang === 'en' ? 'Check for Updates' : '检查更新' }}</span>
-        <FluentButton variant="secondary" size="sm" :disabled="updateState.checking" @click="doCheckUpdate">
-          <FluentIcon icon="arrow-sync-16-regular" :width="14" />
-          {{ updateState.checking ? (lang === 'en' ? 'Checking...' : '检查中...') : (lang === 'en' ? 'Check' : '检查') }}
-        </FluentButton>
+        <div class="update-actions">
+          <FluentButton variant="secondary" size="sm" :disabled="updateState.checking" @click="doForceCheck">
+            <FluentIcon icon="arrow-sync-16-regular" :width="14" />
+            {{ lang === 'en' ? 'Force Check' : '强制检测' }}
+          </FluentButton>
+          <FluentButton variant="secondary" size="sm" :disabled="updateState.checking" @click="doCheckUpdate">
+            <FluentIcon icon="search-16-regular" :width="14" />
+            {{ updateState.checking ? (lang === 'en' ? 'Checking...' : '检查中...') : (lang === 'en' ? 'Check' : '检查') }}
+          </FluentButton>
+        </div>
       </div>
       <div v-if="isDesktop && updateState.available" class="update-info">
-        <FluentIcon icon="arrow-download-16-regular" :width="14" />
-        <span>{{ lang === 'en' ? 'New version:' : '发现新版本：' }}{{ updateState.version }}</span>
-        <FluentButton variant="primary" size="sm" @click="downloadUpdate">{{ lang === 'en' ? 'Download' : '下载' }}</FluentButton>
+        <div class="update-info-content">
+          <FluentIcon icon="arrow-download-16-regular" :width="16" />
+          <div class="update-text">
+            <span class="update-version">{{ lang === 'en' ? 'New version available' : '发现新版本' }}</span>
+            <span class="update-version-num">{{ updateState.version }}</span>
+          </div>
+        </div>
+        <FluentButton variant="primary" size="sm" :disabled="updateState.downloading" @click="downloadUpdate">
+          <FluentIcon v-if="!updateState.downloading" icon="arrow-download-16-regular" :width="14" />
+          <span v-if="updateState.downloading" class="download-progress">{{ updateState.downloadProgress }}%</span>
+          {{ updateState.downloading ? (lang === 'en' ? 'Downloading...' : '下载中...') : (lang === 'en' ? 'Download' : '下载') }}
+        </FluentButton>
       </div>
-      <p v-if="isDesktop && updateState.error" class="setting-note" style="color: var(--accent);">{{ updateState.error }}</p>
+      <p v-if="isDesktop && updateState.error" class="setting-note" :class="{ 'update-success': updateState.error === '已是最新版本' }">{{ updateState.error }}</p>
     </FluentCard>
 
     <!-- 主题与显示 -->
@@ -90,7 +105,10 @@
         </div>
         <FluentToggle :model-value="settings.perfAnimations" @update:model-value="update('perfAnimations', $event)" />
       </div>
-      <p class="setting-note">{{ lang === 'en' ? 'Disable options to improve performance on integrated GPUs.' : '关闭选项可提升核显设备性能。' }}</p>
+      <div class="performance-note">
+        <FluentIcon icon="info-16-regular" :width="14" />
+        <span>{{ lang === 'en' ? 'Disable options to improve performance on integrated GPUs.' : '关闭选项可提升核显设备性能。' }}</span>
+      </div>
     </FluentCard>
 
     <!-- 数据管理 -->
@@ -253,6 +271,12 @@ function update(key, value) { settingsStore.update(key, value) }
 
 function doCheckUpdate() { checkForUpdates(false) }
 
+function doForceCheck() {
+  updateState.value.available = false
+  updateState.value.error = null
+  checkForUpdates(false)
+}
+
 function getLogEntries(log) {
   if (!log.logs) return []
   if (Array.isArray(log.logs)) return log.logs
@@ -333,4 +357,83 @@ function resetBalance() { balance.value = JSON.parse(JSON.stringify(DEFAULT_BALA
 .toggle-expand-enter-active { animation: toggle-in 0.25s cubic-bezier(0.1, 0.9, 0.2, 1); }
 .toggle-expand-leave-active { animation: toggle-in 0.15s ease-in reverse; }
 @keyframes toggle-in { from { opacity: 0; transform: translateY(-8px); max-height: 0; } to { opacity: 1; transform: translateY(0); max-height: 300px; } }
+
+.update-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.update-info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  margin: 8px 0;
+  background: var(--accent-50);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--accent-100);
+}
+
+.dark .update-info {
+  background: rgba(234, 94, 193, 0.1);
+  border-color: rgba(234, 94, 193, 0.2);
+}
+
+.update-info-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--accent);
+}
+
+.update-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.update-version {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.update-version-num {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-family: var(--font-num);
+}
+
+.setting-note {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 8px;
+  padding: 0 4px;
+}
+
+.update-success {
+  color: #0f7b0f;
+}
+
+.performance-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 10px 14px;
+  background: var(--bg-subtle);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.performance-note svg {
+  flex-shrink: 0;
+  color: var(--text-muted);
+}
+
+.download-progress {
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+}
 </style>

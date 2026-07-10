@@ -19,12 +19,18 @@
 
     <Transition name="update-slide">
       <div v-if="isDesktopApp && updateState.available" class="update-banner">
-        <FluentIcon icon="arrow-download-24-regular" :width="18" />
-        <span>{{ lang === 'en' ? 'Update available:' : '发现新版本：' }}{{ updateState.version }}</span>
-        <button class="update-btn" @click="downloadUpdate">{{ lang === 'en' ? 'Download' : '下载' }}</button>
-        <button class="update-dismiss" @click="updateState.available = false">
-          <FluentIcon icon="dismiss-16-regular" :width="14" />
-        </button>
+        <div class="update-banner-bg"></div>
+        <div class="update-banner-content">
+          <FluentIcon icon="arrow-download-24-regular" :width="18" />
+          <span>{{ lang === 'en' ? 'Update available:' : '发现新版本：' }}{{ updateState.version }}</span>
+          <button class="update-btn" @click="downloadUpdate" :disabled="updateState.downloading">
+            <span v-if="updateState.downloading" class="btn-progress">{{ updateState.downloadProgress }}%</span>
+            {{ updateState.downloading ? (lang === 'en' ? 'Downloading...' : '下载中...') : (lang === 'en' ? 'Download' : '下载') }}
+          </button>
+          <button class="update-dismiss" @click="updateState.available = false">
+            <FluentIcon icon="dismiss-16-regular" :width="14" />
+          </button>
+        </div>
       </div>
     </Transition>
 
@@ -170,13 +176,41 @@ watch(() => settingsStore.settings.nameFontSize, (val) => {
   height: 40px;
   background: var(--accent);
   color: #fff;
+  z-index: 99999;
+  overflow: hidden;
+}
+
+.update-banner-bg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(90deg, 
+    rgba(255,255,255,0) 0%, 
+    rgba(255,255,255,0.1) 25%, 
+    rgba(255,255,255,0) 50%, 
+    rgba(255,255,255,0.1) 75%, 
+    rgba(255,255,255,0) 100%
+  );
+  background-size: 200% 100%;
+  animation: banner-shimmer 3s ease-in-out infinite;
+}
+
+.update-banner-content {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 0 16px;
+  height: 100%;
   font-size: 13px;
   font-weight: 500;
-  z-index: 99999;
+}
+
+@keyframes banner-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
 }
 
 .update-btn {
@@ -189,10 +223,26 @@ watch(() => settingsStore.settings.nameFontSize, (val) => {
   font-size: 13px;
   cursor: pointer;
   font-family: var(--font-ui);
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
-.update-btn:hover {
+.update-btn:hover:not(:disabled) {
   background: rgba(255,255,255,0.3);
+  transform: translateY(-1px);
+}
+
+.update-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.btn-progress {
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
 }
 
 .update-dismiss {
@@ -206,25 +256,33 @@ watch(() => settingsStore.settings.nameFontSize, (val) => {
   color: rgba(255,255,255,0.7);
   cursor: pointer;
   border-radius: var(--radius-sm);
+  transition: all 0.2s ease;
 }
 
 .update-dismiss:hover {
   background: rgba(255,255,255,0.15);
   color: #fff;
+  transform: rotate(90deg);
 }
 
 .update-slide-enter-active {
-  transition: all 0.3s cubic-bezier(0.1, 0.9, 0.2, 1);
+  transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .update-slide-leave-active {
-  transition: all 0.2s ease-in;
+  transition: all 0.3s cubic-bezier(0.55, 0, 1, 0.45);
 }
 
-.update-slide-enter-from,
-.update-slide-leave-to {
-  transform: translateY(-100%);
+.update-slide-enter-from {
+  transform: translateY(-100%) scale(0.95);
   opacity: 0;
+  filter: blur(4px);
+}
+
+.update-slide-leave-to {
+  transform: translateY(-100%) scale(0.95);
+  opacity: 0;
+  filter: blur(2px);
 }
 
 .page-fade-enter-active {

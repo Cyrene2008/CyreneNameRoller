@@ -3,6 +3,7 @@ import { APP_VERSION } from './version'
 import { tauriAPI, isTauri } from './tauriAPI'
 
 const GITHUB_REPO = 'Cyrene2008/CyreneNameRoller'
+const GHPROXY_BASE = 'https://gh.xn--8hvv1o.cn/'
 const FALLBACK_URLS = [
   `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`,
   `https://api.kkgithub.com/repos/${GITHUB_REPO}/releases/latest`
@@ -11,8 +12,11 @@ const FALLBACK_URLS = [
 export const updateState = ref({
   available: false,
   checking: false,
+  downloading: false,
+  downloadProgress: 0,
   version: '',
   url: '',
+  fileName: '',
   body: '',
   error: null
 })
@@ -25,6 +29,11 @@ function getPlatform() {
 
 function normalizeVersion(v) {
   return v.replace(/^v/i, '').trim()
+}
+
+function getDownloadUrl(originalUrl) {
+  if (!originalUrl) return ''
+  return GHPROXY_BASE + originalUrl
 }
 
 async function fetchRelease() {
@@ -67,7 +76,7 @@ export async function checkForUpdates(silent = true) {
   } catch {}
 
   if (!release) {
-    updateState.value = { available: false, checking: false, version: '', url: '', body: '', error: '无法连接到更新服务器' }
+    updateState.value = { available: false, checking: false, downloading: false, downloadProgress: 0, version: '', url: '', fileName: '', body: '', error: '无法连接到更新服务器' }
     return
   }
 
@@ -84,22 +93,86 @@ export async function checkForUpdates(silent = true) {
       targetAsset = assets.find(a => a.name.includes('electron-win64') && a.name.endsWith('.exe'))
     }
     updateState.value = {
-      available: true, checking: false,
+      available: true, checking: false, downloading: false, downloadProgress: 0,
       version: release.tag_name,
       url: targetAsset ? targetAsset.browser_download_url : release.html_url,
+      fileName: targetAsset ? targetAsset.name : '',
       body: release.body || '', error: null
     }
   } else {
-    updateState.value = { available: false, checking: false, version: '', url: '', body: '', error: null }
+    updateState.value = { available: false, checking: false, downloading: false, downloadProgress: 0, version: '', url: '', fileName: '', body: '', error: null }
     if (!silent) updateState.value.error = '已是最新版本'
   }
 }
 
 export async function downloadUpdate() {
   if (!updateState.value.url) return
-  if (isTauri()) {
-    await tauriAPI.openExternal(updateState.value.url)
-  } else {
-    window.open(updateState.value.url, '_blank')
+
+  const originalUrl = updateState.value.url
+  const downloadUrl = getDownloadUrl(originalUrl)
+
+  // 如果是网页端，直接打开浏览器
+  if (!isTauri() && !window.electronAPI) {
+    window.open(downloadUrl, '_blank')
+    return
+  }
+
+  updateState.value.downloading = true
+  updateState.value.downloadProgress = 0
+
+  try {
+    // 使用fetch下载文件
+    const response = await fetch(downloadUrl)
+    if (!response.ok) throw new Error('Download failed')
+
+    const contentLength = response.headers.get('content-length')
+    const total = contentLength ? parseInt(contentLength, 10) : 0
+    const reader = response.body.getReader()
+    const chunks = []
+    let receivedLength = 0
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      chunks.push(value)
+      receivedLength += value.length
+      if (total > 0) {
+        updateState.value.downloadProgress = Math.round((receivedLength / total) * 100)
+      }
+    }
+
+    // 合并chunks
+    const allChunks = new Uint8Array(receivedLength)
+    let position = 0
+    for (const chunk of chunks) {
+      allChunks.set(chunk, position)
+      position += chunk.length
+    }
+
+    // 创建Blob并下载
+    const blob = new Blob([allChunks])
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = updateState.value.fileName || 'update.exe'
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+
+    updateState.value.downloading = false
+    updateState.value.downloadProgress = 100
+  } catch (error) {
+    console.error('Download failed:', error)
+    updateState.value.downloading = false
+    updateState.value.downloadProgress = 0
+    // 如果ghproxy失败，尝试直接使用原始URL
+    if (isTauri()) {
+      await tauriAPI.openExternal(originalUrl)
+    } else if (window.electronAPI) {
+      window.electronAPI.openExternal(originalUrl)
+    } else {
+      window.open(originalUrl, '_blank')
+    }
   }
 }
