@@ -27,7 +27,7 @@
         @mouseenter="b.hovered = true"
         @mouseleave="b.hovered = false"
       >
-        <div class="banner-progress-bg" :style="{ width: b.type === 'download' ? b.progress + '%' : '0%' }"></div>
+        <div class="banner-progress-bg" :style="{ width: b.duration > 0 ? b.countdown + '%' : (b.type === 'download' ? b.progress + '%' : '0%'), transition: b.hovered ? 'none' : (b.type === 'download' ? 'width 0.4s cubic-bezier(0.22, 1, 0.36, 1)' : 'width 0.1s linear') }"></div>
         <div class="banner-scanline"></div>
         <div class="banner-glow"></div>
         <div class="banner-content">
@@ -36,6 +36,9 @@
           </span>
           <span class="banner-text">{{ b.message }}</span>
           <span v-if="b.type === 'download'" class="banner-progress-num">{{ b.progress }}%</span>
+          <button v-if="b.undoAction" class="banner-undo" @click="b.undoAction(); dismissBanner(b.id)">
+            <FluentIcon icon="arrow-undo-16-regular" :width="12" /> {{ lang === 'en' ? 'Undo' : '撤销' }}
+          </button>
           <button v-if="b.dismissible && b.type !== 'download'" class="banner-dismiss" @click="dismissBanner(b.id)">
             <FluentIcon icon="dismiss-12-regular" :width="12" />
           </button>
@@ -80,18 +83,22 @@ provide('toast', globalToast)
 const banners = ref([])
 let bannerIdCounter = 0
 
-function showBanner({ message, icon = 'info-16-regular', type = 'info', duration = 0, dismissible = true, progress = 0 }) {
+function showBanner({ message, icon = 'info-16-regular', type = 'info', duration = 0, dismissible = true, progress = 0, undoAction = null }) {
   const id = ++bannerIdCounter
-  const banner = reactive({ id, message, icon, type, dismissible, progress, hovered: false })
+  const banner = reactive({ id, message, icon, type, dismissible, progress, undoAction, hovered: false, countdown: 100, duration, _timer: null, _countdownInterval: null })
   banners.value.push(banner)
+  while (banners.value.length > 3) {
+    banners.value.shift()
+  }
   if (duration > 0) {
-    const startTimer = () => {
-      const timer = setTimeout(() => {
-        dismissBanner(id)
-      }, duration)
-      banner._timer = timer
-    }
-    startTimer()
+    banner._timer = setTimeout(() => dismissBanner(id), duration)
+    // 倒计时进度条：每100ms更新一次
+    const startTime = Date.now()
+    banner._countdownInterval = setInterval(() => {
+      if (banner.hovered) return // hover时暂停
+      const elapsed = Date.now() - startTime
+      banner.countdown = Math.max(0, 100 - (elapsed / duration) * 100)
+    }, 100)
   }
   return {
     id,
@@ -107,6 +114,9 @@ function showBanner({ message, icon = 'info-16-regular', type = 'info', duration
 function dismissBanner(id) {
   const idx = banners.value.findIndex(b => b.id === id)
   if (idx !== -1) {
+    const b = banners.value[idx]
+    if (b._timer) clearTimeout(b._timer)
+    if (b._countdownInterval) clearInterval(b._countdownInterval)
     banners.value.splice(idx, 1)
   }
 }
@@ -224,17 +234,17 @@ watch(() => settingsStore.settings.nameFontSize, (val) => {
 }
 
 .notify-banner.banner-info {
-  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-  color: #e0e0ff;
+  background: linear-gradient(135deg, #3d1a2e 0%, #4a1636 100%);
+  color: #ffd6ec;
 }
 
 .notify-banner.banner-success {
-  background: linear-gradient(135deg, #0a2e1a 0%, #1a3e16 100%);
-  color: #b0ffc0;
+  background: linear-gradient(135deg, #2e1a3d 0%, #36164a 100%);
+  color: #e8b0ff;
 }
 
 .notify-banner.banner-warning {
-  background: linear-gradient(135deg, #2e2a1a 0%, #3e3616 100%);
+  background: linear-gradient(135deg, #3d2a1a 0%, #4a3616 100%);
   color: #ffe0b0;
 }
 
@@ -348,6 +358,27 @@ watch(() => settingsStore.settings.nameFontSize, (val) => {
 .banner-dismiss:hover {
   background: rgba(255,255,255,0.2);
   transform: rotate(90deg);
+}
+
+.banner-undo {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 10px;
+  background: rgba(255,255,255,0.15);
+  border: 1px solid rgba(255,255,255,0.25);
+  border-radius: var(--radius-sm);
+  color: inherit;
+  cursor: pointer;
+  font-size: 12px;
+  font-family: var(--font-ui);
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+  margin-left: 4px;
+}
+
+.banner-undo:hover {
+  background: rgba(255,255,255,0.25);
 }
 
 /* Banner entrance animation */

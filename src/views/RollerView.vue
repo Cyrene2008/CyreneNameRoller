@@ -39,7 +39,7 @@
         <FluentSelect :model-value="namesStore.currentListId" :options="listOptions" @update:model-value="namesStore.switchList" />
       </div>
 
-      <FluentButton :variant="isRunning ? 'danger' : 'primary'" size="lg" class="start-btn" :disabled="!canStart" @click="toggleRoll">
+      <FluentButton :variant="isRunning ? 'danger' : 'primary'" size="lg" class="start-btn" :class="{ 'btn-dimmed': !canStart && !isRunning }" @click="toggleRoll">
         <FluentIcon :icon="isRunning ? 'stop-24-filled' : 'play-24-filled'" :width="18" />
         {{ isRunning ? t('stop', lang) : t('start', lang) }}
       </FluentButton>
@@ -234,6 +234,7 @@ onBeforeUnmount(() => { if (intervalId) clearTimeout(intervalId) })
 .list-selector-bar { display: flex; align-items: center; gap: 12px; background: var(--bg-card); backdrop-filter: blur(20px); padding: 8px 16px; border-radius: var(--radius-lg); border: 1px solid var(--border-default); box-shadow: var(--shadow-4); width: 100%; justify-content: center; }
 .selector-label { font-size: 14px; font-weight: 600; color: var(--text-secondary); white-space: nowrap; }
 .start-btn { min-width: 280px; font-size: 16px; min-height: 48px; margin-top: 8px; }
+.btn-dimmed { opacity: 0.45; cursor: not-allowed; }
 
 .toggle-expand-enter-active { animation: toggle-in 0.25s cubic-bezier(0.1, 0.9, 0.2, 1); }
 .toggle-expand-leave-active { animation: toggle-in 0.15s ease-in reverse; }

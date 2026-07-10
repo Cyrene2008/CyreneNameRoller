@@ -36,6 +36,18 @@ function getDownloadUrl(originalUrl) {
   return GHPROXY_BASE + originalUrl
 }
 
+function compareVersions(a, b) {
+  const pa = a.split('.').map(Number)
+  const pb = b.split('.').map(Number)
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const na = pa[i] || 0
+    const nb = pb[i] || 0
+    if (na > nb) return 1
+    if (na < nb) return -1
+  }
+  return 0
+}
+
 export async function fetchRelease() {
   if (typeof window !== 'undefined' && window.electronAPI?.checkUpdate) {
     const result = await window.electronAPI.checkUpdate()
@@ -81,7 +93,7 @@ export async function checkForUpdates(silent = true, bannerFn = null) {
   const remoteVersion = normalizeVersion(release.tag_name)
   const currentVersion = normalizeVersion(APP_VERSION)
 
-  if (remoteVersion !== currentVersion) {
+  if (compareVersions(remoteVersion, currentVersion) > 0) {
     const platform = getPlatform()
     const assets = release.assets || []
     let targetAsset = null
@@ -99,10 +111,11 @@ export async function checkForUpdates(silent = true, bannerFn = null) {
     }
     if (bannerFn) {
       bannerFn({
-        message: `发现新版本 ${release.tag_name}，请前往设置页下载`,
+        message: `发现新版本 ${release.tag_name}`,
         icon: 'arrow-download-16-regular',
         type: 'info',
-        duration: 5000
+        duration: 0,
+        dismissible: true
       })
     }
   } else {
@@ -168,49 +181,11 @@ export async function downloadUpdate(bannerFn = null) {
     }
 
     const blob = new Blob([allChunks])
+    saveBlob(blob, updateState.value.fileName || 'update.exe')
 
-    // Auto-save and launch
-    if (isTauri()) {
-      try {
-        const fileName = updateState.value.fileName || 'update.exe'
-        const arrayBuffer = await blob.arrayBuffer()
-        const uint8 = new Uint8Array(arrayBuffer)
-        await tauriAPI.saveAndLaunch(uint8, fileName)
-        if (bannerHandle) {
-          bannerHandle.update({ message: '下载完成，正在启动安装程序...', icon: 'checkmark-circle-16-regular', type: 'success', progress: 100 })
-          setTimeout(() => bannerHandle.dismiss(), 3000)
-        }
-      } catch (e) {
-        // Fallback: save via browser
-        saveBlob(blob, updateState.value.fileName || 'update.exe')
-        if (bannerHandle) {
-          bannerHandle.update({ message: '下载完成', icon: 'checkmark-circle-16-regular', type: 'success', progress: 100 })
-          setTimeout(() => bannerHandle.dismiss(), 3000)
-        }
-      }
-    } else if (window.electronAPI?.saveAndLaunch) {
-      try {
-        const fileName = updateState.value.fileName || 'update.exe'
-        const arrayBuffer = await blob.arrayBuffer()
-        const uint8 = new Uint8Array(arrayBuffer)
-        await window.electronAPI.saveAndLaunch(uint8, fileName)
-        if (bannerHandle) {
-          bannerHandle.update({ message: '下载完成，正在启动安装程序...', icon: 'checkmark-circle-16-regular', type: 'success', progress: 100 })
-          setTimeout(() => bannerHandle.dismiss(), 3000)
-        }
-      } catch (e) {
-        saveBlob(blob, updateState.value.fileName || 'update.exe')
-        if (bannerHandle) {
-          bannerHandle.update({ message: '下载完成', icon: 'checkmark-circle-16-regular', type: 'success', progress: 100 })
-          setTimeout(() => bannerHandle.dismiss(), 3000)
-        }
-      }
-    } else {
-      saveBlob(blob, updateState.value.fileName || 'update.exe')
-      if (bannerHandle) {
-        bannerHandle.update({ message: '下载完成', icon: 'checkmark-circle-16-regular', type: 'success', progress: 100 })
-        setTimeout(() => bannerHandle.dismiss(), 3000)
-      }
+    if (bannerHandle) {
+      bannerHandle.update({ message: '下载完成，请手动运行安装程序', icon: 'checkmark-circle-16-regular', type: 'success', progress: 100, dismissible: true })
+      setTimeout(() => bannerHandle.dismiss(), 5000)
     }
 
     updateState.value.downloading = false
@@ -220,7 +195,7 @@ export async function downloadUpdate(bannerFn = null) {
     updateState.value.downloading = false
     updateState.value.downloadProgress = 0
     if (bannerHandle) {
-      bannerHandle.update({ message: '下载失败，正在尝试备用链接...', icon: 'warning-16-regular', type: 'warning', progress: 0 })
+      bannerHandle.update({ message: '下载失败，正在尝试备用链接...', icon: 'warning-16-regular', type: 'warning', progress: 0, dismissible: true })
       setTimeout(() => bannerHandle.dismiss(), 3000)
     }
     if (isTauri()) {
