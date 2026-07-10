@@ -64,10 +64,17 @@ input, button, select, textarea {
 a {
   color: var(--accent);
   text-decoration: none;
+  -webkit-user-drag: none;
+  user-select: none;
 }
 
 a:hover {
   color: var(--accent-dark);
+}
+
+img {
+  -webkit-user-drag: none;
+  user-select: none;
 }
 
 /* Performance Settings - individual toggles */
