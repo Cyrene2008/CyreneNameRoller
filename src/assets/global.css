@@ -136,3 +136,12 @@ input[type="number"] {
   -moz-appearance: textfield;
   appearance: textfield;
 }
+
+/* 翁法罗斯数字字体自动应用 */
+.auto-num {
+  font-family: var(--font-num);
+  font-size: calc(1em * var(--font-num-scale, 1.6));
+  transform: translateY(-3px);
+  display: inline-block;
+  line-height: 1;
+}

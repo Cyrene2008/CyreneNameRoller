@@ -12,7 +12,7 @@
       </main>
     </div>
     <FullscreenToggle />
-    <div class="version-badge">
+    <div class="version-badge" v-num>
       <span class="v-prefix">{{ APP_VERSION_PREFIX }}</span><span class="v-num">{{ APP_VERSION }}</span>
       <span class="v-sep">build:</span><span class="v-num">{{ APP_BUILD }}</span><span class="v-sep">-{{ APP_PLATFORM }}</span>
     </div>
@@ -231,7 +231,7 @@ watch(() => settingsStore.settings.nameFontSize, (val) => {
 }
 
 .v-prefix { font-family: var(--font-ui); font-size: 12px; }
-.v-num { font-family: var(--font-num); font-size: calc(12px * var(--font-num-scale, 1.6)); }
+.v-num { font-family: var(--font-num); font-size: calc(12px * var(--font-num-scale, 1.6)); transform: translateY(-3px); display: inline-block; }
 .v-sep { font-family: var(--font-ui); font-size: 12px; }
 
 /* Banner Container */

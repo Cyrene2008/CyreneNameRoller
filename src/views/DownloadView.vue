@@ -19,7 +19,7 @@
     </div>
 
     <template v-else>
-      <div class="version-info">
+      <div class="version-info" v-num>
         <span class="version-tag">{{ tagName }}</span>
         <span class="version-time">{{ publishedAt }}</span>
       </div>
@@ -28,25 +28,24 @@
         <div v-for="asset in sortedAssets" :key="asset.name" class="asset-card">
           <div class="asset-header">
             <FluentIcon :icon="asset.name.includes('Tauri') ? 'box-24-regular' : 'laptop-24-regular'" :width="20" />
-            <span class="asset-name">{{ asset.name }}</span>
+            <span class="asset-name" v-num>{{ asset.name }}</span>
           </div>
-          <div class="asset-meta">
+          <div class="asset-meta" v-num>
             <span class="meta-item">
               <FluentIcon icon="lock-closed-16-regular" :width="12" />
-              sha256:<span class="num">{{ asset.digest ? asset.digest.split(':')[1]?.substring(0, 16) + '...' : 'N/A' }}</span>
+              sha256:{{ asset.digest ? asset.digest.split(':')[1]?.substring(0, 16) + '...' : 'N/A' }}
             </span>
             <span class="meta-item">
               <FluentIcon icon="arrow-download-16-regular" :width="12" />
-              <span class="num">{{ asset.download_count }}</span> {{ lang === 'en' ? 'downloads' : '次下载' }}
+              {{ asset.download_count }} {{ lang === 'en' ? 'downloads' : '次下载' }}
             </span>
             <span class="meta-item">
               <FluentIcon icon="database-16-regular" :width="12" />
-              <span class="num">{{ formatSize(asset.size).num }}</span> {{ formatSize(asset.size).unit }}
+              {{ formatSize(asset.size) }}
             </span>
             <span class="meta-item">
               <FluentIcon icon="clock-16-regular" :width="12" />
-              <template v-if="formatTime(asset.updated_at).num"><span class="num">{{ formatTime(asset.updated_at).num }}</span> {{ formatTime(asset.updated_at).unit }}</template>
-              <template v-else>{{ formatTime(asset.updated_at).unit }}</template>
+              {{ formatTime(asset.updated_at) }}
             </span>
           </div>
           <FluentButton variant="primary" size="sm" @click="downloadAsset(asset)">
@@ -94,23 +93,22 @@ const sortedAssets = computed(() => {
 })
 
 function formatSize(bytes) {
-  if (!bytes) return { num: 'N/A', unit: '' }
+  if (!bytes) return 'N/A'
   const mb = bytes / 1024 / 1024
-  if (mb >= 1) return { num: mb.toFixed(1), unit: 'MB' }
-  return { num: (bytes / 1024).toFixed(1), unit: 'KB' }
+  return mb >= 1 ? `${mb.toFixed(1)} MB` : `${(bytes / 1024).toFixed(1)} KB`
 }
 
 function formatTime(iso) {
-  if (!iso) return { num: 'N/A', unit: '' }
+  if (!iso) return 'N/A'
   const d = new Date(iso)
   const now = new Date()
   const diff = now - d
   const hours = Math.floor(diff / 3600000)
   const days = Math.floor(diff / 86400000)
-  if (hours < 1) return { num: '', unit: lang.value === 'en' ? 'Just now' : '刚刚' }
-  if (hours < 24) return { num: hours, unit: lang.value === 'en' ? 'hours ago' : '小时前' }
-  if (days < 30) return { num: days, unit: lang.value === 'en' ? 'days ago' : '天前' }
-  return { num: '', unit: d.toLocaleDateString() }
+  if (hours < 1) return lang.value === 'en' ? 'Just now' : '刚刚'
+  if (hours < 24) return `${hours} ${lang.value === 'en' ? 'hours ago' : '小时前'}`
+  if (days < 30) return `${days} ${lang.value === 'en' ? 'days ago' : '天前'}`
+  return d.toLocaleDateString()
 }
 
 async function fetchAssets() {
@@ -209,14 +207,12 @@ onMounted(fetchAssets)
 }
 
 .version-tag {
-  font-family: var(--font-num);
-  font-size: calc(16px * var(--font-num-scale, 1.6));
+  font-size: 16px;
   font-weight: 700;
   color: var(--accent);
   background: var(--accent-50);
   padding: 4px 12px;
   border-radius: var(--radius-sm);
-  transform: translateY(-4px);
 }
 
 .version-time {
@@ -249,7 +245,6 @@ onMounted(fetchAssets)
 }
 
 .asset-name {
-  font-family: var(--font-num);
   font-size: 13px;
   font-weight: 600;
   color: var(--text-primary);
@@ -269,11 +264,6 @@ onMounted(fetchAssets)
   font-size: 12px;
   color: var(--text-muted);
   font-family: var(--font-ui);
-}
-
-.meta-item .num {
-  font-family: var(--font-num);
-  font-size: calc(12px * var(--font-num-scale, 1.6));
 }
 
 .fallback-section {
