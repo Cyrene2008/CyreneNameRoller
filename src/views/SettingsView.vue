@@ -19,9 +19,9 @@
       <div v-if="isDesktop" class="setting-row">
         <span class="setting-label">{{ lang === 'en' ? 'Check for Updates' : '检查更新' }}</span>
         <div class="update-actions">
-          <FluentButton variant="secondary" size="sm" :disabled="updateState.checking" @click="doForceCheck">
-            <FluentIcon icon="arrow-sync-16-regular" :width="14" />
-            {{ lang === 'en' ? 'Force Check' : '强制检测' }}
+          <FluentButton variant="primary" size="sm" :disabled="updateState.checking" @click="doForceUpdate">
+            <FluentIcon icon="arrow-download-16-regular" :width="14" />
+            {{ lang === 'en' ? 'Force Update' : '强制更新' }}
           </FluentButton>
           <FluentButton variant="secondary" size="sm" :disabled="updateState.checking" @click="doCheckUpdate">
             <FluentIcon icon="search-16-regular" :width="14" />
@@ -271,10 +271,36 @@ function update(key, value) { settingsStore.update(key, value) }
 
 function doCheckUpdate() { checkForUpdates(false) }
 
-function doForceCheck() {
-  updateState.value.available = false
+async function doForceUpdate() {
+  updateState.value.checking = true
   updateState.value.error = null
-  checkForUpdates(false)
+  try {
+    const { fetchRelease, getPlatform } = await import('../utils/updater')
+    const release = await fetchRelease()
+    if (release) {
+      const platform = getPlatform()
+      const assets = release.assets || []
+      let targetAsset = null
+      if (platform === 'tauri-win64') {
+        targetAsset = assets.find(a => a.name.includes('Tauri') && a.name.endsWith('.exe'))
+      } else if (platform === 'electron-win64') {
+        targetAsset = assets.find(a => a.name.includes('electron-win64') && a.name.endsWith('.exe'))
+      }
+      updateState.value = {
+        available: true, checking: false, downloading: false, downloadProgress: 0,
+        version: release.tag_name,
+        url: targetAsset ? targetAsset.browser_download_url : release.html_url,
+        fileName: targetAsset ? targetAsset.name : '',
+        body: release.body || '', error: null
+      }
+    } else {
+      updateState.value.checking = false
+      updateState.value.error = '无法连接到更新服务器'
+    }
+  } catch {
+    updateState.value.checking = false
+    updateState.value.error = '无法连接到更新服务器'
+  }
 }
 
 function getLogEntries(log) {

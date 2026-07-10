@@ -21,7 +21,7 @@ export const updateState = ref({
   error: null
 })
 
-function getPlatform() {
+export function getPlatform() {
   if (isTauri()) return 'tauri-win64'
   if (typeof window !== 'undefined' && window.electronAPI) return 'electron-win64'
   return 'web'
@@ -36,7 +36,7 @@ function getDownloadUrl(originalUrl) {
   return GHPROXY_BASE + originalUrl
 }
 
-async function fetchRelease() {
+export async function fetchRelease() {
   // Electron: 通过主进程 IPC
   if (typeof window !== 'undefined' && window.electronAPI?.checkUpdate) {
     const result = await window.electronAPI.checkUpdate()
