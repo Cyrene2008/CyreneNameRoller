@@ -239,7 +239,7 @@ onMounted(async () => {
 .card-face { position: absolute; inset: 0; backface-visibility: hidden; border-radius: var(--radius-xl); overflow: hidden; display: flex; align-items: center; justify-content: center; border: 2px solid var(--border-default); box-shadow: var(--shadow-8); }
 .card-back { background: linear-gradient(135deg, var(--bg-card-solid), var(--bg-hover)); }
 .card-q-icon { color: var(--accent); opacity: 0.3; }
-.card-front { transform: rotateY(180deg); background: var(--bg-card-solid); font-family: var(--font-display); font-weight: 700; font-size: 20px; color: var(--accent); padding: 12px; text-align: center; border-color: var(--accent); text-shadow: 0 0 12px rgba(234, 94, 193, 0.3); }
+.card-front { transform: rotateY(180deg); background: var(--bg-card-solid); font-family: var(--font-display); font-weight: 700; font-size: calc(20px * var(--name-font-factor, 1)); color: var(--accent); padding: 12px; text-align: center; border-color: var(--accent); text-shadow: 0 0 12px rgba(234, 94, 193, 0.3); }
 
 .bottom-section { width: 100%; margin-top: auto; }
 .tray { margin-bottom: 12px; }

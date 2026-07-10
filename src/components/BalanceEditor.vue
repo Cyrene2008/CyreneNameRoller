@@ -227,7 +227,7 @@ function render() {
   ctx.restore()
 
   const fs = Math.round(dpr * 11)
-  ctx.save(); ctx.fillStyle = '#b07a95'; ctx.font = `${fs}px "HarmonyOS Sans SC", sans-serif`
+  ctx.save(); ctx.fillStyle = '#b07a95'; ctx.font = `${fs}px "MiSans", sans-serif`
   for (let i = 0; i <= 5; i++) { const v = (xMax * i / 5).toFixed(1); ctx.textAlign = 'center'; ctx.fillText(v, xToPx(xMax * i / 5), padT + plotH + 16 * dpr) }
   for (let i = 0; i <= 4; i++) { const v = Math.round(yMin + (yMax - yMin) * i / 4); ctx.textAlign = 'right'; ctx.fillText(v + '%', padL - 8 * dpr, yToPx(v) + 4 * dpr) }
   ctx.textAlign = 'center'; ctx.fillText(props.lang === 'en' ? 'Deficit' : '差值', padL + plotW / 2, h - 4 * dpr)
@@ -256,7 +256,7 @@ function render() {
 
   ctx.save()
   const labelFs = Math.round(dpr * 10)
-  ctx.font = `bold ${labelFs}px "HarmonyOS Sans SC", sans-serif`
+  ctx.font = `bold ${labelFs}px "MiSans", sans-serif`
   ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(234,94,193,0.8)'
   points.value.forEach((p) => {
     const { cx, cy } = dataToCanvas(p)

@@ -17,7 +17,7 @@ html, body {
 }
 
 body {
-  font-family: 'HarmonyOS Sans SC', 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
+  font-family: 'MiSans', 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
   background: var(--bg-base);
   color: var(--text-primary);
   line-height: 1.5;
@@ -57,7 +57,7 @@ body {
 }
 
 input, button, select, textarea {
-  font-family: 'HarmonyOS Sans SC', 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
+  font-family: 'MiSans', 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
   font-size: 14px;
 }
 
