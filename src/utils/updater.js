@@ -187,34 +187,43 @@ export async function downloadUpdate(bannerFn = null) {
 
     const blob = new Blob([allChunks])
     const fileName = updateState.value.fileName || 'update.exe'
-    const arrayBuffer = await blob.arrayBuffer()
-    const uint8 = new Uint8Array(arrayBuffer)
 
     // 优先弹出保存对话框并自动运行
     let saved = false
     if (window.electronAPI?.saveAndLaunch) {
+      // Electron: 传递Uint8Array给IPC
+      const arrayBuffer = await blob.arrayBuffer()
+      const uint8 = new Uint8Array(arrayBuffer)
       const result = await window.electronAPI.saveAndLaunch(uint8, fileName)
       if (result?.success) {
         saved = true
         if (bannerHandle) bannerHandle.update({ message: '已保存并启动安装程序', icon: 'checkmark-circle-16-regular', type: 'success', progress: 100, duration: 8000 })
       } else if (result?.cancelled) {
-        // 用户取消了保存对话框
         if (bannerHandle) bannerHandle.update({ message: '下载已取消', icon: 'dismiss-circle-16-regular', type: 'warning', progress: 0, duration: 8000 })
+        saved = true
       }
     } else if (isTauri() && tauriAPI.saveAndLaunch) {
-      const result = await tauriAPI.saveAndLaunch(uint8, fileName)
-      if (result?.success) {
-        saved = true
-        if (bannerHandle) bannerHandle.update({ message: '已保存并启动安装程序', icon: 'checkmark-circle-16-regular', type: 'success', progress: 100, duration: 8000 })
-      } else if (result?.cancelled) {
-        if (bannerHandle) bannerHandle.update({ message: '下载已取消', icon: 'dismiss-circle-16-regular', type: 'warning', progress: 0, duration: 8000 })
+      // Tauri: 传递URL给Rust后端，由后端下载+保存+启动
+      try {
+        const result = await tauriAPI.saveAndLaunch(downloadUrl, fileName)
+        if (result?.success) {
+          saved = true
+          if (bannerHandle) bannerHandle.update({ message: '已保存并启动安装程序', icon: 'checkmark-circle-16-regular', type: 'success', progress: 100, duration: 8000 })
+        } else if (result?.cancelled) {
+          if (bannerHandle) bannerHandle.update({ message: '下载已取消', icon: 'dismiss-circle-16-regular', type: 'warning', progress: 0, duration: 8000 })
+          saved = true
+        }
+      } catch (e) {
+        console.error('Tauri save failed:', e)
       }
     }
 
-    // 如果没有saveAndLaunch或者用户取消了，回退到浏览器下载
-    if (!saved && !window.electronAPI?.saveAndLaunch) {
+    // 回退到浏览器下载
+    if (!saved) {
       saveBlob(blob, fileName)
-      if (bannerHandle) bannerHandle.update({ message: '下载完成', icon: 'checkmark-circle-16-regular', type: 'success', progress: 100, duration: 8000 })
+      if (bannerHandle) {
+        bannerHandle.update({ message: '下载完成', icon: 'checkmark-circle-16-regular', type: 'success', progress: 100, duration: 8000 })
+      }
     }
 
     updateState.value.downloading = false

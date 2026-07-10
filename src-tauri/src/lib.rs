@@ -119,9 +119,24 @@ fn open_external(url: String) {
 }
 
 #[tauri::command]
-async fn save_and_launch(app: tauri::AppHandle, data: Vec<u8>, file_name: String) -> Result<serde_json::Value, String> {
+async fn save_and_launch(app: tauri::AppHandle, url: String, file_name: String) -> Result<serde_json::Value, String> {
     use tauri_plugin_dialog::DialogExt;
 
+    // 先下载到临时文件
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(300))
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    let resp = client.get(&url)
+        .header("User-Agent", "CyreneNameRoller")
+        .send()
+        .await
+        .map_err(|e| format!("下载失败: {}", e))?;
+
+    let bytes = resp.bytes().await.map_err(|e| format!("读取失败: {}", e))?;
+
+    // 弹出保存对话框
     let file_path = app.dialog()
         .file()
         .set_title("保存安装程序")
@@ -132,14 +147,14 @@ async fn save_and_launch(app: tauri::AppHandle, data: Vec<u8>, file_name: String
     match file_path {
         Some(path) => {
             let path_buf = path.as_path().unwrap_or(std::path::Path::new(""));
-            fs::write(path_buf, &data).map_err(|e| e.to_string())?;
+            fs::write(path_buf, &bytes).map_err(|e| e.to_string())?;
             #[cfg(target_os = "windows")]
             { let _ = Command::new("cmd").args(["/C", "start", "", path_buf.to_str().unwrap_or("")]).spawn(); }
             #[cfg(target_os = "macos")]
             { let _ = Command::new("open").arg(path_buf.to_str().unwrap_or("")).spawn(); }
             #[cfg(target_os = "linux")]
             { let _ = Command::new("xdg-open").arg(path_buf.to_str().unwrap_or("")).spawn(); }
-            Ok(serde_json::json!({ "success": true, "filePath": path_buf.to_str().unwrap_or("") }))
+            Ok(serde_json::json!({ "success": true }))
         }
         None => Ok(serde_json::json!({ "cancelled": true }))
     }
