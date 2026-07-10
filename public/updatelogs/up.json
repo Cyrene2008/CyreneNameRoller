@@ -1,5 +1,29 @@
 [
   {
+    "version": "26.0.3",
+    "date": "2026-07-10",
+    "logs": {
+      "zh": [
+        "【通知系统】全新横幅通知系统：所有通知改为TitleBar横幅样式，带科幻感动画",
+        "【通知系统】下载进度横幅变进度条样式，下载完成后自动启动安装程序",
+        "【更新优化】检查更新结果通过横幅通知，强制更新按钮可直接触发下载",
+        "【翻牌优化】牌数下限改为1，添加加减按钮，多抽剩余不足时自动抽取所有牌",
+        "【修复】隐藏input number自带上下按键",
+        "【修复】名单管理子页面语言显示修复",
+        "【UI】版本号和进度数字放大1.6倍，横幅弹出动画优化"
+      ],
+      "en": [
+        "[Notification] New banner notification system: all notifications use TitleBar banners with sci-fi animations",
+        "[Notification] Download progress banner becomes progress bar, auto-launches installer after download",
+        "[Update] Update check results shown via banner, force update button triggers download directly",
+        "[Card] Card count minimum changed to 1, added +/- buttons, auto-draws all remaining when insufficient",
+        "[Fix] Hidden number input spinner controls",
+        "[Fix] List management sub-page language display fix",
+        "[UI] Version and progress numbers enlarged 1.6x, banner entrance animation optimized"
+      ]
+    }
+  },
+  {
     "version": "26.0.2",
     "date": "2026-07-09",
     "logs": {

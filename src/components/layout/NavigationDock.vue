@@ -27,6 +27,30 @@
     </div>
 
     <div class="dock-bottom">
+      <!-- Web版专属按钮 -->
+      <template v-if="!isDesktopApp">
+        <router-link
+          to="/download"
+          class="dock-item"
+          :class="{ active: route.path === '/download' }"
+          draggable="false"
+          :title="lang === 'en' ? 'Download Client' : '下载客户端'"
+        >
+          <div class="dock-item-indicator" />
+          <Icon icon="fluent:arrow-download-24-regular" :width="20" class="dock-item-icon" />
+          <span v-if="!dockCollapsed" class="dock-item-label">{{ lang === 'en' ? 'Download' : '下载客户端' }}</span>
+        </router-link>
+        <a
+          href="https://点名器.昔涟.cn"
+          target="_blank"
+          class="dock-item"
+          draggable="false"
+          :title="lang === 'en' ? 'Documentation' : '查看文档'"
+        >
+          <Icon icon="fluent:book-24-regular" :width="20" class="dock-item-icon" />
+          <span v-if="!dockCollapsed" class="dock-item-label">{{ lang === 'en' ? 'Docs' : '查看文档' }}</span>
+        </a>
+      </template>
       <router-link
         v-for="item in bottomItems"
         :key="item.path"

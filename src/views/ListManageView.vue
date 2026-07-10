@@ -92,8 +92,8 @@ import FluentInput from '../components/FluentInput.vue'
 const router = useRouter()
 const namesStore = useNamesStore()
 const settingsStore = useSettingsStore()
-const lang = computed(() => settingsStore.settings.englishMode ? 'en' : 'zh')
-const toastRef = inject('toast')
+const lang = computed(() => settingsStore.settings.language)
+const showBanner = inject('banner')
 
 const newListName = ref('')
 const editingListId = ref(null)
@@ -122,15 +122,19 @@ function saveListName(listId) {
 
 function deleteList(list) {
   if (namesStore.allLists.length <= 1) return
-  const deletedName = list.name
+  const deletedList = JSON.parse(JSON.stringify(list))
+  const wasCurrent = list.id === namesStore.currentListId
   namesStore.deleteList(list.id)
-  if (toastRef?.value) {
-    toastRef.value.add({
-      title: lang.value === 'en' ? 'List deleted' : '名单已删除',
-      message: deletedName,
-      duration: 5000
-    })
-  }
+  showBanner({
+    message: `${lang.value === 'en' ? 'List deleted' : '名单已删除'}: ${deletedList.name}`,
+    icon: 'delete-16-regular',
+    type: 'warning',
+    duration: 8000,
+    undoAction: () => {
+      namesStore.restoreList(deletedList)
+      if (wasCurrent) namesStore.switchList(deletedList.id)
+    }
+  })
 }
 
 function exportList(list) {
@@ -154,22 +158,20 @@ function importList() {
       if (data.name && Array.isArray(data.names)) {
         namesStore.createList(data.name)
         data.names.forEach(n => namesStore.addPerson(n.cn, n.en))
-        if (toastRef?.value) {
-          toastRef.value.add({
-            title: lang.value === 'en' ? 'Imported' : '导入成功',
-            message: data.name,
-            duration: 3000
-          })
-        }
-      }
-    } catch {
-      if (toastRef?.value) {
-        toastRef.value.add({
-          title: lang.value === 'en' ? 'Import failed' : '导入失败',
-          message: lang.value === 'en' ? 'Invalid JSON format' : 'JSON 格式无效',
+        showBanner({
+          message: `${lang.value === 'en' ? 'Imported' : '导入成功'}: ${data.name}`,
+          icon: 'checkmark-circle-16-regular',
+          type: 'success',
           duration: 3000
         })
       }
+    } catch {
+      showBanner({
+        message: lang.value === 'en' ? 'Import failed: Invalid JSON format' : '导入失败：JSON 格式无效',
+        icon: 'warning-16-regular',
+        type: 'warning',
+        duration: 3000
+      })
     }
   }
   input.click()

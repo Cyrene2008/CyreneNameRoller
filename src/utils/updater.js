@@ -3,6 +3,7 @@ import { APP_VERSION } from './version'
 import { tauriAPI, isTauri } from './tauriAPI'
 
 const GITHUB_REPO = 'Cyrene2008/CyreneNameRoller'
+const GHPROXY_BASE = 'https://gh.昔涟.cn/'
 const FALLBACK_URLS = [
   `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`,
   `https://api.kkgithub.com/repos/${GITHUB_REPO}/releases/latest`
@@ -11,13 +12,17 @@ const FALLBACK_URLS = [
 export const updateState = ref({
   available: false,
   checking: false,
+  downloading: false,
+  downloadProgress: 0,
   version: '',
   url: '',
+  fileName: '',
+  fileSize: 0,
   body: '',
   error: null
 })
 
-function getPlatform() {
+export function getPlatform() {
   if (isTauri()) return 'tauri-win64'
   if (typeof window !== 'undefined' && window.electronAPI) return 'electron-win64'
   return 'web'
@@ -27,20 +32,34 @@ function normalizeVersion(v) {
   return v.replace(/^v/i, '').trim()
 }
 
-async function fetchRelease() {
-  // Electron: 通过主进程 IPC
+function getDownloadUrl(originalUrl) {
+  if (!originalUrl) return ''
+  return GHPROXY_BASE + originalUrl
+}
+
+function compareVersions(a, b) {
+  const pa = a.split('.').map(Number)
+  const pb = b.split('.').map(Number)
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const na = pa[i] || 0
+    const nb = pb[i] || 0
+    if (na > nb) return 1
+    if (na < nb) return -1
+  }
+  return 0
+}
+
+export async function fetchRelease() {
   if (typeof window !== 'undefined' && window.electronAPI?.checkUpdate) {
     const result = await window.electronAPI.checkUpdate()
     if (result?.ok && result.data) return result.data
     throw new Error(result?.error || 'update check failed')
   }
-  // Tauri: 通过 Rust 后端
   if (isTauri()) {
     const data = await tauriAPI.checkUpdate()
     if (data) return data
     throw new Error('tauri update check failed')
   }
-  // Web fallback: 直接 fetch
   for (const url of FALLBACK_URLS) {
     try {
       const ctrl = new AbortController()
@@ -56,8 +75,8 @@ async function fetchRelease() {
   throw new Error('all sources failed')
 }
 
-export async function checkForUpdates(silent = true) {
-  if (updateState.value.checking) return
+export async function checkForUpdates(silent = true, bannerFn = null) {
+  if (updateState.value.checking || updateState.value.downloading) return
   updateState.value.checking = true
   updateState.value.error = null
 
@@ -67,14 +86,15 @@ export async function checkForUpdates(silent = true) {
   } catch {}
 
   if (!release) {
-    updateState.value = { available: false, checking: false, version: '', url: '', body: '', error: '无法连接到更新服务器' }
+    updateState.value = { available: false, checking: false, downloading: false, downloadProgress: 0, version: '', url: '', fileName: '', body: '', error: '无法连接到更新服务器' }
+    if (bannerFn) bannerFn({ message: '无法连接到更新服务器', icon: 'warning-16-regular', type: 'warning', duration: 3000 })
     return
   }
 
   const remoteVersion = normalizeVersion(release.tag_name)
   const currentVersion = normalizeVersion(APP_VERSION)
 
-  if (remoteVersion !== currentVersion) {
+  if (compareVersions(remoteVersion, currentVersion) > 0) {
     const platform = getPlatform()
     const assets = release.assets || []
     let targetAsset = null
@@ -84,22 +104,154 @@ export async function checkForUpdates(silent = true) {
       targetAsset = assets.find(a => a.name.includes('electron-win64') && a.name.endsWith('.exe'))
     }
     updateState.value = {
-      available: true, checking: false,
+      available: true, checking: false, downloading: false, downloadProgress: 0,
       version: release.tag_name,
       url: targetAsset ? targetAsset.browser_download_url : release.html_url,
+      fileName: targetAsset ? targetAsset.name : '',
+      fileSize: targetAsset ? targetAsset.size : 0,
       body: release.body || '', error: null
     }
+    if (bannerFn) {
+      const sizeMB = targetAsset ? (targetAsset.size / 1024 / 1024).toFixed(1) : ''
+      const sizeText = sizeMB ? ` (${sizeMB} MB)` : ''
+      bannerFn({
+        message: `发现新版本 ${release.tag_name}${sizeText}`,
+        icon: 'arrow-download-16-regular',
+        type: 'info',
+        duration: 0,
+        dismissible: true
+      })
+    }
   } else {
-    updateState.value = { available: false, checking: false, version: '', url: '', body: '', error: null }
-    if (!silent) updateState.value.error = '已是最新版本'
+    updateState.value = { available: false, checking: false, downloading: false, downloadProgress: 0, version: '', url: '', fileName: '', body: '', error: null }
+    if (!silent && bannerFn) {
+      bannerFn({ message: '已是最新版本', icon: 'checkmark-circle-16-regular', type: 'success', duration: 8000 })
+    }
   }
 }
 
-export async function downloadUpdate() {
+export async function downloadUpdate(bannerFn = null) {
   if (!updateState.value.url) return
-  if (isTauri()) {
-    await tauriAPI.openExternal(updateState.value.url)
-  } else {
-    window.open(updateState.value.url, '_blank')
+
+  const originalUrl = updateState.value.url
+  const downloadUrl = getDownloadUrl(originalUrl)
+
+  if (!isTauri() && !window.electronAPI) {
+    window.open(downloadUrl, '_blank')
+    return
   }
+
+  updateState.value.downloading = true
+  updateState.value.downloadProgress = 0
+
+  let bannerHandle = null
+  if (bannerFn) {
+    bannerHandle = bannerFn({
+      message: `正在下载新版本: ${updateState.value.version}`,
+      icon: 'arrow-download-16-regular',
+      type: 'download',
+      duration: 0,
+      dismissible: false,
+      progress: 0
+    })
+  }
+
+  try {
+    const response = await fetch(downloadUrl)
+    if (!response.ok) throw new Error('Download failed')
+
+    const contentLength = response.headers.get('content-length')
+    const total = contentLength ? parseInt(contentLength, 10) : 0
+    const reader = response.body.getReader()
+    const chunks = []
+    let receivedLength = 0
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      chunks.push(value)
+      receivedLength += value.length
+      if (total > 0) {
+        const pct = Math.round((receivedLength / total) * 100)
+        updateState.value.downloadProgress = pct
+        if (bannerHandle) bannerHandle.update({ progress: pct })
+      }
+    }
+
+    const allChunks = new Uint8Array(receivedLength)
+    let position = 0
+    for (const chunk of chunks) {
+      allChunks.set(chunk, position)
+      position += chunk.length
+    }
+
+    const blob = new Blob([allChunks])
+    const fileName = updateState.value.fileName || 'update.exe'
+
+    // 优先弹出保存对话框并自动运行
+    let saved = false
+    if (window.electronAPI?.saveAndLaunch) {
+      // Electron: 传递Uint8Array给IPC
+      const arrayBuffer = await blob.arrayBuffer()
+      const uint8 = new Uint8Array(arrayBuffer)
+      const result = await window.electronAPI.saveAndLaunch(uint8, fileName)
+      if (result?.success) {
+        saved = true
+        if (bannerHandle) bannerHandle.update({ message: '已保存并启动安装程序', icon: 'checkmark-circle-16-regular', type: 'success', progress: 100, duration: 8000 })
+      } else if (result?.cancelled) {
+        if (bannerHandle) bannerHandle.update({ message: '下载已取消', icon: 'dismiss-circle-16-regular', type: 'warning', progress: 0, duration: 8000 })
+        saved = true
+      }
+    } else if (isTauri() && tauriAPI.saveAndLaunch) {
+      // Tauri: 传递URL给Rust后端，由后端下载+保存+启动
+      try {
+        const result = await tauriAPI.saveAndLaunch(downloadUrl, fileName)
+        if (result?.success) {
+          saved = true
+          if (bannerHandle) bannerHandle.update({ message: '已保存并启动安装程序', icon: 'checkmark-circle-16-regular', type: 'success', progress: 100, duration: 8000 })
+        } else if (result?.cancelled) {
+          if (bannerHandle) bannerHandle.update({ message: '下载已取消', icon: 'dismiss-circle-16-regular', type: 'warning', progress: 0, duration: 8000 })
+          saved = true
+        }
+      } catch (e) {
+        console.error('Tauri save failed:', e)
+      }
+    }
+
+    // 回退到浏览器下载
+    if (!saved) {
+      saveBlob(blob, fileName)
+      if (bannerHandle) {
+        bannerHandle.update({ message: '下载完成', icon: 'checkmark-circle-16-regular', type: 'success', progress: 100, duration: 8000 })
+      }
+    }
+
+    updateState.value.downloading = false
+    updateState.value.downloadProgress = 100
+  } catch (error) {
+    console.error('Download failed:', error)
+    updateState.value.downloading = false
+    updateState.value.downloadProgress = 0
+    if (bannerHandle) {
+      bannerHandle.update({ message: '下载失败，正在尝试备用链接...', icon: 'warning-16-regular', type: 'warning', progress: 0, duration: 8000 })
+    }
+    if (isTauri()) {
+      await tauriAPI.openExternal(originalUrl)
+    } else if (window.electronAPI) {
+      window.electronAPI.openExternal(originalUrl)
+    } else {
+      window.open(originalUrl, '_blank')
+    }
+  }
+}
+
+function saveBlob(blob, fileName) {
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = fileName
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
 }

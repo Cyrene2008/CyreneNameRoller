@@ -64,10 +64,17 @@ input, button, select, textarea {
 a {
   color: var(--accent);
   text-decoration: none;
+  -webkit-user-drag: none;
+  user-select: none;
 }
 
 a:hover {
   color: var(--accent-dark);
+}
+
+img {
+  -webkit-user-drag: none;
+  user-select: none;
 }
 
 /* Performance Settings - individual toggles */
@@ -116,4 +123,16 @@ a:hover {
 .perf-no-blur .page-back-enter-from,
 .perf-no-blur .page-back-leave-to {
   filter: none !important;
+}
+
+/* Hide number input spinners */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
 }

@@ -94,6 +94,7 @@ const router = useRouter()
 const namesStore = useNamesStore()
 const settingsStore = useSettingsStore()
 const lang = computed(() => settingsStore.settings.language)
+const showBanner = inject('banner')
 
 const listOptions = computed(() => namesStore.allLists.map(l => ({ value: l.id, label: l.name })))
 
@@ -145,8 +146,18 @@ function saveEdit(index) {
 
 function batchDelete() {
   const indices = [...selectedIndices.value].sort((a, b) => b - a)
+  const deletedPersons = indices.map(i => ({ ...namesStore.currentNames[i] }))
   indices.forEach(i => namesStore.deletePerson(i))
   selectedSet.value = new Set()
+  showBanner({
+    message: lang.value === 'en' ? `Deleted ${deletedPersons.length} names` : `已删除 ${deletedPersons.length} 个名字`,
+    icon: 'delete-16-regular',
+    type: 'warning',
+    duration: 8000,
+    undoAction: () => {
+      deletedPersons.forEach(p => namesStore.addPerson(p.cn, p.en))
+    }
+  })
 }
 </script>
 

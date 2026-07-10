@@ -1,6 +1,6 @@
 {
   "name": "cyrene-name-roller",
-  "version": "26.0.2",
+  "version": "26.0.3",
   "description": "随机点名器 - 支持多人模式、平衡算法、翻牌模式的桌面端点名应用",
   "author": "Cyrene2008 <https://github.com/Cyrene2008>",
   "main": "electron/main.js",
@@ -36,8 +36,8 @@
     "wait-on": "^8.0.3"
   },
   "build": {
-    "appId": "cn.xilian.cyrene-name-roller",
-    "productName": "CyreneNameRoller",
+    "appId": "cn.cyrene2008.nameroller",
+    "productName": "Cyreneの随机点名器",
     "copyright": "Copyright © 2025-2026 Cyrene2008",
     "asar": true,
     "asarUnpack": [],
@@ -65,7 +65,8 @@
     },
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true
+      "allowToChangeInstallationDirectory": true,
+      "artifactName": "CyreneNameRoller-Electron_${version}_win64_setup.exe"
     }
   },
   "license": "GPL-3.0"

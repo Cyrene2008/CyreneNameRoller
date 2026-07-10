@@ -39,7 +39,7 @@
         <FluentSelect :model-value="namesStore.currentListId" :options="listOptions" @update:model-value="namesStore.switchList" />
       </div>
 
-      <FluentButton :variant="isRunning ? 'danger' : 'primary'" size="lg" class="start-btn" :disabled="!canStart" @click="toggleRoll">
+      <FluentButton :variant="isRunning ? 'danger' : 'primary'" size="lg" class="start-btn" :class="{ 'btn-dimmed': !canStart && !isRunning }" @click="toggleRoll">
         <FluentIcon :icon="isRunning ? 'stop-24-filled' : 'play-24-filled'" :width="18" />
         {{ isRunning ? t('stop', lang) : t('start', lang) }}
       </FluentButton>
@@ -48,7 +48,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, onBeforeUnmount, watch } from 'vue'
+import { ref, reactive, computed, onMounted, onBeforeUnmount, watch, inject } from 'vue'
 import { useNamesStore } from '../stores/names'
 import { useSettingsStore } from '../stores/settings'
 import { useStatisticsStore } from '../stores/statistics'
@@ -66,6 +66,7 @@ const namesStore = useNamesStore()
 const settingsStore = useSettingsStore()
 const statisticsStore = useStatisticsStore()
 const recordsStore = useRecordsStore()
+const showBanner = inject('banner')
 
 const lang = computed(() => settingsStore.settings.language)
 const settings = computed(() => settingsStore.settings)
@@ -158,7 +159,14 @@ function animationLoop() {
 
 function toggleRoll() {
   if (isRunning.value) { clearTimeout(intervalId); isRunning.value = false; finishRoll(); return }
-  if (!canStart.value) return
+  if (!canStart.value) {
+    if (nonWhiteListCount.value < 2) {
+      showBanner({ message: lang.value === 'en' ? 'No names available yet' : '唔...你还没添加名单呢♪', icon: 'info-16-regular', type: 'warning', duration: 8000 })
+    } else {
+      showBanner({ message: lang.value === 'en' ? 'Too many people for available names' : '人数超过了可用名单数量', icon: 'warning-16-regular', type: 'warning', duration: 8000 })
+    }
+    return
+  }
   isRunning.value = true
   sessionCounts.value = {}
   initializeDisplays(settings.value.multiMode ? (settings.value.peopleCount || 2) : 1)
@@ -230,6 +238,7 @@ onBeforeUnmount(() => { if (intervalId) clearTimeout(intervalId) })
 .list-selector-bar { display: flex; align-items: center; gap: 12px; background: var(--bg-card); backdrop-filter: blur(20px); padding: 8px 16px; border-radius: var(--radius-lg); border: 1px solid var(--border-default); box-shadow: var(--shadow-4); width: 100%; justify-content: center; }
 .selector-label { font-size: 14px; font-weight: 600; color: var(--text-secondary); white-space: nowrap; }
 .start-btn { min-width: 280px; font-size: 16px; min-height: 48px; margin-top: 8px; }
+.btn-dimmed { opacity: 0.45; cursor: not-allowed; }
 
 .toggle-expand-enter-active { animation: toggle-in 0.25s cubic-bezier(0.1, 0.9, 0.2, 1); }
 .toggle-expand-leave-active { animation: toggle-in 0.15s ease-in reverse; }
