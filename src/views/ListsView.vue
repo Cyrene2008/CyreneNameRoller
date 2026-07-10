@@ -153,7 +153,7 @@ function batchDelete() {
     message: lang.value === 'en' ? `Deleted ${deletedPersons.length} names` : `已删除 ${deletedPersons.length} 个名字`,
     icon: 'delete-16-regular',
     type: 'warning',
-    duration: 5000,
+    duration: 8000,
     undoAction: () => {
       deletedPersons.forEach(p => namesStore.addPerson(p.cn, p.en))
     }

@@ -155,7 +155,13 @@ async function loadTrayState() {
 function shuffle() {
   const available = getAvailableNames()
   if (available.length === 0) {
-    showBanner({ message: lang.value === 'en' ? 'No names available' : '唔...你还没添加名单呢♪', icon: 'info-16-regular', type: 'warning', duration: 5000 })
+    const hasNames = allNonWL.value.length > 0
+    showBanner({
+      message: hasNames
+        ? (lang.value === 'en' ? 'All drawn! Remember to reset~' : '嘻...已经被你抽完啦，记得重置一下哦♪')
+        : (lang.value === 'en' ? 'No names available' : '唔...你还没添加名单呢♪'),
+      icon: 'info-16-regular', type: 'warning', duration: 8000
+    })
     return
   }
   const k = Math.min(parseInt(cardCount.value) || 5, available.length)
@@ -180,7 +186,13 @@ function flipCard(index) {
 function quickDraw() {
   const available = getAvailableNames()
   if (available.length === 0) {
-    showBanner({ message: lang.value === 'en' ? 'No names available' : '唔...你还没添加名单呢♪', icon: 'info-16-regular', type: 'warning', duration: 5000 })
+    const hasNames = allNonWL.value.length > 0
+    showBanner({
+      message: hasNames
+        ? (lang.value === 'en' ? 'All drawn! Remember to reset~' : '嘻...已经被你抽完啦，记得重置一下哦♪')
+        : (lang.value === 'en' ? 'No names available' : '唔...你还没添加名单呢♪'),
+      icon: 'info-16-regular', type: 'warning', duration: 8000
+    })
     return
   }
   let count = Math.min(parseInt(quickCount.value) || 4, maxCards.value)

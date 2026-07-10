@@ -121,7 +121,7 @@ export async function checkForUpdates(silent = true, bannerFn = null) {
   } else {
     updateState.value = { available: false, checking: false, downloading: false, downloadProgress: 0, version: '', url: '', fileName: '', body: '', error: null }
     if (!silent && bannerFn) {
-      bannerFn({ message: '已是最新版本', icon: 'checkmark-circle-16-regular', type: 'success', duration: 3000 })
+      bannerFn({ message: '已是最新版本', icon: 'checkmark-circle-16-regular', type: 'success', duration: 8000 })
     }
   }
 }
@@ -184,8 +184,7 @@ export async function downloadUpdate(bannerFn = null) {
     saveBlob(blob, updateState.value.fileName || 'update.exe')
 
     if (bannerHandle) {
-      bannerHandle.update({ message: '下载完成，请手动运行安装程序', icon: 'checkmark-circle-16-regular', type: 'success', progress: 100, dismissible: true })
-      setTimeout(() => bannerHandle.dismiss(), 5000)
+      bannerHandle.update({ message: '下载完成，请手动运行安装程序', icon: 'checkmark-circle-16-regular', type: 'success', progress: 100, duration: 8000 })
     }
 
     updateState.value.downloading = false
@@ -195,8 +194,7 @@ export async function downloadUpdate(bannerFn = null) {
     updateState.value.downloading = false
     updateState.value.downloadProgress = 0
     if (bannerHandle) {
-      bannerHandle.update({ message: '下载失败，正在尝试备用链接...', icon: 'warning-16-regular', type: 'warning', progress: 0, dismissible: true })
-      setTimeout(() => bannerHandle.dismiss(), 3000)
+      bannerHandle.update({ message: '下载失败，正在尝试备用链接...', icon: 'warning-16-regular', type: 'warning', progress: 0, duration: 8000 })
     }
     if (isTauri()) {
       await tauriAPI.openExternal(originalUrl)
