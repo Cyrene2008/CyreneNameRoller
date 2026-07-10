@@ -33,19 +33,19 @@
           <div class="asset-meta">
             <span class="meta-item">
               <FluentIcon icon="lock-closed-12-regular" :width="12" />
-              sha256:{{ asset.digest ? asset.digest.split(':')[1]?.substring(0, 16) + '...' : 'N/A' }}
+              sha256:<span class="num">{{ asset.digest ? asset.digest.split(':')[1]?.substring(0, 16) + '...' : 'N/A' }}</span>
             </span>
             <span class="meta-item">
               <FluentIcon icon="arrow-download-12-regular" :width="12" />
-              {{ asset.download_count }} {{ lang === 'en' ? 'downloads' : '次下载' }}
+              <span class="num">{{ asset.download_count }}</span> {{ lang === 'en' ? 'downloads' : '次下载' }}
             </span>
             <span class="meta-item">
               <FluentIcon icon="database-12-regular" :width="12" />
-              {{ formatSize(asset.size) }}
+              <span class="num">{{ formatSize(asset.size) }}</span>
             </span>
             <span class="meta-item">
               <FluentIcon icon="clock-12-regular" :width="12" />
-              {{ formatTime(asset.updated_at) }}
+              <span class="num">{{ formatTime(asset.updated_at) }}</span>
             </span>
           </div>
           <FluentButton variant="primary" size="sm" @click="downloadAsset(asset)">
@@ -76,7 +76,6 @@ const settingsStore = useSettingsStore()
 const lang = computed(() => settingsStore.settings.language)
 
 const GITHUB_REPO = 'Cyrene2008/CyreneNameRoller'
-const GHPROXY_API = 'https://gh.昔涟.cn/https://api.github.com/repos/'
 const GITHUB_API = 'https://api.github.com/repos/'
 
 const loading = ref(true)
@@ -118,8 +117,8 @@ async function fetchAssets() {
   assets.value = []
 
   const urls = [
-    GHPROXY_API + GITHUB_REPO + '/releases/latest',
-    GITHUB_API + GITHUB_REPO + '/releases/latest'
+    GITHUB_API + GITHUB_REPO + '/releases/latest',
+    'https://api.kkgithub.com/repos/' + GITHUB_REPO + '/releases/latest'
   ]
 
   let data = null
@@ -209,12 +208,13 @@ onMounted(fetchAssets)
 
 .version-tag {
   font-family: var(--font-num);
-  font-size: 18px;
+  font-size: calc(16px * var(--font-num-scale, 1.6));
   font-weight: 700;
   color: var(--accent);
   background: var(--accent-50);
   padding: 4px 12px;
   border-radius: var(--radius-sm);
+  transform: translateY(-4px);
 }
 
 .version-time {
@@ -248,7 +248,7 @@ onMounted(fetchAssets)
 
 .asset-name {
   font-family: var(--font-num);
-  font-size: 13px;
+  font-size: calc(13px * var(--font-num-scale, 1.6));
   font-weight: 600;
   color: var(--text-primary);
   word-break: break-all;
@@ -266,7 +266,12 @@ onMounted(fetchAssets)
   gap: 4px;
   font-size: 12px;
   color: var(--text-muted);
+  font-family: var(--font-ui);
+}
+
+.meta-item .num {
   font-family: var(--font-num);
+  font-size: calc(12px * var(--font-num-scale, 1.6));
 }
 
 .fallback-section {
