@@ -61,7 +61,7 @@ defineEmits(['update:modelValue'])
 
 .toggle-thumb {
   position: absolute;
-  top: 2px;
+  top: 50%;
   left: 2px;
   width: 16px;
   height: 16px;
@@ -69,6 +69,7 @@ defineEmits(['update:modelValue'])
   border-radius: 50%;
   transition: transform var(--duration-fast) var(--ease-standard);
   box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+  transform: translateY(-50%);
 }
 
 .fluent-toggle.checked .toggle-track {
@@ -76,7 +77,7 @@ defineEmits(['update:modelValue'])
 }
 
 .fluent-toggle.checked .toggle-thumb {
-  transform: translateX(20px);
+  transform: translateX(20px) translateY(-50%);
 }
 
 .fluent-toggle:hover .toggle-track {
