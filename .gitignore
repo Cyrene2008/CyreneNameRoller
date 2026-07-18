@@ -5,6 +5,7 @@ dist
 release*
 build-output
 *.log
+*.err
 *.exe
 *.dll
 *.blockmap
