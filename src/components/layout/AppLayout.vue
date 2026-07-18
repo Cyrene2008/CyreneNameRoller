@@ -83,7 +83,6 @@ const banners = ref([])
 let bannerIdCounter = 0
 
 function showBanner({ message, icon = 'info-16-regular', type = 'info', duration = 8000, dismissible = false, progress = 0, undoAction = null }) {
-  // 去重：相同消息的通知不重复添加
   const existing = banners.value.find(b => b.message === message)
   if (existing) return { id: existing.id, update(opts) { Object.assign(existing, opts) }, dismiss() { dismissBanner(existing.id) } }
 
@@ -147,13 +146,31 @@ function onBannerLeave(b) {
 
 provide('banner', showBanner)
 
-const routeOrder = ['/', '/roller', '/card', '/statistics', '/records', '/lists', '/lists/manage', '/settings', '/settings/balance-curve', '/about', '/about/contributors']
+const routeOrder = {
+  '/': 0,
+  '/roller': 1,
+  '/card': 2,
+  '/statistics': 3,
+  '/records': 4,
+  '/lists': 5,
+  '/lists/manage': 5,
+  '/group-manage': 5,
+  '/announcement': 1001,
+  '/download': 1002,
+  '/docs': 1003,
+  '/settings': 9999,
+  '/settings/balance-curve': 9999,
+  '/about': 33550336,
+  '/about/contributors': 33550336
+}
 const transitionName = ref('page-forward')
 
 function getRouteIndex(path) {
-  const clean = path.replace(/\/$/, '') || '/'
-  const idx = routeOrder.indexOf(clean)
-  return idx >= 0 ? idx : routeOrder.length
+  if (routeOrder[path] !== undefined) return routeOrder[path]
+  const segs = path.split('/').filter(Boolean)
+  const parent = '/' + segs.slice(0, -1).join('/')
+  if (parent && routeOrder[parent] !== undefined) return routeOrder[parent]
+  return 999999
 }
 
 router.beforeEach((to, from) => {

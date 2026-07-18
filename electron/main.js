@@ -1,12 +1,27 @@
-const { app, BrowserWindow, ipcMain, dialog, shell, net } = require('electron')
+const { app, BrowserWindow, ipcMain, dialog, shell, net, Tray, Menu: ElectronMenu } = require('electron')
 const path = require('path')
 const fs = require('fs')
 const https = require('https')
+const os = require('os')
 
 let win
 let store
 let windowStateStore
+let tray = null
+let quitting = false
 const isDev = !app.isPackaged
+
+// 单实例限制：多次启动主程序只保留一个进程
+if (!app.requestSingleInstanceLock()) {
+  app.quit()
+}
+app.on('second-instance', () => {
+  if (win) {
+    if (win.isMinimized()) win.restore()
+    win.show()
+    win.focus()
+  }
+})
 
 async function initStore() {
   const { default: Store } = await import('electron-store')
@@ -62,7 +77,15 @@ function createWindow() {
 
   if (saved && saved.isMaximized) win.maximize()
 
-  win.on('close', saveWindowState)
+  // 关闭时最小化到托盘而非退出（后台常驻），仅托盘“退出”时真正退出
+  win.on('close', (e) => {
+    if (!quitting) {
+      e.preventDefault()
+      win.hide()
+      return
+    }
+    saveWindowState()
+  })
   win.on('resize', saveWindowState)
   win.on('move', saveWindowState)
 
@@ -187,6 +210,48 @@ ipcMain.handle('check-update', async () => {
   return { ok: false, error: '无法连接到更新服务器' }
 })
 
+// 公告拉取（通过主进程避免 CORS / webview 网络限制）。
+// 下载到系统 TEMP 缓存文件再读回；全部失败则复用本地缓存（离线兜底）。
+ipcMain.handle('fetch-announcements', async () => {
+  const urls = [
+    'https://gh.xn--8hvv1o.cn/raw.githubusercontent.com/Cyrene2008/CyreneNameRoller/refs/heads/master/.announcement/latest.json',
+    'https://nameapi.cyrene.hi.cn/announcement/latest.json',
+    'https://raw.githubusercontent.com/Cyrene2008/CyreneNameRoller/master/.announcement/latest.json'
+  ]
+  const cachePath = path.join(os.tmpdir(), 'CyreneNameRoller', 'announcement.json')
+  fs.mkdirSync(path.dirname(cachePath), { recursive: true })
+
+  for (const url of urls) {
+    try {
+      const body = await new Promise((resolve, reject) => {
+        const req = https.get(url, {
+          headers: { 'User-Agent': 'CyreneNameRoller' },
+          timeout: 10000
+        }, (res) => {
+          if (res.statusCode !== 200) { res.resume(); reject(new Error(`HTTP ${res.statusCode}`)); return }
+          let buf = ''
+          res.on('data', c => buf += c)
+          res.on('end', () => resolve(buf))
+        })
+        req.on('error', reject)
+        req.on('timeout', () => { req.destroy(); reject(new Error('timeout')) })
+      })
+      // 1) 写入 TEMP 缓存文件
+      fs.writeFileSync(cachePath, body)
+      // 2) 从磁盘读回并解析
+      const data = JSON.parse(fs.readFileSync(cachePath, 'utf-8'))
+      return { ok: true, data }
+    } catch {}
+  }
+
+  // 全部拉取失败：尝试读取之前已缓存的文件（离线兜底）
+  try {
+    const data = JSON.parse(fs.readFileSync(cachePath, 'utf-8'))
+    return { ok: true, data }
+  } catch {}
+  return { ok: false, error: '无法获取公告内容' }
+})
+
 // 名单加载（从 .origin 目录）
 ipcMain.handle('data:loadNames', () => {
   const bundledPath = path.join(__dirname, '../.origin/names.json')
@@ -256,9 +321,28 @@ ipcMain.handle('data:importData', async () => {
   }
 })
 
+function createTray() {
+  try {
+    const iconPath = path.join(__dirname, '../src-tauri/icons/icon.png')
+    tray = new Tray(iconPath)
+    const contextMenu = ElectronMenu.buildFromTemplate([
+      { label: '显示主窗口', click: () => { if (win) { win.show(); win.focus() } } },
+      { type: 'separator' },
+      { label: '退出', click: () => { quitting = true; app.quit() } }
+    ])
+    tray.setToolTip('Cyreneの随机点名器')
+    tray.setContextMenu(contextMenu)
+    tray.on('double-click', () => { if (win) { win.show(); win.focus() } })
+  } catch (e) {
+    console.error('[tray] failed to create:', e.message)
+  }
+}
+
 app.whenReady().then(async () => {
   await initStore()
   createWindow()
+  createTray()
 })
-app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit() })
+// 后台常驻：窗口关闭后进程不退出（由托盘管理退出）
+app.on('window-all-closed', () => {})
 app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow() })

@@ -3,6 +3,7 @@
     <button
       class="fluent-select"
       :class="{ open, disabled }"
+      :style="width ? { width, minWidth: width } : null"
       @click="toggle"
       :disabled="disabled"
       ref="btnRef"
@@ -36,7 +37,8 @@ const props = defineProps({
   modelValue: { type: [String, Number], default: '' },
   options: { type: Array, default: () => [] },
   placeholder: { type: String, default: '请选择' },
-  disabled: { type: Boolean, default: false }
+  disabled: { type: Boolean, default: false },
+  width: { type: String, default: '' }
 })
 
 const emit = defineEmits(['update:modelValue'])
@@ -54,13 +56,33 @@ const displayValue = computed(() => {
 function updateDropdownPos() {
   if (!btnRef.value) return
   const rect = btnRef.value.getBoundingClientRect()
-  dropdownStyle.value = {
-    position: 'fixed',
-    top: `${rect.bottom + 4}px`,
-    left: `${rect.left}px`,
-    width: `${rect.width}px`,
-    zIndex: 99999
+  const estItem = 34
+  const estH = Math.min(260, Math.max(estItem, props.options.length * estItem + 10))
+  const spaceBelow = window.innerHeight - rect.bottom
+  const spaceAbove = rect.top
+  let style
+  if (spaceBelow < estH && spaceAbove > spaceBelow) {
+    const h = Math.min(estH, spaceAbove - 8)
+    const top = Math.max(4, rect.top - h - 4)
+    style = {
+      position: 'fixed',
+      top: `${top}px`,
+      left: `${rect.left}px`,
+      width: `${rect.width}px`,
+      maxHeight: `${h}px`,
+      zIndex: 99999
+    }
+  } else {
+    style = {
+      position: 'fixed',
+      top: `${rect.bottom + 4}px`,
+      left: `${rect.left}px`,
+      width: `${rect.width}px`,
+      maxHeight: `${Math.min(estH, spaceBelow - 8)}px`,
+      zIndex: 99999
+    }
   }
+  dropdownStyle.value = style
 }
 
 function toggle() {

@@ -20,7 +20,7 @@
       </div>
       <div class="summary-item">
         <span class="summary-label">{{ lang === 'en' ? 'Candidates' : '候选人数' }}</span>
-        <span class="summary-value">{{ selectedNames.filter(n => n.cn !== '再来一次').length }}</span>
+        <span class="summary-value">{{ selectedNames.filter(n => !n.isWhiteList).length }}</span>
       </div>
     </FluentCard>
 
@@ -78,7 +78,8 @@ const selectedList = computed(() =>
 )
 
 const selectedNames = computed(() => selectedList.value.names || [])
-const selectedWhiteList = computed(() => selectedList.value.whiteList || [])
+const selectedWhiteList = computed(() => selectedNames.value.filter(n => n.isWhiteList))
+const whiteListCns = computed(() => selectedWhiteList.value.map(w => w.cn))
 
 const statsData = computed(() => {
   return statisticsStore.getStatsForList(
@@ -90,7 +91,7 @@ const statsData = computed(() => {
 const statsWithBalance = computed(() => {
   const probMap = computeBalancedProbability(
     selectedNames.value,
-    selectedWhiteList.value,
+    whiteListCns.value,
     statisticsStore.counts,
     balanceSettings.value
   )

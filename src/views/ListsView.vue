@@ -33,10 +33,16 @@
           <span class="person-count">{{ namesStore.currentNames.length }} {{ lang === 'en' ? 'people' : '人' }}</span>
         </label>
         <Transition name="fade">
-          <FluentButton v-if="selectedIndices.length > 0" variant="danger" size="sm" @click="batchDelete">
-            <FluentIcon icon="delete-16-regular" :width="14" />
-            {{ lang === 'en' ? `Delete ${selectedIndices.length}` : `删除 ${selectedIndices.length} 项` }}
-          </FluentButton>
+          <div v-if="selectedIndices.length > 0" class="batch-actions">
+            <FluentButton variant="secondary" size="sm" @click="openBatchGroup">
+              <FluentIcon icon="fluent:people-team-16-regular" :width="14" />
+              {{ t('batchAssignGroup', lang) }}
+            </FluentButton>
+            <FluentButton variant="danger" size="sm" @click="batchDelete">
+              <FluentIcon icon="delete-16-regular" :width="14" />
+              {{ lang === 'en' ? `Delete ${selectedIndices.length}` : `删除 ${selectedIndices.length} 项` }}
+            </FluentButton>
+          </div>
         </Transition>
       </div>
       <div class="person-list">
@@ -46,6 +52,8 @@
             <div class="edit-row">
               <FluentInput v-model="editCn" style="flex:1;" :placeholder="t('cnName', lang)" />
               <FluentInput v-model="editEn" style="flex:1;" :placeholder="t('enName', lang)" />
+              <FluentSelect v-model="editGroup" :options="groupOptions" :placeholder="t('groupOf', lang)" style="min-width: 150px;" />
+              <FluentToggle v-model="editWhite" :label="t('whitelist', lang)" :title="t('whitelistHint', lang)" />
               <FluentButton variant="primary" size="sm" icon-only @click="saveEdit(index)"><FluentIcon icon="checkmark-16-regular" :width="14" /></FluentButton>
               <FluentButton variant="subtle" size="sm" icon-only @click="editingIndex = -1"><FluentIcon icon="dismiss-16-regular" :width="14" /></FluentButton>
             </div>
@@ -53,18 +61,19 @@
           <!-- 显示模式 -->
           <template v-else>
             <label class="person-check-label">
-              <input type="checkbox" :checked="selectedSet.has(index)" @change="toggleSelect(index)" class="person-checkbox" :disabled="namesStore.isWhiteList(person.cn)" />
+              <input type="checkbox" :checked="selectedSet.has(index)" @change="toggleSelect(index)" class="person-checkbox" />
             </label>
             <div class="person-info">
               <span class="person-cn">{{ person.cn }}</span>
               <span class="person-en">{{ person.en }}</span>
-              <span v-if="namesStore.isWhiteList(person.cn)" class="whitelist-badge">{{ lang === 'en' ? 'WL' : '白名单' }}</span>
+              <span v-if="person.isWhiteList" class="whitelist-badge">{{ lang === 'en' ? 'WL' : '白名单' }}</span>
+              <span v-if="person.groupId" class="group-badge">{{ groupNameOf(person.groupId) }}</span>
             </div>
             <div class="person-actions">
               <FluentButton variant="subtle" size="sm" icon-only @click="startEdit(index, person)">
                 <FluentIcon icon="edit-16-regular" :width="14" />
               </FluentButton>
-              <FluentButton variant="subtle" size="sm" icon-only :disabled="namesStore.isWhiteList(person.cn)" @click="namesStore.deletePerson(index)">
+              <FluentButton variant="subtle" size="sm" icon-only @click="namesStore.deletePerson(index)">
                 <FluentIcon icon="delete-16-regular" :width="14" />
               </FluentButton>
             </div>
@@ -75,6 +84,19 @@
         </div>
       </div>
     </FluentCard>
+
+    <!-- 批量设置小组 -->
+    <FluentModal v-model="showBatchModal" :title="t('batchAssignGroup', lang)">
+      <div class="field">
+        <label class="field-label">{{ t('groupOf', lang) }}</label>
+        <FluentSelect v-model="batchGroup" :options="groupOptions" :placeholder="t('unassigned', lang)" />
+      </div>
+      <p class="batch-note">{{ t('selectedCount', lang).replace('{n}', selectedIndices.length) }}</p>
+      <template #footer>
+        <FluentButton variant="subtle" @click="showBatchModal = false">{{ t('cancel', lang) }}</FluentButton>
+        <FluentButton variant="primary" @click="applyBatchGroup">{{ t('apply', lang) }}</FluentButton>
+      </template>
+    </FluentModal>
   </div>
 </template>
 
@@ -89,6 +111,8 @@ import FluentButton from '../components/FluentButton.vue'
 import FluentIcon from '../components/FluentIcon.vue'
 import FluentSelect from '../components/FluentSelect.vue'
 import FluentInput from '../components/FluentInput.vue'
+import FluentModal from '../components/FluentModal.vue'
+import FluentToggle from '../components/FluentToggle.vue'
 
 const router = useRouter()
 const namesStore = useNamesStore()
@@ -98,6 +122,16 @@ const showBanner = inject('banner')
 
 const listOptions = computed(() => namesStore.allLists.map(l => ({ value: l.id, label: l.name })))
 
+const currentGroups = computed(() => namesStore.currentList.groups || [])
+const groupOptions = computed(() => [
+  { value: '', label: t('unassigned', lang.value) },
+  ...currentGroups.value.map(g => ({ value: g.id, label: g.name }))
+])
+function groupNameOf(id) {
+  const g = currentGroups.value.find(x => x.id === id)
+  return g ? g.name : (id || '')
+}
+
 const newCn = ref('')
 const newEn = ref('')
 const newEnRef = ref(null)
@@ -105,6 +139,8 @@ const newEnRef = ref(null)
 const editingIndex = ref(-1)
 const editCn = ref('')
 const editEn = ref('')
+const editGroup = ref('')
+const editWhite = ref(false)
 
 const selectedSet = ref(new Set())
 const selectedIndices = computed(() => [...selectedSet.value])
@@ -114,14 +150,14 @@ const someSelected = computed(() => selectedSet.value.size > 0 && !allSelected.v
 function toggleSelect(index) {
   const s = new Set(selectedSet.value)
   if (s.has(index)) s.delete(index)
-  else if (!namesStore.isWhiteList(namesStore.currentNames[index].cn)) s.add(index)
+  else s.add(index)
   selectedSet.value = s
 }
 
 function toggleSelectAll() {
   if (allSelected.value) { selectedSet.value = new Set(); return }
   const s = new Set()
-  namesStore.currentNames.forEach((p, i) => { if (!namesStore.isWhiteList(p.cn)) s.add(i) })
+  namesStore.currentNames.forEach((p, i) => s.add(i))
   selectedSet.value = s
 }
 
@@ -136,12 +172,29 @@ function startEdit(index, person) {
   editingIndex.value = index
   editCn.value = person.cn
   editEn.value = person.en
+  editGroup.value = person.groupId || ''
+  editWhite.value = !!person.isWhiteList
 }
 
 function saveEdit(index) {
   if (!editCn.value.trim()) return
   namesStore.editPerson(index, editCn.value, editEn.value)
+  namesStore.assignGroup(namesStore.currentListId, index, editGroup.value)
+  namesStore.currentNames[index].isWhiteList = editWhite.value
+  namesStore.save()
   editingIndex.value = -1
+}
+
+const showBatchModal = ref(false)
+const batchGroup = ref('')
+function openBatchGroup() {
+  batchGroup.value = ''
+  showBatchModal.value = true
+}
+function applyBatchGroup() {
+  namesStore.batchAssignGroup(namesStore.currentListId, selectedIndices.value, batchGroup.value)
+  selectedSet.value = new Set()
+  showBatchModal.value = false
 }
 
 function batchDelete() {
@@ -309,6 +362,22 @@ function batchDelete() {
   border-radius: var(--radius-sm);
 }
 
+.group-badge {
+  font-size: 11px;
+  color: var(--accent);
+  background: var(--accent-50);
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dark .group-badge {
+  background: rgba(234, 94, 193, 0.15);
+}
+
 .person-actions {
   display: flex;
   gap: 4px;
@@ -320,6 +389,24 @@ function batchDelete() {
   gap: 8px;
   flex: 1;
   align-items: center;
+  flex-wrap: wrap;
+}
+
+.batch-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.batch-note {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.field-label {
+  font-size: 12px;
+  color: var(--text-muted);
 }
 
 .empty-list {

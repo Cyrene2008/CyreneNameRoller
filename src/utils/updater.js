@@ -188,10 +188,8 @@ export async function downloadUpdate(bannerFn = null) {
     const blob = new Blob([allChunks])
     const fileName = updateState.value.fileName || 'update.exe'
 
-    // 优先弹出保存对话框并自动运行
     let saved = false
     if (window.electronAPI?.saveAndLaunch) {
-      // Electron: 传递Uint8Array给IPC
       const arrayBuffer = await blob.arrayBuffer()
       const uint8 = new Uint8Array(arrayBuffer)
       const result = await window.electronAPI.saveAndLaunch(uint8, fileName)
@@ -203,7 +201,6 @@ export async function downloadUpdate(bannerFn = null) {
         saved = true
       }
     } else if (isTauri() && tauriAPI.saveAndLaunch) {
-      // Tauri: 传递URL给Rust后端，由后端下载+保存+启动
       try {
         const result = await tauriAPI.saveAndLaunch(downloadUrl, fileName)
         if (result?.success) {
@@ -218,7 +215,6 @@ export async function downloadUpdate(bannerFn = null) {
       }
     }
 
-    // 回退到浏览器下载
     if (!saved) {
       saveBlob(blob, fileName)
       if (bannerHandle) {

@@ -1,9 +1,11 @@
 .origin
+.local
 node_modules
 dist
 release*
 build-output
 *.log
+*.err
 *.exe
 *.dll
 *.blockmap
@@ -17,3 +19,4 @@ public/names.json
 public/up.json
 src-tauri/target
 src-tauri/gen
+target/

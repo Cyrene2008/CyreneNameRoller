@@ -10,11 +10,20 @@
       <h3 class="section-title"><FluentIcon icon="options-24-regular" :width="20" /> {{ lang === 'en' ? 'General' : '基本设置' }}</h3>
       <div class="setting-row">
         <span class="setting-label">{{ lang === 'en' ? 'Language' : '语言' }}</span>
-        <FluentSelect :model-value="settings.language" :options="langOptions" @update:model-value="update('language', $event)" />
+        <FluentSelect :model-value="settings.language" :options="langOptions" width="200px" @update:model-value="update('language', $event)" />
       </div>
       <div class="setting-row">
         <span class="setting-label">{{ lang === 'en' ? 'Dark Mode' : '深色模式' }}</span>
         <FluentToggle :model-value="settingsStore.darkMode" @update:model-value="settingsStore.toggleDarkMode()" />
+      </div>
+      <div class="setting-row">
+        <div class="setting-label-group">
+          <span class="setting-label">{{ t('startupSplash', lang) }}</span>
+        </div>
+        <FluentToggle
+          :model-value="!settings.disableSplash"
+          @update:model-value="update('disableSplash', !$event)"
+        />
       </div>
       <div v-if="isDesktop" class="setting-row">
         <span class="setting-label">{{ lang === 'en' ? 'Check for Updates' : '检查更新' }}</span>
@@ -50,7 +59,7 @@
       <h3 class="section-title"><FluentIcon icon="color-24-regular" :width="20" /> {{ lang === 'en' ? 'Theme & Display' : '主题与显示' }}</h3>
       <div class="setting-row">
         <span class="setting-label">{{ t('nameColorMode', lang) }}</span>
-        <FluentSelect :model-value="settings.nameColorMode" :options="colorModeOptions" @update:model-value="update('nameColorMode', $event)" />
+        <FluentSelect :model-value="settings.nameColorMode" :options="colorModeOptions" width="200px" @update:model-value="update('nameColorMode', $event)" />
       </div>
       <Transition name="toggle-expand">
         <div v-if="settings.nameColorMode === 'custom'" class="sub-setting">
@@ -71,16 +80,34 @@
         </div>
       </Transition>
       <div class="setting-row">
-        <span class="setting-label">{{ t('uiScale', lang) }}</span>
-        <FluentSelect :model-value="settings.uiScale" :options="uiScaleOptions" @update:model-value="update('uiScale', $event)" />
+        <div class="setting-label-group">
+          <span class="setting-label">{{ t('uiScale', lang) }}</span>
+          <span class="scale-range">{{ lang === 'en' ? 'Range 50–200%' : '范围 50%-200%' }}</span>
+        </div>
+        <div class="scale-control">
+          <div class="scale-input-wrap">
+            <input
+              type="number"
+              class="scale-input"
+              min="50"
+              max="200"
+              step="1"
+              v-model.number="scaleDraft"
+            />
+            <span class="scale-unit">%</span>
+          </div>
+          <Transition name="scale-btn">
+            <FluentButton v-if="scaleChanged" variant="secondary" size="sm" @click="confirmScale">{{ lang === 'en' ? 'Apply' : '确认' }}</FluentButton>
+          </Transition>
+        </div>
       </div>
       <div class="setting-row">
         <span class="setting-label">{{ t('fontSize', lang) }}</span>
-        <FluentSelect :model-value="settings.nameFontSize" :options="fontSizeOptions" @update:model-value="update('nameFontSize', $event)" />
+        <FluentSelect :model-value="settings.nameFontSize" :options="fontSizeOptions" width="200px" @update:model-value="update('nameFontSize', $event)" />
       </div>
       <div class="setting-row">
         <span class="setting-label">{{ lang === 'en' ? 'Font' : '字体' }}</span>
-        <FluentSelect :model-value="settings.fontFamily" :options="fontOptions" @update:model-value="update('fontFamily', $event)" />
+        <FluentSelect :model-value="settings.fontFamily" :options="fontOptions" width="200px" @update:model-value="update('fontFamily', $event)" />
       </div>
     </FluentCard>
 
@@ -147,6 +174,31 @@
       </div>
     </FluentCard>
 
+    <!-- 抽取设置 -->
+    <FluentCard class="settings-section">
+      <h3 class="section-title"><FluentIcon icon="play-24-regular" :width="18" /> {{ t('drawSettings', lang) }}</h3>
+      <div class="setting-row">
+        <div class="setting-label-group">
+          <span class="setting-label">{{ t('multiStepStop', lang) }}</span>
+        </div>
+        <FluentToggle :model-value="settings.multiStepStop" @update:model-value="update('multiStepStop', $event)" />
+      </div>
+      <Transition name="toggle-expand">
+        <div v-if="settings.multiStepStop" class="sub-setting">
+          <div class="setting-row">
+            <span class="setting-label">{{ t('stepStopInterval', lang) }}</span>
+            <div class="scale-control">
+              <div class="scale-input-wrap" style="width:140px">
+                <input type="number" class="scale-input" min="0.01" max="1.00" step="0.01" v-model.number="stepIntervalDraft" />
+                <span class="scale-unit">sec</span>
+              </div>
+              <FluentButton variant="secondary" size="sm" @click="confirmStepInterval">{{ lang === 'en' ? 'Apply' : '确认' }}</FluentButton>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </FluentCard>
+
     <!-- 平衡算法 -->
     <FluentCard class="settings-section">
       <h3 class="section-title"><FluentIcon icon="data-line-24-regular" :width="20" /> {{ t('balanceSettings', lang) }}</h3>
@@ -200,7 +252,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, nextTick, inject } from 'vue'
+import { ref, computed, onMounted, nextTick, watch, inject } from 'vue'
 import { useRouter } from 'vue-router'
 import { useNamesStore } from '../stores/names'
 import { useSettingsStore } from '../stores/settings'
@@ -235,11 +287,20 @@ const langOptions = [
   { value: 'zh', label: '中文' },
   { value: 'en', label: 'English' }
 ]
-const uiScaleOptions = [
-  { value: 50, label: '50%' }, { value: 75, label: '75%' }, { value: 100, label: '100%' },
-  { value: 125, label: '125%' }, { value: 150, label: '150%' }, { value: 175, label: '175%' },
-  { value: 200, label: '200%' }
-]
+const scaleDraft = ref(settings.value.uiScale)
+watch(() => settings.value.uiScale, (v) => { scaleDraft.value = v })
+const scaleChanged = computed(() => {
+  const v = Math.round(Number(scaleDraft.value))
+  if (!Number.isFinite(v)) return false
+  return v !== Math.round(settings.value.uiScale)
+})
+function confirmScale() {
+  let v = Math.round(Number(scaleDraft.value))
+  if (!Number.isFinite(v)) v = settings.value.uiScale
+  v = Math.min(200, Math.max(50, v))
+  scaleDraft.value = v
+  update('uiScale', v)
+}
 const fontSizeOptions = [
   { value: 0.75, label: '0.75x' }, { value: 1.0, label: '1.0x' }, { value: 1.25, label: '1.25x' },
   { value: 1.5, label: '1.5x' }, { value: 1.75, label: '1.75x' }, { value: 2.0, label: '2.0x' }
@@ -277,6 +338,16 @@ const pwModalHint = computed(() => {
 })
 
 function update(key, value) { settingsStore.update(key, value) }
+
+const stepIntervalDraft = ref(settings.value.stepStopInterval)
+watch(() => settings.value.stepStopInterval, v => { stepIntervalDraft.value = v })
+function confirmStepInterval() {
+  let v = Number(stepIntervalDraft.value)
+  if (!Number.isFinite(v)) v = 0.15
+  v = Math.min(1.0, Math.max(0.01, Math.round(v * 100) / 100))
+  stepIntervalDraft.value = v
+  update('stepStopInterval', v)
+}
 
 function doCheckUpdate() { checkForUpdates(false, showBanner) }
 
@@ -381,6 +452,39 @@ function resetBalance() { balance.value = JSON.parse(JSON.stringify(DEFAULT_BALA
 .sub-setting { padding-left: 16px; border-left: 2px solid var(--accent-200); margin-left: 0; }
 .color-picker-row { display: flex; align-items: center; gap: 10px; }
 .color-input { width: 40px; height: 32px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); cursor: pointer; padding: 2px; background: transparent; }
+.scale-control { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.scale-input-wrap {
+  display: flex; align-items: center; gap: 2px;
+  width: 200px; height: 32px; padding: 0 10px;
+  border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
+  background: var(--bg-input, rgba(255, 255, 255, 0.06));
+  transition: border-color .15s;
+}
+.scale-input-wrap:focus-within { border-color: var(--accent-500); }
+.scale-input {
+  flex: 1; width: 100%; min-width: 0; border: none; background: transparent;
+  color: var(--text-primary); font-size: 14px; font-family: var(--font-ui);
+  font-variant-numeric: tabular-nums; outline: none;
+}
+/* 隐藏数字输入框的上下微调箭头 */
+.scale-input::-webkit-outer-spin-button,
+.scale-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.scale-input { -moz-appearance: textfield; }
+.scale-unit { color: var(--text-muted); font-size: 14px; }
+.scale-range { font-size: 12px; color: var(--text-muted); }
+.scale-btn-enter-active, .scale-btn-leave-active {
+  overflow: hidden;
+  transition: opacity .22s ease, transform .22s cubic-bezier(0.1, 0.9, 0.2, 1), max-width .25s ease;
+}
+.scale-btn-enter-from, .scale-btn-leave-to {
+  opacity: 0;
+  transform: translateX(-8px);
+  max-width: 0;
+}
+.scale-btn-enter-to, .scale-btn-leave-from {
+  opacity: 1;
+  max-width: 120px;
+}
 .color-value { font-size: 13px; color: var(--text-muted); font-family: var(--font-ui); font-variant-numeric: tabular-nums; }
 .action-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
 .pw-modal-body { padding: 8px 0; }
