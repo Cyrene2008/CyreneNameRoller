@@ -20,7 +20,8 @@
         "minHeight": 900,
         "decorations": false,
         "transparent": false,
-        "resizable": true
+        "resizable": true,
+        "backgroundColor": "#fdf5fa"
       }
     ],
     "security": {
@@ -36,9 +37,6 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ],
-    "resources": {
-      "../public/updatelogs/up.json": "updatelogs/up.json"
-    }
+    ]
   }
 }

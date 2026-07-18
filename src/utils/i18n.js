@@ -45,6 +45,8 @@ const translations = {
     uiScale: '界面缩放',
     fontSize: '名字字体大小',
     nameColorMode: '名称颜色模式',
+    startupSplash: '启动动画',
+    startupSplashDesc: '程序启动时播放的载入动画（单进程限制或托盘启动时不会显示）',
     gradientMode: '渐变',
     customColorMode: '自定义单色',
     customColorLight: '浅色模式颜色',
@@ -57,7 +59,13 @@ const translations = {
     quickDraw: '一键多抽',
     draw: '多抽',
     reset: '重置',
-    remaining: '剩余待抽取'
+    remaining: '剩余待抽取',
+    announcement: '公告',
+    all: '全部',
+    important: '重要',
+    emptyAnn: '暂无公告',
+    annLoadFail: '公告加载失败',
+    retry: '重试'
   },
   en: {
     title: 'CyreneNameRoller',
@@ -105,6 +113,8 @@ const translations = {
     uiScale: 'UI Scale',
     fontSize: 'Name Font Size',
     nameColorMode: 'Name Color Mode',
+    startupSplash: 'Startup Animation',
+    startupSplashDesc: 'Loading animation played at startup (not shown on single-instance or tray launch)',
     gradientMode: 'Gradient',
     customColorMode: 'Custom Solid',
     customColorLight: 'Light Mode Color',
@@ -117,7 +127,13 @@ const translations = {
     quickDraw: 'Quick Draw',
     draw: 'Draw',
     reset: 'Reset',
-    remaining: 'Remaining'
+    remaining: 'Remaining',
+    announcement: 'Announcements',
+    all: 'All',
+    important: 'Important',
+    emptyAnn: 'No announcements',
+    annLoadFail: 'Failed to load announcements',
+    retry: 'Retry'
   }
 }
 

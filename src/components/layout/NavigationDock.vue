@@ -27,6 +27,18 @@
     </div>
 
     <div class="dock-bottom">
+      <!-- 公告 -->
+      <router-link
+        to="/announcement"
+        class="dock-item"
+        :class="{ active: route.path === '/announcement' }"
+        draggable="false"
+        :title="lang === 'en' ? 'Announcements' : '公告'"
+      >
+        <div class="dock-item-indicator" />
+        <Icon icon="fluent:megaphone-24-regular" :width="20" class="dock-item-icon" />
+        <span v-if="!dockCollapsed" class="dock-item-label">{{ lang === 'en' ? 'Announcements' : '公告' }}</span>
+      </router-link>
       <!-- Web版专属按钮 -->
       <template v-if="!isDesktopApp">
         <router-link

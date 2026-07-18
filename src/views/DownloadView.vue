@@ -68,6 +68,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useSettingsStore } from '../stores/settings'
+import { isTauri, tauriAPI } from '../utils/tauriAPI'
 import FluentCard from '../components/FluentCard.vue'
 import FluentButton from '../components/FluentButton.vue'
 import FluentIcon from '../components/FluentIcon.vue'
@@ -147,9 +148,88 @@ async function fetchAssets() {
   loading.value = false
 }
 
+async function sha256(buf) {
+  try {
+    const digest = await crypto.subtle.digest('SHA-256', buf)
+    return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('')
+  } catch {
+    return null
+  }
+}
+
+// 下载并校验：优先走代理，若校验失败或下载异常则回退到官方源重新校验
+async function fetchVerified(asset) {
+  const sources = [
+    'https://gh.昔涟.cn/' + asset.browser_download_url,
+    asset.browser_download_url
+  ]
+  const expected = asset.digest ? String(asset.digest).split(':').pop().toLowerCase() : null
+
+  for (const url of sources) {
+    try {
+      const ctrl = new AbortController()
+      const timer = setTimeout(() => ctrl.abort(), 120000)
+      const resp = await fetch(url, { signal: ctrl.signal })
+      clearTimeout(timer)
+      if (!resp.ok) continue
+      const buf = await resp.arrayBuffer()
+      const actual = await sha256(buf)
+      // 校验通过（或源无摘要且体积合理）才采用
+      const sizeOk = asset.size ? Math.abs(buf.byteLength - asset.size) < 1024 : buf.byteLength > 1024
+      if (expected) {
+        if (actual && actual === expected) return buf
+        console.warn('[download] sha256 mismatch for', url, actual, '!=', expected)
+      } else if (sizeOk) {
+        return buf
+      }
+    } catch (e) {
+      console.warn('[download] fetch failed:', url, e)
+    }
+  }
+  return null
+}
+
 async function downloadAsset(asset) {
-  const ghproxyUrl = 'https://gh.昔涟.cn/' + asset.browser_download_url
-  window.open(ghproxyUrl, '_blank')
+  const fileName = asset.name
+
+  // Electron：JS 校验后直接交给主进程保存并启动
+  if (window.electronAPI?.saveAndLaunch) {
+    const buf = await fetchVerified(asset)
+    if (!buf) {
+      alert(lang.value === 'en' ? 'Download failed or checksum mismatch, please try again.' : '下载失败或校验不通过，请重试。')
+      return
+    }
+    const uint8 = Array.from(new Uint8Array(buf))
+    try {
+      const result = await window.electronAPI.saveAndLaunch(uint8, fileName)
+      if (result && (result.success || result.cancelled)) return
+    } catch (e) { console.warn('[download] electron saveAndLaunch failed:', e) }
+  }
+
+  // Tauri：优先让 Rust 侧经代理下载并保存+启动（规避大数组序列化问题）
+  if (isTauri()) {
+    try {
+      const result = await tauriAPI.saveAndLaunch(asset.browser_download_url, fileName, asset.digest || '')
+      if (result && (result.success || result.cancelled)) return
+    } catch (e) {
+      console.warn('[download] tauri save_and_launch failed, fallback to bytes:', e)
+    }
+
+    // 兜底：JS 已校验字节传 Rust 保存+启动
+    const buf = await fetchVerified(asset)
+    if (buf) {
+      const uint8 = Array.from(new Uint8Array(buf))
+      try {
+        const result = await tauriAPI.saveAndLaunchFromBytes(uint8, fileName)
+        if (result && (result.success || result.cancelled)) return
+      } catch (e) { console.warn('[download] tauri saveAndLaunchFromBytes failed:', e) }
+    } else {
+      alert(lang.value === 'en' ? 'Download failed or checksum mismatch, please try again.' : '下载失败或校验不通过，请重试。')
+    }
+  }
+
+  // Web 端回退：浏览器下载
+  window.open('https://gh.昔涟.cn/' + asset.browser_download_url, '_blank')
 }
 
 function openGitHub() {

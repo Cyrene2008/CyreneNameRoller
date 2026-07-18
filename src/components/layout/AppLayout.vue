@@ -147,18 +147,39 @@ function onBannerLeave(b) {
 
 provide('banner', showBanner)
 
-const routeOrder = ['/', '/roller', '/card', '/statistics', '/records', '/lists', '/lists/manage', '/settings', '/settings/balance-curve', '/about', '/about/contributors']
+// 页面顺序（按用户指定的页面 id，现严格单调递增）：
+// 随机点名1 → 翻牌2 → 统计3 → 抽取记录4 → 名单管理5 → 公告1001 → 下载客户端1002 → 文档1003 → 设置9999 → 关于33550336
+// 注：公告 id 原误写为 10001（> 下载1002，与流程矛盾），已更正为 1001
+const routeOrder = {
+  '/': 0,
+  '/roller': 1,
+  '/card': 2,
+  '/statistics': 3,
+  '/records': 4,
+  '/lists': 5,
+  '/lists/manage': 5,
+  '/announcement': 1001,
+  '/download': 1002,
+  '/docs': 1003,
+  '/settings': 9999,
+  '/settings/balance-curve': 9999,
+  '/about': 33550336,
+  '/about/contributors': 33550336
+}
 const transitionName = ref('page-forward')
 
 function getRouteIndex(path) {
-  const clean = path.replace(/\/$/, '') || '/'
-  const idx = routeOrder.indexOf(clean)
-  return idx >= 0 ? idx : routeOrder.length
+  if (routeOrder[path] !== undefined) return routeOrder[path]
+  const segs = path.split('/').filter(Boolean)
+  const parent = '/' + segs.slice(0, -1).join('/')
+  if (parent && routeOrder[parent] !== undefined) return routeOrder[parent]
+  return 999999
 }
 
 router.beforeEach((to, from) => {
   const toIdx = getRouteIndex(to.path)
   const fromIdx = getRouteIndex(from.path)
+  // id 更大 = 顺序更靠后，视为前进；反之后退
   transitionName.value = toIdx >= fromIdx ? 'page-forward' : 'page-back'
 })
 

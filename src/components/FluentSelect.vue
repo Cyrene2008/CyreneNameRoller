@@ -3,6 +3,7 @@
     <button
       class="fluent-select"
       :class="{ open, disabled }"
+      :style="width ? { width, minWidth: width } : null"
       @click="toggle"
       :disabled="disabled"
       ref="btnRef"
@@ -36,7 +37,8 @@ const props = defineProps({
   modelValue: { type: [String, Number], default: '' },
   options: { type: Array, default: () => [] },
   placeholder: { type: String, default: '请选择' },
-  disabled: { type: Boolean, default: false }
+  disabled: { type: Boolean, default: false },
+  width: { type: String, default: '' }
 })
 
 const emit = defineEmits(['update:modelValue'])
