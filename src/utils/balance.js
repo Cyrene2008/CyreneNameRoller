@@ -1,5 +1,3 @@
-const BANNED_NAME = '再来一次'
-
 const DEFAULT_BALANCE_SETTINGS = {
   enabled: true,
   factor: 13.3,
@@ -97,8 +95,9 @@ function computeBoostPercent(deficit, candidateCount, settings) {
 }
 
 export function computeBalancedProbability(names, whiteList, countsMap, settings) {
-  const isWL = (cn) => whiteList.some(w => w.cn === cn)
-  const available = names.filter(n => n.cn !== BANNED_NAME)
+  const wlSet = new Set(whiteList || [])
+  const isWL = (cn) => wlSet.has(cn)
+  const available = names
   const validList = available.filter(n => !isWL(n.cn))
   const calcList = validList.length > 0 ? validList : available
 
@@ -149,19 +148,21 @@ export function weightedRandomChoice(choices, weights) {
 }
 
 export function pickUniform(names, excludeList = [], allowDuplicates = true) {
-  let available = names.filter(n => n.cn !== BANNED_NAME)
+  let available = names
   if (!allowDuplicates && excludeList.length > 0) {
     available = available.filter(n => !excludeList.includes(n.cn))
   }
   if (available.length === 0) {
     return { cn: '(没人选了!)', en: '(No one left!)' }
   }
-  return available[Math.floor(Math.random() * available.length)]
+  const n = available[Math.floor(Math.random() * available.length)]
+  return { cn: n.cn, en: n.en, index: names.indexOf(n), isWhiteList: n.isWhiteList }
 }
 
 export function pickBalanced(names, whiteList, countsMap, settings, excludeList = [], allowDuplicates = true) {
-  const isWL = (cn) => whiteList.some(w => w.cn === cn)
-  let available = names.filter(n => n.cn !== BANNED_NAME)
+  const wlSet = new Set(whiteList || [])
+  const isWL = (cn) => wlSet.has(cn)
+  let available = names
   if (!allowDuplicates && excludeList.length > 0) {
     available = available.filter(n => !excludeList.includes(n.cn))
   }
@@ -180,13 +181,14 @@ export function pickBalanced(names, whiteList, countsMap, settings, excludeList 
   const avgCount = calcList.length > 0 ? sum / calcList.length : 0
   const candidateCount = calcList.length
 
+  const namesArr = available.map((n, i) => ({ cn: n.cn, en: n.en, index: i, isWhiteList: n.isWhiteList }))
   const choices = []
   const weights = []
 
   for (let i = 0; i < available.length; i++) {
     const name = available[i]
     if (isWL(name.cn)) {
-      choices.push(name)
+      choices.push(namesArr[i])
       weights.push(1)
       continue
     }
@@ -198,7 +200,7 @@ export function pickBalanced(names, whiteList, countsMap, settings, excludeList 
     const baseWeight = 1 / (observedCount + 1)
     const weight = Math.max(1e-6, baseWeight * boostMultiplier)
 
-    choices.push(name)
+    choices.push(namesArr[i])
     weights.push(weight)
   }
 

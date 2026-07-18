@@ -1,14 +1,16 @@
 <template>
   <div class="splash-root" :class="{ fading }" ref="stage">
-    <div class="brand" ref="brand">
-      <div class="logo-shift" ref="ls">
-        <div class="logo-wrap">
-          <img class="logo" :src="LOGO" alt="Logo" @error="onLogoError" />
-        </div>
-        <div class="text-clip">
-          <div class="brand-text" ref="bt">
-            <span class="text-main" ref="t1">Cyrene</span>
-            <span class="text-sub" ref="t2">随机点名器</span>
+    <div class="splash-stage">
+      <div class="brand" ref="brand">
+        <div class="logo-shift" ref="ls">
+          <div class="logo-wrap">
+            <img class="logo" :src="LOGO" alt="Logo" @error="onLogoError" />
+          </div>
+          <div class="text-clip">
+            <div class="brand-text" ref="bt">
+              <span class="text-main" ref="t1">Cyrene</span>
+              <span class="text-sub" ref="t2">{{ subText }}</span>
+            </div>
           </div>
         </div>
       </div>
@@ -17,9 +19,15 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { ref, onMounted, onBeforeUnmount, computed, watch, nextTick } from 'vue'
+import { useSettingsStore } from '../stores/settings'
+import { t } from '../utils/i18n'
 
 const emit = defineEmits(['done'])
+
+const settingsStore = useSettingsStore()
+const lang = computed(() => settingsStore.settings.language)
+const subText = computed(() => t('splashSub', lang.value))
 
 const stage = ref(null)
 const brand = ref(null)
@@ -29,7 +37,6 @@ const t1 = ref(null)
 const t2 = ref(null)
 const fading = ref(false)
 
-// 默认使用 public 下的应用图标；加载失败时回退到内嵌 SVG
 const LOGO = '/cyrene256.png'
 const FALLBACK_LOGO =
   'data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20128%20128%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%221%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%23ff9ecf%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23e0438b%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20x%3D%228%22%20y%3D%228%22%20width%3D%22112%22%20height%3D%22112%22%20rx%3D%2228%22%20fill%3D%22url(%23g)%22%2F%3E%3Cpath%20d%3D%22M64%2092%20C44%2076%2036%2060%2044%2050%20C50%2042%2060%2044%2064%2052%20C68%2044%2078%2042%2084%2050%20C92%2060%2084%2076%2064%2092%20Z%22%20fill%3D%22%23fff%22%2F%3E%3C%2Fsvg%3E'
@@ -44,27 +51,31 @@ function onLogoError(e) {
   if (img.src !== FALLBACK_LOGO) img.src = FALLBACK_LOGO
 }
 
-onMounted(() => {
+function measure() {
   const s = stage.value
-  const logoEl = s.querySelector('.logo')
-  if (logoEl && logoEl.complete && logoEl.naturalWidth === 0) logoEl.src = FALLBACK_LOGO
-
-  // 先锁定过渡，计算位移量后再放开
+  if (!s || !ls.value || !bt.value || !t1.value || !t2.value) return
   ls.value.style.transition = 'none'
   bt.value.style.transition = 'none'
   const tw = Math.max(t1.value.offsetWidth, t2.value.offsetWidth)
   s.style.setProperty('--shift', (29 + tw) / 2 + 'px')
   s.style.setProperty('--clip-w', 29 + tw + 14 + 'px')
-  // 强制回流
   void ls.value.offsetHeight
   ls.value.style.transition = ''
   bt.value.style.transition = ''
   void ls.value.offsetHeight
+}
 
-  // 播放动画：logo 弹入 -> 文字展开
+onMounted(() => {
+  const s = stage.value
+  const logoEl = s.querySelector('.logo')
+  if (logoEl && logoEl.complete && logoEl.naturalWidth === 0) logoEl.src = FALLBACK_LOGO
+
+  measure()
+
+  watch(lang, () => nextTick(measure))
+
   at(60, () => brand.value.classList.add('enter-pop'))
   at(950, () => brand.value.classList.add('expanded'))
-  // 动画结束后 0.4s 淡出，再移除
   at(2300, () => {
     fading.value = true
   })
@@ -92,6 +103,12 @@ onBeforeUnmount(() => {
 }
 .splash-root.fading {
   opacity: 0;
+}
+/* 启动动画整体基准缩放 150%（独立于全局 --ui-scale） */
+.splash-stage {
+  transform: scale(1.5);
+  transform-origin: center;
+  will-change: transform;
 }
 .brand {
   display: flex;

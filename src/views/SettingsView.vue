@@ -19,7 +19,6 @@
       <div class="setting-row">
         <div class="setting-label-group">
           <span class="setting-label">{{ t('startupSplash', lang) }}</span>
-          <span class="setting-desc">{{ t('startupSplashDesc', lang) }}</span>
         </div>
         <FluentToggle
           :model-value="!settings.disableSplash"
@@ -175,6 +174,31 @@
       </div>
     </FluentCard>
 
+    <!-- 抽取设置 -->
+    <FluentCard class="settings-section">
+      <h3 class="section-title"><FluentIcon icon="play-24-regular" :width="18" /> {{ t('drawSettings', lang) }}</h3>
+      <div class="setting-row">
+        <div class="setting-label-group">
+          <span class="setting-label">{{ t('multiStepStop', lang) }}</span>
+        </div>
+        <FluentToggle :model-value="settings.multiStepStop" @update:model-value="update('multiStepStop', $event)" />
+      </div>
+      <Transition name="toggle-expand">
+        <div v-if="settings.multiStepStop" class="sub-setting">
+          <div class="setting-row">
+            <span class="setting-label">{{ t('stepStopInterval', lang) }}</span>
+            <div class="scale-control">
+              <div class="scale-input-wrap" style="width:140px">
+                <input type="number" class="scale-input" min="0.01" max="1.00" step="0.01" v-model.number="stepIntervalDraft" />
+                <span class="scale-unit">sec</span>
+              </div>
+              <FluentButton variant="secondary" size="sm" @click="confirmStepInterval">{{ lang === 'en' ? 'Apply' : '确认' }}</FluentButton>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </FluentCard>
+
     <!-- 平衡算法 -->
     <FluentCard class="settings-section">
       <h3 class="section-title"><FluentIcon icon="data-line-24-regular" :width="20" /> {{ t('balanceSettings', lang) }}</h3>
@@ -263,7 +287,6 @@ const langOptions = [
   { value: 'zh', label: '中文' },
   { value: 'en', label: 'English' }
 ]
-// 页面缩放：输入为草稿，点击「确认」后才生效；仅允许 50-200 的整数
 const scaleDraft = ref(settings.value.uiScale)
 watch(() => settings.value.uiScale, (v) => { scaleDraft.value = v })
 const scaleChanged = computed(() => {
@@ -315,6 +338,16 @@ const pwModalHint = computed(() => {
 })
 
 function update(key, value) { settingsStore.update(key, value) }
+
+const stepIntervalDraft = ref(settings.value.stepStopInterval)
+watch(() => settings.value.stepStopInterval, v => { stepIntervalDraft.value = v })
+function confirmStepInterval() {
+  let v = Number(stepIntervalDraft.value)
+  if (!Number.isFinite(v)) v = 0.15
+  v = Math.min(1.0, Math.max(0.01, Math.round(v * 100) / 100))
+  stepIntervalDraft.value = v
+  update('stepStopInterval', v)
+}
 
 function doCheckUpdate() { checkForUpdates(false, showBanner) }
 

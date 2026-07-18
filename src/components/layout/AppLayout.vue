@@ -83,7 +83,6 @@ const banners = ref([])
 let bannerIdCounter = 0
 
 function showBanner({ message, icon = 'info-16-regular', type = 'info', duration = 8000, dismissible = false, progress = 0, undoAction = null }) {
-  // 去重：相同消息的通知不重复添加
   const existing = banners.value.find(b => b.message === message)
   if (existing) return { id: existing.id, update(opts) { Object.assign(existing, opts) }, dismiss() { dismissBanner(existing.id) } }
 
@@ -147,9 +146,6 @@ function onBannerLeave(b) {
 
 provide('banner', showBanner)
 
-// 页面顺序（按用户指定的页面 id，现严格单调递增）：
-// 随机点名1 → 翻牌2 → 统计3 → 抽取记录4 → 名单管理5 → 公告1001 → 下载客户端1002 → 文档1003 → 设置9999 → 关于33550336
-// 注：公告 id 原误写为 10001（> 下载1002，与流程矛盾），已更正为 1001
 const routeOrder = {
   '/': 0,
   '/roller': 1,
@@ -158,6 +154,7 @@ const routeOrder = {
   '/records': 4,
   '/lists': 5,
   '/lists/manage': 5,
+  '/group-manage': 5,
   '/announcement': 1001,
   '/download': 1002,
   '/docs': 1003,
@@ -179,7 +176,6 @@ function getRouteIndex(path) {
 router.beforeEach((to, from) => {
   const toIdx = getRouteIndex(to.path)
   const fromIdx = getRouteIndex(from.path)
-  // id 更大 = 顺序更靠后，视为前进；反之后退
   transitionName.value = toIdx >= fromIdx ? 'page-forward' : 'page-back'
 })
 

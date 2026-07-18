@@ -1,4 +1,3 @@
-// 公告数据源（仅作为原生层失败时的兜底直连顺序）：镜像代理 → 自建 nameapi → 官方 raw → 本地
 const ANNOUNCEMENT_URL = 'https://gh.xn--8hvv1o.cn/raw.githubusercontent.com/Cyrene2008/CyreneNameRoller/refs/heads/master/.announcement/latest.json'
 const ANNOUNCEMENT_NAMEAPI = 'https://nameapi.cyrene.hi.cn/announcement/latest.json'
 const ANNOUNCEMENT_FALLBACK = 'https://raw.githubusercontent.com/Cyrene2008/CyreneNameRoller/master/.announcement/latest.json'
@@ -6,7 +5,6 @@ const ANNOUNCEMENT_LOCAL = '/announcements.json'
 
 import { isTauri, tauriAPI } from './tauriAPI'
 
-// 优先走原生层拉取（Tauri 经 Rust reqwest / Electron 经主进程），规避 webview 的 CORS 与网络限制
 async function fetchAnnouncementsNative() {
   try {
     if (isTauri()) {
@@ -23,13 +21,11 @@ async function fetchAnnouncementsNative() {
 }
 
 export async function fetchAnnouncements({ noCache = false } = {}) {
-  // 1) 原生层
   const native = await fetchAnnouncementsNative()
   if (native != null) {
     return Array.isArray(native) ? native : []
   }
 
-  // 2) 兜底：webview 直连
   const urls = [ANNOUNCEMENT_URL, ANNOUNCEMENT_NAMEAPI, ANNOUNCEMENT_FALLBACK, ANNOUNCEMENT_LOCAL]
   const opts = {}
   if (noCache) {

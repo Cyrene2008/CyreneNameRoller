@@ -105,7 +105,6 @@ async function load(forceRefresh = false) {
   }
 }
 
-// 兼容字符串与 { cn, en } 对象两种写法，按当前语言取值
 function fmtField(field) {
   if (field == null) return ''
   if (typeof field === 'string') return field

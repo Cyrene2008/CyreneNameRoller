@@ -157,7 +157,6 @@ async function sha256(buf) {
   }
 }
 
-// 下载并校验：优先走代理，若校验失败或下载异常则回退到官方源重新校验
 async function fetchVerified(asset) {
   const sources = [
     'https://gh.昔涟.cn/' + asset.browser_download_url,
@@ -174,7 +173,6 @@ async function fetchVerified(asset) {
       if (!resp.ok) continue
       const buf = await resp.arrayBuffer()
       const actual = await sha256(buf)
-      // 校验通过（或源无摘要且体积合理）才采用
       const sizeOk = asset.size ? Math.abs(buf.byteLength - asset.size) < 1024 : buf.byteLength > 1024
       if (expected) {
         if (actual && actual === expected) return buf
@@ -192,7 +190,6 @@ async function fetchVerified(asset) {
 async function downloadAsset(asset) {
   const fileName = asset.name
 
-  // Electron：JS 校验后直接交给主进程保存并启动
   if (window.electronAPI?.saveAndLaunch) {
     const buf = await fetchVerified(asset)
     if (!buf) {
@@ -206,7 +203,6 @@ async function downloadAsset(asset) {
     } catch (e) { console.warn('[download] electron saveAndLaunch failed:', e) }
   }
 
-  // Tauri：优先让 Rust 侧经代理下载并保存+启动（规避大数组序列化问题）
   if (isTauri()) {
     try {
       const result = await tauriAPI.saveAndLaunch(asset.browser_download_url, fileName, asset.digest || '')
@@ -215,7 +211,6 @@ async function downloadAsset(asset) {
       console.warn('[download] tauri save_and_launch failed, fallback to bytes:', e)
     }
 
-    // 兜底：JS 已校验字节传 Rust 保存+启动
     const buf = await fetchVerified(asset)
     if (buf) {
       const uint8 = Array.from(new Uint8Array(buf))
@@ -228,7 +223,6 @@ async function downloadAsset(asset) {
     }
   }
 
-  // Web 端回退：浏览器下载
   window.open('https://gh.昔涟.cn/' + asset.browser_download_url, '_blank')
 }
 

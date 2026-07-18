@@ -24,6 +24,42 @@
         <Icon :icon="item.icon" :width="20" class="dock-item-icon" />
         <span v-if="!dockCollapsed" class="dock-item-label">{{ item.label[lang] }}</span>
       </router-link>
+
+      <!-- 名单管理：可向下展开的子菜单 -->
+      <div
+        class="dock-item dock-parent"
+        :class="{ active: isListActive, open: listSubmenuOpen }"
+        @click="toggleListSubmenu"
+        :title="t('listManager', lang)"
+      >
+        <div class="dock-item-indicator" />
+        <Icon icon="fluent:people-list-24-regular" :width="20" class="dock-item-icon" />
+        <span v-if="!dockCollapsed" class="dock-item-label">{{ t('listManager', lang) }}</span>
+        <Icon icon="fluent:chevron-down-16-regular" :width="14" class="dock-chevron" />
+      </div>
+      <Transition name="submenu">
+        <div v-if="listSubmenuOpen" class="dock-submenu">
+          <router-link
+            to="/lists"
+            class="dock-subitem"
+            :class="{ active: route.path === '/lists' }"
+            :title="t('personnelList', lang)"
+          >
+            <Icon icon="fluent:person-24-regular" :width="16" class="dock-subitem-icon" />
+            <span v-if="!dockCollapsed" class="dock-subitem-label">{{ t('personnelList', lang) }}</span>
+          </router-link>
+          <router-link
+            to="/group-manage"
+            class="dock-subitem"
+            :class="{ active: route.path === '/group-manage' }"
+            :title="t('groupManage', lang)"
+          href="https://点名器.昔涟.cn"
+          >
+            <Icon icon="fluent:group-24-regular" :width="16" class="dock-subitem-icon" />
+            <span v-if="!dockCollapsed" class="dock-subitem-label">{{ t('groupManage', lang) }}</span>
+          </router-link>
+        </div>
+      </Transition>
     </div>
 
     <div class="dock-bottom">
@@ -53,7 +89,6 @@
           <span v-if="!dockCollapsed" class="dock-item-label">{{ lang === 'en' ? 'Download' : '下载客户端' }}</span>
         </router-link>
         <a
-          href="https://点名器.昔涟.cn"
           target="_blank"
           class="dock-item"
           draggable="false"
@@ -81,11 +116,12 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { Icon } from '@iconify/vue'
 import { useSettingsStore } from '../../stores/settings'
 import { isTauri } from '../../utils/tauriAPI'
+import { t } from '../../utils/i18n'
 
 const props = defineProps({
   buildHash: { type: String, default: '' }
@@ -101,12 +137,22 @@ function toggleDock() {
   settingsStore.update('dockCollapsed', !dockCollapsed.value)
 }
 
+const isListActive = computed(() =>
+  ['/lists', '/lists/manage', '/group-manage'].includes(route.path)
+)
+const listSubmenuOpen = ref(isListActive.value)
+watch(() => route.path, () => {
+  listSubmenuOpen.value = isListActive.value
+})
+function toggleListSubmenu() {
+  listSubmenuOpen.value = !listSubmenuOpen.value
+}
+
 const mainItems = [
   { path: '/roller', icon: 'fluent:flash-24-regular', label: { zh: '随机点名', en: 'Roller' } },
   { path: '/card', icon: 'fluent:card-ui-portrait-flip-24-regular', label: { zh: '翻牌点名', en: 'Card Mode' } },
   { path: '/statistics', icon: 'fluent:chart-multiple-24-regular', label: { zh: '统计', en: 'Statistics' } },
-  { path: '/records', icon: 'fluent:history-24-regular', label: { zh: '抽取记录', en: 'Records' } },
-  { path: '/lists', icon: 'fluent:people-list-24-regular', label: { zh: '名单管理', en: 'Lists' } }
+  { path: '/records', icon: 'fluent:history-24-regular', label: { zh: '抽取记录', en: 'Records' } }
 ]
 
 const bottomItems = [
@@ -234,6 +280,55 @@ const bottomItems = [
 .dock-item.active .dock-item-indicator { height: 16px; }
 .dock-item-icon { flex-shrink: 0; }
 .dock-item-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* 名单管理子菜单 */
+.dock-parent { cursor: pointer; user-select: none; }
+.dock-chevron {
+  margin-left: auto;
+  flex-shrink: 0;
+  color: var(--text-muted);
+  transition: transform var(--duration-fast) ease;
+}
+.dock-parent.open .dock-chevron { transform: rotate(180deg); }
+.dock-parent.active { background: var(--accent-50); color: var(--accent); }
+.dark .dock-parent.active { background: rgba(234, 94, 193, 0.15); }
+
+.dock-submenu {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-left: 14px;
+  padding-left: 6px;
+  border-left: 1px solid var(--border-subtle);
+}
+.dock-subitem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: var(--radius-sm);
+  text-decoration: none;
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  font-family: var(--font-ui);
+  transition: background var(--duration-fast) ease;
+}
+.dock-subitem:hover { background: var(--bg-hover); color: var(--text-primary); }
+.dock-subitem.active { background: var(--accent-50); color: var(--accent); }
+.dark .dock-subitem.active { background: rgba(234, 94, 193, 0.15); }
+.dock-subitem-icon { flex-shrink: 0; }
+.dock-subitem-label { white-space: nowrap; }
+
+.submenu-enter-active,
+.submenu-leave-active {
+  transition: opacity var(--duration-fast) var(--ease-standard),
+    transform var(--duration-fast) var(--ease-standard);
+}
+.submenu-enter-from,
+.submenu-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
+}
 
 .dock-bottom {
   padding: 8px 6px;
