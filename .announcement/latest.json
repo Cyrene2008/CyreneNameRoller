@@ -1,33 +1,34 @@
 [
   {
     "id": 3,
-    "title": { "cn": "重要更新：v26.0.3 发布", "en": "Important Update: v26.0.3 Released" },
+    "title": { "cn": "公告：v26.0.4 已在Web端开放", "en": "v26.0.4 Available on Web" },
     "pinned": true,
-    "important": true,
-    "tag": { "cn": "版本更新", "en": "Release" },
-    "time": "2026/07/18 14:00",
+    "important": false,
+    "tag": { "cn": "版本更新", "en": "Update" },
+    "time": "2026/07/18 18:00",
     "content": {
-      "cn": "本次更新带来以下改进：\n\n- 新增**公告系统**，可在应用内查看最新动态\n- 修复下载安装程序后未自动执行的问题\n- 更新日志现已打包进程序内部，不再单独放出文件\n\n详情请查看 [更新日志](https://github.com/Cyrene2008/CyrenesNameRoller/releases)。",
-      "en": "This release includes:\n\n- New **Announcement** system to view latest news inside the app\n- Fixed installer not launching automatically after download\n- Changelog is now bundled inside the binary instead of an external file\n\nSee the [changelog](https://github.com/Cyrene2008/CyrenesNameRoller/releases)."
+      "cn": "这是一个**示例公告**，用于演示公告系统的各项特性：\n\n- 本条目同时开启了 `置顶` 与 `重要` 标记\n- 重要标记会在标题前显示 `重要` Tag\n- 下方分类标签为「版本更新」\n\n支持 Markdown 语法，例如 [链接](https://github.com/Cyrene2008/CyrenesNameRoller) 与代码块：\n\n```\nnpm install\n``` \n\n详细更新内容请查看 设置>更新日志",
+      "en": "This is a **sample announcement** demonstrating all features:\n\n- This item is both `pinned` and `important`\n- The important flag adds an `Important` tag before the title\n- The category tag below reads \"Update\"\n\nMarkdown is supported, e.g. [links](https://github.com/Cyrene2008/CyrenesNameRoller) and code:\n\n```\nnpm install\n```"
     }
   },
   {
     "id": 2,
-    "title": { "cn": "关于反馈渠道的说明", "en": "About Feedback Channels" },
+    "title": { "cn": "关于数据备份的提示", "en": "Tips on Data Backup" },
     "pinned": false,
     "important": false,
-    "tag": { "cn": "公告", "en": "Announcement" },
-    "time": "2026/07/15 10:30",
+    "tag": { "cn": "提示", "en": "Tips" },
+    "time": "2026/07/11 10:00",
     "content": {
-      "cn": "如有问题或建议，欢迎前往 GitHub 提交 Issue，我们会尽快处理。",
-      "en": "For issues or suggestions, please open an Issue on GitHub and we will respond as soon as possible."
+      "cn": "建议定期在「设置」中导出数据备份，避免误删/重装系统等导致数据丢失。",
+      "en": "We recommend exporting your name lists from the list manager regularly to avoid accidental data loss."
     }
   },
   {
     "id": 1,
-    "title": "社区交流群开放（仅中文）",
-    "tag": "社区",
-    "time": "2026/07/10 09:00",
-    "content": "我们新建了交流群，欢迎加入讨论使用心得与功能建议。"
+    "title": "Cyreneの随机点名器正式发布",
+    "important": true,
+    "tag": "版本更新",
+    "time": "2026/07/09 18:00",
+    "content": "原 Cyrene's Name Roller 正式更新为 Cyreneの随机点名器 并开源，UI全面重构，修复若干已知问题♪"
   }
 ]
