@@ -1,22 +1,29 @@
 <template>
-  <div class="roller-view">
+  <div class="roller-view" ref="rollerViewRef">
     <h1 class="roller-title">{{ t('h1', lang) }}</h1>
 
-    <div class="display-container">
+    <div
+      class="display-container"
+      ref="displayRef"
+    >
       <div
         v-for="(display, i) in nameDisplays"
         :key="i"
         class="name-display"
         :class="{ rainbow: settings.nameColorMode === 'gradient', final: display.animating }"
-        :style="getNameStyle(display)"
+        :style="getNameStyle(display, i)"
       >
         {{ display.text }}
       </div>
     </div>
 
-    <div class="controls-center">
+    <!-- 用于测量文字宽度的隐藏探针 -->
+    <span ref="probeRef" class="fit-probe" aria-hidden="true"></span>
+
+    <div class="controls-center" ref="controlsCenterRef">
       <div class="switches">
         <FluentToggle v-model="settings.englishMode" label="English Mode" @update:model-value="saveSetting('englishMode', $event)" />
+        <FluentToggle v-model="settings.groupMode" :label="t('groupMode', lang)" @update:model-value="onGroupModeChange" />
         <FluentToggle v-model="settings.multiMode" :label="t('multiMode', lang)" @update:model-value="onMultiModeChange" />
         <Transition name="toggle-expand">
           <FluentToggle v-if="settings.multiMode" v-model="settings.forbidDuplicates" :label="t('allowDuplicates', lang)" @update:model-value="onForbidDuplicatesChange" />
@@ -48,14 +55,19 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, onBeforeUnmount, watch, inject } from 'vue'
+import { ref, reactive, computed, onMounted, onBeforeUnmount, watch, nextTick, inject } from 'vue'
 import { useNamesStore } from '../stores/names'
 import { useSettingsStore } from '../stores/settings'
 import { useStatisticsStore } from '../stores/statistics'
 import { t } from '../utils/i18n'
 import { useRecordsStore } from '../stores/records'
 import { dataBridge } from '../utils/dataBridge'
-import { pickUniform, pickBalanced } from '../utils/balance'
+import {
+  pickCyreneBalanced,
+  pickCyreneBatch,
+  DEFAULT_CYRENE_BALANCE_SETTINGS,
+  normalizeCyreneBalanceSettings
+} from '../utils/cyrene-balance'
 import FluentButton from '../components/FluentButton.vue'
 import FluentIcon from '../components/FluentIcon.vue'
 import FluentToggle from '../components/FluentToggle.vue'
@@ -72,30 +84,75 @@ const lang = computed(() => settingsStore.settings.language)
 const settings = computed(() => settingsStore.settings)
 const listOptions = computed(() => namesStore.allLists.map(l => ({ value: l.id, label: l.name })))
 
-const nonWhiteListCount = computed(() => namesStore.currentNames.filter(n => !namesStore.isWhiteList(n.cn) && n.cn !== '再来一次').length)
-const maxPeopleCount = computed(() => Math.max(2, nonWhiteListCount.value))
-const canStart = computed(() => nonWhiteListCount.value >= 2 && !(settings.value.multiMode && (settings.value.peopleCount || 2) > nonWhiteListCount.value))
+const groupPoolCount = computed(() => {
+  const groups = namesStore.currentList.groups || []
+  const hasUnassigned = namesStore.currentNames.some(n => !n.groupId)
+  return groups.length + (hasUnassigned ? 1 : 0)
+})
+
+const nonWhiteListCount = computed(() => namesStore.currentNames.filter(n => !n.isWhiteList).length)
+const maxPeopleCount = computed(() => {
+  if (!settings.value.multiMode) return 1
+  if (settings.value.forbidDuplicates) {
+    return Math.max(2, settings.value.groupMode ? groupPoolCount.value : nonWhiteListCount.value)
+  }
+  return 9999
+})
+const canStart = computed(() => {
+  if (settings.value.groupMode) {
+    if (groupPoolCount.value < 1) return false
+    if (settings.value.multiMode && settings.value.forbidDuplicates && (settings.value.peopleCount || 2) > groupPoolCount.value) return false
+    return true
+  }
+  if (nonWhiteListCount.value < 2) return false
+  if (settings.value.multiMode && settings.value.forbidDuplicates && (settings.value.peopleCount || 2) > nonWhiteListCount.value) return false
+  return true
+})
 
 const nameDisplays = reactive([])
 const isRunning = ref(false)
 const lastPickedNames = ref([])
 const sessionCounts = ref({})
 let intervalId = null
+const pendingTimers = []
+const revealed = ref([])
+const gridParams = reactive({ valid: false, font: 52, perRow: 1, gapX: 20, gapY: 20, lineH: 60, cellW: 0, offsetX: 0, offsetY: 0, count: 0 })
 
-const balanceSettings = ref({
-  enabled: true, factor: 13.3, maxThreshold: 3, maxBoostPercent: 1200,
-  points: [{ x: 0.3, y: 150 }, { x: 1.5, y: 420 }, { x: 2.4, y: 800 }]
+const balanceSettings = ref({ ...DEFAULT_CYRENE_BALANCE_SETTINGS })
+
+onMounted(async () => {
+  const saved = await dataBridge.load('balance')
+  balanceSettings.value = normalizeCyreneBalanceSettings(saved)
+  if (balanceSettings.value.enabled && !settings.value.recordCounts) {
+    settingsStore.update('recordCounts', true)
+  }
+  if (saved && JSON.stringify(saved) !== JSON.stringify(balanceSettings.value)) {
+    await dataBridge.save('balance', balanceSettings.value)
+  }
 })
-
-onMounted(async () => { const saved = await dataBridge.load('balance'); if (saved) balanceSettings.value = { ...balanceSettings.value, ...saved } })
 
 function initializeDisplays(count) {
   nameDisplays.splice(0); lastPickedNames.value = []
-  for (let i = 0; i < count; i++) { nameDisplays.push({ text: '...', opacity: 0, animating: false }); lastPickedNames.value.push('') }
+  const pool = settings.value.groupMode ? getCurrentPool() : namesStore.currentNames
+  for (let i = 0; i < count; i++) {
+    const src = pool.length ? pool[Math.floor(Math.random() * pool.length)] : { cn: '...', en: '' }
+    const txt = getDisplayName(src)
+    nameDisplays.push({ text: txt, opacity: 0, animating: false, isWhiteList: false })
+    lastPickedNames.value.push('')
+  }
+  nextTick(() => { computeGridParams(); computeNameLayout() })
 }
 
-function getNameStyle(display) {
+function getNameStyle(display, i) {
   const style = { opacity: display.opacity }
+  const layout = nameLayout.value[i]
+  if (layout) {
+    style.left = layout.x + 'px'
+    style.top = layout.y + 'px'
+    style.width = gridParams.cellW + 'px'
+    style.textAlign = 'center'
+    style.fontSize = (nameFontSize.value * (settings.value.nameFontSize || 1)) + 'px'
+  }
   if (settings.value.nameColorMode === 'custom') {
     const color = settingsStore.darkMode
       ? (settings.value.customNameColorDark || '#f09bd7')
@@ -110,7 +167,21 @@ function saveSetting(key, value) { settingsStore.update(key, value) }
 function onMultiModeChange(val) {
   settingsStore.update('multiMode', val)
   if (!val) initializeDisplays(1)
-  else { const c = Math.min(settings.value.peopleCount || 2, maxPeopleCount.value); settingsStore.update('peopleCount', c); initializeDisplays(c) }
+  else {
+    let c = Math.min(settings.value.peopleCount || 2, maxPeopleCount.value)
+    if (settings.value.groupMode && settings.value.forbidDuplicates) c = Math.min(c, groupPoolCount.value)
+    settingsStore.update('peopleCount', c); initializeDisplays(c)
+  }
+  nextTick(computeNameLayout)
+}
+
+function onGroupModeChange(val) {
+  settingsStore.update('groupMode', val)
+  if (settings.value.multiMode && settings.value.forbidDuplicates && (settings.value.peopleCount || 2) > groupPoolCount.value) {
+    const c = Math.max(2, groupPoolCount.value)
+    settingsStore.update('peopleCount', c); initializeDisplays(c)
+  }
+  nextTick(computeNameLayout)
 }
 
 function onForbidDuplicatesChange(val) { settingsStore.update('forbidDuplicates', val) }
@@ -131,17 +202,39 @@ function getDisplayName(person) {
   return settings.value.englishMode && person.en ? person.en : person.cn
 }
 
+function getCurrentPool() {
+  const groups = (namesStore.currentList.groups || [])
+  const pool = groups.map(g => ({ cn: g.name, en: g.enName || '', id: g.id, isGroup: true }))
+  const hasUnassigned = namesStore.currentNames.some(n => !n.groupId)
+  if (hasUnassigned) pool.push({ cn: t('unassigned', lang.value), en: 'Unassigned', id: '__unassigned__', isGroup: true, isUnassigned: true })
+  return pool
+}
+
 function doPick(excludeList = []) {
-  const names = namesStore.currentNames; const wl = namesStore.currentWhiteList
+  if (settings.value.groupMode) {
+    const pool = getCurrentPool()
+    const forbidDup = settings.value.multiMode && settings.value.forbidDuplicates
+    if (forbidDup) {
+      const avail = pool.filter(p => !excludeList.includes(p.id))
+      return avail.length ? avail[Math.floor(Math.random() * avail.length)] : pool[Math.floor(Math.random() * pool.length)]
+    }
+    return pool[Math.floor(Math.random() * pool.length)]
+  }
+  const names = namesStore.currentNames
+  const wl = names.filter(n => n.isWhiteList).map(n => n.cn)
   const forbidDup = settings.value.multiMode && settings.value.forbidDuplicates
   const combinedCounts = { ...statisticsStore.counts }
   for (const [k, v] of Object.entries(sessionCounts.value)) {
     combinedCounts[k] = (combinedCounts[k] || 0) + v
   }
-  if (forbidDup) return pickUniform(names, excludeList, false)
-  if (settings.value.multiMode) return pickBalanced(names, wl, combinedCounts, balanceSettings.value, excludeList, true)
-  if (balanceSettings.value.enabled) return pickBalanced(names, wl, combinedCounts, balanceSettings.value, [], true)
-  return pickUniform(names, [], true)
+  return pickCyreneBalanced(
+    names,
+    wl,
+    combinedCounts,
+    balanceSettings.value,
+    excludeList,
+    !forbidDup
+  )
 }
 
 function animationLoop() {
@@ -149,18 +242,49 @@ function animationLoop() {
   const count = settings.value.multiMode ? (settings.value.peopleCount || 2) : 1
   for (let i = 0; i < count; i++) {
     const pick = doPick([])
-    if (nameDisplays[i]) { nameDisplays[i].text = getDisplayName(pick); nameDisplays[i].opacity = 1 }
-    if (pick.cn && pick.cn !== '再来一次' && !namesStore.isWhiteList(pick.cn)) {
+    const txt = getDisplayName(pick)
+    if (nameDisplays[i]) {
+      nameDisplays[i].text = txt
+      nameDisplays[i].opacity = 1
+      nameDisplays[i].isWhiteList = !!pick.isWhiteList
+    }
+    if (pick.cn && !pick.isWhiteList) {
       sessionCounts.value[pick.cn] = (sessionCounts.value[pick.cn] || 0) + 1
     }
   }
+  // 只更新文字内容的位置，不重新计算网格参数（避免抖动）
+  updateNamePositionsOnly()
   intervalId = setTimeout(animationLoop, 50)
+}
+
+function updateNamePositionsOnly() {
+  const n = nameDisplays.length
+  if (!displayRef.value || n === 0 || !gridParams.valid) return
+  const { perRow, gapX, gapY, lineH, cellW, offsetX, offsetY, font } = gridParams
+  const factor = settings.value.nameFontSize || 1
+  const scale = (font / 52) * factor
+  nameFontSize.value = font
+  const positions = []
+  for (let i = 0; i < n; i++) {
+    const r = Math.floor(i / perRow)
+    const c = i % perRow
+    const colX = offsetX + c * (cellW + gapX)
+    const rowY = offsetY + r * (lineH + gapY)
+    // 使用固定cellW居中，不依赖动态测量（避免抖动）
+    const x = colX
+    const y = rowY + (lineH - font * factor) / 2
+    positions.push({ x, y })
+  }
+  nameLayout.value = positions
 }
 
 function toggleRoll() {
   if (isRunning.value) { clearTimeout(intervalId); isRunning.value = false; finishRoll(); return }
+  pendingTimers.forEach(id => clearTimeout(id)); pendingTimers.length = 0
   if (!canStart.value) {
-    if (nonWhiteListCount.value < 2) {
+    if (settings.value.groupMode && groupPoolCount.value < 1) {
+      showBanner({ message: lang.value === 'en' ? 'No groups yet, create some in Group Management' : '还没有小组，请先在「小组管理」中创建小组♪', icon: 'info-16-regular', type: 'warning', duration: 8000 })
+    } else if (nonWhiteListCount.value < 2) {
       showBanner({ message: lang.value === 'en' ? 'No names available yet' : '唔...你还没添加名单呢♪', icon: 'info-16-regular', type: 'warning', duration: 8000 })
     } else {
       showBanner({ message: lang.value === 'en' ? 'Too many people for available names' : '人数超过了可用名单数量', icon: 'warning-16-regular', type: 'warning', duration: 8000 })
@@ -170,37 +294,204 @@ function toggleRoll() {
   isRunning.value = true
   sessionCounts.value = {}
   initializeDisplays(settings.value.multiMode ? (settings.value.peopleCount || 2) : 1)
-  animationLoop()
+  // 动画开始前先计算好网格参数
+  nextTick(() => {
+    computeGridParams()
+    computeNameLayout()
+    animationLoop()
+  })
 }
 
 function finishRoll() {
   const count = settings.value.multiMode ? (settings.value.peopleCount || 2) : 1
-  const names = namesStore.currentNames; const wl = namesStore.currentWhiteList
+  const names = namesStore.currentNames
+  const wl = names.filter(n => n.isWhiteList).map(n => n.cn)
   const forbidDup = settings.value.multiMode && settings.value.forbidDuplicates
   lastPickedNames.value = []
-  for (let i = 0; i < count; i++) {
-    const ex = lastPickedNames.value.filter(n => n)
-    const pick = forbidDup ? pickUniform(names, ex, false) : pickBalanced(names, wl, statisticsStore.counts, balanceSettings.value, ex, true)
-    nameDisplays[i].text = getDisplayName(pick); nameDisplays[i].opacity = 1; lastPickedNames.value.push(pick.cn)
-    if (settings.value.recordCounts && !wl.some(w => w.cn === pick.cn)) statisticsStore.incrementCount(pick.cn)
-    recordsStore.addRecord({ cn: pick.cn, en: pick.en, listName: namesStore.currentList.name, source: 'roller' })
-    setTimeout(() => emphasize(i), 50 * i)
+  let finalPicks = []
+  if (settings.value.groupMode) {
+    for (let i = 0; i < count; i++) {
+      const ex = lastPickedNames.value.filter(n => n)
+      const pool = getCurrentPool()
+      if (forbidDup) {
+        const avail = pool.filter(p => !ex.includes(p.id))
+        const pick = avail.length ? avail[Math.floor(Math.random() * avail.length)] : pool[Math.floor(Math.random() * pool.length)]
+        finalPicks.push(pick)
+        lastPickedNames.value.push(pick.id)
+      } else {
+        const pick = pool[Math.floor(Math.random() * pool.length)]
+        finalPicks.push(pick)
+        lastPickedNames.value.push(pick.id)
+      }
+    }
+  } else {
+    finalPicks = pickCyreneBatch(
+      names,
+      wl,
+      statisticsStore.counts,
+      balanceSettings.value,
+      count,
+      !forbidDup
+    )
+    lastPickedNames.value = finalPicks.map(pick => pick.cn)
   }
+  const shouldRecordCounts = settings.value.recordCounts || balanceSettings.value.enabled
+  if (shouldRecordCounts) {
+    statisticsStore.incrementCounts(finalPicks.filter(pick => !pick.isWhiteList).map(pick => pick.cn))
+  }
+  for (let i = 0; i < finalPicks.length; i++) {
+    const pick = finalPicks[i]
+    recordsStore.addRecord({ cn: pick.cn, en: pick.en, listName: namesStore.currentList.name, source: 'roller' })
+  }
+  nextTick(computeNameLayout)
+
+  const useStepStop = settings.value.multiMode && settings.value.multiStepStop
+  const stagger = useStepStop ? Math.round((settings.value.stepStopInterval || 0.15) * 1000) : 0
+  revealed.value = new Array(count).fill(false)
+  for (let i = 0; i < count; i++) {
+    const tid = setTimeout(() => {
+      revealed.value[i] = true
+      const pick = finalPicks[i]
+      nameDisplays[i].text = getDisplayName(pick)
+      nameDisplays[i].opacity = 1
+      nameDisplays[i].isWhiteList = !!pick.isWhiteList
+      emphasize(i)
+    }, i * stagger)
+    pendingTimers.push(tid)
+  }
+  if (settings.value.multiMode) windDownLoop(count, useStepStop ? stagger : 0)
 }
+
+function windDownLoop(count, stagger) {
+  let tick = 0
+  const maxTicks = stagger > 0 ? Math.ceil((count - 1) * stagger / 50) + 3 : 1
+  function tickFn() {
+    if (tick++ > maxTicks) return
+    for (let i = 0; i < count; i++) {
+      if (revealed.value[i]) continue
+      const pick = doPick([])
+      nameDisplays[i].text = getDisplayName(pick)
+      nameDisplays[i].opacity = 1
+    }
+    computeNameLayout()
+    const tid = setTimeout(tickFn, 50)
+    pendingTimers.push(tid)
+  }
+  tickFn()
+}
+
+const rollerViewRef = ref(null)
+const displayRef = ref(null)
+const controlsCenterRef = ref(null)
+const probeRef = ref(null)
+const nameFontSize = ref(52)
+const nameLayout = ref([])
+
+const measureCache = new Map()
+function measureNameWidth(text) {
+  const key = text && text.length ? text : '...'
+  if (measureCache.has(key)) return measureCache.get(key)
+  let w
+  if (!probeRef.value) { w = key.length * 30 }
+  else { probeRef.value.textContent = key; w = probeRef.value.offsetWidth }
+  measureCache.set(key, w)
+  return w
+}
+
+function getPoolMaxWidth() {
+  const pool = settings.value.groupMode ? getCurrentPool() : namesStore.currentNames
+  let m = 1
+  for (const p of pool) {
+    const w = measureNameWidth(getDisplayName(p))
+    if (w > m) m = w
+  }
+  return m
+}
+
+function computeGridParams() {
+  const cont = displayRef.value
+  if (!cont || nameDisplays.length === 0) { gridParams.valid = false; return }
+  const cW = cont.clientWidth
+  const cH = cont.clientHeight
+  const factor = settings.value.nameFontSize || 1
+  const n = nameDisplays.length
+  const maxW = getPoolMaxWidth()
+
+  function buildGrid(font) {
+    const actualFont = font * factor
+    const lineH = actualFont * 1.2
+    const gapX = Math.max(12, actualFont * 0.5)
+    const gapY = Math.max(16, actualFont * 0.6)
+    const cellW = maxW * (font / 52) * factor
+    let perRow = Math.max(1, Math.floor((cW + gapX) / (cellW + gapX)))
+    if (perRow > n) perRow = n
+    const rows = Math.ceil(n / perRow)
+    const contentW = perRow * cellW + (perRow - 1) * gapX
+    const contentH = rows * lineH + (rows - 1) * gapY
+    return { font, perRow, rows, gapX, gapY, lineH, cellW, contentW, contentH }
+  }
+
+  let chosen = null
+  for (let font = 52; font >= 10; font--) {
+    const g = buildGrid(font)
+    if (g.contentW <= cW && g.contentH <= cH) { chosen = g; break }
+  }
+  if (!chosen) chosen = buildGrid(10)
+  const { font, perRow, gapX, gapY, lineH, cellW, contentW, contentH } = chosen
+  const offsetX = Math.max(0, (cW - contentW) / 2)
+  const offsetY = Math.max(0, (cH - contentH) / 2)
+  Object.assign(gridParams, { valid: true, font, perRow, gapX, gapY, lineH, cellW, offsetX, offsetY, count: n })
+}
+
+function computeNameLayout() {
+  const n = nameDisplays.length
+  if (!displayRef.value || n === 0) { nameFontSize.value = 52; nameLayout.value = []; return }
+  if (!gridParams.valid || gridParams.count !== n) computeGridParams()
+  if (!gridParams.valid) { nameLayout.value = []; return }
+  const { perRow, gapX, gapY, lineH, cellW, offsetX, offsetY, font } = gridParams
+  const factor = settings.value.nameFontSize || 1
+  nameFontSize.value = font
+  const positions = []
+  for (let i = 0; i < n; i++) {
+    const r = Math.floor(i / perRow)
+    const c = i % perRow
+    const colX = offsetX + c * (cellW + gapX)
+    const rowY = offsetY + r * (lineH + gapY)
+    const x = colX
+    const y = rowY + (lineH - font * factor) / 2
+    positions.push({ x, y })
+  }
+  nameLayout.value = positions
+}
+
+function onResize() { computeGridParams(); computeNameLayout() }
 
 onMounted(() => {
   if (namesStore.isLoaded) initializeDisplays(settings.value.multiMode ? (settings.value.peopleCount || 2) : 1)
   watch(() => namesStore.isLoaded, (loaded) => { if (loaded) initializeDisplays(settings.value.multiMode ? (settings.value.peopleCount || 2) : 1) })
+  watch(() => namesStore.currentListId, () => nextTick(() => { computeGridParams(); computeNameLayout() }))
+  watch(() => [settings.value.multiMode, settings.value.groupMode, settings.value.forbidDuplicates, settings.value.peopleCount, settings.value.nameFontSize], () => nextTick(() => { computeGridParams(); computeNameLayout() }))
+  window.addEventListener('resize', onResize)
 })
-onBeforeUnmount(() => { if (intervalId) clearTimeout(intervalId) })
+onBeforeUnmount(() => { if (intervalId) clearTimeout(intervalId); pendingTimers.forEach(id => clearTimeout(id)); window.removeEventListener('resize', onResize) })
 </script>
 
 <style scoped>
 .roller-view { padding: 32px; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100%; position: relative; }
-.roller-title { font-family: var(--font-display); font-size: 28px; font-weight: 700; color: var(--text-primary); margin-bottom: 24px; width: 100%; text-align: center; position: absolute; top: 32px; left: 0; right: 0; }
-.display-container { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 32px; min-height: 80px; }
+.roller-title { font-family: var(--font-display); font-size: 28px; font-weight: 700; color: var(--text-primary); margin-bottom: 24px; width: 100%; text-align: center; position: absolute; top: 32px; left: 0; right: 0; z-index: 5; }
 
-.name-display { font-family: var(--font-display); font-size: calc(52px * var(--name-font-factor, 1)); font-weight: 700; color: var(--text-primary); min-width: 120px; text-align: center; white-space: nowrap; overflow: hidden; transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); text-shadow: 0 4px 20px rgba(234, 94, 193, 0.15); position: relative; }
+/* 展示区：绝对定位占据标题与 controls-center 之间的区域，名字以绝对定位摆放，
+   仅避让右下角的控件区域（controls-center），其余空间均可显示名字 */
+.display-container {
+  position: absolute;
+  top: 96px;
+  left: 24px;
+  right: 24px;
+  bottom: 24px;
+  overflow: hidden;
+}
+
+.name-display { position: absolute; white-space: nowrap; font-family: var(--font-display); font-weight: 700; color: var(--text-primary); line-height: 1.05; letter-spacing: 0.5px; transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); text-shadow: 0 4px 20px rgba(234, 94, 193, 0.15); z-index: 5; }
 .name-display::before { content: ''; position: absolute; inset: -4px; background: var(--accent); border-radius: var(--radius-sm); z-index: -1; opacity: 0; transition: opacity 0.3s ease; }
 .name-display.rainbow {
   background: linear-gradient(90deg, #ff6ad9, #72afec, #ff6ad9, #72afec, #ff6ad9, #72afec, #ff6ad9, #72afec, #ff6ad9);
@@ -226,7 +517,20 @@ onBeforeUnmount(() => { if (intervalId) clearTimeout(intervalId) })
 }
 @keyframes final-reveal { 0% { transform: scale(4); opacity: 0; filter: brightness(2); } 100% { transform: scale(1); filter: brightness(1); } }
 
-.controls-center { position: fixed; bottom: 24px; right: 24px; display: flex; flex-direction: column; gap: 10px; align-items: flex-end; z-index: 10; }
+/* 隐藏的文字测量探针 */
+.fit-probe {
+  position: absolute;
+  visibility: hidden;
+  white-space: nowrap;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 52px;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+}
+
+.controls-center { position: absolute; bottom: 24px; right: 24px; display: flex; flex-direction: column; gap: 10px; align-items: flex-end; z-index: 10; }
 .switches { display: flex; flex-direction: column; gap: 6px; align-items: flex-end; }
 .multi-settings { display: flex; align-items: center; gap: 12px; }
 .setting-label { font-size: 14px; color: var(--text-secondary); }

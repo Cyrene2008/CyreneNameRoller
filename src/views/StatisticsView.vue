@@ -20,7 +20,7 @@
       </div>
       <div class="summary-item">
         <span class="summary-label">{{ lang === 'en' ? 'Candidates' : '候选人数' }}</span>
-        <span class="summary-value">{{ selectedNames.filter(n => n.cn !== '再来一次').length }}</span>
+        <span class="summary-value">{{ selectedNames.filter(n => !n.isWhiteList).length }}</span>
       </div>
     </FluentCard>
 
@@ -53,7 +53,11 @@ import { ref, computed, onMounted } from 'vue'
 import { useNamesStore } from '../stores/names'
 import { useSettingsStore } from '../stores/settings'
 import { useStatisticsStore } from '../stores/statistics'
-import { computeBalancedProbability, DEFAULT_BALANCE_SETTINGS, normalizeSettings } from '../utils/balance'
+import {
+  computeCyreneBalanceProbability,
+  DEFAULT_CYRENE_BALANCE_SETTINGS,
+  normalizeCyreneBalanceSettings
+} from '../utils/cyrene-balance'
 import { dataBridge } from '../utils/dataBridge'
 import { t } from '../utils/i18n'
 import FluentCard from '../components/FluentCard.vue'
@@ -65,7 +69,7 @@ const settingsStore = useSettingsStore()
 const statisticsStore = useStatisticsStore()
 
 const lang = computed(() => settingsStore.settings.language)
-const balanceSettings = ref({ ...DEFAULT_BALANCE_SETTINGS })
+const balanceSettings = ref({ ...DEFAULT_CYRENE_BALANCE_SETTINGS })
 
 const selectedListId = ref(namesStore.currentListId)
 
@@ -78,7 +82,8 @@ const selectedList = computed(() =>
 )
 
 const selectedNames = computed(() => selectedList.value.names || [])
-const selectedWhiteList = computed(() => selectedList.value.whiteList || [])
+const selectedWhiteList = computed(() => selectedNames.value.filter(n => n.isWhiteList))
+const whiteListCns = computed(() => selectedWhiteList.value.map(w => w.cn))
 
 const statsData = computed(() => {
   return statisticsStore.getStatsForList(
@@ -88,9 +93,9 @@ const statsData = computed(() => {
 })
 
 const statsWithBalance = computed(() => {
-  const probMap = computeBalancedProbability(
+  const probMap = computeCyreneBalanceProbability(
     selectedNames.value,
-    selectedWhiteList.value,
+    whiteListCns.value,
     statisticsStore.counts,
     balanceSettings.value
   )
@@ -102,7 +107,7 @@ const statsWithBalance = computed(() => {
 
 onMounted(async () => {
   const saved = await dataBridge.load('balance')
-  if (saved) balanceSettings.value = normalizeSettings(saved)
+  balanceSettings.value = normalizeCyreneBalanceSettings(saved)
 })
 </script>
 
