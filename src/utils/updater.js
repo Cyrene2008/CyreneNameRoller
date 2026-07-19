@@ -28,6 +28,19 @@ export function getPlatform() {
   return 'web'
 }
 
+export function findPlatformAsset(assets, platform = getPlatform()) {
+  const platformName = platform.startsWith('tauri')
+    ? 'tauri'
+    : platform.startsWith('electron') ? 'electron' : ''
+  if (!platformName) return null
+
+  return (assets || []).find(asset => {
+    const name = String(asset?.name || '').toLowerCase()
+    const isWin64 = name.includes('win64') || name.includes('x64')
+    return name.endsWith('.exe') && name.includes(platformName) && isWin64
+  }) || null
+}
+
 function normalizeVersion(v) {
   return v.replace(/^v/i, '').trim()
 }
@@ -97,12 +110,7 @@ export async function checkForUpdates(silent = true, bannerFn = null) {
   if (compareVersions(remoteVersion, currentVersion) > 0) {
     const platform = getPlatform()
     const assets = release.assets || []
-    let targetAsset = null
-    if (platform === 'tauri-win64') {
-      targetAsset = assets.find(a => a.name.includes('Tauri') && a.name.endsWith('.exe'))
-    } else if (platform === 'electron-win64') {
-      targetAsset = assets.find(a => a.name.includes('electron-win64') && a.name.endsWith('.exe'))
-    }
+    const targetAsset = findPlatformAsset(assets, platform)
     updateState.value = {
       available: true, checking: false, downloading: false, downloadProgress: 0,
       version: release.tag_name,
@@ -134,10 +142,18 @@ export async function downloadUpdate(bannerFn = null) {
   if (!updateState.value.url) return
 
   const originalUrl = updateState.value.url
+  const fileName = updateState.value.fileName
+  const expectedSize = Number(updateState.value.fileSize) || 0
   const downloadUrl = getDownloadUrl(originalUrl)
 
   if (!isTauri() && !window.electronAPI) {
     window.open(downloadUrl, '_blank')
+    return
+  }
+
+  if (!fileName || !fileName.toLowerCase().endsWith('.exe')) {
+    if (isTauri()) await tauriAPI.openExternal(originalUrl)
+    else await window.electronAPI.openExternal(originalUrl)
     return
   }
 
@@ -156,98 +172,36 @@ export async function downloadUpdate(bannerFn = null) {
     })
   }
 
+  let removeProgressListener = null
   try {
-    const response = await fetch(downloadUrl)
-    if (!response.ok) throw new Error('Download failed')
-
-    const contentLength = response.headers.get('content-length')
-    const total = contentLength ? parseInt(contentLength, 10) : 0
-    const reader = response.body.getReader()
-    const chunks = []
-    let receivedLength = 0
-
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
-      chunks.push(value)
-      receivedLength += value.length
-      if (total > 0) {
-        const pct = Math.round((receivedLength / total) * 100)
-        updateState.value.downloadProgress = pct
-        if (bannerHandle) bannerHandle.update({ progress: pct })
+    let result
+    if (window.electronAPI?.downloadAndLaunchUpdate) {
+      if (window.electronAPI.onUpdateDownloadProgress) {
+        removeProgressListener = window.electronAPI.onUpdateDownloadProgress(progress => {
+          updateState.value.downloadProgress = progress
+          if (bannerHandle) bannerHandle.update({ progress })
+        })
       }
+      result = await window.electronAPI.downloadAndLaunchUpdate(originalUrl, fileName, expectedSize)
+    } else if (isTauri()) {
+      if (bannerHandle) bannerHandle.update({ progress: 5 })
+      result = await tauriAPI.downloadAndLaunchUpdate(originalUrl, fileName, expectedSize)
     }
 
-    const allChunks = new Uint8Array(receivedLength)
-    let position = 0
-    for (const chunk of chunks) {
-      allChunks.set(chunk, position)
-      position += chunk.length
-    }
+    if (!result?.success) throw new Error(result?.error || '原生更新程序未能启动')
 
-    const blob = new Blob([allChunks])
-    const fileName = updateState.value.fileName || 'update.exe'
-
-    let saved = false
-    if (window.electronAPI?.saveAndLaunch) {
-      const arrayBuffer = await blob.arrayBuffer()
-      const uint8 = new Uint8Array(arrayBuffer)
-      const result = await window.electronAPI.saveAndLaunch(uint8, fileName)
-      if (result?.success) {
-        saved = true
-        if (bannerHandle) bannerHandle.update({ message: '已保存并启动安装程序', icon: 'checkmark-circle-16-regular', type: 'success', progress: 100, duration: 8000 })
-      } else if (result?.cancelled) {
-        if (bannerHandle) bannerHandle.update({ message: '下载已取消', icon: 'dismiss-circle-16-regular', type: 'warning', progress: 0, duration: 8000 })
-        saved = true
-      }
-    } else if (isTauri() && tauriAPI.saveAndLaunch) {
-      try {
-        const result = await tauriAPI.saveAndLaunch(downloadUrl, fileName)
-        if (result?.success) {
-          saved = true
-          if (bannerHandle) bannerHandle.update({ message: '已保存并启动安装程序', icon: 'checkmark-circle-16-regular', type: 'success', progress: 100, duration: 8000 })
-        } else if (result?.cancelled) {
-          if (bannerHandle) bannerHandle.update({ message: '下载已取消', icon: 'dismiss-circle-16-regular', type: 'warning', progress: 0, duration: 8000 })
-          saved = true
-        }
-      } catch (e) {
-        console.error('Tauri save failed:', e)
-      }
-    }
-
-    if (!saved) {
-      saveBlob(blob, fileName)
-      if (bannerHandle) {
-        bannerHandle.update({ message: '下载完成', icon: 'checkmark-circle-16-regular', type: 'success', progress: 100, duration: 8000 })
-      }
-    }
-
-    updateState.value.downloading = false
     updateState.value.downloadProgress = 100
+    if (bannerHandle) {
+      bannerHandle.update({ message: '安装程序已验证并启动，应用即将退出', icon: 'checkmark-circle-16-regular', type: 'success', progress: 100, duration: 8000 })
+    }
   } catch (error) {
     console.error('Download failed:', error)
-    updateState.value.downloading = false
     updateState.value.downloadProgress = 0
     if (bannerHandle) {
-      bannerHandle.update({ message: '下载失败，正在尝试备用链接...', icon: 'warning-16-regular', type: 'warning', progress: 0, duration: 8000 })
+      bannerHandle.update({ message: `更新失败：${error?.message || error}`, icon: 'warning-16-regular', type: 'warning', progress: 0, duration: 8000 })
     }
-    if (isTauri()) {
-      await tauriAPI.openExternal(originalUrl)
-    } else if (window.electronAPI) {
-      window.electronAPI.openExternal(originalUrl)
-    } else {
-      window.open(originalUrl, '_blank')
-    }
+  } finally {
+    if (typeof removeProgressListener === 'function') removeProgressListener()
+    updateState.value.downloading = false
   }
-}
-
-function saveBlob(blob, fileName) {
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = fileName
-  document.body.appendChild(a)
-  a.click()
-  document.body.removeChild(a)
-  URL.revokeObjectURL(url)
 }

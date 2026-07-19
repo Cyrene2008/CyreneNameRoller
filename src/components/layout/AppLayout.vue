@@ -159,7 +159,6 @@ const routeOrder = {
   '/download': 1002,
   '/docs': 1003,
   '/settings': 9999,
-  '/settings/balance-curve': 9999,
   '/about': 33550336,
   '/about/contributors': 33550336
 }
@@ -179,7 +178,7 @@ router.beforeEach((to, from) => {
   transitionName.value = toIdx >= fromIdx ? 'page-forward' : 'page-back'
 })
 
-// Scroll to top on route change (skip for child routes like /settings/balance-curve)
+// Scroll to top on route change.
 router.afterEach((to, from) => {
   if (to.path.startsWith(from.path + '/')) return
   nextTick(() => {

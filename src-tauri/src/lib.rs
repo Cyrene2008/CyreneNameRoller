@@ -2,8 +2,12 @@ use tauri::Manager;
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
+
+const UPDATE_PROXY_BASE: &str = "https://gh.xn--8hvv1o.cn/";
+const UPDATE_URL_PREFIX: &str = "https://github.com/Cyrene2008/CyreneNameRoller/releases/download/";
+const MIN_INSTALLER_SIZE: usize = 1024 * 1024;
 
 fn get_data_dir(app: &tauri::AppHandle) -> PathBuf {
     let dir = app.path().app_data_dir().unwrap_or_else(|_| PathBuf::from(".")).join("data");
@@ -60,66 +64,92 @@ fn restore_window_state(app: &tauri::AppHandle) {
     }
 }
 
-// 通过代理（或直连）下载文件字节，优先走国内可访问的镜像代理
-async fn download_bytes(url: &str) -> Result<Vec<u8>, String> {
+async fn download_installer_bytes(url: &str, expected_size: u64) -> Result<Vec<u8>, String> {
+    if !url.starts_with(UPDATE_URL_PREFIX) {
+        return Err("更新地址不属于 CyreneNameRoller 官方发布源".into());
+    }
     let client = reqwest::Client::builder()
+        .connect_timeout(std::time::Duration::from_secs(15))
         .timeout(std::time::Duration::from_secs(300))
         .build()
         .map_err(|e| e.to_string())?;
-    let proxied = format!("https://gh.xn--8hvv1o.cn/{}", url);
-    for u in [proxied, url.to_string()] {
-        if let Ok(resp) = client
-            .get(&u)
+    let urls = [format!("{}{}", UPDATE_PROXY_BASE, url), url.to_string()];
+    let mut failures = Vec::new();
+
+    for candidate_url in urls {
+        match client
+            .get(&candidate_url)
             .header("User-Agent", "CyreneNameRoller")
+            .header("Accept", "application/octet-stream")
             .send()
             .await
         {
-            if resp.status().is_success() {
-                if let Ok(bytes) = resp.bytes().await {
-                    return Ok(bytes.to_vec());
+            Ok(resp) if resp.status().is_success() => {
+                let content_type = resp
+                    .headers()
+                    .get(reqwest::header::CONTENT_TYPE)
+                    .and_then(|value| value.to_str().ok())
+                    .unwrap_or("")
+                    .to_ascii_lowercase();
+                if content_type.contains("text/html") || content_type.contains("application/json") {
+                    failures.push(format!("服务器返回了非安装程序内容 ({})", content_type));
+                    continue;
+                }
+
+                match resp.bytes().await {
+                    Ok(bytes) => {
+                        let actual_size = bytes.len() as u64;
+                        if expected_size > 0 && actual_size != expected_size {
+                            failures.push(format!(
+                                "安装程序不完整：应为 {} 字节，实际为 {} 字节",
+                                expected_size, actual_size
+                            ));
+                            continue;
+                        }
+                        if bytes.len() < MIN_INSTALLER_SIZE {
+                            failures.push(format!("安装程序体积异常：仅 {} 字节", bytes.len()));
+                            continue;
+                        }
+                        if !bytes.starts_with(b"MZ") {
+                            failures.push("安装程序文件头无效，不是 Windows PE 文件".into());
+                            continue;
+                        }
+                        return Ok(bytes.to_vec());
+                    }
+                    Err(error) => failures.push(error.to_string()),
                 }
             }
+            Ok(resp) => failures.push(format!("更新服务器返回 HTTP {}", resp.status())),
+            Err(error) => failures.push(error.to_string()),
         }
     }
-    Err("下载失败，请检查网络或稍后重试".into())
+    Err(if failures.is_empty() {
+        "下载失败，请检查网络或稍后重试".into()
+    } else {
+        failures.join("；")
+    })
 }
 
-// 弹出原生保存对话框（回调式，用通道桥接为同步返回，避免阻塞事件循环）
-fn pick_save_path(app: &tauri::AppHandle, file_name: &str) -> Option<PathBuf> {
-    use tauri_plugin_dialog::{DialogExt, FilePath};
-    let (tx, rx) = std::sync::mpsc::channel();
-    app.dialog()
-        .file()
-        .set_title("保存安装程序")
-        .set_file_name(file_name)
-        .add_filter("安装程序", &["exe"])
-        .save_file(move |path: Option<FilePath>| {
-            let _ = tx.send(path);
-        });
-    rx.recv().ok().flatten().and_then(|p| p.into_path().ok())
+fn installer_temp_path(file_name: &str) -> Result<PathBuf, String> {
+    let safe_name = Path::new(file_name)
+        .file_name()
+        .and_then(|name| name.to_str())
+        .filter(|name| name.to_ascii_lowercase().ends_with(".exe"))
+        .ok_or_else(|| "安装程序文件名无效".to_string())?;
+    let update_dir = std::env::temp_dir().join("CyreneNameRoller-Update");
+    fs::create_dir_all(&update_dir).map_err(|error| error.to_string())?;
+    Ok(update_dir.join(safe_name))
 }
 
-// 下载完成后启动安装程序：优先用 explorer（会等待退出，规避 SmartScreen 拦截），失败回退
-fn launch_installer(path: &str) {
+fn launch_installer(path: &Path) -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
-        if Command::new("explorer").arg(path).status().is_ok() {
-            return;
-        }
-        let _ = Command::new("cmd").args(["/C", "start", "", path]).spawn();
+        Command::new(path).spawn().map(|_| ()).map_err(|error| error.to_string())
     }
     #[cfg(target_os = "macos")]
-    { let _ = Command::new("open").arg(path).spawn(); }
+    { Command::new("open").arg(path).spawn().map(|_| ()).map_err(|error| error.to_string()) }
     #[cfg(target_os = "linux")]
-    { let _ = Command::new("xdg-open").arg(path).spawn(); }
-}
-
-// 让安装程序在保存对话框彻底关闭、窗口重新获焦后再启动，避免被吞掉
-fn launch_later(path: String) {
-    std::thread::spawn(move || {
-        std::thread::sleep(std::time::Duration::from_millis(600));
-        launch_installer(&path);
-    });
+    { Command::new("xdg-open").arg(path).spawn().map(|_| ()).map_err(|error| error.to_string()) }
 }
 
 #[tauri::command]
@@ -271,31 +301,33 @@ async fn fetch_announcements() -> Result<serde_json::Value, String> {
     Err("无法获取公告内容".into())
 }
 
-// 由 Rust 侧直接下载（经代理，规避 JS 层大文件序列化问题），保存并启动安装程序
 #[tauri::command]
-async fn save_and_launch(app: tauri::AppHandle, url: String, file_name: String) -> Result<serde_json::Value, String> {
-    let bytes = download_bytes(&url).await?;
-    match pick_save_path(&app, &file_name) {
-        Some(path) => {
-            fs::write(&path, &bytes).map_err(|e| e.to_string())?;
-            launch_later(path.to_string_lossy().to_string());
-            Ok(serde_json::json!({ "success": true }))
-        }
-        None => Ok(serde_json::json!({ "cancelled": true })),
-    }
-}
+async fn download_and_launch_update(
+    app: tauri::AppHandle,
+    url: String,
+    file_name: String,
+    expected_size: u64,
+) -> Result<serde_json::Value, String> {
+    let bytes = download_installer_bytes(&url, expected_size).await?;
+    let path = installer_temp_path(&file_name)?;
+    let partial_path = path.with_extension("exe.part");
+    let _ = fs::remove_file(&partial_path);
+    fs::write(&partial_path, &bytes).map_err(|error| error.to_string())?;
+    let _ = fs::remove_file(&path);
+    fs::rename(&partial_path, &path).map_err(|error| error.to_string())?;
+    launch_installer(&path).map_err(|error| format!("无法启动安装程序：{}", error))?;
 
-// 兜底：JS 层已校验的字节直接交给 Rust 保存并启动（适用于小文件）
-#[tauri::command]
-async fn save_and_launch_from_bytes(app: tauri::AppHandle, bytes: Vec<u8>, file_name: String) -> Result<serde_json::Value, String> {
-    match pick_save_path(&app, &file_name) {
-        Some(path) => {
-            fs::write(&path, &bytes).map_err(|e| e.to_string())?;
-            launch_later(path.to_string_lossy().to_string());
-            Ok(serde_json::json!({ "success": true }))
-        }
-        None => Ok(serde_json::json!({ "cancelled": true })),
-    }
+    let exit_handle = app.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_millis(1500));
+        exit_handle.exit(0);
+    });
+
+    Ok(serde_json::json!({
+        "success": true,
+        "filePath": path.to_string_lossy(),
+        "size": bytes.len()
+    }))
 }
 
 // 构建系统托盘：左键无菜单，右键弹出“显示主窗口 / 退出”
@@ -386,8 +418,7 @@ pub fn run() {
             check_update,
             open_external,
             fetch_announcements,
-            save_and_launch,
-            save_and_launch_from_bytes
+            download_and_launch_update
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

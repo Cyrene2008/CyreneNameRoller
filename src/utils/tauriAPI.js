@@ -21,6 +21,12 @@ export const tauriAPI = {
   async openExternal(url) { return this.invoke('open_external', { url }) },
   async checkUpdate() { return this.invoke('check_update', {}) },
   async fetchAnnouncements() { return this.invoke('fetch_announcements', {}) },
-  async saveAndLaunch(url, fileName, digest = '') { return this.invoke('save_and_launch', { url, file_name: fileName, digest }) },
-  async saveAndLaunchFromBytes(bytes, fileName) { return this.invoke('save_and_launch_from_bytes', { bytes, file_name: fileName }) }
+  async downloadAndLaunchUpdate(url, fileName, expectedSize) {
+    if (!isTauri()) return null
+    return window.__TAURI_INTERNALS__.invoke('download_and_launch_update', {
+      url,
+      file_name: fileName,
+      expected_size: expectedSize
+    })
+  }
 }
