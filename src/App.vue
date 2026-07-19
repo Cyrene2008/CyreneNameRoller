@@ -1,15 +1,19 @@
 <template>
-  <SplashScreen v-if="showSplash" @done="showSplash = false" />
-  <AppLayout />
+  <SplashScreen v-if="!isFloatingRoute && showSplash" @done="showSplash = false" />
+  <router-view v-else-if="isFloatingRoute" />
+  <AppLayout v-else />
 </template>
 
 <script setup>
-import { ref, watch, onMounted } from 'vue'
+import { ref, watch, onMounted, computed } from 'vue'
+import { useRoute } from 'vue-router'
 import AppLayout from './components/layout/AppLayout.vue'
 import SplashScreen from './components/SplashScreen.vue'
 import { useSettingsStore } from './stores/settings'
 
 const settingsStore = useSettingsStore()
+const route = useRoute()
+const isFloatingRoute = computed(() => route.path === '/floating')
 const showSplash = ref(true)
 
 if (typeof window !== 'undefined' && window.localStorage) {

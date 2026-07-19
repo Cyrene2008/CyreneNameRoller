@@ -14,7 +14,8 @@ const routes = [
   { path: '/about', name: 'About', component: () => import('../views/AboutView.vue') },
   { path: '/about/contributors', name: 'Contributors', component: () => import('../views/ContributorsView.vue') },
   { path: '/download', name: 'Download', component: () => import('../views/DownloadView.vue') },
-  { path: '/announcement', name: 'Announcement', component: () => import('../views/AnnouncementView.vue') }
+  { path: '/announcement', name: 'Announcement', component: () => import('../views/AnnouncementView.vue') },
+  { path: '/floating', name: 'Floating', component: () => import('../views/FloatingLauncherView.vue') }
 ]
 
 const router = createRouter({

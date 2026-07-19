@@ -195,6 +195,10 @@ onMounted(async () => {
   await statisticsStore.initialize()
   await recordsStore.initialize()
   if (isDesktopApp.value) checkForUpdates(true, showBanner)
+  if (isDesktopApp.value && settingsStore.settings.floatingWindowEnabled) {
+    if (isTauri()) await tauriAPI.invoke('open_floating_window')
+    else window.electronAPI?.openFloatingWindow?.()
+  }
 })
 
 watch(() => settingsStore.settings.uiScale, (val) => {

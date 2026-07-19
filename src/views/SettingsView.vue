@@ -26,6 +26,10 @@
         />
       </div>
       <div v-if="isDesktop" class="setting-row">
+        <span class="setting-label">{{ lang === 'en' ? 'Floating Window' : '悬浮窗快捷点名' }}</span>
+        <FluentToggle :model-value="settings.floatingWindowEnabled" @update:model-value="onFloatingWindowToggle" />
+      </div>
+      <div v-if="isDesktop" class="setting-row">
         <span class="setting-label">{{ lang === 'en' ? 'Check for Updates' : '检查更新' }}</span>
         <div class="update-actions">
           <FluentButton variant="secondary" size="sm" :disabled="updateState.checking || updateState.downloading" @click="doForceUpdate">
@@ -261,7 +265,7 @@ import { useSettingsStore } from '../stores/settings'
 import { useRecordsStore } from '../stores/records'
 import { useStatisticsStore } from '../stores/statistics'
 import { dataBridge } from '../utils/dataBridge'
-import { isTauri } from '../utils/tauriAPI'
+import { isTauri, tauriAPI } from '../utils/tauriAPI'
 import { updateState, checkForUpdates, downloadUpdate } from '../utils/updater'
 import { t } from '../utils/i18n'
 import {
@@ -344,6 +348,15 @@ const pwModalHint = computed(() => {
 })
 
 function update(key, value) { settingsStore.update(key, value) }
+
+async function onFloatingWindowToggle(val) {
+  update('floatingWindowEnabled', val)
+  if (isTauri()) {
+    await tauriAPI.invoke(val ? 'open_floating_window' : 'close_floating_window')
+  } else if (window.electronAPI) {
+    val ? window.electronAPI.openFloatingWindow() : window.electronAPI.closeFloatingWindow()
+  }
+}
 
 const stepIntervalDraft = ref(settings.value.stepStopInterval)
 watch(() => settings.value.stepStopInterval, v => { stepIntervalDraft.value = v })
