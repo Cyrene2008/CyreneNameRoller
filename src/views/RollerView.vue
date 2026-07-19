@@ -62,7 +62,12 @@ import { useStatisticsStore } from '../stores/statistics'
 import { t } from '../utils/i18n'
 import { useRecordsStore } from '../stores/records'
 import { dataBridge } from '../utils/dataBridge'
-import { pickUniform, pickBalanced } from '../utils/balance'
+import {
+  pickCyreneBalanced,
+  pickCyreneBatch,
+  DEFAULT_CYRENE_BALANCE_SETTINGS,
+  normalizeCyreneBalanceSettings
+} from '../utils/cyrene-balance'
 import FluentButton from '../components/FluentButton.vue'
 import FluentIcon from '../components/FluentIcon.vue'
 import FluentToggle from '../components/FluentToggle.vue'
@@ -113,12 +118,18 @@ const pendingTimers = []
 const revealed = ref([])
 const gridParams = reactive({ valid: false, font: 52, perRow: 1, gapX: 20, gapY: 20, lineH: 60, cellW: 0, offsetX: 0, offsetY: 0, count: 0 })
 
-const balanceSettings = ref({
-  enabled: true, factor: 13.3, maxThreshold: 3, maxBoostPercent: 1200,
-  points: [{ x: 0.3, y: 150 }, { x: 1.5, y: 420 }, { x: 2.4, y: 800 }]
-})
+const balanceSettings = ref({ ...DEFAULT_CYRENE_BALANCE_SETTINGS })
 
-onMounted(async () => { const saved = await dataBridge.load('balance'); if (saved) balanceSettings.value = { ...balanceSettings.value, ...saved } })
+onMounted(async () => {
+  const saved = await dataBridge.load('balance')
+  balanceSettings.value = normalizeCyreneBalanceSettings(saved)
+  if (balanceSettings.value.enabled && !settings.value.recordCounts) {
+    settingsStore.update('recordCounts', true)
+  }
+  if (saved && JSON.stringify(saved) !== JSON.stringify(balanceSettings.value)) {
+    await dataBridge.save('balance', balanceSettings.value)
+  }
+})
 
 function initializeDisplays(count) {
   nameDisplays.splice(0); lastPickedNames.value = []
@@ -138,6 +149,8 @@ function getNameStyle(display, i) {
   if (layout) {
     style.left = layout.x + 'px'
     style.top = layout.y + 'px'
+    style.width = gridParams.cellW + 'px'
+    style.textAlign = 'center'
     style.fontSize = (nameFontSize.value * (settings.value.nameFontSize || 1)) + 'px'
   }
   if (settings.value.nameColorMode === 'custom') {
@@ -214,10 +227,14 @@ function doPick(excludeList = []) {
   for (const [k, v] of Object.entries(sessionCounts.value)) {
     combinedCounts[k] = (combinedCounts[k] || 0) + v
   }
-  if (forbidDup) return pickUniform(names, excludeList, false)
-  if (settings.value.multiMode) return pickBalanced(names, wl, combinedCounts, balanceSettings.value, excludeList, true)
-  if (balanceSettings.value.enabled) return pickBalanced(names, wl, combinedCounts, balanceSettings.value, [], true)
-  return pickUniform(names, [], true)
+  return pickCyreneBalanced(
+    names,
+    wl,
+    combinedCounts,
+    balanceSettings.value,
+    excludeList,
+    !forbidDup
+  )
 }
 
 function animationLoop() {
@@ -235,8 +252,30 @@ function animationLoop() {
       sessionCounts.value[pick.cn] = (sessionCounts.value[pick.cn] || 0) + 1
     }
   }
-  computeNameLayout()
+  // 只更新文字内容的位置，不重新计算网格参数（避免抖动）
+  updateNamePositionsOnly()
   intervalId = setTimeout(animationLoop, 50)
+}
+
+function updateNamePositionsOnly() {
+  const n = nameDisplays.length
+  if (!displayRef.value || n === 0 || !gridParams.valid) return
+  const { perRow, gapX, gapY, lineH, cellW, offsetX, offsetY, font } = gridParams
+  const factor = settings.value.nameFontSize || 1
+  const scale = (font / 52) * factor
+  nameFontSize.value = font
+  const positions = []
+  for (let i = 0; i < n; i++) {
+    const r = Math.floor(i / perRow)
+    const c = i % perRow
+    const colX = offsetX + c * (cellW + gapX)
+    const rowY = offsetY + r * (lineH + gapY)
+    // 使用固定cellW居中，不依赖动态测量（避免抖动）
+    const x = colX
+    const y = rowY + (lineH - font * factor) / 2
+    positions.push({ x, y })
+  }
+  nameLayout.value = positions
 }
 
 function toggleRoll() {
@@ -255,7 +294,12 @@ function toggleRoll() {
   isRunning.value = true
   sessionCounts.value = {}
   initializeDisplays(settings.value.multiMode ? (settings.value.peopleCount || 2) : 1)
-  animationLoop()
+  // 动画开始前先计算好网格参数
+  nextTick(() => {
+    computeGridParams()
+    computeNameLayout()
+    animationLoop()
+  })
 }
 
 function finishRoll() {
@@ -264,28 +308,39 @@ function finishRoll() {
   const wl = names.filter(n => n.isWhiteList).map(n => n.cn)
   const forbidDup = settings.value.multiMode && settings.value.forbidDuplicates
   lastPickedNames.value = []
-  const finalPicks = []
-  for (let i = 0; i < count; i++) {
-    const ex = lastPickedNames.value.filter(n => n)
-    let pick
-    if (settings.value.groupMode) {
+  let finalPicks = []
+  if (settings.value.groupMode) {
+    for (let i = 0; i < count; i++) {
+      const ex = lastPickedNames.value.filter(n => n)
       const pool = getCurrentPool()
       if (forbidDup) {
         const avail = pool.filter(p => !ex.includes(p.id))
-        pick = avail.length ? avail[Math.floor(Math.random() * avail.length)] : pool[Math.floor(Math.random() * pool.length)]
+        const pick = avail.length ? avail[Math.floor(Math.random() * avail.length)] : pool[Math.floor(Math.random() * pool.length)]
+        finalPicks.push(pick)
+        lastPickedNames.value.push(pick.id)
       } else {
-        pick = pool[Math.floor(Math.random() * pool.length)]
+        const pick = pool[Math.floor(Math.random() * pool.length)]
+        finalPicks.push(pick)
+        lastPickedNames.value.push(pick.id)
       }
-      lastPickedNames.value.push(pick.id)
-    } else {
-      pick = forbidDup ? pickUniform(names, ex, false) : pickBalanced(names, wl, statisticsStore.counts, balanceSettings.value, ex, true)
-      lastPickedNames.value.push(pick.cn)
     }
-    finalPicks.push(pick)
+  } else {
+    finalPicks = pickCyreneBatch(
+      names,
+      wl,
+      statisticsStore.counts,
+      balanceSettings.value,
+      count,
+      !forbidDup
+    )
+    lastPickedNames.value = finalPicks.map(pick => pick.cn)
   }
-  for (let i = 0; i < count; i++) {
+  const shouldRecordCounts = settings.value.recordCounts || balanceSettings.value.enabled
+  if (shouldRecordCounts) {
+    statisticsStore.incrementCounts(finalPicks.filter(pick => !pick.isWhiteList).map(pick => pick.cn))
+  }
+  for (let i = 0; i < finalPicks.length; i++) {
     const pick = finalPicks[i]
-    if (settings.value.recordCounts && !pick.isWhiteList) statisticsStore.incrementCount(pick.cn)
     recordsStore.addRecord({ cn: pick.cn, en: pick.en, listName: namesStore.currentList.name, source: 'roller' })
   }
   nextTick(computeNameLayout)
@@ -395,7 +450,6 @@ function computeNameLayout() {
   if (!gridParams.valid) { nameLayout.value = []; return }
   const { perRow, gapX, gapY, lineH, cellW, offsetX, offsetY, font } = gridParams
   const factor = settings.value.nameFontSize || 1
-  const scale = (font / 52) * factor
   nameFontSize.value = font
   const positions = []
   for (let i = 0; i < n; i++) {
@@ -403,8 +457,7 @@ function computeNameLayout() {
     const c = i % perRow
     const colX = offsetX + c * (cellW + gapX)
     const rowY = offsetY + r * (lineH + gapY)
-    const nameW = measureNameWidth(nameDisplays[i].text) * scale
-    const x = colX + (cellW - nameW) / 2
+    const x = colX
     const y = rowY + (lineH - font * factor) / 2
     positions.push({ x, y })
   }

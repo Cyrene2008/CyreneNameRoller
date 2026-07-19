@@ -147,9 +147,11 @@
       <div class="setting-row">
         <div class="setting-label-group">
           <span class="setting-label">{{ lang === 'en' ? 'Enable Statistics' : '启用数据统计' }}</span>
-          <span class="setting-desc">{{ lang === 'en' ? 'When off, no stats or history recorded. Auto re-enabled on restart.' : '关闭后不记录统计和历史，重启自动开启。' }}</span>
+          <span class="setting-desc">{{ balance.enabled
+            ? (lang === 'en' ? 'Required by the fairness algorithm.' : '公平算法需要持续记录统计数据。')
+            : (lang === 'en' ? 'When off, no selection counts are recorded.' : '关闭后不记录中签次数。') }}</span>
         </div>
-        <FluentToggle :model-value="settings.recordCounts" @update:model-value="update('recordCounts', $event)" />
+          <FluentToggle :model-value="settings.recordCounts" :disabled="balance.enabled" @update:model-value="update('recordCounts', $event)" />
       </div>
       <div class="setting-row">
         <span class="setting-label">{{ lang === 'en' ? 'Data Password' : '数据操作密码' }}</span>
@@ -204,14 +206,15 @@
       <h3 class="section-title"><FluentIcon icon="data-line-24-regular" :width="20" /> {{ t('balanceSettings', lang) }}</h3>
       <div class="setting-row">
         <span class="setting-label">{{ lang === 'en' ? 'Enable Balance' : '启用平衡算法' }}</span>
-        <FluentToggle :model-value="balance.enabled" @update:model-value="val => { balance.enabled = val; saveBalance() }" />
+          <FluentToggle :model-value="balance.enabled" @update:model-value="onBalanceEnabledChange" />
       </div>
       <Transition name="toggle-expand">
         <div v-if="balance.enabled" class="balance-sub">
-          <p class="balance-explain">{{ lang === 'en' ? 'Names picked fewer times get higher probability next round.' : '被抽中次数越少，下次被抽中的概率越高。' }}</p>
-          <FluentButton variant="secondary" size="sm" @click="router.push('/settings/balance-curve')">
-            <FluentIcon icon="data-line-16-regular" :width="14" /> {{ lang === 'en' ? 'Edit Curve' : '编辑曲线' }}
-          </FluentButton>
+          <p class="balance-explain">{{ lang === 'en' ? 'The fairness target is fixed at an absolute gap of 2. Every candidate keeps a non-zero probability, so 2 is a strong soft target rather than an impossible hard guarantee.' : '公平算法固定以绝对极差 2 为软目标。每个人始终保留非零概率，因此会强力趋近 2，但不会作不可能的硬性保证。' }}</p>
+          <div class="balance-info">
+            <FluentIcon icon="info-16-regular" :width="14" />
+            <span>{{ lang === 'en' ? `Algorithm: ${ALGORITHM_NAME} v${ALGORITHM_VERSION} · Parameters are protected` : `算法: ${ALGORITHM_NAME} v${ALGORITHM_VERSION} · 公平参数不可修改` }}</span>
+          </div>
         </div>
       </Transition>
     </FluentCard>
@@ -253,7 +256,6 @@
 
 <script setup>
 import { ref, computed, onMounted, nextTick, watch, inject } from 'vue'
-import { useRouter } from 'vue-router'
 import { useNamesStore } from '../stores/names'
 import { useSettingsStore } from '../stores/settings'
 import { useRecordsStore } from '../stores/records'
@@ -262,7 +264,12 @@ import { dataBridge } from '../utils/dataBridge'
 import { isTauri } from '../utils/tauriAPI'
 import { updateState, checkForUpdates, downloadUpdate } from '../utils/updater'
 import { t } from '../utils/i18n'
-import { DEFAULT_BALANCE_SETTINGS, normalizeSettings } from '../utils/balance'
+import {
+  DEFAULT_CYRENE_BALANCE_SETTINGS,
+  normalizeCyreneBalanceSettings,
+  ALGORITHM_NAME,
+  ALGORITHM_VERSION
+} from '../utils/cyrene-balance'
 import FluentCard from '../components/FluentCard.vue'
 import FluentButton from '../components/FluentButton.vue'
 import FluentIcon from '../components/FluentIcon.vue'
@@ -271,7 +278,6 @@ import FluentInput from '../components/FluentInput.vue'
 import FluentSelect from '../components/FluentSelect.vue'
 import FluentModal from '../components/FluentModal.vue'
 
-const router = useRouter()
 const settingsStore = useSettingsStore()
 const namesStore = useNamesStore()
 const recordsStore = useRecordsStore()
@@ -316,7 +322,7 @@ const fontOptions = [
   { value: 'MiSans', label: 'Mi Sans' }
 ]
 
-const balance = ref(JSON.parse(JSON.stringify(DEFAULT_BALANCE_SETTINGS)))
+const balance = ref({ ...DEFAULT_CYRENE_BALANCE_SETTINGS })
 const changelog = ref([])
 const hasPassword = ref(false)
 const showPwModal = ref(false)
@@ -355,17 +361,11 @@ async function doForceUpdate() {
   updateState.value.checking = true
   updateState.value.error = null
   try {
-    const { fetchRelease, getPlatform } = await import('../utils/updater')
+    const { fetchRelease, findPlatformAsset } = await import('../utils/updater')
     const release = await fetchRelease()
     if (release) {
-      const platform = getPlatform()
       const assets = release.assets || []
-      let targetAsset = null
-      if (platform === 'tauri-win64') {
-        targetAsset = assets.find(a => a.name.includes('Tauri') && a.name.endsWith('.exe'))
-      } else if (platform === 'electron-win64') {
-        targetAsset = assets.find(a => a.name.includes('electron-win64') && a.name.endsWith('.exe'))
-      }
+      const targetAsset = findPlatformAsset(assets)
       updateState.value = {
         available: true, checking: false, downloading: false, downloadProgress: 0,
         version: release.tag_name,
@@ -394,10 +394,13 @@ function getLogEntries(log) {
 }
 
 onMounted(async () => {
-  if (!settings.value.recordCounts) settingsStore.update('recordCounts', true)
   await loadPasswordHash()
   const saved = await dataBridge.load('balance')
-  if (saved) balance.value = normalizeSettings(saved)
+  balance.value = normalizeCyreneBalanceSettings(saved)
+  if (balance.value.enabled && !settings.value.recordCounts) settingsStore.update('recordCounts', true)
+  if (saved && JSON.stringify(saved) !== JSON.stringify(balance.value)) {
+    await dataBridge.save('balance', balance.value)
+  }
   const logs = await dataBridge.loadChangelog()
   changelog.value = logs || []
 })
@@ -434,8 +437,15 @@ async function doClearAllNow() {
   await dataBridge.clearAll()
   alert(lang.value === 'en' ? 'All data cleared. Please close and restart.' : '所有数据已清除，请关闭并重启应用。')
 }
-async function saveBalance() { const n = normalizeSettings(balance.value); balance.value = n; await dataBridge.save('balance', n) }
-function resetBalance() { balance.value = JSON.parse(JSON.stringify(DEFAULT_BALANCE_SETTINGS)); saveBalance() }
+async function saveBalance() {
+  balance.value = normalizeCyreneBalanceSettings(balance.value)
+  await dataBridge.save('balance', balance.value)
+}
+function onBalanceEnabledChange(enabled) {
+  balance.value.enabled = enabled
+  if (enabled) settingsStore.update('recordCounts', true)
+  saveBalance()
+}
 </script>
 
 <style scoped>
@@ -449,6 +459,7 @@ function resetBalance() { balance.value = JSON.parse(JSON.stringify(DEFAULT_BALA
 .setting-desc { font-size: 12px; color: var(--text-muted); }
 .balance-sub { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border-default); display: flex; flex-direction: column; gap: 10px; }
 .balance-explain { font-size: 13px; color: var(--text-secondary); line-height: 1.6; }
+.balance-info { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-muted); padding: 8px 12px; background: var(--bg-subtle); border-radius: var(--radius-sm); }
 .sub-setting { padding-left: 16px; border-left: 2px solid var(--accent-200); margin-left: 0; }
 .color-picker-row { display: flex; align-items: center; gap: 10px; }
 .color-input { width: 40px; height: 32px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); cursor: pointer; padding: 2px; background: transparent; }

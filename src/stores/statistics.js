@@ -28,10 +28,20 @@ export const useStatisticsStore = defineStore('statistics', () => {
   }
 
   function incrementCount(cn) {
-    if (!counts.value[cn]) counts.value[cn] = 0
-    counts.value[cn]++
-    totalCount.value++
-    save()
+    return incrementCounts([cn])
+  }
+
+  function incrementCounts(names) {
+    let incremented = 0
+    for (const cn of names || []) {
+      if (!cn) continue
+      if (!counts.value[cn]) counts.value[cn] = 0
+      counts.value[cn]++
+      incremented++
+    }
+    if (incremented === 0) return Promise.resolve()
+    totalCount.value += incremented
+    return save()
   }
 
   function getCount(cn) {
@@ -81,6 +91,7 @@ export const useStatisticsStore = defineStore('statistics', () => {
     initialize,
     save,
     incrementCount,
+    incrementCounts,
     getCount,
     clearAll,
     getStatsForList

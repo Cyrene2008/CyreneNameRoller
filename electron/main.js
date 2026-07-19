@@ -10,6 +10,10 @@ let windowStateStore
 let tray = null
 let quitting = false
 const isDev = !app.isPackaged
+const UPDATE_PROXY_BASE = 'https://gh.xn--8hvv1o.cn/'
+const UPDATE_URL_PREFIX = 'https://github.com/Cyrene2008/CyreneNameRoller/releases/download/'
+const MIN_INSTALLER_SIZE = 1024 * 1024
+const MAX_UPDATE_REDIRECTS = 8
 
 // 单实例限制：多次启动主程序只保留一个进程
 if (!app.requestSingleInstanceLock()) {
@@ -109,34 +113,160 @@ ipcMain.handle('open-external', (_, url) => {
   }
 })
 
-ipcMain.handle('save-and-launch', async (_, uint8Array, fileName) => {
-  try {
-    const { filePath } = await dialog.showSaveDialog(win, {
-      title: '保存安装程序',
-      defaultPath: fileName,
-      filters: [{ name: '安装程序', extensions: ['exe'] }]
-    })
-    if (!filePath) return { cancelled: true }
-    fs.writeFileSync(filePath, Buffer.from(uint8Array))
-    await shell.openPath(filePath)
-    return { success: true, filePath }
-  } catch (e) {
-    return { success: false, error: e.message }
-  }
-})
+function sanitizeInstallerName(fileName) {
+  const safeName = path.basename(String(fileName || 'update.exe'))
+  return safeName.toLowerCase().endsWith('.exe') ? safeName : `${safeName}.exe`
+}
 
-ipcMain.handle('save-file-dialog', async (_, uint8Array, fileName) => {
-  try {
-    const { filePath } = await dialog.showSaveDialog(win, {
-      title: '另存为',
-      defaultPath: fileName,
-      filters: [{ name: '安装程序', extensions: ['exe'] }]
+function removeFileIfPresent(filePath) {
+  try { fs.unlinkSync(filePath) } catch (error) {
+    if (error.code !== 'ENOENT') throw error
+  }
+}
+
+function downloadToFile(url, targetPath, onProgress, redirectCount = 0) {
+  return new Promise((resolve, reject) => {
+    let parsedUrl
+    try {
+      parsedUrl = new URL(url)
+      if (parsedUrl.protocol !== 'https:') throw new Error('仅允许 HTTPS 更新地址')
+    } catch (error) {
+      reject(error)
+      return
+    }
+
+    const request = https.get(parsedUrl, {
+      headers: {
+        'User-Agent': 'CyreneNameRoller',
+        'Accept': 'application/octet-stream'
+      }
+    }, response => {
+      const status = response.statusCode || 0
+      if (status >= 300 && status < 400 && response.headers.location) {
+        response.resume()
+        if (redirectCount >= MAX_UPDATE_REDIRECTS) {
+          reject(new Error('更新下载重定向次数过多'))
+          return
+        }
+        const redirectedUrl = new URL(response.headers.location, parsedUrl).toString()
+        resolve(downloadToFile(redirectedUrl, targetPath, onProgress, redirectCount + 1))
+        return
+      }
+      if (status !== 200) {
+        response.resume()
+        reject(new Error(`更新服务器返回 HTTP ${status}`))
+        return
+      }
+
+      const contentType = String(response.headers['content-type'] || '').toLowerCase()
+      if (contentType.includes('text/html') || contentType.includes('application/json')) {
+        response.resume()
+        reject(new Error(`更新服务器返回了非安装程序内容 (${contentType || 'unknown'})`))
+        return
+      }
+
+      const declaredSize = Number(response.headers['content-length']) || 0
+      let receivedSize = 0
+      let settled = false
+      const output = fs.createWriteStream(targetPath, { flags: 'w' })
+
+      const fail = error => {
+        if (settled) return
+        settled = true
+        response.destroy()
+        output.destroy()
+        reject(error)
+      }
+
+      response.on('data', chunk => {
+        receivedSize += chunk.length
+        if (declaredSize > 0) onProgress(Math.min(99, Math.round((receivedSize / declaredSize) * 100)))
+      })
+      response.on('error', fail)
+      output.on('error', fail)
+      output.on('finish', () => {
+        output.close(error => {
+          if (settled) return
+          if (error) {
+            fail(error)
+            return
+          }
+          settled = true
+          resolve(receivedSize)
+        })
+      })
+      response.pipe(output)
     })
-    if (!filePath) return { cancelled: true }
-    fs.writeFileSync(filePath, Buffer.from(uint8Array))
-    return { success: true, filePath }
-  } catch (e) {
-    return { success: false, error: e.message }
+
+    request.setTimeout(30000, () => request.destroy(new Error('更新下载连接超时')))
+    request.on('error', reject)
+  })
+}
+
+function validateInstaller(filePath, expectedSize) {
+  const stat = fs.statSync(filePath)
+  if (expectedSize > 0 && stat.size !== expectedSize) {
+    throw new Error(`安装程序不完整：应为 ${expectedSize} 字节，实际为 ${stat.size} 字节`)
+  }
+  if (stat.size < MIN_INSTALLER_SIZE) {
+    throw new Error(`安装程序体积异常：仅 ${stat.size} 字节`)
+  }
+  const descriptor = fs.openSync(filePath, 'r')
+  try {
+    const header = Buffer.alloc(2)
+    fs.readSync(descriptor, header, 0, 2, 0)
+    if (header[0] !== 0x4d || header[1] !== 0x5a) {
+      throw new Error('安装程序文件头无效，不是 Windows PE 文件')
+    }
+  } finally {
+    fs.closeSync(descriptor)
+  }
+}
+
+async function downloadInstaller(originalUrl, fileName, expectedSize, onProgress) {
+  if (!String(originalUrl).startsWith(UPDATE_URL_PREFIX)) {
+    throw new Error('更新地址不属于 CyreneNameRoller 官方发布源')
+  }
+  const updateDir = path.join(app.getPath('temp'), 'CyreneNameRoller-Update')
+  fs.mkdirSync(updateDir, { recursive: true })
+  const finalPath = path.join(updateDir, sanitizeInstallerName(fileName))
+  const partialPath = `${finalPath}.part`
+  const urls = [`${UPDATE_PROXY_BASE}${originalUrl}`, originalUrl]
+  const failures = []
+
+  for (const url of urls) {
+    try {
+      removeFileIfPresent(partialPath)
+      onProgress(0)
+      await downloadToFile(url, partialPath, onProgress)
+      validateInstaller(partialPath, expectedSize)
+      removeFileIfPresent(finalPath)
+      fs.renameSync(partialPath, finalPath)
+      onProgress(100)
+      return finalPath
+    } catch (error) {
+      failures.push(error.message)
+      removeFileIfPresent(partialPath)
+    }
+  }
+  throw new Error(failures.join('；') || '安装程序下载失败')
+}
+
+ipcMain.handle('download-and-launch-update', async (event, originalUrl, fileName, expectedSize) => {
+  try {
+    const sendProgress = progress => {
+      if (!event.sender.isDestroyed()) event.sender.send('update-download-progress', progress)
+    }
+    const filePath = await downloadInstaller(originalUrl, fileName, Number(expectedSize) || 0, sendProgress)
+    const launchError = await shell.openPath(filePath)
+    if (launchError) throw new Error(`无法启动安装程序：${launchError}`)
+    setTimeout(() => {
+      quitting = true
+      app.quit()
+    }, 1500)
+    return { success: true, filePath, size: fs.statSync(filePath).size }
+  } catch (error) {
+    return { success: false, error: error.message }
   }
 })
 
