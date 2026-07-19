@@ -1,9 +1,11 @@
-const { app, BrowserWindow, ipcMain, dialog, shell, net } = require('electron')
+const { app, BrowserWindow, ipcMain, dialog, shell, net, screen, Tray, Menu, nativeImage } = require('electron')
 const path = require('path')
 const fs = require('fs')
 const https = require('https')
 
 let win
+let floatingWin
+let tray
 let store
 let windowStateStore
 const isDev = !app.isPackaged
@@ -72,13 +74,107 @@ function createWindow() {
   } else {
     win.loadFile(path.join(__dirname, '../dist/index.html'))
   }
+
+  // 关闭时最小化到托盘
+  win.on('close', (e) => {
+    if (!app.isQuitting) {
+      e.preventDefault()
+      win.hide()
+    }
+  })
+}
+
+function createTray() {
+  const iconPath = path.join(__dirname, '../public/icon.png')
+  const icon = nativeImage.createFromPath(iconPath)
+  tray = new Tray(icon.resize({ width: 16, height: 16 }))
+  tray.setToolTip('Cyreneの随机点名器')
+
+  const contextMenu = Menu.buildFromTemplate([
+    { label: '显示主窗口', click: () => { if (win && !win.isDestroyed()) { win.show(); win.focus() } } },
+    { type: 'separator' },
+    { label: '退出', click: () => { app.isQuitting = true; app.quit() } }
+  ])
+  tray.setContextMenu(contextMenu)
+
+  tray.on('double-click', () => {
+    if (win && !win.isDestroyed()) { win.show(); win.focus() }
+  })
 }
 
 // 窗口控制
 ipcMain.on('window-minimize', () => win.minimize())
 ipcMain.on('window-maximize', () => { win.isMaximized() ? win.unmaximize() : win.maximize() })
 ipcMain.on('window-close', () => win.close())
+ipcMain.on('window-hide', () => win.hide())
 ipcMain.handle('window-is-maximized', () => win.isMaximized())
+
+// 悬浮窗拖拽
+let dragWin = null
+let dragStartPos = null
+
+ipcMain.handle('window-drag-start', (event) => {
+  dragWin = BrowserWindow.fromWebContents(event.sender)
+  if (dragWin && !dragWin.isDestroyed()) {
+    dragStartPos = dragWin.getPosition()
+    return [Math.round(dragStartPos[0]), Math.round(dragStartPos[1])]
+  }
+  return [0, 0]
+})
+
+ipcMain.handle('window-drag-move', (_, dx, dy) => {
+  if (!dragWin || dragWin.isDestroyed() || !dragStartPos) return
+  dragWin.setPosition(
+    Math.round(dragStartPos[0] + dx),
+    Math.round(dragStartPos[1] + dy)
+  )
+  return true
+})
+
+ipcMain.handle('window-drag-end', () => {
+  dragWin = null
+  dragStartPos = null
+  return true
+})
+
+ipcMain.on('open-floating-window', () => {
+  if (floatingWin && !floatingWin.isDestroyed()) {
+    floatingWin.show()
+    floatingWin.focus()
+    return
+  }
+  floatingWin = new BrowserWindow({
+    width: 64, height: 64,
+    alwaysOnTop: true, frame: false, resizable: false,
+    skipTaskbar: true,
+    transparent: true,
+    hasShadow: false,
+    roundedCorners: false,
+    backgroundColor: '#00000000',
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false
+    }
+  })
+  if (isDev) {
+    floatingWin.loadURL('http://localhost:5173/#/floating')
+  } else {
+    floatingWin.loadFile(path.join(__dirname, '../dist/index.html'), { hash: '/floating' })
+  }
+})
+
+ipcMain.on('close-floating-window', () => {
+  if (floatingWin && !floatingWin.isDestroyed()) floatingWin.close()
+})
+
+ipcMain.on('focus-main-window', () => {
+  if (win && !win.isDestroyed()) { win.show(); win.focus() }
+})
+
+ipcMain.on('minimize-main-window', () => {
+  if (win && !win.isDestroyed()) win.minimize()
+})
 
 ipcMain.handle('open-external', (_, url) => {
   if (url && (url.startsWith('http://') || url.startsWith('https://'))) {
@@ -259,6 +355,7 @@ ipcMain.handle('data:importData', async () => {
 app.whenReady().then(async () => {
   await initStore()
   createWindow()
+  createTray()
 })
-app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit() })
+app.on('window-all-closed', () => { /* 有托盘时不退出 */ })
 app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow() })
