@@ -6,21 +6,29 @@
       "zh": [
         "【新功能】小组管理：新增独立的小组管理页面，可为人员名单创建/编辑小组（组名、英文组名、小组ID、成员），并支持在名单管理中批量设小组",
         "【新功能】小组抽取模式：点名器新增「小组模式」，开启后抽取对象切换为小组（含未分配组），可与多人模式组合逐组抽取",
-        "【点名优化】修复规则居中网格布局与列对齐（每排数量一致、名字居中、不重叠）",
+        "【点名布局】单人结果精确位于页面中心；多人结果使用动态规则网格，自动缩放、整行居中并避让右下角控件区域",
         "【修复】多人模式人数设置持久化：重启/刷新页面后保持已修改的人数",
         "【公平算法】升级为 cyrenenameroller-balance/v3：以绝对极差 2 为固定软目标，所有候选者始终保留非零概率",
         "【公平算法】单人、允许重复多人和禁止重复多人均改为逐抽更新状态；移除可篡改公平性的曲线与参数设置",
         "【公平算法】放松极差边界惩罚，避免最高次数层出现近似禁选的极低概率，同时保持长期极差稳定在 1-2",
+        "【桌面功能】Electron/Tauri 新增系统托盘，关闭主窗口后可从托盘恢复或退出",
+        "【桌面功能】新增可拖拽的悬浮点名球，可在设置中随时开启或关闭，点击即可唤回主窗口",
+        "【桌面体验】禁止主界面弹出浏览器右键菜单，避免显示不符合客户端体验的网页操作项",
+        "【桌面稳定性】修复 Tauri 多窗口状态保存，避免悬浮窗尺寸覆盖主窗口尺寸",
         "【桌面更新】Electron/Tauri 改由原生层完整下载安装包，校验来源、大小和 EXE 文件头后自动启动安装程序"
       ],
       "en": [
         "[Feature] Group Management: new standalone page to create/edit groups bound to a name list (group name, English name, group ID, members), with batch group assignment in list management",
         "[Feature] Group Draw Mode: roller adds a 'Group Mode' toggle; when enabled the draw pool switches to groups (including an Unassigned group) and can be combined with multi-player mode to draw groups",
-        "[Roller] Fixed regular centered grid layout and column alignment (consistent count per row, centered, no overlap)",
+        "[Roller Layout] Single-pick results are centered precisely on the page; multi-pick results use a responsive regular grid with centered rows and control-area avoidance",
         "[Fix] Multi-player people-count persistence across restart/refresh",
         "[Fairness] Upgraded to cyrenenameroller-balance/v3 with a fixed absolute soft-gap target of 2 while keeping every candidate at non-zero probability",
         "[Fairness] Single, repeated multi-pick, and no-repeat multi-pick modes now update fairness state after every selection; editable fairness curves and parameters were removed",
         "[Fairness] Relaxed the boundary penalty to avoid near-exclusion probabilities while keeping the long-run gap stable around 1-2",
+        "[Desktop] Added system tray support for Electron and Tauri; restore or exit the app from the tray after closing the main window",
+        "[Desktop] Added a draggable floating launcher that can be enabled or disabled at any time in Settings and clicked to restore the main window",
+        "[Desktop UX] Disabled the browser context menu throughout the main interface",
+        "[Desktop Stability] Fixed Tauri multi-window state persistence so the floating window size cannot overwrite the main window size",
         "[Desktop Update] Electron and Tauri now download installers natively, validate source, size, and EXE headers, then launch the verified installer automatically"
       ]
     }

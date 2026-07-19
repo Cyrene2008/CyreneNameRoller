@@ -25,8 +25,8 @@ export const tauriAPI = {
     if (!isTauri()) return null
     return window.__TAURI_INTERNALS__.invoke('download_and_launch_update', {
       url,
-      file_name: fileName,
-      expected_size: expectedSize
+      fileName,
+      expectedSize
     })
   }
 }

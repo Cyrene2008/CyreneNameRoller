@@ -116,7 +116,7 @@ const sessionCounts = ref({})
 let intervalId = null
 const pendingTimers = []
 const revealed = ref([])
-const gridParams = reactive({ valid: false, font: 52, perRow: 1, gapX: 20, gapY: 20, lineH: 60, cellW: 0, offsetX: 0, offsetY: 0, count: 0 })
+const gridParams = reactive({ valid: false, font: 52, lineH: 60, cellW: 0, count: 0, positions: [], revealScale: 1 })
 
 const balanceSettings = ref({ ...DEFAULT_CYRENE_BALANCE_SETTINGS })
 
@@ -152,6 +152,7 @@ function getNameStyle(display, i) {
     style.width = gridParams.cellW + 'px'
     style.textAlign = 'center'
     style.fontSize = (nameFontSize.value * (settings.value.nameFontSize || 1)) + 'px'
+    style['--reveal-scale'] = gridParams.revealScale
   }
   if (settings.value.nameColorMode === 'custom') {
     const color = settingsStore.darkMode
@@ -260,22 +261,8 @@ function animationLoop() {
 function updateNamePositionsOnly() {
   const n = nameDisplays.length
   if (!displayRef.value || n === 0 || !gridParams.valid) return
-  const { perRow, gapX, gapY, lineH, cellW, offsetX, offsetY, font } = gridParams
-  const factor = settings.value.nameFontSize || 1
-  const scale = (font / 52) * factor
-  nameFontSize.value = font
-  const positions = []
-  for (let i = 0; i < n; i++) {
-    const r = Math.floor(i / perRow)
-    const c = i % perRow
-    const colX = offsetX + c * (cellW + gapX)
-    const rowY = offsetY + r * (lineH + gapY)
-    // 使用固定cellW居中，不依赖动态测量（避免抖动）
-    const x = colX
-    const y = rowY + (lineH - font * factor) / 2
-    positions.push({ x, y })
-  }
-  nameLayout.value = positions
+  nameFontSize.value = gridParams.font
+  nameLayout.value = gridParams.positions.slice(0, n)
 }
 
 function toggleRoll() {
@@ -416,31 +403,164 @@ function computeGridParams() {
   const factor = settings.value.nameFontSize || 1
   const n = nameDisplays.length
   const maxW = getPoolMaxWidth()
+  const exclusion = getControlsExclusion(cont, cW, cH)
+  const visualCenter = getVisualCenter(cont, cW, cH)
 
-  function buildGrid(font) {
+  if (n === 1) {
+    const font = 52
     const actualFont = font * factor
-    const lineH = actualFont * 1.2
-    const gapX = Math.max(12, actualFont * 0.5)
-    const gapY = Math.max(16, actualFont * 0.6)
-    const cellW = maxW * (font / 52) * factor
-    let perRow = Math.max(1, Math.floor((cW + gapX) / (cellW + gapX)))
-    if (perRow > n) perRow = n
-    const rows = Math.ceil(n / perRow)
-    const contentW = perRow * cellW + (perRow - 1) * gapX
-    const contentH = rows * lineH + (rows - 1) * gapY
-    return { font, perRow, rows, gapX, gapY, lineH, cellW, contentW, contentH }
+    const lineH = actualFont * 1.18
+    const textLineH = actualFont * 1.05
+    const cellW = Math.max(actualFont * 1.5, maxW * (font / 52) * factor + 2)
+    const x = Math.max(0, Math.min(cW - cellW, visualCenter.x - cellW / 2))
+    const y = Math.max(0, Math.min(cH - textLineH, visualCenter.y - textLineH / 2))
+    Object.assign(gridParams, {
+      valid: true,
+      font,
+      lineH,
+      cellW,
+      positions: [{ x, y }],
+      score: 0,
+      count: 1,
+      revealScale: 2.2
+    })
+    return
   }
 
-  let chosen = null
-  for (let font = 52; font >= 10; font--) {
-    const g = buildGrid(font)
-    if (g.contentW <= cW && g.contentH <= cH) { chosen = g; break }
+  function buildPlan(font, columns, rows, allowLeftRegion = false) {
+    const actualFont = font * factor
+    const lineH = actualFont * 1.18
+    const gapX = Math.max(8, actualFont * 0.42)
+    const gapY = Math.max(8, actualFont * 0.42)
+    const cellW = Math.max(actualFont * 1.5, maxW * (font / 52) * factor + 2)
+    const contentW = columns * cellW + (columns - 1) * gapX
+    const contentH = rows * lineH + (rows - 1) * gapY
+    if (contentW > cW + 0.5 || contentH > cH + 0.5) return null
+
+    const origins = []
+    const addOrigin = (left, top, width, height) => {
+      if (width < contentW || height < contentH) return
+      const originX = left + (width - contentW) / 2
+      const originY = top + (height - contentH) / 2
+      const cells = []
+      let blocked = false
+      for (let row = 0; row < rows && !blocked; row++) {
+        const cellTop = originY + row * (lineH + gapY)
+        for (let column = 0; column < columns; column++) {
+          const x = originX + column * (cellW + gapX)
+          const cell = { left: x, top: cellTop, right: x + cellW, bottom: cellTop + lineH }
+          if (exclusion && rectanglesOverlap(cell, exclusion)) {
+            blocked = true
+            break
+          }
+          cells.push({ x, y: cellTop + (lineH - actualFont) / 2 })
+        }
+      }
+      if (!blocked) origins.push({ originX, originY, width, height, cells })
+    }
+
+    const fullOriginX = Math.max(0, Math.min(cW - contentW, visualCenter.x - contentW / 2))
+    const fullOriginY = Math.max(0, Math.min(cH - contentH, visualCenter.y - contentH / 2))
+    addOrigin(fullOriginX - (cW - contentW) / 2, fullOriginY - (cH - contentH) / 2, cW, cH)
+    if (exclusion) {
+      addOrigin(0, 0, cW, exclusion.top)
+      if (allowLeftRegion) addOrigin(0, 0, exclusion.left, cH)
+    }
+    if (origins.length === 0) return null
+
+    const emptySlots = columns * rows - n
+    const layoutAspect = contentW / Math.max(1, contentH)
+    const best = origins.reduce((current, origin) => {
+      const targetAspect = origin.width / Math.max(1, origin.height)
+      const centerDistance = ((origin.originX + contentW / 2 - visualCenter.x) / cW) ** 2
+        + ((origin.originY + contentH / 2 - visualCenter.y) / cH) ** 2
+      const score = Math.abs(Math.log(Math.max(0.01, layoutAspect / targetAspect))) * 34
+        + (emptySlots / n) * 18
+        + centerDistance * 12
+        + (n <= 4 ? (rows - 1) * 100 : 0)
+      return !current || score < current.score ? { ...origin, score } : current
+    }, null)
+
+    const basePerRow = Math.floor(n / rows)
+    const extraRows = n % rows
+    const positions = []
+    for (let row = 0, index = 0; row < rows && index < n; row++) {
+      const rowCount = basePerRow + (row < extraRows ? 1 : 0)
+      const rowStart = (columns - rowCount) / 2
+      for (let column = 0; column < rowCount; column++, index++) {
+        positions.push({
+          x: best.originX + (rowStart + column) * (cellW + Math.max(8, actualFont * 0.42)),
+          y: best.originY + row * (lineH + Math.max(8, actualFont * 0.42)) + (lineH - actualFont) / 2
+        })
+      }
+    }
+    return { font, lineH, cellW, positions, score: best.score }
   }
-  if (!chosen) chosen = buildGrid(10)
-  const { font, perRow, gapX, gapY, lineH, cellW, contentW, contentH } = chosen
-  const offsetX = Math.max(0, (cW - contentW) / 2)
-  const offsetY = Math.max(0, (cH - contentH) / 2)
-  Object.assign(gridParams, { valid: true, font, perRow, gapX, gapY, lineH, cellW, offsetX, offsetY, count: n })
+
+  function findPlan(allowLeftRegion) {
+    for (let font = 52; font >= 2; font--) {
+      const actualFont = font * factor
+      const gapX = Math.max(8, actualFont * 0.42)
+      const gapY = Math.max(8, actualFont * 0.42)
+      const lineH = actualFont * 1.18
+      const cellW = Math.max(actualFont * 1.5, maxW * (font / 52) * factor + 2)
+      const plans = []
+
+      const maxColumns = Math.min(n, Math.floor((cW + gapX) / (cellW + gapX)))
+      const maxRows = Math.min(n, Math.floor((cH + gapY) / (lineH + gapY)))
+      for (let columns = 1; columns <= maxColumns; columns++) {
+        for (let rows = 1; rows <= maxRows; rows++) {
+          if (columns * rows < n) continue
+          const plan = buildPlan(font, columns, rows, allowLeftRegion)
+          if (plan) plans.push(plan)
+        }
+      }
+      if (plans.length > 0) return plans.reduce((best, plan) => plan.score < best.score ? plan : best)
+    }
+    return null
+  }
+  let chosen = findPlan(false)
+  if (!chosen) chosen = findPlan(true)
+  if (!chosen) { gridParams.valid = false; return }
+
+  const revealScale = n === 1 ? 2.2 : 1
+  Object.assign(gridParams, { valid: true, ...chosen, count: n, revealScale })
+}
+
+function rectanglesOverlap(left, right) {
+  return left.left < right.right
+    && left.right > right.left
+    && left.top < right.bottom
+    && left.bottom > right.top
+}
+
+function getVisualCenter(container, containerWidth, containerHeight) {
+  const view = rollerViewRef.value
+  if (!view) return { x: containerWidth / 2, y: containerHeight / 2 }
+  const containerRect = container.getBoundingClientRect()
+  const viewRect = view.getBoundingClientRect()
+  const scaleX = containerWidth / Math.max(1, containerRect.width)
+  const scaleY = containerHeight / Math.max(1, containerRect.height)
+  return {
+    x: Math.max(0, Math.min(containerWidth, (viewRect.left + viewRect.width / 2 - containerRect.left) * scaleX)),
+    y: Math.max(0, Math.min(containerHeight, (viewRect.top + viewRect.height / 2 - containerRect.top) * scaleY))
+  }
+}
+
+function getControlsExclusion(container, containerWidth, containerHeight) {
+  const controls = controlsCenterRef.value
+  if (!controls) return null
+  const containerRect = container.getBoundingClientRect()
+  const controlsRect = controls.getBoundingClientRect()
+  if (containerRect.width <= 0 || containerRect.height <= 0) return null
+
+  const scaleX = containerWidth / containerRect.width
+  const scaleY = containerHeight / containerRect.height
+  const margin = Math.max(16, Math.min(28, containerWidth * 0.018))
+  const left = Math.max(0, Math.min(containerWidth, (controlsRect.left - containerRect.left) * scaleX - margin))
+  const top = Math.max(0, Math.min(containerHeight, (controlsRect.top - containerRect.top) * scaleY - margin))
+  if (left >= containerWidth || top >= containerHeight) return null
+  return { left, top, right: containerWidth, bottom: containerHeight }
 }
 
 function computeNameLayout() {
@@ -448,32 +568,26 @@ function computeNameLayout() {
   if (!displayRef.value || n === 0) { nameFontSize.value = 52; nameLayout.value = []; return }
   if (!gridParams.valid || gridParams.count !== n) computeGridParams()
   if (!gridParams.valid) { nameLayout.value = []; return }
-  const { perRow, gapX, gapY, lineH, cellW, offsetX, offsetY, font } = gridParams
-  const factor = settings.value.nameFontSize || 1
-  nameFontSize.value = font
-  const positions = []
-  for (let i = 0; i < n; i++) {
-    const r = Math.floor(i / perRow)
-    const c = i % perRow
-    const colX = offsetX + c * (cellW + gapX)
-    const rowY = offsetY + r * (lineH + gapY)
-    const x = colX
-    const y = rowY + (lineH - font * factor) / 2
-    positions.push({ x, y })
-  }
-  nameLayout.value = positions
+  nameFontSize.value = gridParams.font
+  nameLayout.value = gridParams.positions.slice(0, n)
 }
 
 function onResize() { computeGridParams(); computeNameLayout() }
+
+let layoutObserver = null
 
 onMounted(() => {
   if (namesStore.isLoaded) initializeDisplays(settings.value.multiMode ? (settings.value.peopleCount || 2) : 1)
   watch(() => namesStore.isLoaded, (loaded) => { if (loaded) initializeDisplays(settings.value.multiMode ? (settings.value.peopleCount || 2) : 1) })
   watch(() => namesStore.currentListId, () => nextTick(() => { computeGridParams(); computeNameLayout() }))
+  watch(() => settings.value.englishMode, () => nextTick(() => { computeGridParams(); computeNameLayout() }))
   watch(() => [settings.value.multiMode, settings.value.groupMode, settings.value.forbidDuplicates, settings.value.peopleCount, settings.value.nameFontSize], () => nextTick(() => { computeGridParams(); computeNameLayout() }))
+  layoutObserver = new ResizeObserver(onResize)
+  if (displayRef.value) layoutObserver.observe(displayRef.value)
+  if (controlsCenterRef.value) layoutObserver.observe(controlsCenterRef.value)
   window.addEventListener('resize', onResize)
 })
-onBeforeUnmount(() => { if (intervalId) clearTimeout(intervalId); pendingTimers.forEach(id => clearTimeout(id)); window.removeEventListener('resize', onResize) })
+onBeforeUnmount(() => { if (intervalId) clearTimeout(intervalId); pendingTimers.forEach(id => clearTimeout(id)); layoutObserver?.disconnect(); window.removeEventListener('resize', onResize) })
 </script>
 
 <style scoped>
@@ -491,7 +605,7 @@ onBeforeUnmount(() => { if (intervalId) clearTimeout(intervalId); pendingTimers.
   overflow: hidden;
 }
 
-.name-display { position: absolute; white-space: nowrap; font-family: var(--font-display); font-weight: 700; color: var(--text-primary); line-height: 1.05; letter-spacing: 0.5px; transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); text-shadow: 0 4px 20px rgba(234, 94, 193, 0.15); z-index: 5; }
+.name-display { position: absolute; white-space: nowrap; overflow: hidden; text-overflow: clip; font-family: var(--font-display); font-weight: 700; color: var(--text-primary); line-height: 1.05; letter-spacing: 0.5px; transition: left 0.3s ease, top 0.3s ease, width 0.3s ease, font-size 0.3s ease, opacity 0.3s ease; text-shadow: 0 4px 20px rgba(234, 94, 193, 0.15); z-index: 5; }
 .name-display::before { content: ''; position: absolute; inset: -4px; background: var(--accent); border-radius: var(--radius-sm); z-index: -1; opacity: 0; transition: opacity 0.3s ease; }
 .name-display.rainbow {
   background: linear-gradient(90deg, #ff6ad9, #72afec, #ff6ad9, #72afec, #ff6ad9, #72afec, #ff6ad9, #72afec, #ff6ad9);
@@ -515,7 +629,7 @@ onBeforeUnmount(() => { if (intervalId) clearTimeout(intervalId); pendingTimers.
 .name-display:not(.rainbow).final {
   animation: final-reveal 0.5s cubic-bezier(0.1, 0.9, 0.2, 1);
 }
-@keyframes final-reveal { 0% { transform: scale(4); opacity: 0; filter: brightness(2); } 100% { transform: scale(1); filter: brightness(1); } }
+@keyframes final-reveal { 0% { transform: scale(var(--reveal-scale, 1)); opacity: 0; filter: brightness(2); } 100% { transform: scale(1); filter: brightness(1); } }
 
 /* 隐藏的文字测量探针 */
 .fit-probe {
@@ -525,6 +639,7 @@ onBeforeUnmount(() => { if (intervalId) clearTimeout(intervalId); pendingTimers.
   font-family: var(--font-display);
   font-weight: 700;
   font-size: 52px;
+  letter-spacing: 0.5px;
   top: 0;
   left: 0;
   pointer-events: none;
