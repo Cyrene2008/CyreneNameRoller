@@ -7,10 +7,13 @@ const DEFAULT_SETTINGS = {
   rainbowNames: true,
   englishMode: false,
   language: 'zh',
+  groupMode: false,
   multiMode: false,
   peopleCount: 2,
   allowDuplicates: false,
   forbidDuplicates: false,
+  multiStepStop: true,
+  stepStopInterval: 0.15,
   theme: 'default',
   particles: true,
   blur: true,
@@ -26,7 +29,9 @@ const DEFAULT_SETTINGS = {
   perfBlur: true,
   perfShadows: true,
   perfAnimations: true,
-  dockCollapsed: false
+  dockCollapsed: false,
+  disableSplash: false,
+  floatingWindowEnabled: false
 }
 
 export const useSettingsStore = defineStore('settings', () => {
@@ -40,16 +45,11 @@ export const useSettingsStore = defineStore('settings', () => {
       if (saved && typeof saved === 'object') {
         settings.value = { ...DEFAULT_SETTINGS, ...saved }
         darkMode.value = !!saved.darkMode
-        
-        // 启动时复位多人模式抽取数量到2
-        settings.value.peopleCount = 2
-        
-        // 迁移旧版本的uiScale值（从v1到v2）
+
         if (!saved.uiScaleVersion || saved.uiScaleVersion < 2) {
-          // 旧版本的100%对应新版本的80%（因为新版本100% * 1.25 = 125%）
           settings.value.uiScale = Math.round((saved.uiScale || 100) * 0.8)
+          save()
           settings.value.uiScaleVersion = 2
-          save() // 保存迁移后的设置
         }
       }
     } catch (e) {

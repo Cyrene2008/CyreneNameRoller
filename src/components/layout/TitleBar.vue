@@ -22,7 +22,7 @@
           <rect x="1.5" y="4" width="7" height="7" rx="1" stroke="currentColor" stroke-width="1" fill="none" class="restore-back"/>
         </svg>
       </button>
-      <button class="titlebar-btn close-btn" @click="close" title="关闭">
+      <button class="titlebar-btn close-btn" @click="hideToTray" title="最小化到托盘">
         <svg width="12" height="12" viewBox="0 0 12 12" fill="none" class="close-icon">
           <path d="M2.5 2.5L9.5 9.5M9.5 2.5L2.5 9.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
         </svg>
@@ -57,6 +57,14 @@ function minimize() {
   }
 }
 
+function hideToTray() {
+  if (isTauri()) {
+    import('@tauri-apps/api/core').then(m => m.invoke('hide_to_tray'))
+  } else {
+    window.electronAPI?.hide()
+  }
+}
+
 async function maximize() {
   if (isTauri()) {
     const w = await import('@tauri-apps/api/window')
@@ -69,14 +77,6 @@ async function maximize() {
     setTimeout(async () => {
       isMaximized.value = await window.electronAPI?.isMaximized() || false
     }, 100)
-  }
-}
-
-function close() {
-  if (isTauri()) {
-    import('@tauri-apps/api/window').then(w => w.getCurrentWindow().close())
-  } else {
-    window.electronAPI?.close()
   }
 }
 

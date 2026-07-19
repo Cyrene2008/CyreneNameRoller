@@ -36,3 +36,34 @@
 
 ### 应用名称统一（继承自上一版本）
 - Tauri和Electron版本统一显示为"Cyreneの随机点名器"
+
+## 2026-07-18
+### 新增公告系统
+- 新增公告页面（AnnouncementView），数据从远程 latest.json 拉取，单文件支持多条公告
+- 公告支持置顶、重要标记、分类标签（CN/EN）、发布时间与 Markdown 正文解析
+- 信息源首选 gh.昔涟.cn 代理；首选连续失败 3 次或超时后自动切换备选源（nameapi.cyrene.hi.cn / 官方 raw）
+- Dock 栏底部新增"公告"入口，位于下载客户端按钮上方（桌面端位于设置按钮上方）
+
+### 页面切换顺序修复
+- 修复下载页 id 排在关于页之后导致切换动画方向错误的问题，按指定层级权重排序（随机点名1/翻牌2/统计3/记录4/名单5/公告10001/下载1002/文档1003/设置9999/关于33550336）
+
+### 更新程序下载与执行（Tauri/Electron）
+- Tauri：补充 dialog 插件权限，保存对话框正常弹出并保存后自动执行安装程序
+- Tauri：更新日志 up.json 改为 include_str! 嵌入二进制，安装目录不再单独放出 Updatelog 文件
+- Electron/Tauri 下载更新或客户端后均会保存并启动对应安装程序
+
+### 资源完整性保护（Electron）
+- Electron 打包启用 @electron/fuses 的 EmbeddedAsarIntegrityValidation 与 OnlyLoadAppFromAsar，篡改 asar 资源将导致无法启动
+
+### Tauri 窗口状态记忆
+- 修复 Tauri 端窗口大小/位置重启后不恢复的问题
+- 新增 window-state 保存/恢复：监听 Resized/Moved/CloseRequested 事件，将尺寸、位置、最大化状态写入 app_data_dir 下的 window-state.json，启动时自动恢复
+- Electron 端经核查已具备完整窗口状态持久化（electron-store + resize/move/close 监听），无需改动
+
+### 修复下载后保存/执行问题
+- Tauri 端：补充 `dialog:allow-save` 权限（Tauri 2 前端调用 blocking_save_file 必需），保存对话框现在可正常弹出；新增 `save_and_launch_from_bytes` 命令，由前端传入已下载字节，避免 Rust 端二次经代理下载；启动安装程序改用 explorer（等待安装程序退出，规避 SmartScreen 误判），失败回退 cmd/open/xdg-open
+- Electron 端：修复下载文件仅 229KB（实为代理返回的 HTML 错误页）的问题——下载后做 SHA-256 校验，与 GitHub 资源的 digest 比对，校验失败自动回退官方源重新下载并再校验；校验不通过则提示用户而非执行损坏文件
+
+### 修复页面路由切换顺序
+- 公告 id 原误写为 10001（> 下载1002，导致顺序矛盾），已更正为 1001；现 id 严格单调递增（随机1→翻牌2→统计3→记录4→名单5→公告1001→下载1002→文档1003→设置9999→关于33550336）
+- 切换动画方向按 id 数值判断（id 更大 = 更靠后 = 前进），与预期层级一致

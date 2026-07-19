@@ -4,17 +4,25 @@
 
 在线使用→ [立即使用](https://xn--web-t33et1i480d.xn--8hvv1o.cn/)
 
-## 页面展示
+## 开发计划
 
-<img width="1655" height="1021" alt="ScreenShot_2026-07-10_101123_833" src="https://github.com/user-attachments/assets/f7fcb810-3cd0-4d8c-9a6b-69a1a7f7de4d" />
-<img width="1655" height="1021" alt="ScreenShot_2026-07-10_100935_090" src="https://github.com/user-attachments/assets/57dc6aa5-8ea6-4a04-9ed1-29cfcc513c50" />
-<img width="1655" height="1021" alt="ScreenShot_2026-07-10_100952_359" src="https://github.com/user-attachments/assets/d0bb484f-f474-42b5-b221-eccd35eca42c" />
-<img width="1655" height="1021" alt="ScreenShot_2026-07-10_100959_607" src="https://github.com/user-attachments/assets/39c997a5-a801-4a24-bc3b-e9c3b87cab33" />
-<img width="1655" height="1021" alt="ScreenShot_2026-07-10_101005_678" src="https://github.com/user-attachments/assets/ea989841-1436-4170-9a3c-4e93fa23224b" />
-<img width="1655" height="1021" alt="ScreenShot_2026-07-10_101012_407" src="https://github.com/user-attachments/assets/d012c58f-53a8-47c6-8411-6f31125f5fb0" />
-<img width="1655" height="1021" alt="ScreenShot_2026-07-10_101018_167" src="https://github.com/user-attachments/assets/75edb038-89de-42bd-8913-0a65519eaa0b" />
-<img width="1655" height="2380" alt="wechat_longscreenshot_2026-07-10_101035_521" src="https://github.com/user-attachments/assets/cbc33cb6-7e86-4c77-9c24-643aa2cc1302" />
-<img width="2011" height="958" alt="ScreenShot_2026-07-10_101211_600" src="https://github.com/user-attachments/assets/dc43abf1-ac54-40b6-9833-859386070530" />
+- [x] 核心功能转移到Vue
+- [x] 重构FluentDesignUI
+- [x] 抽取记录
+- [x] 更新功能
+- [x] 公平平衡算法优化
+- [x] 小组管理功能
+- [x] 桌面端后台常驻
+- [ ] 抽奖模式
+- [ ] 插件系统
+- [ ] 积分系统
+- [ ] 多平台支持
+  - [x] Windows10+
+  - [x] Web
+  - [ ] Android
+  - [ ] Linux
+- [ ] 罗盘(LeafS825开发中)
+- [ ] 更多功能正在路上♪
 
 ## 功能
 
@@ -37,6 +45,18 @@
 **个性化**
 - UI 缩放（75%-200%）、名字字体大小调整
 - 深色/浅色模式、中/英文切换
+
+## 页面展示
+
+<img width="1655" height="1021" alt="ScreenShot_2026-07-10_101123_833" src="https://github.com/user-attachments/assets/f7fcb810-3cd0-4d8c-9a6b-69a1a7f7de4d" />
+<img width="1655" height="1021" alt="ScreenShot_2026-07-10_100935_090" src="https://github.com/user-attachments/assets/57dc6aa5-8ea6-4a04-9ed1-29cfcc513c50" />
+<img width="1655" height="1021" alt="ScreenShot_2026-07-10_100952_359" src="https://github.com/user-attachments/assets/d0bb484f-f474-42b5-b221-eccd35eca42c" />
+<img width="1655" height="1021" alt="ScreenShot_2026-07-10_100959_607" src="https://github.com/user-attachments/assets/39c997a5-a801-4a24-bc3b-e9c3b87cab33" />
+<img width="1655" height="1021" alt="ScreenShot_2026-07-10_101005_678" src="https://github.com/user-attachments/assets/ea989841-1436-4170-9a3c-4e93fa23224b" />
+<img width="1655" height="1021" alt="ScreenShot_2026-07-10_101012_407" src="https://github.com/user-attachments/assets/d012c58f-53a8-47c6-8411-6f31125f5fb0" />
+<img width="1655" height="1021" alt="ScreenShot_2026-07-10_101018_167" src="https://github.com/user-attachments/assets/75edb038-89de-42bd-8913-0a65519eaa0b" />
+<img width="1655" height="2380" alt="wechat_longscreenshot_2026-07-10_101035_521" src="https://github.com/user-attachments/assets/cbc33cb6-7e86-4c77-9c24-643aa2cc1302" />
+<img width="2011" height="958" alt="ScreenShot_2026-07-10_101211_600" src="https://github.com/user-attachments/assets/dc43abf1-ac54-40b6-9833-859386070530" />
 
 ## 快速开始
 
