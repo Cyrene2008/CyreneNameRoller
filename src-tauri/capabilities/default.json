@@ -18,6 +18,8 @@
     "core:window:allow-inner-size",
     "core:window:allow-outer-size",
     "core:window:allow-outer-position",
-    "store:default"
+    "store:default",
+    "dialog:default",
+    "dialog:allow-save"
   ]
 }

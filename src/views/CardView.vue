@@ -110,7 +110,7 @@ const TRAY_KEY = 'cardTrayHistory'
 const USED_KEY = 'cardUsedNames'
 const SETTINGS_KEY = 'cardSettings'
 
-const allNonWL = computed(() => namesStore.currentNames.filter(n => n.cn !== '再来一次'))
+const allNonWL = computed(() => namesStore.currentNames.filter(n => !n.isWhiteList))
 const remainingCount = computed(() => allNonWL.value.length - usedNames.value.size)
 const maxCards = computed(() => Math.max(1, allNonWL.value.length - usedNames.value.size))
 

@@ -11,7 +11,7 @@ function generateId() {
 export const useNamesStore = defineStore('names', () => {
   const nameLists = ref({})
   const currentListId = ref(DEFAULT_LIST_ID)
-  const defaultNamesData = ref({ names: [], whiteList: [] })
+  const defaultNamesData = ref({ names: [] })
   const isLoaded = ref(false)
 
   const currentList = computed(() => {
@@ -19,16 +19,33 @@ export const useNamesStore = defineStore('names', () => {
   })
 
   const currentNames = computed(() => currentList.value.names || [])
-  const currentWhiteList = computed(() => currentList.value.whiteList || [])
+  const currentWhiteList = computed(() => currentNames.value.filter(n => n.isWhiteList))
   const allLists = computed(() => Object.values(nameLists.value))
 
   function getDefaultList() {
     return {
       id: DEFAULT_LIST_ID,
       name: '默认名单',
-      names: [],
-      whiteList: [{ cn: '再来一次', en: 'Again!' }]
+      groups: [],
+      names: []
     }
+  }
+
+  function migrateList(list) {
+    if (!list) return
+    if (!Array.isArray(list.groups)) list.groups = []
+    if (!Array.isArray(list.names)) list.names = []
+    if (Array.isArray(list.whiteList)) {
+      list.whiteList.forEach(w => {
+        const p = list.names.find(x => x.cn === (w.cn || w))
+        if (p) p.isWhiteList = true
+      })
+      delete list.whiteList
+    }
+    list.names.forEach(p => {
+      if (p.groupId === undefined) p.groupId = ''
+      if (p.isWhiteList === undefined) p.isWhiteList = false
+    })
   }
 
   async function initialize() {
@@ -37,7 +54,7 @@ export const useNamesStore = defineStore('names', () => {
       const savedCurrentId = await dataBridge.load('currentListId')
       const namesJson = await dataBridge.loadNames()
 
-      defaultNamesData.value = namesJson || { names: [], whiteList: [{ cn: '再来一次', en: 'Again!' }] }
+      defaultNamesData.value = namesJson || { names: [] }
 
       if (savedLists && typeof savedLists === 'object' && Object.keys(savedLists).length > 0) {
         nameLists.value = savedLists
@@ -46,12 +63,14 @@ export const useNamesStore = defineStore('names', () => {
           [DEFAULT_LIST_ID]: {
             id: DEFAULT_LIST_ID,
             name: '默认名单',
-            names: defaultNamesData.value.names || [],
-            whiteList: [{ cn: '再来一次', en: 'Again!' }]
+            groups: [],
+            names: defaultNamesData.value.names || []
           }
         }
         await save()
       }
+
+      Object.values(nameLists.value).forEach(migrateList)
 
       if (savedCurrentId && nameLists.value[savedCurrentId]) {
         currentListId.value = savedCurrentId
@@ -62,8 +81,8 @@ export const useNamesStore = defineStore('names', () => {
         [DEFAULT_LIST_ID]: {
           id: DEFAULT_LIST_ID,
           name: '默认名单',
-          names: [],
-          whiteList: [{ cn: '再来一次', en: 'Again!' }]
+          groups: [],
+          names: []
         }
       }
     }
@@ -84,7 +103,7 @@ export const useNamesStore = defineStore('names', () => {
 
   function addPerson(cn, en) {
     if (!cn || !cn.trim()) return
-    currentList.value.names.push({ cn: cn.trim(), en: (en || '').trim() })
+    currentList.value.names.push({ cn: cn.trim(), en: (en || '').trim(), isWhiteList: false })
     save()
   }
 
@@ -97,7 +116,14 @@ export const useNamesStore = defineStore('names', () => {
 
   function editPerson(index, newCn, newEn) {
     if (index >= 0 && index < currentList.value.names.length) {
-      currentList.value.names[index] = { cn: newCn.trim(), en: (newEn || '').trim() }
+      const old = currentList.value.names[index]
+      currentList.value.names[index] = {
+        cn: newCn.trim(),
+        en: (newEn || '').trim(),
+        count: old?.count || 0,
+        groupId: old?.groupId || '',
+        isWhiteList: old?.isWhiteList || false
+      }
       save()
     }
   }
@@ -108,8 +134,8 @@ export const useNamesStore = defineStore('names', () => {
     nameLists.value[id] = {
       id,
       name: name.trim(),
-      names: [],
-      whiteList: [{ cn: '再来一次', en: 'Again!' }]
+      groups: [],
+      names: []
     }
     currentListId.value = id
     save()
@@ -126,24 +152,96 @@ export const useNamesStore = defineStore('names', () => {
 
   function restoreList(listData) {
     if (!listData || !listData.id) return
+    migrateList(listData)
     nameLists.value[listData.id] = listData
     save()
   }
 
   function resetCurrentList() {
-    currentList.value.names = [...defaultNamesData.value.names]
-    currentList.value.whiteList = [{ cn: '再来一次', en: 'Again!' }]
+    currentList.value.names = (defaultNamesData.value.names || []).map(p => ({
+      ...p,
+      isWhiteList: !!p.isWhiteList
+    }))
     save()
+  }
+
+  function listGroups(listId) {
+    const l = nameLists.value[listId]
+    if (!l) return []
+    if (!Array.isArray(l.groups)) l.groups = []
+    return l.groups
+  }
+
+  function groupMemberCount(listId, groupId) {
+    const l = nameLists.value[listId]
+    if (!l || !l.names) return 0
+    return l.names.filter(p => p.groupId === groupId).length
+  }
+
+  function addGroup(listId, { id, name, enName }) {
+    const l = nameLists.value[listId]
+    if (!l) return { ok: false, error: 'invalidList' }
+    if (!Array.isArray(l.groups)) l.groups = []
+    if (!name || !name.trim()) return { ok: false, error: 'nameRequired' }
+    if (!id || !id.trim()) return { ok: false, error: 'idRequired' }
+    const gid = id.trim()
+    if (l.groups.some(g => g.id === gid)) return { ok: false, error: 'idDuplicate' }
+    l.groups.push({ id: gid, name: name.trim(), enName: (enName || '').trim() })
+    save()
+    return { ok: true }
+  }
+
+  function updateGroup(listId, groupId, patch) {
+    const l = nameLists.value[listId]
+    if (!l || !l.groups) return false
+    const g = l.groups.find(g => g.id === groupId)
+    if (!g) return false
+    if (patch.name !== undefined) g.name = patch.name.trim()
+    if (patch.enName !== undefined) g.enName = (patch.enName || '').trim()
+    if (patch.id !== undefined && patch.id.trim() && patch.id.trim() !== groupId) {
+      const newId = patch.id.trim()
+      if (l.groups.some(x => x.id === newId && x.id !== groupId)) return false
+      if (l.names) l.names.forEach(p => { if (p.groupId === groupId) p.groupId = newId })
+      g.id = newId
+    }
+    save()
+    return true
+  }
+
+  function deleteGroup(listId, groupId) {
+    const l = nameLists.value[listId]
+    if (!l || !l.groups) return false
+    const idx = l.groups.findIndex(g => g.id === groupId)
+    if (idx === -1) return false
+    l.groups.splice(idx, 1)
+    if (l.names) l.names.forEach(p => { if (p.groupId === groupId) p.groupId = '' })
+    save()
+    return true
+  }
+
+  function assignGroup(listId, personIndex, groupId) {
+    const l = nameLists.value[listId]
+    if (!l || !l.names || !l.names[personIndex]) return false
+    l.names[personIndex].groupId = groupId || ''
+    save()
+    return true
+  }
+
+  function batchAssignGroup(listId, indices, groupId) {
+    const l = nameLists.value[listId]
+    if (!l || !l.names) return false
+    indices.forEach(i => { if (l.names[i]) l.names[i].groupId = groupId || '' })
+    save()
+    return true
   }
 
   function clearCurrentList() {
     currentList.value.names = []
-    currentList.value.whiteList = [{ cn: '再来一次', en: 'Again!' }]
     save()
   }
 
   function isWhiteList(cn) {
-    return currentWhiteList.value.some(w => w.cn === cn)
+    return currentNames.value.some(p => p.cn === cn && p.isWhiteList)
   }
 
   return {
@@ -165,6 +263,13 @@ export const useNamesStore = defineStore('names', () => {
     restoreList,
     resetCurrentList,
     clearCurrentList,
-    isWhiteList
+    isWhiteList,
+    listGroups,
+    groupMemberCount,
+    addGroup,
+    updateGroup,
+    deleteGroup,
+    assignGroup,
+    batchAssignGroup
   }
 })
