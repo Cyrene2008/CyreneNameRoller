@@ -26,7 +26,8 @@ const DEFAULT_SETTINGS = {
   perfBlur: true,
   perfShadows: true,
   perfAnimations: true,
-  dockCollapsed: false
+  dockCollapsed: false,
+  floatingWindowEnabled: false
 }
 
 export const useSettingsStore = defineStore('settings', () => {
