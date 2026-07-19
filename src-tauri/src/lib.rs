@@ -1,4 +1,4 @@
-use tauri::{LogicalSize, Manager};
+use tauri::{Emitter, LogicalSize, Manager};
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
 use std::fs;
@@ -62,7 +62,11 @@ fn restore_window_state(app: &tauri::AppHandle) {
     }
 }
 
-async fn download_installer_bytes(url: &str, expected_size: u64) -> Result<Vec<u8>, String> {
+async fn download_installer_bytes(
+    app: &tauri::AppHandle,
+    url: &str,
+    expected_size: u64,
+) -> Result<Vec<u8>, String> {
     if !url.starts_with(UPDATE_URL_PREFIX) {
         return Err("更新地址不属于 CyreneNameRoller 官方发布源".into());
     }
@@ -82,7 +86,7 @@ async fn download_installer_bytes(url: &str, expected_size: u64) -> Result<Vec<u
             .send()
             .await
         {
-            Ok(resp) if resp.status().is_success() => {
+            Ok(mut resp) if resp.status().is_success() => {
                 let content_type = resp
                     .headers()
                     .get(reqwest::header::CONTENT_TYPE)
@@ -94,28 +98,58 @@ async fn download_installer_bytes(url: &str, expected_size: u64) -> Result<Vec<u
                     continue;
                 }
 
-                match resp.bytes().await {
-                    Ok(bytes) => {
-                        let actual_size = bytes.len() as u64;
-                        if expected_size > 0 && actual_size != expected_size {
-                            failures.push(format!(
-                                "安装程序不完整：应为 {} 字节，实际为 {} 字节",
-                                expected_size, actual_size
-                            ));
-                            continue;
+                let total_size = if expected_size > 0 {
+                    expected_size
+                } else {
+                    resp.content_length().unwrap_or(0)
+                };
+                let mut bytes = Vec::with_capacity(total_size.min(usize::MAX as u64) as usize);
+                let mut last_progress = 0u8;
+                let mut download_error = None;
+                let _ = app.emit("update-download-progress", 0u8);
+
+                loop {
+                    match resp.chunk().await {
+                        Ok(Some(chunk)) => {
+                            bytes.extend_from_slice(&chunk);
+                            if total_size > 0 {
+                                let progress = ((bytes.len() as u64 * 99) / total_size).min(99) as u8;
+                                if progress > last_progress {
+                                    last_progress = progress;
+                                    let _ = app.emit("update-download-progress", progress);
+                                }
+                            }
                         }
-                        if bytes.len() < MIN_INSTALLER_SIZE {
-                            failures.push(format!("安装程序体积异常：仅 {} 字节", bytes.len()));
-                            continue;
+                        Ok(None) => break,
+                        Err(error) => {
+                            download_error = Some(error.to_string());
+                            break;
                         }
-                        if !bytes.starts_with(b"MZ") {
-                            failures.push("安装程序文件头无效，不是 Windows PE 文件".into());
-                            continue;
-                        }
-                        return Ok(bytes.to_vec());
                     }
-                    Err(error) => failures.push(error.to_string()),
                 }
+
+                if let Some(error) = download_error {
+                    failures.push(error);
+                    continue;
+                }
+
+                let actual_size = bytes.len() as u64;
+                if expected_size > 0 && actual_size != expected_size {
+                    failures.push(format!(
+                        "安装程序不完整：应为 {} 字节，实际为 {} 字节",
+                        expected_size, actual_size
+                    ));
+                    continue;
+                }
+                if bytes.len() < MIN_INSTALLER_SIZE {
+                    failures.push(format!("安装程序体积异常：仅 {} 字节", bytes.len()));
+                    continue;
+                }
+                if !bytes.starts_with(b"MZ") {
+                    failures.push("安装程序文件头无效，不是 Windows PE 文件".into());
+                    continue;
+                }
+                return Ok(bytes);
             }
             Ok(resp) => failures.push(format!("更新服务器返回 HTTP {}", resp.status())),
             Err(error) => failures.push(error.to_string()),
@@ -306,7 +340,7 @@ async fn download_and_launch_update(
     file_name: String,
     expected_size: u64,
 ) -> Result<serde_json::Value, String> {
-    let bytes = download_installer_bytes(&url, expected_size).await?;
+    let bytes = download_installer_bytes(&app, &url, expected_size).await?;
     let path = installer_temp_path(&file_name)?;
     let partial_path = path.with_extension("exe.part");
     let _ = fs::remove_file(&partial_path);

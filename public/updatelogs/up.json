@@ -15,7 +15,8 @@
         "【桌面功能】新增可拖拽的悬浮点名球，可在设置中随时开启或关闭，点击即可唤回主窗口",
         "【桌面体验】禁止主界面弹出浏览器右键菜单，避免显示不符合客户端体验的网页操作项",
         "【桌面稳定性】修复 Tauri 多窗口状态保存，避免悬浮窗尺寸覆盖主窗口尺寸",
-        "【桌面更新】Electron/Tauri 改由原生层完整下载安装包，校验来源、大小和 EXE 文件头后自动启动安装程序"
+        "【桌面更新】Electron/Tauri 改由原生层完整下载安装包，校验来源、大小和 EXE 文件头后自动启动安装程序",
+        "【桌面更新】修复 Tauri 下载进度长期停留在 5% 的问题，现会实时显示分块下载进度"
       ],
       "en": [
         "[Feature] Group Management: new standalone page to create/edit groups bound to a name list (group name, English name, group ID, members), with batch group assignment in list management",
@@ -29,7 +30,8 @@
         "[Desktop] Added a draggable floating launcher that can be enabled or disabled at any time in Settings and clicked to restore the main window",
         "[Desktop UX] Disabled the browser context menu throughout the main interface",
         "[Desktop Stability] Fixed Tauri multi-window state persistence so the floating window size cannot overwrite the main window size",
-        "[Desktop Update] Electron and Tauri now download installers natively, validate source, size, and EXE headers, then launch the verified installer automatically"
+        "[Desktop Update] Electron and Tauri now download installers natively, validate source, size, and EXE headers, then launch the verified installer automatically",
+        "[Desktop Update] Fixed Tauri update progress remaining at 5%; chunked download progress is now reported in real time"
       ]
     }
   },
