@@ -30,7 +30,8 @@ const DEFAULT_SETTINGS = {
   perfShadows: true,
   perfAnimations: true,
   dockCollapsed: false,
-  disableSplash: false
+  disableSplash: false,
+  floatingWindowEnabled: false
 }
 
 export const useSettingsStore = defineStore('settings', () => {

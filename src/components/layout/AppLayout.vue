@@ -195,9 +195,9 @@ onMounted(async () => {
   await statisticsStore.initialize()
   await recordsStore.initialize()
   if (isDesktopApp.value) checkForUpdates(true, showBanner)
-  // Auto-open floating window on desktop if enabled
   if (isDesktopApp.value && settingsStore.settings.floatingWindowEnabled) {
-    isTauri() ? tauriAPI.invoke('open_floating_window') : window.electronAPI.openFloatingWindow()
+    if (isTauri()) await tauriAPI.invoke('open_floating_window')
+    else window.electronAPI?.openFloatingWindow?.()
   }
 })
 

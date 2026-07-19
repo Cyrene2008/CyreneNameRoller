@@ -349,6 +349,15 @@ const pwModalHint = computed(() => {
 
 function update(key, value) { settingsStore.update(key, value) }
 
+async function onFloatingWindowToggle(val) {
+  update('floatingWindowEnabled', val)
+  if (isTauri()) {
+    await tauriAPI.invoke(val ? 'open_floating_window' : 'close_floating_window')
+  } else if (window.electronAPI) {
+    val ? window.electronAPI.openFloatingWindow() : window.electronAPI.closeFloatingWindow()
+  }
+}
+
 const stepIntervalDraft = ref(settings.value.stepStopInterval)
 watch(() => settings.value.stepStopInterval, v => { stepIntervalDraft.value = v })
 function confirmStepInterval() {
