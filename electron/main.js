@@ -6,7 +6,6 @@ const os = require('os')
 
 let win
 let floatingWin
-let tray
 let store
 let windowStateStore
 let tray = null
@@ -101,42 +100,15 @@ function createWindow() {
   } else {
     win.loadFile(path.join(__dirname, '../dist/index.html'))
   }
-
-  // 关闭时最小化到托盘
-  win.on('close', (e) => {
-    if (!app.isQuitting) {
-      e.preventDefault()
-      win.hide()
-    }
-  })
-}
-
-function createTray() {
-  const iconPath = path.join(__dirname, '../public/icon.png')
-  const icon = nativeImage.createFromPath(iconPath)
-  tray = new Tray(icon.resize({ width: 16, height: 16 }))
-  tray.setToolTip('Cyreneの随机点名器')
-
-  const contextMenu = Menu.buildFromTemplate([
-    { label: '显示主窗口', click: () => { if (win && !win.isDestroyed()) { win.show(); win.focus() } } },
-    { type: 'separator' },
-    { label: '退出', click: () => { app.isQuitting = true; app.quit() } }
-  ])
-  tray.setContextMenu(contextMenu)
-
-  tray.on('double-click', () => {
-    if (win && !win.isDestroyed()) { win.show(); win.focus() }
-  })
 }
 
 // 窗口控制
 ipcMain.on('window-minimize', () => win.minimize())
 ipcMain.on('window-maximize', () => { win.isMaximized() ? win.unmaximize() : win.maximize() })
 ipcMain.on('window-close', () => win.close())
-ipcMain.on('window-hide', () => win.hide())
+ipcMain.on('window-hide', () => { if (win && !win.isDestroyed()) win.hide() })
 ipcMain.handle('window-is-maximized', () => win.isMaximized())
 
-// 悬浮窗拖拽
 let dragWin = null
 let dragStartPos = null
 
@@ -150,11 +122,8 @@ ipcMain.handle('window-drag-start', (event) => {
 })
 
 ipcMain.handle('window-drag-move', (_, dx, dy) => {
-  if (!dragWin || dragWin.isDestroyed() || !dragStartPos) return
-  dragWin.setPosition(
-    Math.round(dragStartPos[0] + dx),
-    Math.round(dragStartPos[1] + dy)
-  )
+  if (!dragWin || dragWin.isDestroyed() || !dragStartPos) return false
+  dragWin.setPosition(Math.round(dragStartPos[0] + dx), Math.round(dragStartPos[1] + dy))
   return true
 })
 
@@ -171,8 +140,11 @@ ipcMain.on('open-floating-window', () => {
     return
   }
   floatingWin = new BrowserWindow({
-    width: 64, height: 64,
-    alwaysOnTop: true, frame: false, resizable: false,
+    width: 64,
+    height: 64,
+    alwaysOnTop: true,
+    frame: false,
+    resizable: false,
     skipTaskbar: true,
     transparent: true,
     hasShadow: false,
@@ -184,11 +156,9 @@ ipcMain.on('open-floating-window', () => {
       nodeIntegration: false
     }
   })
-  if (isDev) {
-    floatingWin.loadURL('http://localhost:5173/#/floating')
-  } else {
-    floatingWin.loadFile(path.join(__dirname, '../dist/index.html'), { hash: '/floating' })
-  }
+  floatingWin.on('closed', () => { floatingWin = null })
+  if (isDev) floatingWin.loadURL('http://localhost:5173/#/floating')
+  else floatingWin.loadFile(path.join(__dirname, '../dist/index.html'), { hash: '/floating' })
 })
 
 ipcMain.on('close-floating-window', () => {
@@ -197,10 +167,6 @@ ipcMain.on('close-floating-window', () => {
 
 ipcMain.on('focus-main-window', () => {
   if (win && !win.isDestroyed()) { win.show(); win.focus() }
-})
-
-ipcMain.on('minimize-main-window', () => {
-  if (win && !win.isDestroyed()) win.minimize()
 })
 
 ipcMain.handle('open-external', (_, url) => {
@@ -549,7 +515,7 @@ ipcMain.handle('data:importData', async () => {
 
 function createTray() {
   try {
-    const iconPath = path.join(__dirname, '../src-tauri/icons/icon.png')
+    const iconPath = path.join(__dirname, isDev ? '../public/icon.png' : '../dist/icon.png')
     tray = new Tray(iconPath)
     const contextMenu = ElectronMenu.buildFromTemplate([
       { label: '显示主窗口', click: () => { if (win) { win.show(); win.focus() } } },

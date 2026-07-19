@@ -1,4 +1,4 @@
-use tauri::Manager;
+use tauri::{LogicalSize, Manager};
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
 use std::fs;
@@ -25,8 +25,7 @@ fn window_state_path(app: &tauri::AppHandle) -> PathBuf {
 
 // 保存主窗口的尺寸、位置与最大化状态，供下次启动恢复
 fn save_window_state(app: &tauri::AppHandle) {
-    let windows = app.webview_windows();
-    if let Some(window) = windows.values().next() {
+    if let Some(window) = app.get_webview_window("main") {
         if let (Ok(size), Ok(pos)) = (window.outer_size(), window.outer_position()) {
             let state = serde_json::json!({
                 "width": size.width,
@@ -45,8 +44,7 @@ fn save_window_state(app: &tauri::AppHandle) {
 
 // 启动时恢复上次记忆的窗口尺寸与位置
 fn restore_window_state(app: &tauri::AppHandle) {
-    let windows = app.webview_windows();
-    if let Some(window) = windows.values().next() {
+    if let Some(window) = app.get_webview_window("main") {
         let path = window_state_path(app);
         if let Ok(s) = fs::read_to_string(&path) {
             if let Ok(v) = serde_json::from_str::<serde_json::Value>(&s) {
@@ -330,6 +328,58 @@ async fn download_and_launch_update(
     }))
 }
 
+#[tauri::command]
+async fn open_floating_window(app: tauri::AppHandle) -> Result<(), String> {
+    if let Some(win) = app.get_webview_window("floating") {
+        win.set_size(LogicalSize::new(64.0, 64.0)).map_err(|e| e.to_string())?;
+        win.show().map_err(|e| e.to_string())?;
+        win.set_focus().map_err(|e| e.to_string())?;
+        return Ok(());
+    }
+    tauri::WebviewWindowBuilder::new(
+        &app,
+        "floating",
+        tauri::WebviewUrl::App("index.html#/floating".into()),
+    )
+    .always_on_top(true)
+    .decorations(false)
+    .shadow(false)
+    .resizable(false)
+    .transparent(true)
+    .inner_size(64.0, 64.0)
+    .min_inner_size(64.0, 64.0)
+    .max_inner_size(64.0, 64.0)
+    .build()
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+async fn close_floating_window(app: tauri::AppHandle) -> Result<(), String> {
+    if let Some(win) = app.get_webview_window("floating") {
+        win.close().map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+async fn focus_main_window(app: tauri::AppHandle) -> Result<(), String> {
+    if let Some(win) = app.get_webview_window("main") {
+        win.unminimize().map_err(|e| e.to_string())?;
+        win.show().map_err(|e| e.to_string())?;
+        win.set_focus().map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+async fn hide_to_tray(app: tauri::AppHandle) -> Result<(), String> {
+    if let Some(win) = app.get_webview_window("main") {
+        win.hide().map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
 // 构建系统托盘：左键无菜单，右键弹出“显示主窗口 / 退出”
 fn create_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let show = MenuItem::with_id(app, "show", "显示主窗口", true, None::<&str>)?;
@@ -372,62 +422,6 @@ fn create_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
             _ => {}
         })
         .build(app)?;
-    Ok(())
-}
-
-#[tauri::command]
-async fn open_floating_window(app: tauri::AppHandle) -> Result<(), String> {
-    if let Some(win) = app.get_webview_window("floating") {
-        win.set_size(LogicalSize::new(64.0, 64.0)).map_err(|e| e.to_string())?;
-        win.show().map_err(|e| e.to_string())?;
-        win.set_focus().map_err(|e| e.to_string())?;
-        return Ok(());
-    }
-    tauri::WebviewWindowBuilder::new(&app, "floating", tauri::WebviewUrl::App("index.html#/floating".into()))
-        .always_on_top(true)
-        .decorations(false)
-        .shadow(false)
-        .resizable(false)
-        .transparent(true)
-        .inner_size(64.0, 64.0)
-        .min_inner_size(64.0, 64.0)
-        .max_inner_size(64.0, 64.0)
-        .build()
-        .map_err(|e| e.to_string())?;
-    Ok(())
-}
-
-#[tauri::command]
-async fn close_floating_window(app: tauri::AppHandle) -> Result<(), String> {
-    if let Some(win) = app.get_webview_window("floating") {
-        win.close().map_err(|e| e.to_string())?;
-    }
-    Ok(())
-}
-
-#[tauri::command]
-async fn focus_main_window(app: tauri::AppHandle) -> Result<(), String> {
-    if let Some(win) = app.get_webview_window("main") {
-        win.unminimize().map_err(|e| e.to_string())?;
-        win.show().map_err(|e| e.to_string())?;
-        win.set_focus().map_err(|e| e.to_string())?;
-    }
-    Ok(())
-}
-
-#[tauri::command]
-async fn minimize_main_window(app: tauri::AppHandle) -> Result<(), String> {
-    if let Some(win) = app.get_webview_window("main") {
-        win.minimize().map_err(|e| e.to_string())?;
-    }
-    Ok(())
-}
-
-#[tauri::command]
-async fn hide_to_tray(app: tauri::AppHandle) -> Result<(), String> {
-    if let Some(win) = app.get_webview_window("main") {
-        win.hide().map_err(|e| e.to_string())?;
-    }
     Ok(())
 }
 
@@ -474,7 +468,11 @@ pub fn run() {
             check_update,
             open_external,
             fetch_announcements,
-            download_and_launch_update
+            download_and_launch_update,
+            open_floating_window,
+            close_floating_window,
+            focus_main_window,
+            hide_to_tray
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
