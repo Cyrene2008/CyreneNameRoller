@@ -5,6 +5,7 @@ const https = require('https')
 const os = require('os')
 
 let win
+let floatingWin
 let store
 let windowStateStore
 let tray = null
@@ -105,7 +106,68 @@ function createWindow() {
 ipcMain.on('window-minimize', () => win.minimize())
 ipcMain.on('window-maximize', () => { win.isMaximized() ? win.unmaximize() : win.maximize() })
 ipcMain.on('window-close', () => win.close())
+ipcMain.on('window-hide', () => { if (win && !win.isDestroyed()) win.hide() })
 ipcMain.handle('window-is-maximized', () => win.isMaximized())
+
+let dragWin = null
+let dragStartPos = null
+
+ipcMain.handle('window-drag-start', (event) => {
+  dragWin = BrowserWindow.fromWebContents(event.sender)
+  if (dragWin && !dragWin.isDestroyed()) {
+    dragStartPos = dragWin.getPosition()
+    return [Math.round(dragStartPos[0]), Math.round(dragStartPos[1])]
+  }
+  return [0, 0]
+})
+
+ipcMain.handle('window-drag-move', (_, dx, dy) => {
+  if (!dragWin || dragWin.isDestroyed() || !dragStartPos) return false
+  dragWin.setPosition(Math.round(dragStartPos[0] + dx), Math.round(dragStartPos[1] + dy))
+  return true
+})
+
+ipcMain.handle('window-drag-end', () => {
+  dragWin = null
+  dragStartPos = null
+  return true
+})
+
+ipcMain.on('open-floating-window', () => {
+  if (floatingWin && !floatingWin.isDestroyed()) {
+    floatingWin.show()
+    floatingWin.focus()
+    return
+  }
+  floatingWin = new BrowserWindow({
+    width: 64,
+    height: 64,
+    alwaysOnTop: true,
+    frame: false,
+    resizable: false,
+    skipTaskbar: true,
+    transparent: true,
+    hasShadow: false,
+    roundedCorners: false,
+    backgroundColor: '#00000000',
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false
+    }
+  })
+  floatingWin.on('closed', () => { floatingWin = null })
+  if (isDev) floatingWin.loadURL('http://localhost:5173/#/floating')
+  else floatingWin.loadFile(path.join(__dirname, '../dist/index.html'), { hash: '/floating' })
+})
+
+ipcMain.on('close-floating-window', () => {
+  if (floatingWin && !floatingWin.isDestroyed()) floatingWin.close()
+})
+
+ipcMain.on('focus-main-window', () => {
+  if (win && !win.isDestroyed()) { win.show(); win.focus() }
+})
 
 ipcMain.handle('open-external', (_, url) => {
   if (url && (url.startsWith('http://') || url.startsWith('https://'))) {
@@ -453,7 +515,7 @@ ipcMain.handle('data:importData', async () => {
 
 function createTray() {
   try {
-    const iconPath = path.join(__dirname, '../src-tauri/icons/icon.png')
+    const iconPath = path.join(__dirname, isDev ? '../public/icon.png' : '../dist/icon.png')
     tray = new Tray(iconPath)
     const contextMenu = ElectronMenu.buildFromTemplate([
       { label: '显示主窗口', click: () => { if (win) { win.show(); win.focus() } } },

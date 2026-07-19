@@ -4,6 +4,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   minimize: () => ipcRenderer.send('window-minimize'),
   maximize: () => ipcRenderer.send('window-maximize'),
   close: () => ipcRenderer.send('window-close'),
+  hide: () => ipcRenderer.send('window-hide'),
   isMaximized: () => ipcRenderer.invoke('window-is-maximized'),
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
   downloadAndLaunchUpdate: (url, fileName, expectedSize) => ipcRenderer.invoke('download-and-launch-update', url, fileName, expectedSize),
@@ -23,5 +24,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   exportData: () => ipcRenderer.invoke('data:exportData'),
   importData: () => ipcRenderer.invoke('data:importData'),
   checkUpdate: () => ipcRenderer.invoke('check-update'),
-  fetchAnnouncements: () => ipcRenderer.invoke('fetch-announcements')
+  fetchAnnouncements: () => ipcRenderer.invoke('fetch-announcements'),
+
+  openFloatingWindow: () => ipcRenderer.send('open-floating-window'),
+  closeFloatingWindow: () => ipcRenderer.send('close-floating-window'),
+  focusMainWindow: () => ipcRenderer.send('focus-main-window'),
+  windowDragStart: () => ipcRenderer.invoke('window-drag-start'),
+  windowDragMove: (dx, dy) => ipcRenderer.invoke('window-drag-move', dx, dy),
+  windowDragEnd: () => ipcRenderer.invoke('window-drag-end')
 })
