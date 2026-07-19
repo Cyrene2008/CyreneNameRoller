@@ -8,7 +8,7 @@
     "dev": "vite",
     "build": "vite build",
     "electron:dev": "concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",
-    "electron:build": "vite build && electron-builder && node scripts/activate-fuses.js",
+    "electron:build": "vite build && electron-builder",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
@@ -41,6 +41,7 @@
     "copyright": "Copyright © 2025-2026 Cyrene2008",
     "asar": true,
     "asarUnpack": [],
+    "afterPack": "scripts/activate-fuses.js",
     "directories": {
       "output": "release"
     },
