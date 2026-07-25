@@ -377,7 +377,7 @@ const pwModalHint = computed(() => {
 })
 
 function update(key, value) { settingsStore.update(key, value) }
-async function onAutoStart(value) { if (window.electronAPI?.setAutoStart) await window.electronAPI.setAutoStart(value); update('autoStart', value) }
+async function onAutoStart(value) { if (isTauri()) await tauriAPI.setAutoStart(value); else if (window.electronAPI?.setAutoStart) await window.electronAPI.setAutoStart(value); update('autoStart', value) }
 
 async function onFloatingWindowToggle(val) {
   update('floatingWindowEnabled', val)

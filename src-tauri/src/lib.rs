@@ -593,6 +593,23 @@ fn show_data_location() {
 }
 
 #[tauri::command]
+fn set_auto_start(enabled: bool) -> Result<bool, String> {
+    #[cfg(target_os = "windows")]
+    {
+        let task = "CyreneNameRollerAutoStart";
+        let command = if enabled {
+            let exe = std::env::current_exe().map_err(|error| error.to_string())?;
+            format!("schtasks /Create /TN \"{}\" /TR '\"{}\" --cyrene-autostart' /SC ONLOGON /RL HIGHEST /F", task, exe.to_string_lossy())
+        } else { format!("schtasks /Delete /TN \"{}\" /F", task) };
+        Command::new("powershell").args(["-NoProfile", "-Command", &format!("Start-Process powershell -Verb RunAs -ArgumentList '-NoProfile -Command {}'", command.replace("'", "''"))]).spawn().map_err(|error| error.to_string())?;
+    }
+    Ok(true)
+}
+
+#[tauri::command]
+fn is_autostart_launch() -> bool { std::env::args().any(|arg| arg == "--cyrene-autostart") }
+
+#[tauri::command]
 async fn show_main_window(app: tauri::AppHandle) -> Result<(), String> {
     if let Some(win) = app.get_webview_window("main") {
         win.show().map_err(|e| e.to_string())?;
@@ -693,6 +710,8 @@ pub fn run() {
             check_update,
             open_external,
             show_data_location,
+            set_auto_start,
+            is_autostart_launch,
             fetch_announcements,
             download_and_launch_update,
             open_floating_window,

@@ -22,6 +22,8 @@ export const tauriAPI = {
   async loadChangelog() { return this.invoke('load_changelog', {}) },
   async openExternal(url) { return this.invoke('open_external', { url }) },
   async showDataLocation() { return this.invoke('show_data_location', {}) },
+  async setAutoStart(enabled) { return this.invoke('set_auto_start', { enabled }) },
+  async isAutoStartLaunch() { return this.invoke('is_autostart_launch', {}) },
   async checkUpdate() { return this.invoke('check_update', {}) },
   async fetchAnnouncements() { return this.invoke('fetch_announcements', {}) },
   async showMainWindow() { return this.invoke('show_main_window', {}) },
