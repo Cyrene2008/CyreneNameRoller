@@ -5,6 +5,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   maximize: () => ipcRenderer.send('window-maximize'),
   close: () => ipcRenderer.send('window-close'),
   hide: () => ipcRenderer.send('window-hide'),
+  showMainWindow: () => ipcRenderer.send('window-show-ready'),
   isMaximized: () => ipcRenderer.invoke('window-is-maximized'),
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
   downloadAndLaunchUpdate: (url, fileName, expectedSize) => ipcRenderer.invoke('download-and-launch-update', url, fileName, expectedSize),

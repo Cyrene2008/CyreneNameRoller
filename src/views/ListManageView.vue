@@ -156,8 +156,7 @@ function importList() {
       const text = await file.text()
       const data = JSON.parse(text)
       if (data.name && Array.isArray(data.names)) {
-        namesStore.createList(data.name)
-        data.names.forEach(n => namesStore.addPerson(n.cn, n.en))
+        namesStore.importList(data)
         showBanner({
           message: `${lang.value === 'en' ? 'Imported' : '导入成功'}: ${data.name}`,
           icon: 'checkmark-circle-16-regular',

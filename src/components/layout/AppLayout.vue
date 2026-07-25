@@ -190,7 +190,6 @@ router.afterEach((to, from) => {
 document.title = APP_NAME
 
 onMounted(async () => {
-  await settingsStore.initialize()
   await namesStore.initialize()
   await statisticsStore.initialize()
   await recordsStore.initialize()

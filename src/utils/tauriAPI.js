@@ -16,11 +16,14 @@ export const tauriAPI = {
   async storageSet(key, value) { return this.invoke('storage_set', { key, value }) },
   async storageDelete(key) { return this.invoke('storage_delete', { key }) },
   async storageClear() { return this.invoke('storage_clear', {}) },
+  async exportEncryptedData() { return this.invoke('export_encrypted_data', {}) },
+  async importEncryptedData(encodedData) { return this.invoke('import_encrypted_data', { encodedData }) },
   async loadNames() { return this.invoke('load_names', {}) },
   async loadChangelog() { return this.invoke('load_changelog', {}) },
   async openExternal(url) { return this.invoke('open_external', { url }) },
   async checkUpdate() { return this.invoke('check_update', {}) },
   async fetchAnnouncements() { return this.invoke('fetch_announcements', {}) },
+  async showMainWindow() { return this.invoke('show_main_window', {}) },
   async downloadAndLaunchUpdate(url, fileName, expectedSize) {
     if (!isTauri()) return null
     return window.__TAURI_INTERNALS__.invoke('download_and_launch_update', {

@@ -157,6 +157,17 @@ export const useNamesStore = defineStore('names', () => {
     save()
   }
 
+  function importList(listData) {
+    if (!listData || !listData.name || !Array.isArray(listData.names)) return null
+    const imported = JSON.parse(JSON.stringify(listData))
+    imported.id = !imported.id || nameLists.value[imported.id] ? generateId() : imported.id
+    migrateList(imported)
+    nameLists.value[imported.id] = imported
+    currentListId.value = imported.id
+    save()
+    return imported
+  }
+
   function resetCurrentList() {
     currentList.value.names = (defaultNamesData.value.names || []).map(p => ({
       ...p,
@@ -261,6 +272,7 @@ export const useNamesStore = defineStore('names', () => {
     createList,
     deleteList,
     restoreList,
+    importList,
     resetCurrentList,
     clearCurrentList,
     isWhiteList,

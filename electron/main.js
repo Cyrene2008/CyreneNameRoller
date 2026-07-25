@@ -3,18 +3,26 @@ const path = require('path')
 const fs = require('fs')
 const https = require('https')
 const os = require('os')
+const crypto = require('crypto')
 
 let win
 let floatingWin
-let store
-let windowStateStore
 let tray = null
 let quitting = false
+let appData = {}
+let dataFilePath
+let persistTimer
 const isDev = !app.isPackaged
 const UPDATE_PROXY_BASE = 'https://gh.xn--8hvv1o.cn/'
 const UPDATE_URL_PREFIX = 'https://github.com/Cyrene2008/CyreneNameRoller/releases/download/'
 const MIN_INSTALLER_SIZE = 1024 * 1024
 const MAX_UPDATE_REDIRECTS = 8
+const DATA_MAGIC = Buffer.from('CYRENE1\0', 'utf8')
+const DATA_IV_LENGTH = 12
+const DATA_TAG_LENGTH = 16
+const DATA_KEY = crypto.createHash('sha256')
+  .update('CyreneNameRoller:encrypted-data:v1:cn.cyrene2008.nameroller')
+  .digest()
 
 // 单实例限制：多次启动主程序只保留一个进程
 if (!app.requestSingleInstanceLock()) {
@@ -29,20 +37,99 @@ app.on('second-instance', () => {
 })
 
 async function initStore() {
-  const { default: Store } = await import('electron-store')
-  store = new Store({ name: 'cyrene-data' })
-  windowStateStore = new Store({ name: 'window-state' })
+  const installDir = isDev ? app.getAppPath() : path.dirname(app.getPath('exe'))
+  const dataDir = path.join(installDir, 'data')
+  fs.mkdirSync(dataDir, { recursive: true })
+  dataFilePath = path.join(dataDir, 'cyrene-data.cyrene')
+
+  if (fs.existsSync(dataFilePath)) {
+    appData = decryptDataFile(fs.readFileSync(dataFilePath))
+    return
+  }
+
+  const migration = migrateLegacyData()
+  appData = migration.data
+  if (persistData()) {
+    migration.legacyPaths.forEach(removeFileIfPresent)
+  }
+}
+
+function decryptDataFile(buffer) {
+  if (!Buffer.isBuffer(buffer) || buffer.length <= DATA_MAGIC.length + DATA_IV_LENGTH + DATA_TAG_LENGTH) {
+    throw new Error('数据文件格式无效')
+  }
+  if (!buffer.subarray(0, DATA_MAGIC.length).equals(DATA_MAGIC)) {
+    throw new Error('数据文件标识无效')
+  }
+  const offset = DATA_MAGIC.length
+  const iv = buffer.subarray(offset, offset + DATA_IV_LENGTH)
+  const tag = buffer.subarray(offset + DATA_IV_LENGTH, offset + DATA_IV_LENGTH + DATA_TAG_LENGTH)
+  const encrypted = buffer.subarray(offset + DATA_IV_LENGTH + DATA_TAG_LENGTH)
+  const decipher = crypto.createDecipheriv('aes-256-gcm', DATA_KEY, iv)
+  decipher.setAuthTag(tag)
+  const plain = Buffer.concat([decipher.update(encrypted), decipher.final()])
+  const parsed = JSON.parse(plain.toString('utf8'))
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('数据内容无效')
+  return parsed
+}
+
+function encryptDataFile(data) {
+  const iv = crypto.randomBytes(DATA_IV_LENGTH)
+  const cipher = crypto.createCipheriv('aes-256-gcm', DATA_KEY, iv)
+  const encrypted = Buffer.concat([cipher.update(JSON.stringify(data), 'utf8'), cipher.final()])
+  return Buffer.concat([DATA_MAGIC, iv, encrypted, cipher.getAuthTag()])
+}
+
+function persistData() {
+  if (!dataFilePath) return false
+  try {
+    const temporaryPath = `${dataFilePath}.${process.pid}.tmp`
+    fs.writeFileSync(temporaryPath, encryptDataFile(appData))
+    fs.renameSync(temporaryPath, dataFilePath)
+    return true
+  } catch (error) {
+    console.error('[data] Failed to persist encrypted data:', error.message)
+    return false
+  }
+}
+
+function queuePersistData() {
+  clearTimeout(persistTimer)
+  persistTimer = setTimeout(persistData, 250)
+}
+
+function migrateLegacyData() {
+  const userDataDir = app.getPath('userData')
+  const legacyDataPath = path.join(userDataDir, 'cyrene-data.json')
+  const legacyWindowPath = path.join(userDataDir, 'window-state.json')
+  const data = {}
+  const legacyPaths = []
+  try {
+    const legacy = JSON.parse(fs.readFileSync(legacyDataPath, 'utf8'))
+    if (legacy && typeof legacy === 'object' && !Array.isArray(legacy)) {
+      Object.assign(data, legacy)
+      legacyPaths.push(legacyDataPath)
+    }
+  } catch {}
+  try {
+    const legacyWindow = JSON.parse(fs.readFileSync(legacyWindowPath, 'utf8'))
+    if (legacyWindow && legacyWindow.width && legacyWindow.height) {
+      data.windowState = {
+        width: legacyWindow.width,
+        height: legacyWindow.height,
+        isMaximized: legacyWindow.isMaximized === true
+      }
+      legacyPaths.push(legacyWindowPath)
+    }
+  } catch {}
+  return { data, legacyPaths }
 }
 
 function loadWindowState() {
-  try {
-    const x = windowStateStore.get('x')
-    const y = windowStateStore.get('y')
-    const width = windowStateStore.get('width')
-    const height = windowStateStore.get('height')
-    const isMaximized = windowStateStore.get('isMaximized')
-    if (width && height) return { x, y, width, height, isMaximized }
-  } catch {}
+  const state = appData.windowState
+  if (state && Number.isFinite(state.width) && Number.isFinite(state.height)) {
+    return { width: state.width, height: state.height, isMaximized: state.isMaximized === true }
+  }
   return null
 }
 
@@ -50,11 +137,12 @@ function saveWindowState() {
   if (!win || win.isDestroyed()) return
   try {
     const bounds = win.getBounds()
-    windowStateStore.set('x', bounds.x)
-    windowStateStore.set('y', bounds.y)
-    windowStateStore.set('width', bounds.width)
-    windowStateStore.set('height', bounds.height)
-    windowStateStore.set('isMaximized', win.isMaximized())
+    appData.windowState = {
+      width: bounds.width,
+      height: bounds.height,
+      isMaximized: win.isMaximized()
+    }
+    queuePersistData()
   } catch {}
 }
 
@@ -63,16 +151,16 @@ function createWindow() {
   const defaults = { width: 1200, height: 900, minWidth: 800, minHeight: 600 }
   const opts = { ...defaults }
   if (saved) {
-    opts.x = saved.x
-    opts.y = saved.y
     opts.width = Math.max(saved.width, defaults.minWidth)
     opts.height = Math.max(saved.height, defaults.minHeight)
   }
 
   win = new BrowserWindow({
     ...opts,
+    center: true,
+    show: false,
     frame: false,
-    backgroundColor: '#00000000',
+    backgroundColor: '#fdf5fa',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -108,6 +196,9 @@ ipcMain.on('window-maximize', () => { win.isMaximized() ? win.unmaximize() : win
 ipcMain.on('window-close', () => win.close())
 ipcMain.on('window-hide', () => { if (win && !win.isDestroyed()) win.hide() })
 ipcMain.handle('window-is-maximized', () => win.isMaximized())
+ipcMain.on('window-show-ready', () => {
+  if (win && !win.isDestroyed()) win.show()
+})
 
 let dragWin = null
 let dragStartPos = null
@@ -335,8 +426,7 @@ ipcMain.handle('download-and-launch-update', async (event, originalUrl, fileName
 // electron-store 存储 IPC
 ipcMain.handle('storage-get', (_, key) => {
   try {
-    if (!store) return null
-    const val = store.get(key)
+    const val = appData[key]
     return val !== undefined ? val : null
   } catch (e) {
     console.error(`[storage-get] Failed for "${key}":`, e.message)
@@ -346,9 +436,8 @@ ipcMain.handle('storage-get', (_, key) => {
 
 ipcMain.handle('storage-set', (_, key, value) => {
   try {
-    if (!store) return false
-    store.set(key, value)
-    return true
+    appData[key] = value
+    return persistData()
   } catch (e) {
     console.error(`[storage-set] Failed for "${key}":`, e.message)
     return false
@@ -357,9 +446,8 @@ ipcMain.handle('storage-set', (_, key, value) => {
 
 ipcMain.handle('storage-delete', (_, key) => {
   try {
-    if (!store) return false
-    store.delete(key)
-    return true
+    delete appData[key]
+    return persistData()
   } catch (e) {
     return false
   }
@@ -367,9 +455,8 @@ ipcMain.handle('storage-delete', (_, key) => {
 
 ipcMain.handle('storage-clear', () => {
   try {
-    if (!store) return false
-    store.clear()
-    return true
+    appData = {}
+    return persistData()
   } catch (e) {
     return false
   }
@@ -476,14 +563,14 @@ ipcMain.handle('data:loadChangelog', () => {
 // 导出/导入
 ipcMain.handle('data:exportData', async () => {
   try {
-    const allData = store.store
+    if (!persistData()) throw new Error('无法写入加密数据文件')
     const { filePath: savePath } = await dialog.showSaveDialog(win, {
       title: '导出数据',
       defaultPath: 'cyrene-data.cyrene',
       filters: [{ name: 'Cyrene Data', extensions: ['cyrene'] }]
     })
     if (savePath) {
-      fs.writeFileSync(savePath, JSON.stringify(allData, null, 2), 'utf-8')
+      fs.copyFileSync(dataFilePath, savePath)
       return { success: true }
     }
     return { success: false, cancelled: true }
@@ -496,14 +583,16 @@ ipcMain.handle('data:importData', async () => {
   try {
     const { filePaths } = await dialog.showOpenDialog(win, {
       title: '导入数据',
-      filters: [{ name: 'Cyrene Data', extensions: ['cyrene', 'json'] }],
+      filters: [{ name: 'Cyrene Data', extensions: ['cyrene'] }],
       properties: ['openFile']
     })
     if (filePaths.length > 0) {
-      const raw = fs.readFileSync(filePaths[0], 'utf-8')
-      const allData = JSON.parse(raw)
-      for (const [key, value] of Object.entries(allData)) {
-        store.set(key, value)
+      const importedData = decryptDataFile(fs.readFileSync(filePaths[0]))
+      const previousData = appData
+      appData = importedData
+      if (!persistData()) {
+        appData = previousData
+        return { success: false, error: '无法写入加密数据文件' }
       }
       return { success: true }
     }

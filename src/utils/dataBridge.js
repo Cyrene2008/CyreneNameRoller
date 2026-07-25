@@ -1,4 +1,5 @@
 import { isTauri, tauriAPI } from './tauriAPI'
+import { decryptCyreneData, encryptCyreneData } from './cyreneCrypto'
 
 export function isElectron() {
   return typeof window !== 'undefined' && !!window.electronAPI
@@ -119,24 +120,24 @@ export const dataBridge = {
     if (isElectron()) {
       try { return await window.electronAPI.exportData() } catch {}
     }
-    // Tauri & Browser: download as JSON
-    const allData = {}
     if (isTauri()) {
-      const keys = ['settings', 'lists', 'currentListId', 'statistics', 'records', 'balance', 'password']
-      for (const k of keys) {
-        try { allData[k] = await tauriAPI.storageGet(k) } catch {}
-      }
-    } else {
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i)
-        try { allData[key] = JSON.parse(localStorage.getItem(key)) } catch {}
+      try {
+        const encoded = await tauriAPI.exportEncryptedData()
+        if (!encoded) return { success: false, error: '无法导出加密数据' }
+        downloadEncryptedFile(base64ToBytes(encoded))
+        return { success: true }
+      } catch (error) {
+        return { success: false, error: error.message }
       }
     }
-    const blob = new Blob([JSON.stringify(allData, null, 2)], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url; a.download = 'cyrene-data.cyrene'; a.click()
-    URL.revokeObjectURL(url)
+
+    // Browser fallback: keep the same encrypted container format.
+    const allData = {}
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i)
+      try { allData[key] = JSON.parse(localStorage.getItem(key)) } catch {}
+    }
+    downloadEncryptedFile(await encryptCyreneData(allData))
     return { success: true }
   },
 
@@ -146,20 +147,49 @@ export const dataBridge = {
     }
     return new Promise((resolve) => {
       const input = document.createElement('input')
-      input.type = 'file'; input.accept = '.cyrene,.json'
+      input.type = 'file'; input.accept = '.cyrene'
       input.onchange = async (e) => {
         const file = e.target.files[0]
         if (!file) { resolve({ success: false, cancelled: true }); return }
         try {
-          const data = JSON.parse(await file.text())
-          for (const [k, v] of Object.entries(data)) {
-            if (isTauri()) await tauriAPI.storageSet(k, v)
-            else localStorage.setItem(k, JSON.stringify(v))
+          const bytes = new Uint8Array(await file.arrayBuffer())
+          if (isTauri()) {
+            const result = await tauriAPI.importEncryptedData(bytesToBase64(bytes))
+            if (result !== true) throw new Error('导入失败')
+          } else {
+            const data = await decryptCyreneData(bytes)
+            for (const [k, v] of Object.entries(data)) {
+              localStorage.setItem(k, JSON.stringify(v))
+            }
           }
           resolve({ success: true })
-        } catch { resolve({ success: false, error: 'Parse error' }) }
+        } catch (error) { resolve({ success: false, error: error.message || 'Parse error' }) }
       }
       input.click()
     })
   }
+}
+
+function downloadEncryptedFile(bytes) {
+  const blob = new Blob([bytes], { type: 'application/octet-stream' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url; a.download = 'cyrene-data.cyrene'; a.click()
+  URL.revokeObjectURL(url)
+}
+
+function base64ToBytes(value) {
+  const binary = atob(value)
+  const bytes = new Uint8Array(binary.length)
+  for (let index = 0; index < binary.length; index++) bytes[index] = binary.charCodeAt(index)
+  return bytes
+}
+
+function bytesToBase64(bytes) {
+  let binary = ''
+  const chunkSize = 0x8000
+  for (let index = 0; index < bytes.length; index += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(index, index + chunkSize))
+  }
+  return btoa(binary)
 }

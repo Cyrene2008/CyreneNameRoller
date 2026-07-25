@@ -1,4 +1,9 @@
-use tauri::{Emitter, LogicalSize, Manager};
+use aes_gcm::{Aes256Gcm, KeyInit, Nonce};
+use aes_gcm::aead::{Aead, OsRng, rand_core::RngCore};
+use base64::Engine;
+use sha2::{Digest, Sha256};
+use std::sync::Mutex;
+use tauri::{Emitter, LogicalSize, Manager, State};
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
 use std::fs;
@@ -8,9 +13,54 @@ use std::process::Command;
 const UPDATE_PROXY_BASE: &str = "https://gh.xn--8hvv1o.cn/";
 const UPDATE_URL_PREFIX: &str = "https://github.com/Cyrene2008/CyreneNameRoller/releases/download/";
 const MIN_INSTALLER_SIZE: usize = 1024 * 1024;
+const DATA_MAGIC: &[u8] = b"CYRENE1\0";
+const DATA_NONCE_LENGTH: usize = 12;
+const DATA_TAG_LENGTH: usize = 16;
 
-fn get_data_dir(app: &tauri::AppHandle) -> PathBuf {
-    let dir = app.path().app_data_dir().unwrap_or_else(|_| PathBuf::from(".")).join("data");
+struct EncryptedStore {
+    path: PathBuf,
+    values: Mutex<serde_json::Value>,
+    integrity_error: Mutex<Option<String>>,
+}
+
+impl EncryptedStore {
+    fn load() -> Self {
+        let path = installation_data_dir().join("cyrene-data.cyrene");
+        let (values, integrity_error) = match fs::read(&path) {
+            Ok(bytes) => match decrypt_data(&bytes) {
+                Ok(values) => (values, None),
+                Err(error) => (serde_json::json!({}), Some(error)),
+            },
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => (serde_json::json!({}), None),
+            Err(error) => (serde_json::json!({}), Some(error.to_string())),
+        };
+        Self { path, values: Mutex::new(values), integrity_error: Mutex::new(integrity_error) }
+    }
+
+    fn is_healthy(&self) -> Result<(), String> {
+        self.integrity_error
+            .lock()
+            .map_err(|_| "数据锁定失败".to_string())?
+            .clone()
+            .map_or(Ok(()), Err)
+    }
+
+    fn persist(&self) -> Result<(), String> {
+        self.is_healthy()?;
+        let values = self.values.lock().map_err(|_| "数据锁定失败".to_string())?.clone();
+        let temporary_path = self.path.with_extension("cyrene.tmp");
+        fs::write(&temporary_path, encrypt_data(&values)?)
+            .map_err(|error| error.to_string())?;
+        fs::rename(&temporary_path, &self.path).map_err(|error| error.to_string())
+    }
+}
+
+fn installation_data_dir() -> PathBuf {
+    let root = std::env::current_exe()
+        .ok()
+        .and_then(|path| path.parent().map(Path::to_path_buf))
+        .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
+    let dir = root.join("data");
     fs::create_dir_all(&dir).ok();
     dir
 }
@@ -19,25 +69,62 @@ fn get_resource_dir(app: &tauri::AppHandle) -> PathBuf {
     app.path().resource_dir().unwrap_or_else(|_| PathBuf::from("."))
 }
 
-fn window_state_path(app: &tauri::AppHandle) -> PathBuf {
-    get_data_dir(app).join("window-state.json")
+fn data_key() -> [u8; 32] {
+    let mut hasher = Sha256::new();
+    hasher.update(b"CyreneNameRoller:encrypted-data:v1:cn.cyrene2008.nameroller");
+    hasher.finalize().into()
+}
+
+fn encrypt_data(values: &serde_json::Value) -> Result<Vec<u8>, String> {
+    let key = data_key();
+    let cipher = Aes256Gcm::new_from_slice(&key).map_err(|error| error.to_string())?;
+    let mut nonce = [0u8; DATA_NONCE_LENGTH];
+    OsRng.fill_bytes(&mut nonce);
+    let plain = serde_json::to_vec(values).map_err(|error| error.to_string())?;
+    let encrypted = cipher.encrypt(Nonce::from_slice(&nonce), plain.as_ref()).map_err(|error| error.to_string())?;
+    let mut output = Vec::with_capacity(DATA_MAGIC.len() + nonce.len() + encrypted.len());
+    output.extend_from_slice(DATA_MAGIC);
+    output.extend_from_slice(&nonce);
+    output.extend_from_slice(&encrypted);
+    Ok(output)
+}
+
+fn decrypt_data(bytes: &[u8]) -> Result<serde_json::Value, String> {
+    if bytes.len() <= DATA_MAGIC.len() + DATA_NONCE_LENGTH + DATA_TAG_LENGTH {
+        return Err("数据文件格式无效".into());
+    }
+    if !bytes.starts_with(DATA_MAGIC) {
+        return Err("数据文件标识无效".into());
+    }
+    let nonce_start = DATA_MAGIC.len();
+    let nonce_end = nonce_start + DATA_NONCE_LENGTH;
+    let key = data_key();
+    let cipher = Aes256Gcm::new_from_slice(&key).map_err(|error| error.to_string())?;
+    let plain = cipher
+        .decrypt(Nonce::from_slice(&bytes[nonce_start..nonce_end]), &bytes[nonce_end..])
+        .map_err(|_| "数据完整性校验失败，文件可能已被篡改".to_string())?;
+    let values: serde_json::Value = serde_json::from_slice(&plain).map_err(|_| "数据内容无效".to_string())?;
+    if !values.is_object() {
+        return Err("数据内容无效".into());
+    }
+    Ok(values)
 }
 
 // 保存主窗口的尺寸、位置与最大化状态，供下次启动恢复
 fn save_window_state(app: &tauri::AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
-        if let (Ok(size), Ok(pos)) = (window.outer_size(), window.outer_position()) {
-            let state = serde_json::json!({
-                "width": size.width,
-                "height": size.height,
-                "x": pos.x,
-                "y": pos.y,
-                "maximized": window.is_maximized().unwrap_or(false),
-            });
-            let _ = fs::write(
-                window_state_path(app),
-                serde_json::to_string_pretty(&state).unwrap_or_default(),
-            );
+        if let Ok(size) = window.outer_size() {
+            let store = app.state::<EncryptedStore>();
+            if store.is_healthy().is_ok() {
+                if let Ok(mut values) = store.values.lock() {
+                    values["windowState"] = serde_json::json!({
+                        "width": size.width,
+                        "height": size.height,
+                        "isMaximized": window.is_maximized().unwrap_or(false),
+                    });
+                }
+                let _ = store.persist();
+            }
         }
     }
 }
@@ -45,20 +132,16 @@ fn save_window_state(app: &tauri::AppHandle) {
 // 启动时恢复上次记忆的窗口尺寸与位置
 fn restore_window_state(app: &tauri::AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
-        let path = window_state_path(app);
-        if let Ok(s) = fs::read_to_string(&path) {
-            if let Ok(v) = serde_json::from_str::<serde_json::Value>(&s) {
-                if let (Some(w), Some(h)) = (v["width"].as_u64(), v["height"].as_u64()) {
-                    let _ = window.set_size(tauri::PhysicalSize::new(w as u32, h as u32));
-                }
-                if let (Some(x), Some(y)) = (v["x"].as_i64(), v["y"].as_i64()) {
-                    let _ = window.set_position(tauri::PhysicalPosition::new(x as i32, y as i32));
-                }
-                if v["maximized"].as_bool() == Some(true) {
-                    let _ = window.maximize();
-                }
+        let store = app.state::<EncryptedStore>();
+        if let Ok(values) = store.values.lock() {
+            let state = &values["windowState"];
+            if let (Some(w), Some(h)) = (state["width"].as_u64(), state["height"].as_u64()) {
+                let _ = window.set_size(tauri::PhysicalSize::new(w as u32, h as u32));
             }
-        }
+            if state["isMaximized"].as_bool() == Some(true) {
+                let _ = window.maximize();
+            }
+        };
     }
 }
 
@@ -185,36 +268,125 @@ fn launch_installer(path: &Path) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn storage_get(app: tauri::AppHandle, key: String) -> Option<serde_json::Value> {
-    let path = get_data_dir(&app).join(format!("{}.json", key));
-    fs::read_to_string(&path)
-        .ok()
-        .and_then(|s| serde_json::from_str(&s).ok())
+fn storage_get(store: State<'_, EncryptedStore>, key: String) -> Option<serde_json::Value> {
+    if store.is_healthy().is_err() {
+        return None;
+    }
+    store.values.lock().ok().and_then(|values| values.get(&key).cloned())
 }
 
-#[tauri::command]
-fn storage_set(app: tauri::AppHandle, key: String, value: serde_json::Value) -> bool {
-    let path = get_data_dir(&app).join(format!("{}.json", key));
-    fs::write(&path, serde_json::to_string_pretty(&value).unwrap_or_default()).is_ok()
-}
-
-#[tauri::command]
-fn storage_delete(app: tauri::AppHandle, key: String) -> bool {
-    let path = get_data_dir(&app).join(format!("{}.json", key));
-    fs::remove_file(&path).is_ok()
-}
-
-#[tauri::command]
-fn storage_clear(app: tauri::AppHandle) -> bool {
-    let dir = get_data_dir(&app);
-    if let Ok(entries) = fs::read_dir(&dir) {
+fn migrate_legacy_data(app: &tauri::AppHandle) {
+    let store = app.state::<EncryptedStore>();
+    if store.path.exists() || store.is_healthy().is_err() {
+        return;
+    }
+    let legacy_dir = match app.path().app_data_dir() {
+        Ok(path) => path.join("data"),
+        Err(_) => return,
+    };
+    let mut values = serde_json::Map::new();
+    let mut legacy_paths = Vec::new();
+    if let Ok(entries) = fs::read_dir(&legacy_dir) {
         for entry in entries.flatten() {
-            if entry.path().extension().map_or(false, |e| e == "json") {
-                fs::remove_file(entry.path()).ok();
+            let path = entry.path();
+            if path.extension().and_then(|extension| extension.to_str()) != Some("json") {
+                continue;
             }
+            let Ok(raw) = fs::read_to_string(&path) else { continue };
+            let Ok(value) = serde_json::from_str::<serde_json::Value>(&raw) else { continue };
+            let Some(stem) = path.file_stem().and_then(|stem| stem.to_str()) else { continue };
+            if stem == "window-state" {
+                values.insert("windowState".into(), serde_json::json!({
+                    "width": value["width"],
+                    "height": value["height"],
+                    "isMaximized": value["maximized"].as_bool().unwrap_or(false),
+                }));
+            } else {
+                values.insert(stem.to_string(), value);
+            }
+            legacy_paths.push(path);
         }
     }
-    true
+    if values.is_empty() {
+        return;
+    }
+    if let Ok(mut current_values) = store.values.lock() {
+        *current_values = serde_json::Value::Object(values);
+    } else {
+        return;
+    }
+    if store.persist().is_ok() {
+        legacy_paths.into_iter().for_each(|path| { let _ = fs::remove_file(path); });
+    }
+}
+
+#[tauri::command]
+fn storage_set(store: State<'_, EncryptedStore>, key: String, value: serde_json::Value) -> bool {
+    if store.is_healthy().is_err() {
+        return false;
+    }
+    if let Ok(mut values) = store.values.lock() {
+        if let Some(object) = values.as_object_mut() {
+            object.insert(key, value);
+        } else {
+            return false;
+        }
+    } else {
+        return false;
+    }
+    store.persist().is_ok()
+}
+
+#[tauri::command]
+fn storage_delete(store: State<'_, EncryptedStore>, key: String) -> bool {
+    if store.is_healthy().is_err() {
+        return false;
+    }
+    if let Ok(mut values) = store.values.lock() {
+        if let Some(object) = values.as_object_mut() {
+            object.remove(&key);
+        } else {
+            return false;
+        }
+    } else {
+        return false;
+    }
+    store.persist().is_ok()
+}
+
+#[tauri::command]
+fn storage_clear(store: State<'_, EncryptedStore>) -> bool {
+    if store.is_healthy().is_err() {
+        return false;
+    }
+    if let Ok(mut values) = store.values.lock() {
+        *values = serde_json::json!({});
+    } else {
+        return false;
+    }
+    store.persist().is_ok()
+}
+
+#[tauri::command]
+fn export_encrypted_data(store: State<'_, EncryptedStore>) -> Result<String, String> {
+    store.persist()?;
+    let bytes = fs::read(&store.path).map_err(|error| error.to_string())?;
+    Ok(base64::engine::general_purpose::STANDARD.encode(bytes))
+}
+
+#[tauri::command]
+fn import_encrypted_data(store: State<'_, EncryptedStore>, encoded_data: String) -> Result<bool, String> {
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(encoded_data)
+        .map_err(|_| "导入文件编码无效".to_string())?;
+    let values = decrypt_data(&bytes)?;
+    if let Ok(mut current_values) = store.values.lock() {
+        *current_values = values;
+    } else {
+        return Err("数据锁定失败".into());
+    }
+    store.persist()?;
+    Ok(true)
 }
 
 #[tauri::command]
@@ -414,6 +586,15 @@ async fn hide_to_tray(app: tauri::AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+#[tauri::command]
+async fn show_main_window(app: tauri::AppHandle) -> Result<(), String> {
+    if let Some(win) = app.get_webview_window("main") {
+        win.show().map_err(|e| e.to_string())?;
+        win.set_focus().map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
 // 构建系统托盘：左键无菜单，右键弹出“显示主窗口 / 退出”
 fn create_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let show = MenuItem::with_id(app, "show", "显示主窗口", true, None::<&str>)?;
@@ -462,6 +643,7 @@ fn create_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .manage(EncryptedStore::load())
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
@@ -473,6 +655,7 @@ pub fn run() {
         }))
         .setup(|app| {
             let handle = app.handle().clone();
+            migrate_legacy_data(&handle);
             restore_window_state(&handle);
             create_tray(app)?;
 
@@ -497,6 +680,8 @@ pub fn run() {
             storage_set,
             storage_delete,
             storage_clear,
+            export_encrypted_data,
+            import_encrypted_data,
             load_names,
             load_changelog,
             check_update,
@@ -506,7 +691,8 @@ pub fn run() {
             open_floating_window,
             close_floating_window,
             focus_main_window,
-            hide_to_tray
+            hide_to_tray,
+            show_main_window
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
