@@ -169,7 +169,7 @@ function shuffle() {
   const chosen = []
   const copy = [...available]
   while (chosen.length < k && copy.length > 0) { const idx = Math.floor(Math.random() * copy.length); chosen.push(copy.splice(idx, 1)[0]) }
-  cards.value = chosen.map(p => ({ id: ++cardIdCounter, cn: p.cn, en: p.en, displayName: getDisplayName(p), visible: false, flipped: false }))
+  cards.value = chosen.map(p => ({ id: ++cardIdCounter, personId: p.id, cn: p.cn, en: p.en, displayName: getDisplayName(p), visible: false, flipped: false }))
   cards.value.forEach((card, i) => { setTimeout(() => { card.visible = true }, i * 80) })
 }
 
@@ -179,7 +179,8 @@ function flipCard(index) {
   card.flipped = true
   usedNames.value.add(card.cn)
   trayHistory.value.unshift({ id: ++historyIdCounter, name: card.displayName })
-  recordsStore.addRecord({ cn: card.cn, en: card.en, listName: namesStore.currentList.name, source: 'card' })
+  const personId = card.personId || namesStore.currentNames.find(person => person.cn === card.cn && (!card.en || person.en === card.en))?.id || null
+  recordsStore.addRecord({ personId, listId: namesStore.currentList.id, source: 'card' })
   saveTrayState()
 }
 
@@ -205,7 +206,7 @@ function quickDraw() {
   const chosen = []
   const copy = [...available]
   while (chosen.length < count && copy.length > 0) { const idx = Math.floor(Math.random() * copy.length); chosen.push(copy.splice(idx, 1)[0]) }
-  cards.value = chosen.map(p => ({ id: ++cardIdCounter, cn: p.cn, en: p.en, displayName: getDisplayName(p), visible: false, flipped: false }))
+  cards.value = chosen.map(p => ({ id: ++cardIdCounter, personId: p.id, cn: p.cn, en: p.en, displayName: getDisplayName(p), visible: false, flipped: false }))
   cards.value.forEach((card, i) => {
     setTimeout(() => { card.visible = true; setTimeout(() => flipCard(i), 300 + i * 200) }, i * 80)
   })

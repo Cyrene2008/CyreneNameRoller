@@ -7,9 +7,21 @@ contextBridge.exposeInMainWorld('electronAPI', {
   hide: () => ipcRenderer.send('window-hide'),
   showMainWindow: () => ipcRenderer.send('window-show-ready'),
   setAutoStart: (enabled) => ipcRenderer.invoke('set-auto-start', enabled),
+  isAutoStartLaunch: () => ipcRenderer.invoke('is-autostart-launch'),
+  getSystemAccentColor: () => ipcRenderer.invoke('system-accent'),
+  onAccentColorChanged: (callback) => {
+    const listener = (_, color) => callback(color)
+    ipcRenderer.on('accent-color-changed', listener)
+    return () => ipcRenderer.removeListener('accent-color-changed', listener)
+  },
+  onMainWindowShown: (callback) => {
+    const listener = () => callback()
+    ipcRenderer.on('main-window-shown', listener)
+    return () => ipcRenderer.removeListener('main-window-shown', listener)
+  },
   isMaximized: () => ipcRenderer.invoke('window-is-maximized'),
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
-  downloadAndLaunchUpdate: (url, fileName, expectedSize) => ipcRenderer.invoke('download-and-launch-update', url, fileName, expectedSize),
+  downloadAndLaunchUpdate: (url, fileName, expectedSize, source) => ipcRenderer.invoke('download-and-launch-update', url, fileName, expectedSize, source),
   onUpdateDownloadProgress: (callback) => {
     const listener = (_, progress) => callback(progress)
     ipcRenderer.on('update-download-progress', listener)
@@ -22,6 +34,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   storageClear: () => ipcRenderer.invoke('storage-clear'),
   dataLocation: () => ipcRenderer.invoke('data-location'),
   showDataLocation: () => ipcRenderer.invoke('show-data-location'),
+  revealFile: (filePath) => ipcRenderer.invoke('reveal-file', filePath),
+  saveTextFile: (content, defaultName, extension) => ipcRenderer.invoke('save-text-file', content, defaultName, extension),
+  openTextFile: (extension) => ipcRenderer.invoke('open-text-file', extension),
 
   loadNames: () => ipcRenderer.invoke('data:loadNames'),
   loadChangelog: () => ipcRenderer.invoke('data:loadChangelog'),

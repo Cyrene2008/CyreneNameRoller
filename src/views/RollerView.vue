@@ -22,7 +22,7 @@
 
     <div class="controls-center" ref="controlsCenterRef">
       <div class="switches">
-        <FluentToggle v-model="settings.englishMode" label="English Mode" @update:model-value="saveSetting('englishMode', $event)" />
+        <FluentToggle class="english-mode-toggle" v-model="settings.englishMode" label="English Mode" @update:model-value="saveSetting('englishMode', $event)" />
         <FluentTabs :model-value="settings.groupMode ? 'groups' : 'people'" :options="drawTargetOptions" @update:model-value="onDrawTargetChange" />
         <FluentTabs :model-value="settings.multiMode ? 'multiple' : 'single'" :options="drawCountOptions" @update:model-value="onDrawCountChange" />
         <Transition name="toggle-expand">
@@ -90,7 +90,13 @@ const drawTargetOptions = computed(() => [
 ])
 const drawCountOptions = computed(() => [
   { value: 'single', label: lang.value === 'en' ? 'Single draw' : '单次抽取', icon: 'fluent:person-24-regular' },
-  { value: 'multiple', label: lang.value === 'en' ? 'Multiple draw' : '多人抽取', icon: 'fluent:people-24-regular' }
+  {
+    value: 'multiple',
+    label: settings.value.groupMode
+      ? (lang.value === 'en' ? 'Multiple draws' : '多次抽取')
+      : (lang.value === 'en' ? 'Multiple people' : '多人抽取'),
+    icon: 'fluent:people-24-regular'
+  }
 ])
 const duplicateOptions = computed(() => [
   { value: 'unique', label: lang.value === 'en' ? 'No repeats' : '禁止重复', icon: 'fluent:shield-checkmark-24-regular' },
@@ -355,7 +361,7 @@ function finishRoll() {
   }
   for (let i = 0; i < finalPicks.length; i++) {
     const pick = finalPicks[i]
-    recordsStore.addRecord({ personId: pick.id || null, listId: namesStore.currentList.id, groupId: pick.isGroup ? pick.id : null, source: 'roller' })
+    recordsStore.addRecord({ personId: pick.isGroup ? null : (pick.id || null), listId: namesStore.currentList.id, groupId: pick.isGroup ? pick.id : null, source: 'roller' })
   }
   nextTick(computeNameLayout)
 
@@ -644,7 +650,7 @@ onBeforeUnmount(() => { if (intervalId) clearTimeout(intervalId); clearTimeout(a
   animation: gradient-shift 32s linear infinite;
 }
 
-.name-display.rainbow.final-spotlight { animation: gradient-shift 32s linear infinite, final-spotlight 0.62s cubic-bezier(0.1, 0.9, 0.2, 1); }
+.name-display.rainbow.final-spotlight { animation: gradient-shift 32s linear infinite, final-reveal 0.5s cubic-bezier(0.1, 0.9, 0.2, 1); }
 .name-display.rainbow.final-lift { animation: gradient-shift 32s linear infinite, final-lift 0.68s cubic-bezier(0.12, 0.85, 0.2, 1.15); }
 .name-display.rainbow.final-glow { animation: gradient-shift 32s linear infinite, final-glow 0.8s cubic-bezier(0.16, 0.84, 0.3, 1); }
 
@@ -653,10 +659,10 @@ onBeforeUnmount(() => { if (intervalId) clearTimeout(intervalId); clearTimeout(a
   100% { background-position: 800% 50%; }
 }
 
-.name-display:not(.rainbow).final-spotlight { animation: final-spotlight 0.62s cubic-bezier(0.1, 0.9, 0.2, 1); }
+.name-display:not(.rainbow).final-spotlight { animation: final-reveal 0.5s cubic-bezier(0.1, 0.9, 0.2, 1); }
 .name-display:not(.rainbow).final-lift { animation: final-lift 0.68s cubic-bezier(0.12, 0.85, 0.2, 1.15); }
 .name-display:not(.rainbow).final-glow { animation: final-glow 0.8s cubic-bezier(0.16, 0.84, 0.3, 1); }
-@keyframes final-spotlight { 0% { transform: scale(calc(var(--reveal-scale, 1) * 0.82)); opacity: 0; filter: brightness(2.2) blur(4px); } 62% { transform: scale(calc(var(--reveal-scale, 1) * 1.08)); filter: brightness(1.35); } 100% { transform: scale(1); opacity: 1; filter: brightness(1); } }
+@keyframes final-reveal { 0% { transform: scale(var(--reveal-scale, 1)); opacity: 0; filter: brightness(2); } 72% { transform: scale(0.97); opacity: 1; filter: brightness(1.08); } 100% { transform: scale(1); filter: brightness(1); } }
 @keyframes final-lift { 0% { transform: translateY(18px) scale(0.88); opacity: 0; filter: blur(5px); } 58% { transform: translateY(-6px) scale(1.05); opacity: 1; filter: brightness(1.3); } 100% { transform: translateY(0) scale(1); filter: brightness(1); } }
 @keyframes final-glow { 0% { transform: scale(0.92); opacity: 0; text-shadow: 0 0 0 var(--accent); } 50% { transform: scale(1.06); opacity: 1; text-shadow: 0 0 32px var(--accent); } 100% { transform: scale(1); text-shadow: 0 4px 20px rgba(234, 94, 193, 0.15); } }
 
@@ -676,6 +682,7 @@ onBeforeUnmount(() => { if (intervalId) clearTimeout(intervalId); clearTimeout(a
 
 .controls-center { position: absolute; bottom: 24px; right: 24px; display: flex; flex-direction: column; gap: 10px; align-items: flex-end; z-index: 10; }
 .switches { display: flex; flex-direction: column; gap: 6px; align-items: stretch; width: 280px; }
+.english-mode-toggle { align-self: flex-end; }
 .multi-settings { display: flex; align-items: center; gap: 12px; }
 .setting-label { font-size: 14px; color: var(--text-secondary); }
 .count-control { display: flex; align-items: center; gap: 8px; }

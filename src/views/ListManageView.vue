@@ -88,6 +88,7 @@ import FluentCard from '../components/FluentCard.vue'
 import FluentButton from '../components/FluentButton.vue'
 import FluentIcon from '../components/FluentIcon.vue'
 import FluentInput from '../components/FluentInput.vue'
+import { emitFileNotice, openTextFile, saveTextFile } from '../utils/desktopFiles'
 
 const router = useRouter()
 const namesStore = useNamesStore()
@@ -137,43 +138,31 @@ function deleteList(list) {
   })
 }
 
-function exportList(list) {
-  const data = JSON.stringify(list, null, 2)
-  const blob = new Blob([data], { type: 'application/json' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url; a.download = `${list.name}.json`; a.click()
-  URL.revokeObjectURL(url)
+async function exportList(list) {
+  const safeName = list.name.replace(/[<>:"/\\|?*]/g, '_')
+  const result = await saveTextFile(JSON.stringify(list, null, 2), `${safeName}.json`, 'json')
+  if (result?.success) {
+    showBanner({ message: `${lang.value === 'en' ? 'Exported' : '导出成功'}: ${list.name}`, icon: 'checkmark-circle-16-regular', type: 'success', duration: 5000 })
+  } else if (!result?.cancelled) {
+    showBanner({ message: `${lang.value === 'en' ? 'Export failed' : '导出失败'}: ${result?.error || 'Unknown error'}`, icon: 'warning-16-regular', type: 'warning', duration: 8000 })
+  }
 }
 
-function importList() {
-  const input = document.createElement('input')
-  input.type = 'file'; input.accept = '.json'
-  input.onchange = async (e) => {
-    const file = e.target.files[0]
-    if (!file) return
-    try {
-      const text = await file.text()
-      const data = JSON.parse(text)
-      if (data.name && Array.isArray(data.names)) {
-        namesStore.importList(data)
-        showBanner({
-          message: `${lang.value === 'en' ? 'Imported' : '导入成功'}: ${data.name}`,
-          icon: 'checkmark-circle-16-regular',
-          type: 'success',
-          duration: 3000
-        })
-      }
-    } catch {
-      showBanner({
-        message: lang.value === 'en' ? 'Import failed: Invalid JSON format' : '导入失败：JSON 格式无效',
-        icon: 'warning-16-regular',
-        type: 'warning',
-        duration: 3000
-      })
-    }
+async function importList() {
+  const result = await openTextFile('json')
+  if (!result?.success) {
+    if (!result?.cancelled) showBanner({ message: `${lang.value === 'en' ? 'Import failed' : '导入失败'}: ${result?.error || 'Unknown error'}`, icon: 'warning-16-regular', type: 'warning', duration: 8000 })
+    return
   }
-  input.click()
+  try {
+    const data = JSON.parse(result.content)
+    const imported = namesStore.importList(data)
+    if (!imported) throw new Error(lang.value === 'en' ? 'Invalid list structure' : '名单结构无效')
+    if (result.filePath) emitFileNotice(`${lang.value === 'en' ? 'List imported' : '名单已导入'}：${result.filePath}`, result.filePath)
+    showBanner({ message: `${lang.value === 'en' ? 'Imported' : '导入成功'}: ${data.name}`, icon: 'checkmark-circle-16-regular', type: 'success', duration: 5000 })
+  } catch (error) {
+    showBanner({ message: `${lang.value === 'en' ? 'Import failed' : '导入失败'}: ${error.message || (lang.value === 'en' ? 'Invalid JSON' : 'JSON 格式无效')}`, icon: 'warning-16-regular', type: 'warning', duration: 8000 })
+  }
 }
 </script>
 

@@ -24,15 +24,22 @@ export const tauriAPI = {
   async showDataLocation() { return this.invoke('show_data_location', {}) },
   async setAutoStart(enabled) { return this.invoke('set_auto_start', { enabled }) },
   async isAutoStartLaunch() { return this.invoke('is_autostart_launch', {}) },
+  async systemAccent() { return this.invoke('system_accent', {}) },
+  async saveTextFile(content, defaultName, extension = 'json') { return this.invoke('save_text_file', { content, defaultName, extension }) },
+  async openTextFile(extension = 'json') { return this.invoke('open_text_file', { extension }) },
+  async revealFile(path) { return this.invoke('reveal_file', { path }) },
+  async exportDataFile() { return this.invoke('export_data_file', {}) },
+  async importDataFile() { return this.invoke('import_data_file', {}) },
   async checkUpdate() { return this.invoke('check_update', {}) },
   async fetchAnnouncements() { return this.invoke('fetch_announcements', {}) },
   async showMainWindow() { return this.invoke('show_main_window', {}) },
-  async downloadAndLaunchUpdate(url, fileName, expectedSize) {
+  async downloadAndLaunchUpdate(url, fileName, expectedSize, source) {
     if (!isTauri()) return null
     return window.__TAURI_INTERNALS__.invoke('download_and_launch_update', {
       url,
       fileName,
-      expectedSize
+      expectedSize,
+      source
     })
   }
 }

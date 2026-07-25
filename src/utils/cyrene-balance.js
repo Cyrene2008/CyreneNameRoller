@@ -183,6 +183,7 @@ export function pickCyreneBalanced(
     if (threshold < 0) {
       const selected = available[index]
       return {
+        id: selected.id,
         cn: selected.cn,
         en: selected.en,
         index: names.indexOf(selected),
@@ -193,6 +194,7 @@ export function pickCyreneBalanced(
 
   const selected = available[available.length - 1]
   return {
+    id: selected.id,
     cn: selected.cn,
     en: selected.en,
     index: names.indexOf(selected),

@@ -15,7 +15,7 @@
       <div class="records-list" ref="listRef">
         <div v-for="(rec, i) in records" :key="i" class="record-item">
           <span class="ri-time">{{ formatTime(rec.time) }}</span>
-          <span class="ri-name">{{ resolveName(rec) }}</span>
+          <span class="ri-name" :title="recordIdentity(rec)">{{ resolveName(rec) }}</span>
           <span class="ri-list">{{ resolveList(rec) }}</span>
           <span class="ri-source">{{ rec.source === 'roller' ? (lang === 'en' ? 'Roller' : '随机点名') : (lang === 'en' ? 'Card' : '翻牌点名') }}</span>
         </div>
@@ -58,6 +58,7 @@ function resolveName(rec) {
   if (person) return person.en ? `${person.cn} (${person.en})` : person.cn
   return rec.cn || (lang.value === 'en' ? 'Deleted person' : '已删除成员')
 }
+function recordIdentity(rec) { return rec.groupId || rec.personId || '' }
 
 onMounted(() => {
   recordsStore.initialize()

@@ -75,9 +75,10 @@ export const useSettingsStore = defineStore('settings', () => {
 
   function update(key, value) {
     settings.value[key] = value
-    save()
+    const saving = save()
     if (key === 'uiScale') applyUIScale()
     if (key === 'nameFontSize') applyNameFontSize()
+    return saving
   }
 
   function toggleDarkMode() {

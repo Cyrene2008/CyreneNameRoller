@@ -54,6 +54,7 @@ export const useNamesStore = defineStore('names', () => {
   }
 
   async function initialize() {
+    if (isLoaded.value) return
     try {
       const savedLists = await dataBridge.load('lists')
       const savedCurrentId = await dataBridge.load('currentListId')
@@ -109,7 +110,7 @@ export const useNamesStore = defineStore('names', () => {
 
   function addPerson(cn, en) {
     if (!cn || !cn.trim()) return
-    currentList.value.names.push({ id: generatePersonId(), cn: cn.trim(), en: (en || '').trim(), isWhiteList: false })
+    currentList.value.names.push({ id: generatePersonId(), cn: cn.trim(), en: (en || '').trim(), groupId: '', isWhiteList: false })
     save()
   }
 

@@ -1,5 +1,8 @@
 import { isTauri, tauriAPI } from './tauriAPI'
 import { decryptCyreneData, encryptCyreneData } from './cyreneCrypto'
+import { emitFileNotice } from './desktopFiles'
+
+const NOTICE_KEYS = new Set(['lists', 'prizeLists'])
 
 export function isElectron() {
   return typeof window !== 'undefined' && !!window.electronAPI
@@ -43,14 +46,20 @@ export const dataBridge = {
   async save(key, data) {
     // Tauri
     if (isTauri()) {
-      try { await tauriAPI.storageSet(key, data) } catch (e) {
+      try {
+        const result = await tauriAPI.storageSet(key, data)
+        if (NOTICE_KEYS.has(key) && result?.filePath) notifyDataSaved(result.filePath)
+      } catch (e) {
         console.warn(`[dataBridge] Tauri save failed for "${key}":`, e)
       }
     }
 
     // Electron
     if (isElectron()) {
-        try { await window.electronAPI.storageSet(key, data); notifyDataSaved() } catch (e) {
+        try {
+          const result = await window.electronAPI.storageSet(key, data)
+          if (NOTICE_KEYS.has(key) && result?.filePath) notifyDataSaved(result.filePath)
+        } catch (e) {
         console.warn(`[dataBridge] Electron save failed for "${key}":`, e)
       }
     }
@@ -118,14 +127,17 @@ export const dataBridge = {
 
   async exportData() {
     if (isElectron()) {
-      try { return await window.electronAPI.exportData() } catch {}
+      try {
+        const result = await window.electronAPI.exportData()
+        if (result?.success && result.filePath) emitFileNotice(`程序数据已导出：${result.filePath}`, result.filePath)
+        return result
+      } catch {}
     }
     if (isTauri()) {
       try {
-        const encoded = await tauriAPI.exportEncryptedData()
-        if (!encoded) return { success: false, error: '无法导出加密数据' }
-        downloadEncryptedFile(base64ToBytes(encoded))
-        return { success: true }
+        const result = await tauriAPI.exportDataFile()
+        if (result?.success && result.filePath) emitFileNotice(`程序数据已导出：${result.filePath}`, result.filePath)
+        return result
       } catch (error) {
         return { success: false, error: error.message }
       }
@@ -143,7 +155,18 @@ export const dataBridge = {
 
   async importData() {
     if (isElectron()) {
-      try { return await window.electronAPI.importData() } catch {}
+      try {
+        const result = await window.electronAPI.importData()
+        if (result?.success && result.filePath) emitFileNotice(`程序数据已导入：${result.filePath}`, result.filePath)
+        return result
+      } catch {}
+    }
+    if (isTauri()) {
+      try {
+        const result = await tauriAPI.importDataFile()
+        if (result?.success && result.filePath) emitFileNotice(`程序数据已导入：${result.filePath}`, result.filePath)
+        return result
+      } catch (error) { return { success: false, error: error.message } }
     }
     return new Promise((resolve) => {
       const input = document.createElement('input')
@@ -153,14 +176,9 @@ export const dataBridge = {
         if (!file) { resolve({ success: false, cancelled: true }); return }
         try {
           const bytes = new Uint8Array(await file.arrayBuffer())
-          if (isTauri()) {
-            const result = await tauriAPI.importEncryptedData(bytesToBase64(bytes))
-            if (result !== true) throw new Error('导入失败')
-          } else {
-            const data = await decryptCyreneData(bytes)
-            for (const [k, v] of Object.entries(data)) {
-              localStorage.setItem(k, JSON.stringify(v))
-            }
+          const data = await decryptCyreneData(bytes)
+          for (const [k, v] of Object.entries(data)) {
+            localStorage.setItem(k, JSON.stringify(v))
           }
           resolve({ success: true })
         } catch (error) { resolve({ success: false, error: error.message || 'Parse error' }) }
@@ -170,8 +188,8 @@ export const dataBridge = {
   }
 }
 
-function notifyDataSaved() {
-  window.dispatchEvent(new CustomEvent('cyrene:data-saved', { detail: { location: '安装目录/data/cyrene-data.cyrene' } }))
+function notifyDataSaved(location) {
+  emitFileNotice(`数据已保存：${location}`, location)
 }
 
 function downloadEncryptedFile(bytes) {

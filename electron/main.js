@@ -1,4 +1,5 @@
-const { app, BrowserWindow, ipcMain, dialog, shell, net, Tray, Menu: ElectronMenu } = require('electron')
+const { app, BrowserWindow, ipcMain, dialog, shell, net, Tray, Menu: ElectronMenu, systemPreferences } = require('electron')
+const { spawn, spawnSync } = require('child_process')
 const path = require('path')
 const fs = require('fs')
 const https = require('https')
@@ -23,17 +24,77 @@ const DATA_TAG_LENGTH = 16
 const DATA_KEY = crypto.createHash('sha256')
   .update('CyreneNameRoller:encrypted-data:v1:cn.cyrene2008.nameroller')
   .digest()
+const STARTUP_TASK_NAME = 'CyreneNameRollerAutoStart'
+const startupConfiguration = process.argv.find(argument => argument.startsWith('--cyrene-configure-autostart='))
+const replacedProcessId = Number(process.argv.find(argument => argument.startsWith('--cyrene-replace-pid='))?.split('=')[1]) || 0
 
-// 单实例限制：多次启动主程序只保留一个进程
-if (!app.requestSingleInstanceLock()) {
-  app.quit()
+function quoteTaskArgument(value) {
+  return `"${String(value).replace(/"/g, '\\"')}"`
 }
-app.on('second-instance', () => {
-  if (win) {
+
+function startupTaskAction() {
+  const parts = [quoteTaskArgument(process.execPath)]
+  if (!app.isPackaged) parts.push(quoteTaskArgument(app.getAppPath()))
+  parts.push('--cyrene-autostart')
+  return parts.join(' ')
+}
+
+function configureStartupTask(enabled) {
+  if (process.platform !== 'win32') return { success: false, error: '管理员计划任务仅支持 Windows' }
+  const args = enabled
+    ? ['/Create', '/TN', STARTUP_TASK_NAME, '/TR', startupTaskAction(), '/SC', 'ONLOGON', '/RL', 'HIGHEST', '/F']
+    : ['/Delete', '/TN', STARTUP_TASK_NAME, '/F']
+  const result = spawnSync('schtasks.exe', args, { windowsHide: true, encoding: 'utf8' })
+  if (result.status === 0 || (!enabled && /cannot find|找不到/i.test(`${result.stdout}${result.stderr}`))) return { success: true, restarting: false }
+  return { success: false, error: String(result.stderr || result.stdout || '计划任务配置失败').trim() }
+}
+
+function isProcessElevated() {
+  if (process.platform !== 'win32') return false
+  const script = "([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)"
+  return /true/i.test(spawnSync('powershell.exe', ['-NoProfile', '-Command', script], { windowsHide: true, encoding: 'utf8' }).stdout || '')
+}
+
+function powershellLiteral(value) {
+  return `'${String(value).replace(/'/g, "''")}'`
+}
+
+function restartElevatedForStartupTask(enabled) {
+  const appArguments = []
+  if (!app.isPackaged) appArguments.push(quoteTaskArgument(app.getAppPath()))
+  appArguments.push(`--cyrene-configure-autostart=${enabled ? 'enable' : 'disable'}`)
+  appArguments.push(`--cyrene-replace-pid=${process.pid}`)
+  const argumentList = appArguments.map(powershellLiteral).join(', ')
+  const script = `$process = Start-Process -FilePath ${powershellLiteral(process.execPath)} -Verb RunAs -ArgumentList ${argumentList} -Wait -PassThru; exit $process.ExitCode`
+  const helper = spawn('powershell.exe', ['-NoProfile', '-WindowStyle', 'Hidden', '-Command', script], {
+    windowsHide: true,
+    stdio: 'ignore'
+  })
+  return new Promise(resolve => {
+    helper.once('error', error => resolve({ success: false, error: error.message }))
+    helper.once('exit', code => resolve(code === 0
+      ? { success: true, restarting: true }
+      : { success: false, error: '管理员授权已取消或管理员进程启动失败' }))
+  })
+}
+
+function revealMainWindow() {
+  if (!win || win.isDestroyed()) return
+  win.webContents.send('main-window-shown')
+  setTimeout(() => {
+    if (!win || win.isDestroyed()) return
     if (win.isMinimized()) win.restore()
     win.show()
     win.focus()
-  }
+  }, 40)
+}
+
+// 单实例限制：多次启动主程序只保留一个进程
+if (!startupConfiguration && !app.requestSingleInstanceLock()) {
+  app.quit()
+}
+app.on('second-instance', () => {
+  revealMainWindow()
 })
 
 async function initStore() {
@@ -196,7 +257,15 @@ ipcMain.on('window-maximize', () => { win.isMaximized() ? win.unmaximize() : win
 ipcMain.on('window-close', () => win.close())
 ipcMain.on('window-hide', () => { if (win && !win.isDestroyed()) win.hide() })
 ipcMain.handle('window-is-maximized', () => win.isMaximized())
-ipcMain.handle('set-auto-start', (_, enabled) => { app.setLoginItemSettings({ openAtLogin: !!enabled, args: ['--cyrene-autostart'] }); return true })
+ipcMain.handle('set-auto-start', async (_, enabled) => {
+  if (process.platform !== 'win32') return { success: false, error: '管理员计划任务仅支持 Windows' }
+  if (isProcessElevated()) return configureStartupTask(!!enabled)
+  return await restartElevatedForStartupTask(!!enabled)
+})
+ipcMain.handle('is-autostart-launch', () => process.argv.includes('--cyrene-autostart'))
+ipcMain.handle('system-accent', () => {
+  try { return `#${systemPreferences.getAccentColor().slice(0, 6)}` } catch { return '#ea5ec1' }
+})
 ipcMain.on('window-show-ready', () => {
   const startHidden = process.argv.includes('--cyrene-autostart') && appData.settings?.autoStartToTray === true
   if (win && !win.isDestroyed() && !startHidden) win.show()
@@ -259,7 +328,7 @@ ipcMain.on('close-floating-window', () => {
 })
 
 ipcMain.on('focus-main-window', () => {
-  if (win && !win.isDestroyed()) { win.show(); win.focus() }
+  revealMainWindow()
 })
 
 ipcMain.handle('open-external', (_, url) => {
@@ -378,7 +447,7 @@ function validateInstaller(filePath, expectedSize) {
   }
 }
 
-async function downloadInstaller(originalUrl, fileName, expectedSize, onProgress) {
+async function downloadInstaller(originalUrl, fileName, expectedSize, source, onProgress) {
   if (!String(originalUrl).startsWith(UPDATE_URL_PREFIX)) {
     throw new Error('更新地址不属于 CyreneNameRoller 官方发布源')
   }
@@ -386,7 +455,9 @@ async function downloadInstaller(originalUrl, fileName, expectedSize, onProgress
   fs.mkdirSync(updateDir, { recursive: true })
   const finalPath = path.join(updateDir, sanitizeInstallerName(fileName))
   const partialPath = `${finalPath}.part`
-  const urls = [`${UPDATE_PROXY_BASE}${originalUrl}`, originalUrl]
+  const urls = source === 'github'
+    ? [originalUrl]
+    : [`${source === 'ghproxy' ? 'https://gh-proxy.com/' : UPDATE_PROXY_BASE}${originalUrl}`]
   const failures = []
 
   for (const url of urls) {
@@ -407,12 +478,12 @@ async function downloadInstaller(originalUrl, fileName, expectedSize, onProgress
   throw new Error(failures.join('；') || '安装程序下载失败')
 }
 
-ipcMain.handle('download-and-launch-update', async (event, originalUrl, fileName, expectedSize) => {
+ipcMain.handle('download-and-launch-update', async (event, originalUrl, fileName, expectedSize, source = 'cyrene') => {
   try {
     const sendProgress = progress => {
       if (!event.sender.isDestroyed()) event.sender.send('update-download-progress', progress)
     }
-    const filePath = await downloadInstaller(originalUrl, fileName, Number(expectedSize) || 0, sendProgress)
+    const filePath = await downloadInstaller(originalUrl, fileName, Number(expectedSize) || 0, source, sendProgress)
     const launchError = await shell.openPath(filePath)
     if (launchError) throw new Error(`无法启动安装程序：${launchError}`)
     setTimeout(() => {
@@ -439,10 +510,10 @@ ipcMain.handle('storage-get', (_, key) => {
 ipcMain.handle('storage-set', (_, key, value) => {
   try {
     appData[key] = value
-    return persistData()
+    return { success: persistData(), filePath: dataFilePath }
   } catch (e) {
     console.error(`[storage-set] Failed for "${key}":`, e.message)
-    return false
+    return { success: false, error: e.message }
   }
 })
 
@@ -469,6 +540,42 @@ ipcMain.handle('show-data-location', () => {
   if (!dataFilePath) return false
   shell.showItemInFolder(dataFilePath)
   return true
+})
+ipcMain.handle('reveal-file', (_, filePath) => {
+  if (!filePath) return false
+  shell.showItemInFolder(path.resolve(String(filePath)))
+  return true
+})
+
+ipcMain.handle('save-text-file', async (_, content, defaultName, extension = 'json') => {
+  try {
+    const ext = String(extension).replace(/[^a-z0-9]/gi, '') || 'json'
+    const result = await dialog.showSaveDialog(win, {
+      title: '保存文件',
+      defaultPath: path.basename(String(defaultName || `export.${ext}`)),
+      filters: [{ name: `${ext.toUpperCase()} 文件`, extensions: [ext] }]
+    })
+    if (result.canceled || !result.filePath) return { success: false, cancelled: true }
+    fs.writeFileSync(result.filePath, String(content), 'utf8')
+    return { success: true, filePath: result.filePath }
+  } catch (error) {
+    return { success: false, error: error.message }
+  }
+})
+
+ipcMain.handle('open-text-file', async (_, extension = 'json') => {
+  try {
+    const ext = String(extension).replace(/[^a-z0-9]/gi, '') || 'json'
+    const result = await dialog.showOpenDialog(win, {
+      title: '打开文件',
+      filters: [{ name: `${ext.toUpperCase()} 文件`, extensions: [ext] }],
+      properties: ['openFile']
+    })
+    if (result.canceled || !result.filePaths[0]) return { success: false, cancelled: true }
+    return { success: true, content: fs.readFileSync(result.filePaths[0], 'utf8'), filePath: result.filePaths[0] }
+  } catch (error) {
+    return { success: false, error: error.message }
+  }
 })
 
 // 检查更新（通过主进程避免 CORS）
@@ -580,7 +687,7 @@ ipcMain.handle('data:exportData', async () => {
     })
     if (savePath) {
       fs.copyFileSync(dataFilePath, savePath)
-      return { success: true }
+      return { success: true, filePath: savePath }
     }
     return { success: false, cancelled: true }
   } catch (e) {
@@ -603,7 +710,7 @@ ipcMain.handle('data:importData', async () => {
         appData = previousData
         return { success: false, error: '无法写入加密数据文件' }
       }
-      return { success: true }
+      return { success: true, filePath: filePaths[0] }
     }
     return { success: false, cancelled: true }
   } catch (e) {
@@ -616,13 +723,13 @@ function createTray() {
     const iconPath = path.join(__dirname, isDev ? '../public/icon.png' : '../dist/icon.png')
     tray = new Tray(iconPath)
     const contextMenu = ElectronMenu.buildFromTemplate([
-      { label: '显示主窗口', click: () => { if (win) { win.show(); win.focus() } } },
+      { label: '显示主窗口', click: revealMainWindow },
       { type: 'separator' },
       { label: '退出', click: () => { quitting = true; app.quit() } }
     ])
     tray.setToolTip('Cyreneの随机点名器')
     tray.setContextMenu(contextMenu)
-    tray.on('double-click', () => { if (win) { win.show(); win.focus() } })
+    tray.on('click', revealMainWindow)
   } catch (e) {
     console.error('[tray] failed to create:', e.message)
   }
@@ -630,8 +737,28 @@ function createTray() {
 
 app.whenReady().then(async () => {
   await initStore()
+  if (startupConfiguration) {
+    const enabled = startupConfiguration.endsWith('=enable')
+    const result = configureStartupTask(enabled)
+    if (!result.success) {
+      console.error('[startup-task]', result.error)
+      process.exitCode = 2
+      app.quit()
+      return
+    }
+    if (result.success && replacedProcessId > 0) {
+      spawnSync('taskkill.exe', ['/PID', String(replacedProcessId), '/T', '/F'], { windowsHide: true })
+    }
+    if (!app.requestSingleInstanceLock()) {
+      app.quit()
+      return
+    }
+  }
   createWindow()
   createTray()
+  systemPreferences.on('accent-color-changed', () => {
+    if (win && !win.isDestroyed()) win.webContents.send('accent-color-changed', `#${systemPreferences.getAccentColor().slice(0, 6)}`)
+  })
 })
 // 后台常驻：窗口关闭后进程不退出（由托盘管理退出）
 app.on('window-all-closed', () => {})

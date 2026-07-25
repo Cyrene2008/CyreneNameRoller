@@ -6,6 +6,7 @@ use std::sync::Mutex;
 use tauri::{Emitter, LogicalSize, Manager, State};
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
+use tauri_plugin_dialog::DialogExt;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -16,6 +17,7 @@ const MIN_INSTALLER_SIZE: usize = 1024 * 1024;
 const DATA_MAGIC: &[u8] = b"CYRENE1\0";
 const DATA_NONCE_LENGTH: usize = 12;
 const DATA_TAG_LENGTH: usize = 16;
+const STARTUP_TASK_NAME: &str = "CyreneNameRollerAutoStart";
 
 struct EncryptedStore {
     path: PathBuf,
@@ -51,7 +53,23 @@ impl EncryptedStore {
         let temporary_path = self.path.with_extension("cyrene.tmp");
         fs::write(&temporary_path, encrypt_data(&values)?)
             .map_err(|error| error.to_string())?;
-        fs::rename(&temporary_path, &self.path).map_err(|error| error.to_string())
+        let backup_path = self.path.with_extension("cyrene.bak");
+        let _ = fs::remove_file(&backup_path);
+        if self.path.exists() {
+            fs::rename(&self.path, &backup_path).map_err(|error| error.to_string())?;
+        }
+        match fs::rename(&temporary_path, &self.path) {
+            Ok(_) => {
+                let _ = fs::remove_file(backup_path);
+                Ok(())
+            }
+            Err(error) => {
+                if backup_path.exists() {
+                    let _ = fs::rename(&backup_path, &self.path);
+                }
+                Err(error.to_string())
+            }
+        }
     }
 }
 
@@ -149,6 +167,7 @@ async fn download_installer_bytes(
     app: &tauri::AppHandle,
     url: &str,
     expected_size: u64,
+    source: &str,
 ) -> Result<Vec<u8>, String> {
     if !url.starts_with(UPDATE_URL_PREFIX) {
         return Err("更新地址不属于 CyreneNameRoller 官方发布源".into());
@@ -158,7 +177,13 @@ async fn download_installer_bytes(
         .timeout(std::time::Duration::from_secs(300))
         .build()
         .map_err(|e| e.to_string())?;
-    let urls = [format!("{}{}", UPDATE_PROXY_BASE, url), url.to_string()];
+    let urls = if source == "github" {
+        vec![url.to_string()]
+    } else if source == "ghproxy" {
+        vec![format!("https://gh-proxy.com/{}", url)]
+    } else {
+        vec![format!("{}{}", UPDATE_PROXY_BASE, url)]
+    };
     let mut failures = Vec::new();
 
     for candidate_url in urls {
@@ -321,20 +346,23 @@ fn migrate_legacy_data(app: &tauri::AppHandle) {
 }
 
 #[tauri::command]
-fn storage_set(store: State<'_, EncryptedStore>, key: String, value: serde_json::Value) -> bool {
+fn storage_set(store: State<'_, EncryptedStore>, key: String, value: serde_json::Value) -> serde_json::Value {
     if store.is_healthy().is_err() {
-        return false;
+        return serde_json::json!({ "success": false, "error": "数据文件完整性检查失败" });
     }
     if let Ok(mut values) = store.values.lock() {
         if let Some(object) = values.as_object_mut() {
             object.insert(key, value);
         } else {
-            return false;
+            return serde_json::json!({ "success": false, "error": "数据内容无效" });
         }
     } else {
-        return false;
+        return serde_json::json!({ "success": false, "error": "数据锁定失败" });
     }
-    store.persist().is_ok()
+    match store.persist() {
+        Ok(_) => serde_json::json!({ "success": true, "filePath": store.path.to_string_lossy() }),
+        Err(error) => serde_json::json!({ "success": false, "error": error }),
+    }
 }
 
 #[tauri::command]
@@ -387,6 +415,85 @@ fn import_encrypted_data(store: State<'_, EncryptedStore>, encoded_data: String)
     }
     store.persist()?;
     Ok(true)
+}
+
+#[tauri::command]
+async fn save_text_file(
+    app: tauri::AppHandle,
+    content: String,
+    default_name: String,
+    extension: String,
+) -> Result<serde_json::Value, String> {
+    let safe_extension: String = extension.chars().filter(|character| character.is_ascii_alphanumeric()).collect();
+    let safe_extension = if safe_extension.is_empty() { "json".to_string() } else { safe_extension };
+    let selected = app
+        .dialog()
+        .file()
+        .set_title("保存文件")
+        .set_file_name(default_name)
+        .add_filter(format!("{} 文件", safe_extension.to_uppercase()), &[safe_extension.as_str()])
+        .blocking_save_file();
+    let Some(selected) = selected else {
+        return Ok(serde_json::json!({ "success": false, "cancelled": true }));
+    };
+    let path = selected.into_path().map_err(|error| error.to_string())?;
+    fs::write(&path, content).map_err(|error| error.to_string())?;
+    Ok(serde_json::json!({ "success": true, "filePath": path.to_string_lossy() }))
+}
+
+#[tauri::command]
+async fn open_text_file(app: tauri::AppHandle, extension: String) -> Result<serde_json::Value, String> {
+    let safe_extension: String = extension.chars().filter(|character| character.is_ascii_alphanumeric()).collect();
+    let safe_extension = if safe_extension.is_empty() { "json".to_string() } else { safe_extension };
+    let selected = app
+        .dialog()
+        .file()
+        .set_title("打开文件")
+        .add_filter(format!("{} 文件", safe_extension.to_uppercase()), &[safe_extension.as_str()])
+        .blocking_pick_file();
+    let Some(selected) = selected else {
+        return Ok(serde_json::json!({ "success": false, "cancelled": true }));
+    };
+    let path = selected.into_path().map_err(|error| error.to_string())?;
+    let content = fs::read_to_string(&path).map_err(|error| error.to_string())?;
+    Ok(serde_json::json!({ "success": true, "content": content, "filePath": path.to_string_lossy() }))
+}
+
+#[tauri::command]
+async fn export_data_file(app: tauri::AppHandle, store: State<'_, EncryptedStore>) -> Result<serde_json::Value, String> {
+    store.persist()?;
+    let selected = app
+        .dialog()
+        .file()
+        .set_title("导出程序数据")
+        .set_file_name("cyrene-data.cyrene")
+        .add_filter("Cyrene Data", &["cyrene"])
+        .blocking_save_file();
+    let Some(selected) = selected else {
+        return Ok(serde_json::json!({ "success": false, "cancelled": true }));
+    };
+    let path = selected.into_path().map_err(|error| error.to_string())?;
+    fs::copy(&store.path, &path).map_err(|error| error.to_string())?;
+    Ok(serde_json::json!({ "success": true, "filePath": path.to_string_lossy() }))
+}
+
+#[tauri::command]
+async fn import_data_file(app: tauri::AppHandle, store: State<'_, EncryptedStore>) -> Result<serde_json::Value, String> {
+    let selected = app
+        .dialog()
+        .file()
+        .set_title("导入程序数据")
+        .add_filter("Cyrene Data", &["cyrene"])
+        .blocking_pick_file();
+    let Some(selected) = selected else {
+        return Ok(serde_json::json!({ "success": false, "cancelled": true }));
+    };
+    let path = selected.into_path().map_err(|error| error.to_string())?;
+    let bytes = fs::read(&path).map_err(|error| error.to_string())?;
+    let values = decrypt_data(&bytes)?;
+    *store.values.lock().map_err(|_| "数据锁定失败".to_string())? = values;
+    store.persist()?;
+    Ok(serde_json::json!({ "success": true, "filePath": path.to_string_lossy() }))
 }
 
 #[tauri::command]
@@ -511,8 +618,9 @@ async fn download_and_launch_update(
     url: String,
     file_name: String,
     expected_size: u64,
+    source: String,
 ) -> Result<serde_json::Value, String> {
-    let bytes = download_installer_bytes(&app, &url, expected_size).await?;
+    let bytes = download_installer_bytes(&app, &url, expected_size, &source).await?;
     let path = installer_temp_path(&file_name)?;
     let partial_path = path.with_extension("exe.part");
     let _ = fs::remove_file(&partial_path);
@@ -570,12 +678,7 @@ async fn close_floating_window(app: tauri::AppHandle) -> Result<(), String> {
 
 #[tauri::command]
 async fn focus_main_window(app: tauri::AppHandle) -> Result<(), String> {
-    if let Some(win) = app.get_webview_window("main") {
-        win.unminimize().map_err(|e| e.to_string())?;
-        win.show().map_err(|e| e.to_string())?;
-        win.set_focus().map_err(|e| e.to_string())?;
-    }
-    Ok(())
+    reveal_main_window(&app)
 }
 
 #[tauri::command]
@@ -587,23 +690,116 @@ async fn hide_to_tray(app: tauri::AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn show_data_location() {
+fn reveal_file(path: String) -> bool {
+    let path = PathBuf::from(path);
     #[cfg(target_os = "windows")]
-    { let _ = Command::new("explorer").arg("/select,").arg(installation_data_dir().join("cyrene-data.cyrene")).spawn(); }
+    { return Command::new("explorer").arg("/select,").arg(path).spawn().is_ok(); }
+    #[cfg(target_os = "macos")]
+    { return Command::new("open").args(["-R", path.to_string_lossy().as_ref()]).spawn().is_ok(); }
+    #[cfg(target_os = "linux")]
+    { return Command::new("xdg-open").arg(path.parent().unwrap_or(Path::new("."))).spawn().is_ok(); }
 }
 
 #[tauri::command]
-fn set_auto_start(enabled: bool) -> Result<bool, String> {
+fn show_data_location() -> bool {
+    reveal_file(installation_data_dir().join("cyrene-data.cyrene").to_string_lossy().into_owned())
+}
+
+#[tauri::command]
+fn system_accent() -> String {
     #[cfg(target_os = "windows")]
     {
-        let task = "CyreneNameRollerAutoStart";
-        let command = if enabled {
-            let exe = std::env::current_exe().map_err(|error| error.to_string())?;
-            format!("schtasks /Create /TN \"{}\" /TR '\"{}\" --cyrene-autostart' /SC ONLOGON /RL HIGHEST /F", task, exe.to_string_lossy())
-        } else { format!("schtasks /Delete /TN \"{}\" /F", task) };
-        Command::new("powershell").args(["-NoProfile", "-Command", &format!("Start-Process powershell -Verb RunAs -ArgumentList '-NoProfile -Command {}'", command.replace("'", "''"))]).spawn().map_err(|error| error.to_string())?;
+        let queries = [
+            (r"HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Accent", "AccentColorMenu"),
+            (r"HKCU\Software\Microsoft\Windows\DWM", "AccentColor"),
+        ];
+        for (key, value_name) in queries {
+            if let Ok(output) = Command::new("reg").args(["query", key, "/v", value_name]).output() {
+                let text = String::from_utf8_lossy(&output.stdout);
+                if let Some(raw) = text.split_whitespace().find(|part| part.starts_with("0x")) {
+                    if let Ok(value) = u32::from_str_radix(raw.trim_start_matches("0x"), 16) {
+                        let red = value & 0xff;
+                        let green = (value >> 8) & 0xff;
+                        let blue = (value >> 16) & 0xff;
+                        return format!("#{:02x}{:02x}{:02x}", red, green, blue);
+                    }
+                }
+            }
+        }
     }
-    Ok(true)
+    "#ea5ec1".into()
+}
+
+fn startup_task_action() -> Result<String, String> {
+    let executable = std::env::current_exe().map_err(|error| error.to_string())?;
+    Ok(format!("\"{}\" --cyrene-autostart", executable.to_string_lossy()))
+}
+
+fn configure_startup_task(enabled: bool) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        let output = if enabled {
+            Command::new("schtasks")
+                .args(["/Create", "/TN", STARTUP_TASK_NAME, "/TR", &startup_task_action()?, "/SC", "ONLOGON", "/RL", "HIGHEST", "/F"])
+                .output()
+        } else {
+            Command::new("schtasks").args(["/Delete", "/TN", STARTUP_TASK_NAME, "/F"]).output()
+        }.map_err(|error| error.to_string())?;
+        if output.status.success() || !enabled {
+            return Ok(());
+        }
+        let error = String::from_utf8_lossy(if output.stderr.is_empty() { &output.stdout } else { &output.stderr });
+        return Err(error.trim().to_string());
+    }
+    #[cfg(not(target_os = "windows"))]
+    Err("管理员计划任务仅支持 Windows".into())
+}
+
+fn process_is_elevated() -> bool {
+    #[cfg(target_os = "windows")]
+    {
+        let script = "([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)";
+        return Command::new("powershell").args(["-NoProfile", "-Command", script]).output()
+            .map(|output| String::from_utf8_lossy(&output.stdout).trim().eq_ignore_ascii_case("true"))
+            .unwrap_or(false);
+    }
+    #[cfg(not(target_os = "windows"))]
+    false
+}
+
+fn powershell_literal(value: &str) -> String {
+    format!("'{}'", value.replace('\'', "''"))
+}
+
+#[tauri::command]
+fn set_auto_start(enabled: bool) -> Result<serde_json::Value, String> {
+    #[cfg(target_os = "windows")]
+    {
+        if process_is_elevated() {
+            configure_startup_task(enabled)?;
+            return Ok(serde_json::json!({ "success": true, "restarting": false }));
+        }
+        let executable = std::env::current_exe().map_err(|error| error.to_string())?;
+        let current_pid = std::process::id();
+        let configuration = format!("--cyrene-configure-autostart={}", if enabled { "enable" } else { "disable" });
+        let replace_process = format!("--cyrene-replace-pid={}", current_pid);
+        let script = format!(
+            "$process = Start-Process -FilePath {} -Verb RunAs -ArgumentList {}, {} -Wait -PassThru; exit $process.ExitCode",
+            powershell_literal(executable.to_string_lossy().as_ref()),
+            powershell_literal(&configuration),
+            powershell_literal(&replace_process)
+        );
+        let status = Command::new("powershell")
+            .args(["-NoProfile", "-WindowStyle", "Hidden", "-Command", &script])
+            .status()
+            .map_err(|error| error.to_string())?;
+        if !status.success() {
+            return Ok(serde_json::json!({ "success": false, "error": "管理员授权已取消或管理员进程启动失败" }));
+        }
+        return Ok(serde_json::json!({ "success": true, "restarting": true }));
+    }
+    #[cfg(not(target_os = "windows"))]
+    Ok(serde_json::json!({ "success": false, "error": "管理员计划任务仅支持 Windows" }))
 }
 
 #[tauri::command]
@@ -611,9 +807,21 @@ fn is_autostart_launch() -> bool { std::env::args().any(|arg| arg == "--cyrene-a
 
 #[tauri::command]
 async fn show_main_window(app: tauri::AppHandle) -> Result<(), String> {
-    if let Some(win) = app.get_webview_window("main") {
-        win.show().map_err(|e| e.to_string())?;
-        win.set_focus().map_err(|e| e.to_string())?;
+    reveal_main_window(&app)
+}
+
+fn reveal_main_window(app: &tauri::AppHandle) -> Result<(), String> {
+    if app.get_webview_window("main").is_some() {
+        let _ = app.emit("main-window-shown", ());
+        let handle = app.clone();
+        std::thread::spawn(move || {
+            std::thread::sleep(std::time::Duration::from_millis(50));
+            if let Some(window) = handle.get_webview_window("main") {
+                let _ = window.unminimize();
+                let _ = window.show();
+                let _ = window.set_focus();
+            }
+        });
     }
     Ok(())
 }
@@ -640,21 +848,13 @@ fn create_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                 if button == tauri::tray::MouseButton::Left
                     && button_state == tauri::tray::MouseButtonState::Up
                 {
-                    if let Some(w) = tray.app_handle().get_webview_window("main") {
-                        let _ = w.show();
-                        let _ = w.unminimize();
-                        let _ = w.set_focus();
-                    }
+                    let _ = reveal_main_window(tray.app_handle());
                 }
             }
         })
         .on_menu_event(|app, event| match event.id.as_ref() {
             "show" => {
-                if let Some(w) = app.get_webview_window("main") {
-                    let _ = w.show();
-                    let _ = w.unminimize();
-                    let _ = w.set_focus();
-                }
+                let _ = reveal_main_window(app);
             }
             "quit" => app.exit(0),
             _ => {}
@@ -665,16 +865,27 @@ fn create_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    if let Some(configuration) = std::env::args().find(|argument| argument.starts_with("--cyrene-configure-autostart=")) {
+        if let Err(error) = configure_startup_task(configuration.ends_with("=enable")) {
+            eprintln!("[startup-task] {}", error);
+            std::process::exit(2);
+        } else if let Some(pid) = std::env::args()
+            .find(|argument| argument.starts_with("--cyrene-replace-pid="))
+            .and_then(|argument| argument.split('=').nth(1).and_then(|value| value.parse::<u32>().ok()))
+        {
+            #[cfg(target_os = "windows")]
+            {
+                let _ = Command::new("taskkill").args(["/PID", &pid.to_string(), "/T", "/F"]).status();
+                std::thread::sleep(std::time::Duration::from_millis(180));
+            }
+        }
+    }
     tauri::Builder::default()
         .manage(EncryptedStore::load())
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
-            if let Some(window) = app.get_webview_window("main") {
-                let _ = window.show();
-                let _ = window.unminimize();
-                let _ = window.set_focus();
-            }
+            let _ = reveal_main_window(app);
         }))
         .setup(|app| {
             let handle = app.handle().clone();
@@ -705,11 +916,17 @@ pub fn run() {
             storage_clear,
             export_encrypted_data,
             import_encrypted_data,
+            export_data_file,
+            import_data_file,
+            save_text_file,
+            open_text_file,
             load_names,
             load_changelog,
             check_update,
             open_external,
             show_data_location,
+            reveal_file,
+            system_accent,
             set_auto_start,
             is_autostart_launch,
             fetch_announcements,

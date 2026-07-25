@@ -12,11 +12,57 @@
 
     <div class="dock-items">
       <router-link
-        v-for="item in mainItems"
+        v-for="item in leadingItems"
         :key="item.path"
         :to="item.path"
         class="dock-item"
         :class="{ active: route.path === item.path || (item.path === '/settings' && route.path.startsWith('/settings/')) || (item.path === '/about' && route.path.startsWith('/about/')) }"
+        draggable="false"
+        :title="item.label[lang]"
+      >
+        <div class="dock-item-indicator" />
+        <Icon :icon="item.icon" :width="20" class="dock-item-icon" />
+        <span v-if="!dockCollapsed" class="dock-item-label">{{ item.label[lang] }}</span>
+      </router-link>
+
+      <div
+        class="dock-item dock-parent"
+        :class="{ active: isLotteryActive, open: lotterySubmenuOpen }"
+        @click="toggleLotterySubmenu"
+        :title="lang === 'en' ? 'Lottery' : '抽奖模式'"
+      >
+        <div class="dock-item-indicator" />
+        <Icon icon="fluent:gift-24-regular" :width="20" class="dock-item-icon" />
+        <span v-if="!dockCollapsed" class="dock-item-label">{{ lang === 'en' ? 'Lottery' : '抽奖模式' }}</span>
+        <Icon icon="fluent:chevron-down-16-regular" :width="14" class="dock-chevron" />
+      </div>
+      <Transition name="submenu">
+        <div v-if="lotterySubmenuOpen" class="dock-submenu">
+          <router-link to="/lottery/draw" class="dock-subitem" :class="{ active: route.path === '/lottery/draw' }" :title="lang === 'en' ? 'Prize draw' : '奖品抽取'">
+            <Icon icon="fluent:gift-16-regular" :width="16" class="dock-subitem-icon" />
+            <span v-if="!dockCollapsed" class="dock-subitem-label">{{ lang === 'en' ? 'Prize draw' : '奖品抽取' }}</span>
+          </router-link>
+          <router-link to="/lottery/assign" class="dock-subitem" :class="{ active: route.path === '/lottery/assign' }" :title="lang === 'en' ? 'Assign prizes' : '人员奖品分配'">
+            <Icon icon="fluent:people-team-16-regular" :width="16" class="dock-subitem-icon" />
+            <span v-if="!dockCollapsed" class="dock-subitem-label">{{ lang === 'en' ? 'Assign prizes' : '人员奖品分配' }}</span>
+          </router-link>
+          <router-link to="/lottery/records" class="dock-subitem" :class="{ active: route.path === '/lottery/records' }" :title="lang === 'en' ? 'Lottery records' : '抽奖记录'">
+            <Icon icon="fluent:history-16-regular" :width="16" class="dock-subitem-icon" />
+            <span v-if="!dockCollapsed" class="dock-subitem-label">{{ lang === 'en' ? 'Lottery records' : '抽奖记录' }}</span>
+          </router-link>
+          <router-link to="/lottery/prizes" class="dock-subitem" :class="{ active: route.path.startsWith('/lottery/prizes') }" :title="lang === 'en' ? 'Prizes' : '奖品管理'">
+            <Icon icon="fluent:clipboard-bullet-list-16-regular" :width="16" class="dock-subitem-icon" />
+            <span v-if="!dockCollapsed" class="dock-subitem-label">{{ lang === 'en' ? 'Prizes' : '奖品管理' }}</span>
+          </router-link>
+        </div>
+      </Transition>
+
+      <router-link
+        v-for="item in trailingItems"
+        :key="item.path"
+        :to="item.path"
+        class="dock-item"
+        :class="{ active: route.path === item.path }"
         draggable="false"
         :title="item.label[lang]"
       >
@@ -53,7 +99,6 @@
             class="dock-subitem"
             :class="{ active: route.path === '/group-manage' }"
             :title="t('groupManage', lang)"
-          href="https://点名器.昔涟.cn"
           >
             <Icon icon="fluent:group-24-regular" :width="16" class="dock-subitem-icon" />
             <span v-if="!dockCollapsed" class="dock-subitem-label">{{ t('groupManage', lang) }}</span>
@@ -148,10 +193,20 @@ function toggleListSubmenu() {
   listSubmenuOpen.value = !listSubmenuOpen.value
 }
 
-const mainItems = [
+const isLotteryActive = computed(() => route.path.startsWith('/lottery'))
+const lotterySubmenuOpen = ref(isLotteryActive.value)
+watch(() => route.path, () => {
+  lotterySubmenuOpen.value = isLotteryActive.value
+})
+function toggleLotterySubmenu() {
+  lotterySubmenuOpen.value = !lotterySubmenuOpen.value
+}
+
+const leadingItems = [
   { path: '/roller', icon: 'fluent:flash-24-regular', label: { zh: '随机点名', en: 'Roller' } },
-  { path: '/card', icon: 'fluent:card-ui-portrait-flip-24-regular', label: { zh: '翻牌点名', en: 'Card Mode' } },
-  { path: '/lottery', icon: 'fluent:gift-24-regular', label: { zh: '抽奖', en: 'Lottery' } },
+  { path: '/card', icon: 'fluent:card-ui-portrait-flip-24-regular', label: { zh: '翻牌点名', en: 'Card Mode' } }
+]
+const trailingItems = [
   { path: '/statistics', icon: 'fluent:chart-multiple-24-regular', label: { zh: '统计', en: 'Statistics' } },
   { path: '/records', icon: 'fluent:history-24-regular', label: { zh: '抽取记录', en: 'Records' } }
 ]
@@ -262,9 +317,9 @@ const bottomItems = [
   padding: 9px 10px;
 }
 
-.dock-item:hover { background: var(--bg-hover); color: var(--text-primary); transform: translateX(2px); }
-.dock-item.active { background: var(--accent-50); color: var(--accent); transform: translateX(4px); box-shadow: inset 0 0 0 1px var(--border-subtle); }
-.dark .dock-item.active { background: rgba(234, 94, 193, 0.15); }
+.dock-item:hover { background: var(--bg-hover); color: var(--text-primary); transform: translateX(1px); }
+.dock-item.active { background: var(--bg-hover); color: var(--accent); transform: translateX(1px); }
+.dark .dock-item.active { background: var(--bg-hover); }
 
 .dock-item-indicator {
   position: absolute;
@@ -284,6 +339,8 @@ const bottomItems = [
 .dock-item.active .dock-item-icon { animation: dock-icon-arrive .42s var(--ease-standard); transform: scale(1.08); }
 @keyframes dock-icon-arrive { 0% { transform: translateX(-5px) scale(.9); opacity:.5 } 65% { transform: translateX(2px) scale(1.12) } 100% { transform:translateX(0) scale(1.08); opacity:1 } }
 .dock-item-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dock-item.active .dock-item-label { animation: dock-label-arrive .4s var(--ease-standard); }
+@keyframes dock-label-arrive { 0% { opacity: .35; transform: translateX(-5px); } 65% { opacity: 1; transform: translateX(2px); } 100% { transform: translateX(0); } }
 
 /* 名单管理子菜单 */
 .dock-parent { cursor: pointer; user-select: none; }
@@ -294,8 +351,8 @@ const bottomItems = [
   transition: transform var(--duration-fast) ease;
 }
 .dock-parent.open .dock-chevron { transform: rotate(180deg); }
-.dock-parent.active { background: var(--accent-50); color: var(--accent); }
-.dark .dock-parent.active { background: rgba(234, 94, 193, 0.15); }
+.dock-parent.active { background: var(--bg-hover); color: var(--accent); }
+.dark .dock-parent.active { background: var(--bg-hover); }
 
 .dock-submenu {
   display: flex;
@@ -306,6 +363,7 @@ const bottomItems = [
   border-left: 1px solid var(--border-subtle);
 }
 .dock-subitem {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -318,8 +376,12 @@ const bottomItems = [
   transition: background var(--duration-fast) ease;
 }
 .dock-subitem:hover { background: var(--bg-hover); color: var(--text-primary); }
-.dock-subitem.active { background: var(--accent-50); color: var(--accent); }
-.dark .dock-subitem.active { background: rgba(234, 94, 193, 0.15); }
+.dock-subitem::before { content: ''; position: absolute; left: 1px; top: 50%; width: 3px; height: 16px; border-radius: var(--radius-full); background: var(--accent); opacity: 0; transform: translateY(-50%) scaleY(.2); transition: opacity var(--duration-normal) ease, transform var(--duration-normal) var(--ease-standard); }
+.dock-subitem.active { background: var(--accent-50); color: var(--accent); transform: translateX(3px); }
+.dock-subitem.active::before { opacity: 1; transform: translateY(-50%) scaleY(1); }
+.dock-subitem.active .dock-subitem-icon { animation: dock-subicon-arrive .38s var(--ease-standard); }
+@keyframes dock-subicon-arrive { 0% { transform: scale(.75) rotate(-8deg); opacity: .35; } 70% { transform: scale(1.12) rotate(2deg); opacity: 1; } 100% { transform: none; } }
+.dark .dock-subitem.active { background: var(--accent-50); }
 .dock-subitem-icon { flex-shrink: 0; }
 .dock-subitem-label { white-space: nowrap; }
 

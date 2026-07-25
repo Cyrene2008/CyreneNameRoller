@@ -8,6 +8,7 @@ export const useStatisticsStore = defineStore('statistics', () => {
   const isLoaded = ref(false)
 
   async function initialize() {
+    if (isLoaded.value) return
     try {
       const saved = await dataBridge.load('statistics')
       if (saved && typeof saved === 'object') {

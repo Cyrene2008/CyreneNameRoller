@@ -699,7 +699,7 @@ dependencies = [
 
 [[package]]
 name = "cyrene-name-roller"
-version = "26.0.4"
+version = "26.0.5"
 dependencies = [
  "aes-gcm",
  "base64 0.22.1",
