@@ -74,12 +74,12 @@ onMounted(() => {
 
   watch(lang, () => nextTick(measure))
 
-  at(60, () => brand.value.classList.add('enter-pop'))
-  at(950, () => brand.value.classList.add('expanded'))
-  at(2300, () => {
+  at(48, () => brand.value.classList.add('enter-pop'))
+  at(760, () => brand.value.classList.add('expanded'))
+  at(1840, () => {
     fading.value = true
   })
-  at(2300 + 400, () => emit('done'))
+  at(1840 + 320, () => emit('done'))
 })
 
 onBeforeUnmount(() => {
@@ -99,7 +99,7 @@ onBeforeUnmount(() => {
   background: #fdf5fa;
   overflow: hidden;
   opacity: 1;
-  transition: opacity 0.4s ease;
+  transition: opacity 0.32s ease;
 }
 .splash-root.fading {
   opacity: 0;
@@ -119,7 +119,7 @@ onBeforeUnmount(() => {
   position: relative;
   flex: none;
   transform: translateX(var(--shift, 0px));
-  transition: transform 1200ms cubic-bezier(0.8, 0, 0.2, 1);
+  transition: transform 960ms cubic-bezier(0.8, 0, 0.2, 1);
 }
 .brand.expanded .logo-shift {
   transform: translateX(0);
@@ -160,7 +160,7 @@ onBeforeUnmount(() => {
   color: #8f2d5f;
   margin-left: 29px;
   transform: translateX(calc(-100% - 29px - 2px));
-  transition: transform 1200ms cubic-bezier(0.8, 0, 0.2, 1);
+  transition: transform 960ms cubic-bezier(0.8, 0, 0.2, 1);
   line-height: 1.15;
 }
 .brand.expanded .brand-text {
@@ -187,6 +187,6 @@ onBeforeUnmount(() => {
   }
 }
 .brand.enter-pop .logo-wrap {
-  animation: enter-pop 800ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  animation: enter-pop 640ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
 }
 </style>

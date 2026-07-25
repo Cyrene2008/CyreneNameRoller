@@ -49,11 +49,11 @@ body {
 }
 
 .dark ::-webkit-scrollbar-thumb {
-  background: rgba(234, 94, 193, 0.3);
+  background: var(--accent-200);
 }
 
 .dark ::-webkit-scrollbar-thumb:hover {
-  background: rgba(234, 94, 193, 0.5);
+  background: var(--accent);
 }
 
 input, button, select, textarea {

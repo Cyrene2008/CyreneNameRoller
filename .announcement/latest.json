@@ -1,9 +1,21 @@
 [
   {
+    "id": 5,
+    "title": { "cn": "v26.0.5 Web 端抢先测试现已开放", "en": "v26.0.5 Web Preview Is Now Available" },
+    "important": true,
+    "pinned": true,
+    "tag": { "cn": "抢先测试", "en": "Preview" },
+    "time": "2026/07/25 23:30",
+    "content": {
+      "cn": "v26.0.5 Web 端抢先测试现已开放。\n\n本次测试包含：\n\n- 全新的抽奖模式、加权轮盘、人员奖品分配、奖品单管理与独立抽奖记录\n- Fluent Tabs、智能自定义主题配色和 Windows Fluent 主题\n- 自动停止与多种结果强调动画\n- UUID 人员身份记录与更可靠的历史记录\n- 标题栏文件保存通知、下载源选择及多项桌面启动体验改进\n\n这是抢先测试版本，如遇异常请通过 GitHub Issues 反馈。正式发布前仍可能继续调整交互与样式。",
+      "en": "The v26.0.5 Web preview is now available.\n\nThis preview includes the new lottery workflow, weighted wheel, person-to-prize assignment, prize-list management, lottery records, Fluent tabs, generated custom palettes, auto stop, result animations, UUID-based identity records, file-location notices, selectable download sources, and desktop startup improvements.\n\nThis is a preview build. Please report issues through GitHub Issues; interactions and styling may continue to change before the formal release."
+    }
+  },
+  {
     "id": 4,
     "title": "公告：v26.0.4 已在桌面端开放",
     "important": true,
-    "pinned":true,
+    "pinned": false,
     "tag": "版本更新",
     "time": "2026/07/19 15:00",
     "content": "本版本的悬浮窗处于半成品状态，属于是能用但不好用，建议关闭本功能，待 **LeafS825** 后续改进修复后启用♪\n\n平衡算法优化，极差控制为2，更加公平♪\n\n新增小组模式\n\n详细更新信息请查看 设置>更新日志"

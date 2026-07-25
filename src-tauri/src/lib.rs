@@ -1,6 +1,12 @@
-use tauri::{Emitter, LogicalSize, Manager};
+use aes_gcm::{Aes256Gcm, KeyInit, Nonce};
+use aes_gcm::aead::{Aead, OsRng, rand_core::RngCore};
+use base64::Engine;
+use sha2::{Digest, Sha256};
+use std::sync::Mutex;
+use tauri::{Emitter, LogicalSize, Manager, State};
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
+use tauri_plugin_dialog::DialogExt;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -8,9 +14,71 @@ use std::process::Command;
 const UPDATE_PROXY_BASE: &str = "https://gh.xn--8hvv1o.cn/";
 const UPDATE_URL_PREFIX: &str = "https://github.com/Cyrene2008/CyreneNameRoller/releases/download/";
 const MIN_INSTALLER_SIZE: usize = 1024 * 1024;
+const DATA_MAGIC: &[u8] = b"CYRENE1\0";
+const DATA_NONCE_LENGTH: usize = 12;
+const DATA_TAG_LENGTH: usize = 16;
+const STARTUP_TASK_NAME: &str = "CyreneNameRollerAutoStart";
 
-fn get_data_dir(app: &tauri::AppHandle) -> PathBuf {
-    let dir = app.path().app_data_dir().unwrap_or_else(|_| PathBuf::from(".")).join("data");
+struct EncryptedStore {
+    path: PathBuf,
+    values: Mutex<serde_json::Value>,
+    integrity_error: Mutex<Option<String>>,
+}
+
+impl EncryptedStore {
+    fn load() -> Self {
+        let path = installation_data_dir().join("cyrene-data.cyrene");
+        let (values, integrity_error) = match fs::read(&path) {
+            Ok(bytes) => match decrypt_data(&bytes) {
+                Ok(values) => (values, None),
+                Err(error) => (serde_json::json!({}), Some(error)),
+            },
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => (serde_json::json!({}), None),
+            Err(error) => (serde_json::json!({}), Some(error.to_string())),
+        };
+        Self { path, values: Mutex::new(values), integrity_error: Mutex::new(integrity_error) }
+    }
+
+    fn is_healthy(&self) -> Result<(), String> {
+        self.integrity_error
+            .lock()
+            .map_err(|_| "数据锁定失败".to_string())?
+            .clone()
+            .map_or(Ok(()), Err)
+    }
+
+    fn persist(&self) -> Result<(), String> {
+        self.is_healthy()?;
+        let values = self.values.lock().map_err(|_| "数据锁定失败".to_string())?.clone();
+        let temporary_path = self.path.with_extension("cyrene.tmp");
+        fs::write(&temporary_path, encrypt_data(&values)?)
+            .map_err(|error| error.to_string())?;
+        let backup_path = self.path.with_extension("cyrene.bak");
+        let _ = fs::remove_file(&backup_path);
+        if self.path.exists() {
+            fs::rename(&self.path, &backup_path).map_err(|error| error.to_string())?;
+        }
+        match fs::rename(&temporary_path, &self.path) {
+            Ok(_) => {
+                let _ = fs::remove_file(backup_path);
+                Ok(())
+            }
+            Err(error) => {
+                if backup_path.exists() {
+                    let _ = fs::rename(&backup_path, &self.path);
+                }
+                Err(error.to_string())
+            }
+        }
+    }
+}
+
+fn installation_data_dir() -> PathBuf {
+    let root = std::env::current_exe()
+        .ok()
+        .and_then(|path| path.parent().map(Path::to_path_buf))
+        .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
+    let dir = root.join("data");
     fs::create_dir_all(&dir).ok();
     dir
 }
@@ -19,25 +87,62 @@ fn get_resource_dir(app: &tauri::AppHandle) -> PathBuf {
     app.path().resource_dir().unwrap_or_else(|_| PathBuf::from("."))
 }
 
-fn window_state_path(app: &tauri::AppHandle) -> PathBuf {
-    get_data_dir(app).join("window-state.json")
+fn data_key() -> [u8; 32] {
+    let mut hasher = Sha256::new();
+    hasher.update(b"CyreneNameRoller:encrypted-data:v1:cn.cyrene2008.nameroller");
+    hasher.finalize().into()
+}
+
+fn encrypt_data(values: &serde_json::Value) -> Result<Vec<u8>, String> {
+    let key = data_key();
+    let cipher = Aes256Gcm::new_from_slice(&key).map_err(|error| error.to_string())?;
+    let mut nonce = [0u8; DATA_NONCE_LENGTH];
+    OsRng.fill_bytes(&mut nonce);
+    let plain = serde_json::to_vec(values).map_err(|error| error.to_string())?;
+    let encrypted = cipher.encrypt(Nonce::from_slice(&nonce), plain.as_ref()).map_err(|error| error.to_string())?;
+    let mut output = Vec::with_capacity(DATA_MAGIC.len() + nonce.len() + encrypted.len());
+    output.extend_from_slice(DATA_MAGIC);
+    output.extend_from_slice(&nonce);
+    output.extend_from_slice(&encrypted);
+    Ok(output)
+}
+
+fn decrypt_data(bytes: &[u8]) -> Result<serde_json::Value, String> {
+    if bytes.len() <= DATA_MAGIC.len() + DATA_NONCE_LENGTH + DATA_TAG_LENGTH {
+        return Err("数据文件格式无效".into());
+    }
+    if !bytes.starts_with(DATA_MAGIC) {
+        return Err("数据文件标识无效".into());
+    }
+    let nonce_start = DATA_MAGIC.len();
+    let nonce_end = nonce_start + DATA_NONCE_LENGTH;
+    let key = data_key();
+    let cipher = Aes256Gcm::new_from_slice(&key).map_err(|error| error.to_string())?;
+    let plain = cipher
+        .decrypt(Nonce::from_slice(&bytes[nonce_start..nonce_end]), &bytes[nonce_end..])
+        .map_err(|_| "数据完整性校验失败，文件可能已被篡改".to_string())?;
+    let values: serde_json::Value = serde_json::from_slice(&plain).map_err(|_| "数据内容无效".to_string())?;
+    if !values.is_object() {
+        return Err("数据内容无效".into());
+    }
+    Ok(values)
 }
 
 // 保存主窗口的尺寸、位置与最大化状态，供下次启动恢复
 fn save_window_state(app: &tauri::AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
-        if let (Ok(size), Ok(pos)) = (window.outer_size(), window.outer_position()) {
-            let state = serde_json::json!({
-                "width": size.width,
-                "height": size.height,
-                "x": pos.x,
-                "y": pos.y,
-                "maximized": window.is_maximized().unwrap_or(false),
-            });
-            let _ = fs::write(
-                window_state_path(app),
-                serde_json::to_string_pretty(&state).unwrap_or_default(),
-            );
+        if let Ok(size) = window.outer_size() {
+            let store = app.state::<EncryptedStore>();
+            if store.is_healthy().is_ok() {
+                if let Ok(mut values) = store.values.lock() {
+                    values["windowState"] = serde_json::json!({
+                        "width": size.width,
+                        "height": size.height,
+                        "isMaximized": window.is_maximized().unwrap_or(false),
+                    });
+                }
+                let _ = store.persist();
+            }
         }
     }
 }
@@ -45,20 +150,16 @@ fn save_window_state(app: &tauri::AppHandle) {
 // 启动时恢复上次记忆的窗口尺寸与位置
 fn restore_window_state(app: &tauri::AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
-        let path = window_state_path(app);
-        if let Ok(s) = fs::read_to_string(&path) {
-            if let Ok(v) = serde_json::from_str::<serde_json::Value>(&s) {
-                if let (Some(w), Some(h)) = (v["width"].as_u64(), v["height"].as_u64()) {
-                    let _ = window.set_size(tauri::PhysicalSize::new(w as u32, h as u32));
-                }
-                if let (Some(x), Some(y)) = (v["x"].as_i64(), v["y"].as_i64()) {
-                    let _ = window.set_position(tauri::PhysicalPosition::new(x as i32, y as i32));
-                }
-                if v["maximized"].as_bool() == Some(true) {
-                    let _ = window.maximize();
-                }
+        let store = app.state::<EncryptedStore>();
+        if let Ok(values) = store.values.lock() {
+            let state = &values["windowState"];
+            if let (Some(w), Some(h)) = (state["width"].as_u64(), state["height"].as_u64()) {
+                let _ = window.set_size(tauri::PhysicalSize::new(w as u32, h as u32));
             }
-        }
+            if state["isMaximized"].as_bool() == Some(true) {
+                let _ = window.maximize();
+            }
+        };
     }
 }
 
@@ -66,6 +167,7 @@ async fn download_installer_bytes(
     app: &tauri::AppHandle,
     url: &str,
     expected_size: u64,
+    source: &str,
 ) -> Result<Vec<u8>, String> {
     if !url.starts_with(UPDATE_URL_PREFIX) {
         return Err("更新地址不属于 CyreneNameRoller 官方发布源".into());
@@ -75,7 +177,13 @@ async fn download_installer_bytes(
         .timeout(std::time::Duration::from_secs(300))
         .build()
         .map_err(|e| e.to_string())?;
-    let urls = [format!("{}{}", UPDATE_PROXY_BASE, url), url.to_string()];
+    let urls = if source == "github" {
+        vec![url.to_string()]
+    } else if source == "ghproxy" {
+        vec![format!("https://gh-proxy.com/{}", url)]
+    } else {
+        vec![format!("{}{}", UPDATE_PROXY_BASE, url)]
+    };
     let mut failures = Vec::new();
 
     for candidate_url in urls {
@@ -185,36 +293,207 @@ fn launch_installer(path: &Path) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn storage_get(app: tauri::AppHandle, key: String) -> Option<serde_json::Value> {
-    let path = get_data_dir(&app).join(format!("{}.json", key));
-    fs::read_to_string(&path)
-        .ok()
-        .and_then(|s| serde_json::from_str(&s).ok())
+fn storage_get(store: State<'_, EncryptedStore>, key: String) -> Option<serde_json::Value> {
+    if store.is_healthy().is_err() {
+        return None;
+    }
+    store.values.lock().ok().and_then(|values| values.get(&key).cloned())
 }
 
-#[tauri::command]
-fn storage_set(app: tauri::AppHandle, key: String, value: serde_json::Value) -> bool {
-    let path = get_data_dir(&app).join(format!("{}.json", key));
-    fs::write(&path, serde_json::to_string_pretty(&value).unwrap_or_default()).is_ok()
-}
-
-#[tauri::command]
-fn storage_delete(app: tauri::AppHandle, key: String) -> bool {
-    let path = get_data_dir(&app).join(format!("{}.json", key));
-    fs::remove_file(&path).is_ok()
-}
-
-#[tauri::command]
-fn storage_clear(app: tauri::AppHandle) -> bool {
-    let dir = get_data_dir(&app);
-    if let Ok(entries) = fs::read_dir(&dir) {
+fn migrate_legacy_data(app: &tauri::AppHandle) {
+    let store = app.state::<EncryptedStore>();
+    if store.path.exists() || store.is_healthy().is_err() {
+        return;
+    }
+    let legacy_dir = match app.path().app_data_dir() {
+        Ok(path) => path.join("data"),
+        Err(_) => return,
+    };
+    let mut values = serde_json::Map::new();
+    let mut legacy_paths = Vec::new();
+    if let Ok(entries) = fs::read_dir(&legacy_dir) {
         for entry in entries.flatten() {
-            if entry.path().extension().map_or(false, |e| e == "json") {
-                fs::remove_file(entry.path()).ok();
+            let path = entry.path();
+            if path.extension().and_then(|extension| extension.to_str()) != Some("json") {
+                continue;
             }
+            let Ok(raw) = fs::read_to_string(&path) else { continue };
+            let Ok(value) = serde_json::from_str::<serde_json::Value>(&raw) else { continue };
+            let Some(stem) = path.file_stem().and_then(|stem| stem.to_str()) else { continue };
+            if stem == "window-state" {
+                values.insert("windowState".into(), serde_json::json!({
+                    "width": value["width"],
+                    "height": value["height"],
+                    "isMaximized": value["maximized"].as_bool().unwrap_or(false),
+                }));
+            } else {
+                values.insert(stem.to_string(), value);
+            }
+            legacy_paths.push(path);
         }
     }
-    true
+    if values.is_empty() {
+        return;
+    }
+    if let Ok(mut current_values) = store.values.lock() {
+        *current_values = serde_json::Value::Object(values);
+    } else {
+        return;
+    }
+    if store.persist().is_ok() {
+        legacy_paths.into_iter().for_each(|path| { let _ = fs::remove_file(path); });
+    }
+}
+
+#[tauri::command]
+fn storage_set(store: State<'_, EncryptedStore>, key: String, value: serde_json::Value) -> serde_json::Value {
+    if store.is_healthy().is_err() {
+        return serde_json::json!({ "success": false, "error": "数据文件完整性检查失败" });
+    }
+    if let Ok(mut values) = store.values.lock() {
+        if let Some(object) = values.as_object_mut() {
+            object.insert(key, value);
+        } else {
+            return serde_json::json!({ "success": false, "error": "数据内容无效" });
+        }
+    } else {
+        return serde_json::json!({ "success": false, "error": "数据锁定失败" });
+    }
+    match store.persist() {
+        Ok(_) => serde_json::json!({ "success": true, "filePath": store.path.to_string_lossy() }),
+        Err(error) => serde_json::json!({ "success": false, "error": error }),
+    }
+}
+
+#[tauri::command]
+fn storage_delete(store: State<'_, EncryptedStore>, key: String) -> bool {
+    if store.is_healthy().is_err() {
+        return false;
+    }
+    if let Ok(mut values) = store.values.lock() {
+        if let Some(object) = values.as_object_mut() {
+            object.remove(&key);
+        } else {
+            return false;
+        }
+    } else {
+        return false;
+    }
+    store.persist().is_ok()
+}
+
+#[tauri::command]
+fn storage_clear(store: State<'_, EncryptedStore>) -> bool {
+    if store.is_healthy().is_err() {
+        return false;
+    }
+    if let Ok(mut values) = store.values.lock() {
+        *values = serde_json::json!({});
+    } else {
+        return false;
+    }
+    store.persist().is_ok()
+}
+
+#[tauri::command]
+fn export_encrypted_data(store: State<'_, EncryptedStore>) -> Result<String, String> {
+    store.persist()?;
+    let bytes = fs::read(&store.path).map_err(|error| error.to_string())?;
+    Ok(base64::engine::general_purpose::STANDARD.encode(bytes))
+}
+
+#[tauri::command]
+fn import_encrypted_data(store: State<'_, EncryptedStore>, encoded_data: String) -> Result<bool, String> {
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(encoded_data)
+        .map_err(|_| "导入文件编码无效".to_string())?;
+    let values = decrypt_data(&bytes)?;
+    if let Ok(mut current_values) = store.values.lock() {
+        *current_values = values;
+    } else {
+        return Err("数据锁定失败".into());
+    }
+    store.persist()?;
+    Ok(true)
+}
+
+#[tauri::command]
+async fn save_text_file(
+    app: tauri::AppHandle,
+    content: String,
+    default_name: String,
+    extension: String,
+) -> Result<serde_json::Value, String> {
+    let safe_extension: String = extension.chars().filter(|character| character.is_ascii_alphanumeric()).collect();
+    let safe_extension = if safe_extension.is_empty() { "json".to_string() } else { safe_extension };
+    let selected = app
+        .dialog()
+        .file()
+        .set_title("保存文件")
+        .set_file_name(default_name)
+        .add_filter(format!("{} 文件", safe_extension.to_uppercase()), &[safe_extension.as_str()])
+        .blocking_save_file();
+    let Some(selected) = selected else {
+        return Ok(serde_json::json!({ "success": false, "cancelled": true }));
+    };
+    let path = selected.into_path().map_err(|error| error.to_string())?;
+    fs::write(&path, content).map_err(|error| error.to_string())?;
+    Ok(serde_json::json!({ "success": true, "filePath": path.to_string_lossy() }))
+}
+
+#[tauri::command]
+async fn open_text_file(app: tauri::AppHandle, extension: String) -> Result<serde_json::Value, String> {
+    let safe_extension: String = extension.chars().filter(|character| character.is_ascii_alphanumeric()).collect();
+    let safe_extension = if safe_extension.is_empty() { "json".to_string() } else { safe_extension };
+    let selected = app
+        .dialog()
+        .file()
+        .set_title("打开文件")
+        .add_filter(format!("{} 文件", safe_extension.to_uppercase()), &[safe_extension.as_str()])
+        .blocking_pick_file();
+    let Some(selected) = selected else {
+        return Ok(serde_json::json!({ "success": false, "cancelled": true }));
+    };
+    let path = selected.into_path().map_err(|error| error.to_string())?;
+    let content = fs::read_to_string(&path).map_err(|error| error.to_string())?;
+    Ok(serde_json::json!({ "success": true, "content": content, "filePath": path.to_string_lossy() }))
+}
+
+#[tauri::command]
+async fn export_data_file(app: tauri::AppHandle, store: State<'_, EncryptedStore>) -> Result<serde_json::Value, String> {
+    store.persist()?;
+    let selected = app
+        .dialog()
+        .file()
+        .set_title("导出程序数据")
+        .set_file_name("cyrene-data.cyrene")
+        .add_filter("Cyrene Data", &["cyrene"])
+        .blocking_save_file();
+    let Some(selected) = selected else {
+        return Ok(serde_json::json!({ "success": false, "cancelled": true }));
+    };
+    let path = selected.into_path().map_err(|error| error.to_string())?;
+    fs::copy(&store.path, &path).map_err(|error| error.to_string())?;
+    Ok(serde_json::json!({ "success": true, "filePath": path.to_string_lossy() }))
+}
+
+#[tauri::command]
+async fn import_data_file(app: tauri::AppHandle, store: State<'_, EncryptedStore>) -> Result<serde_json::Value, String> {
+    let selected = app
+        .dialog()
+        .file()
+        .set_title("导入程序数据")
+        .add_filter("Cyrene Data", &["cyrene"])
+        .blocking_pick_file();
+    let Some(selected) = selected else {
+        return Ok(serde_json::json!({ "success": false, "cancelled": true }));
+    };
+    let path = selected.into_path().map_err(|error| error.to_string())?;
+    let bytes = fs::read(&path).map_err(|error| error.to_string())?;
+    let values = decrypt_data(&bytes)?;
+    *store.values.lock().map_err(|_| "数据锁定失败".to_string())? = values;
+    store.persist()?;
+    Ok(serde_json::json!({ "success": true, "filePath": path.to_string_lossy() }))
 }
 
 #[tauri::command]
@@ -339,8 +618,9 @@ async fn download_and_launch_update(
     url: String,
     file_name: String,
     expected_size: u64,
+    source: String,
 ) -> Result<serde_json::Value, String> {
-    let bytes = download_installer_bytes(&app, &url, expected_size).await?;
+    let bytes = download_installer_bytes(&app, &url, expected_size, &source).await?;
     let path = installer_temp_path(&file_name)?;
     let partial_path = path.with_extension("exe.part");
     let _ = fs::remove_file(&partial_path);
@@ -398,18 +678,150 @@ async fn close_floating_window(app: tauri::AppHandle) -> Result<(), String> {
 
 #[tauri::command]
 async fn focus_main_window(app: tauri::AppHandle) -> Result<(), String> {
-    if let Some(win) = app.get_webview_window("main") {
-        win.unminimize().map_err(|e| e.to_string())?;
-        win.show().map_err(|e| e.to_string())?;
-        win.set_focus().map_err(|e| e.to_string())?;
-    }
-    Ok(())
+    reveal_main_window(&app)
 }
 
 #[tauri::command]
 async fn hide_to_tray(app: tauri::AppHandle) -> Result<(), String> {
     if let Some(win) = app.get_webview_window("main") {
         win.hide().map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn reveal_file(path: String) -> bool {
+    let path = PathBuf::from(path);
+    #[cfg(target_os = "windows")]
+    { return Command::new("explorer").arg("/select,").arg(path).spawn().is_ok(); }
+    #[cfg(target_os = "macos")]
+    { return Command::new("open").args(["-R", path.to_string_lossy().as_ref()]).spawn().is_ok(); }
+    #[cfg(target_os = "linux")]
+    { return Command::new("xdg-open").arg(path.parent().unwrap_or(Path::new("."))).spawn().is_ok(); }
+}
+
+#[tauri::command]
+fn show_data_location() -> bool {
+    reveal_file(installation_data_dir().join("cyrene-data.cyrene").to_string_lossy().into_owned())
+}
+
+#[tauri::command]
+fn system_accent() -> String {
+    #[cfg(target_os = "windows")]
+    {
+        let queries = [
+            (r"HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Accent", "AccentColorMenu"),
+            (r"HKCU\Software\Microsoft\Windows\DWM", "AccentColor"),
+        ];
+        for (key, value_name) in queries {
+            if let Ok(output) = Command::new("reg").args(["query", key, "/v", value_name]).output() {
+                let text = String::from_utf8_lossy(&output.stdout);
+                if let Some(raw) = text.split_whitespace().find(|part| part.starts_with("0x")) {
+                    if let Ok(value) = u32::from_str_radix(raw.trim_start_matches("0x"), 16) {
+                        let red = value & 0xff;
+                        let green = (value >> 8) & 0xff;
+                        let blue = (value >> 16) & 0xff;
+                        return format!("#{:02x}{:02x}{:02x}", red, green, blue);
+                    }
+                }
+            }
+        }
+    }
+    "#ea5ec1".into()
+}
+
+fn startup_task_action() -> Result<String, String> {
+    let executable = std::env::current_exe().map_err(|error| error.to_string())?;
+    Ok(format!("\"{}\" --cyrene-autostart", executable.to_string_lossy()))
+}
+
+fn configure_startup_task(enabled: bool) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        let output = if enabled {
+            Command::new("schtasks")
+                .args(["/Create", "/TN", STARTUP_TASK_NAME, "/TR", &startup_task_action()?, "/SC", "ONLOGON", "/RL", "HIGHEST", "/F"])
+                .output()
+        } else {
+            Command::new("schtasks").args(["/Delete", "/TN", STARTUP_TASK_NAME, "/F"]).output()
+        }.map_err(|error| error.to_string())?;
+        if output.status.success() || !enabled {
+            return Ok(());
+        }
+        let error = String::from_utf8_lossy(if output.stderr.is_empty() { &output.stdout } else { &output.stderr });
+        return Err(error.trim().to_string());
+    }
+    #[cfg(not(target_os = "windows"))]
+    Err("管理员计划任务仅支持 Windows".into())
+}
+
+fn process_is_elevated() -> bool {
+    #[cfg(target_os = "windows")]
+    {
+        let script = "([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)";
+        return Command::new("powershell").args(["-NoProfile", "-Command", script]).output()
+            .map(|output| String::from_utf8_lossy(&output.stdout).trim().eq_ignore_ascii_case("true"))
+            .unwrap_or(false);
+    }
+    #[cfg(not(target_os = "windows"))]
+    false
+}
+
+fn powershell_literal(value: &str) -> String {
+    format!("'{}'", value.replace('\'', "''"))
+}
+
+#[tauri::command]
+fn set_auto_start(enabled: bool) -> Result<serde_json::Value, String> {
+    #[cfg(target_os = "windows")]
+    {
+        if process_is_elevated() {
+            configure_startup_task(enabled)?;
+            return Ok(serde_json::json!({ "success": true, "restarting": false }));
+        }
+        let executable = std::env::current_exe().map_err(|error| error.to_string())?;
+        let current_pid = std::process::id();
+        let configuration = format!("--cyrene-configure-autostart={}", if enabled { "enable" } else { "disable" });
+        let replace_process = format!("--cyrene-replace-pid={}", current_pid);
+        let script = format!(
+            "$process = Start-Process -FilePath {} -Verb RunAs -ArgumentList {}, {} -Wait -PassThru; exit $process.ExitCode",
+            powershell_literal(executable.to_string_lossy().as_ref()),
+            powershell_literal(&configuration),
+            powershell_literal(&replace_process)
+        );
+        let status = Command::new("powershell")
+            .args(["-NoProfile", "-WindowStyle", "Hidden", "-Command", &script])
+            .status()
+            .map_err(|error| error.to_string())?;
+        if !status.success() {
+            return Ok(serde_json::json!({ "success": false, "error": "管理员授权已取消或管理员进程启动失败" }));
+        }
+        return Ok(serde_json::json!({ "success": true, "restarting": true }));
+    }
+    #[cfg(not(target_os = "windows"))]
+    Ok(serde_json::json!({ "success": false, "error": "管理员计划任务仅支持 Windows" }))
+}
+
+#[tauri::command]
+fn is_autostart_launch() -> bool { std::env::args().any(|arg| arg == "--cyrene-autostart") }
+
+#[tauri::command]
+async fn show_main_window(app: tauri::AppHandle) -> Result<(), String> {
+    reveal_main_window(&app)
+}
+
+fn reveal_main_window(app: &tauri::AppHandle) -> Result<(), String> {
+    if app.get_webview_window("main").is_some() {
+        let _ = app.emit("main-window-shown", ());
+        let handle = app.clone();
+        std::thread::spawn(move || {
+            std::thread::sleep(std::time::Duration::from_millis(50));
+            if let Some(window) = handle.get_webview_window("main") {
+                let _ = window.unminimize();
+                let _ = window.show();
+                let _ = window.set_focus();
+            }
+        });
     }
     Ok(())
 }
@@ -436,21 +848,13 @@ fn create_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                 if button == tauri::tray::MouseButton::Left
                     && button_state == tauri::tray::MouseButtonState::Up
                 {
-                    if let Some(w) = tray.app_handle().get_webview_window("main") {
-                        let _ = w.show();
-                        let _ = w.unminimize();
-                        let _ = w.set_focus();
-                    }
+                    let _ = reveal_main_window(tray.app_handle());
                 }
             }
         })
         .on_menu_event(|app, event| match event.id.as_ref() {
             "show" => {
-                if let Some(w) = app.get_webview_window("main") {
-                    let _ = w.show();
-                    let _ = w.unminimize();
-                    let _ = w.set_focus();
-                }
+                let _ = reveal_main_window(app);
             }
             "quit" => app.exit(0),
             _ => {}
@@ -461,18 +865,31 @@ fn create_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    if let Some(configuration) = std::env::args().find(|argument| argument.starts_with("--cyrene-configure-autostart=")) {
+        if let Err(error) = configure_startup_task(configuration.ends_with("=enable")) {
+            eprintln!("[startup-task] {}", error);
+            std::process::exit(2);
+        } else if let Some(pid) = std::env::args()
+            .find(|argument| argument.starts_with("--cyrene-replace-pid="))
+            .and_then(|argument| argument.split('=').nth(1).and_then(|value| value.parse::<u32>().ok()))
+        {
+            #[cfg(target_os = "windows")]
+            {
+                let _ = Command::new("taskkill").args(["/PID", &pid.to_string(), "/T", "/F"]).status();
+                std::thread::sleep(std::time::Duration::from_millis(180));
+            }
+        }
+    }
     tauri::Builder::default()
+        .manage(EncryptedStore::load())
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
-            if let Some(window) = app.get_webview_window("main") {
-                let _ = window.show();
-                let _ = window.unminimize();
-                let _ = window.set_focus();
-            }
+            let _ = reveal_main_window(app);
         }))
         .setup(|app| {
             let handle = app.handle().clone();
+            migrate_legacy_data(&handle);
             restore_window_state(&handle);
             create_tray(app)?;
 
@@ -497,16 +914,28 @@ pub fn run() {
             storage_set,
             storage_delete,
             storage_clear,
+            export_encrypted_data,
+            import_encrypted_data,
+            export_data_file,
+            import_data_file,
+            save_text_file,
+            open_text_file,
             load_names,
             load_changelog,
             check_update,
             open_external,
+            show_data_location,
+            reveal_file,
+            system_accent,
+            set_auto_start,
+            is_autostart_launch,
             fetch_announcements,
             download_and_launch_update,
             open_floating_window,
             close_floating_window,
             focus_main_window,
-            hide_to_tray
+            hide_to_tray,
+            show_main_window
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

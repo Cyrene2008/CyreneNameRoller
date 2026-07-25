@@ -13,8 +13,13 @@ const DEFAULT_SETTINGS = {
   allowDuplicates: false,
   forbidDuplicates: false,
   multiStepStop: true,
+  autoStop: false,
+  finishAnimation: 'spotlight',
   stepStopInterval: 0.15,
   theme: 'default',
+  colorTheme: 'peach',
+  customThemeColor: '#0078d4',
+  downloadSource: 'cyrene',
   particles: true,
   blur: true,
   animSpeed: 1,
@@ -32,6 +37,8 @@ const DEFAULT_SETTINGS = {
   dockCollapsed: false,
   disableSplash: false,
   floatingWindowEnabled: false
+  ,autoStart: false
+  ,autoStartToTray: false
 }
 
 export const useSettingsStore = defineStore('settings', () => {
@@ -68,9 +75,10 @@ export const useSettingsStore = defineStore('settings', () => {
 
   function update(key, value) {
     settings.value[key] = value
-    save()
+    const saving = save()
     if (key === 'uiScale') applyUIScale()
     if (key === 'nameFontSize') applyNameFontSize()
+    return saving
   }
 
   function toggleDarkMode() {
