@@ -13,6 +13,8 @@ const DEFAULT_SETTINGS = {
   allowDuplicates: false,
   forbidDuplicates: false,
   multiStepStop: true,
+  autoStop: false,
+  finishAnimation: 'spotlight',
   stepStopInterval: 0.15,
   theme: 'default',
   particles: true,

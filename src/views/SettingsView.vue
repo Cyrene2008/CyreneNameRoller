@@ -25,6 +25,14 @@
           @update:model-value="update('disableSplash', !$event)"
         />
       </div>
+      <div class="setting-row">
+        <span class="setting-label">{{ lang === 'en' ? 'Auto stop after 3 seconds' : '自动停止（3 秒）' }}</span>
+        <FluentToggle :model-value="settings.autoStop" @update:model-value="update('autoStop', $event)" />
+      </div>
+      <div class="setting-row">
+        <span class="setting-label">{{ lang === 'en' ? 'Result emphasis' : '结果强调动画' }}</span>
+        <FluentSelect :model-value="settings.finishAnimation" :options="finishAnimationOptions" width="200px" @update:model-value="update('finishAnimation', $event)" />
+      </div>
       <div v-if="isDesktop" class="setting-row">
         <span class="setting-label">{{ lang === 'en' ? 'Floating Window' : '悬浮窗快捷点名' }}</span>
         <FluentToggle :model-value="settings.floatingWindowEnabled" @update:model-value="onFloatingWindowToggle" />
@@ -324,6 +332,11 @@ const colorModeOptions = [
 const fontOptions = [
   { value: 'HarmonyOS', label: 'HarmonyOS Sans SC' },
   { value: 'MiSans', label: 'Mi Sans' }
+]
+const finishAnimationOptions = [
+  { value: 'spotlight', label: lang.value === 'en' ? 'Spotlight' : '聚光' },
+  { value: 'lift', label: lang.value === 'en' ? 'Lift' : '跃升' },
+  { value: 'glow', label: lang.value === 'en' ? 'Glow' : '辉光' }
 ]
 
 const balance = ref({ ...DEFAULT_CYRENE_BALANCE_SETTINGS })

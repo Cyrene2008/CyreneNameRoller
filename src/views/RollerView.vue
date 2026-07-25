@@ -10,7 +10,7 @@
         v-for="(display, i) in nameDisplays"
         :key="i"
         class="name-display"
-        :class="{ rainbow: settings.nameColorMode === 'gradient', final: display.animating }"
+        :class="{ rainbow: settings.nameColorMode === 'gradient', final: display.animating, [`final-${settings.finishAnimation || 'spotlight'}`]: display.animating }"
         :style="getNameStyle(display, i)"
       >
         {{ display.text }}
@@ -23,10 +23,10 @@
     <div class="controls-center" ref="controlsCenterRef">
       <div class="switches">
         <FluentToggle v-model="settings.englishMode" label="English Mode" @update:model-value="saveSetting('englishMode', $event)" />
-        <FluentToggle v-model="settings.groupMode" :label="t('groupMode', lang)" @update:model-value="onGroupModeChange" />
-        <FluentToggle v-model="settings.multiMode" :label="t('multiMode', lang)" @update:model-value="onMultiModeChange" />
+        <FluentTabs :model-value="settings.groupMode ? 'groups' : 'people'" :options="drawTargetOptions" @update:model-value="onDrawTargetChange" />
+        <FluentTabs :model-value="settings.multiMode ? 'multiple' : 'single'" :options="drawCountOptions" @update:model-value="onDrawCountChange" />
         <Transition name="toggle-expand">
-          <FluentToggle v-if="settings.multiMode" v-model="settings.forbidDuplicates" :label="t('allowDuplicates', lang)" @update:model-value="onForbidDuplicatesChange" />
+          <FluentTabs v-if="settings.multiMode" :model-value="settings.forbidDuplicates ? 'unique' : 'repeat'" :options="duplicateOptions" @update:model-value="onDuplicateModeChange" />
         </Transition>
       </div>
 
@@ -73,6 +73,7 @@ import FluentIcon from '../components/FluentIcon.vue'
 import FluentToggle from '../components/FluentToggle.vue'
 import FluentSelect from '../components/FluentSelect.vue'
 import FluentInput from '../components/FluentInput.vue'
+import FluentTabs from '../components/FluentTabs.vue'
 
 const namesStore = useNamesStore()
 const settingsStore = useSettingsStore()
@@ -83,6 +84,18 @@ const showBanner = inject('banner')
 const lang = computed(() => settingsStore.settings.language)
 const settings = computed(() => settingsStore.settings)
 const listOptions = computed(() => namesStore.allLists.map(l => ({ value: l.id, label: l.name })))
+const drawTargetOptions = computed(() => [
+  { value: 'people', label: lang.value === 'en' ? 'Draw people' : '抽取人员', icon: 'fluent:person-24-regular' },
+  { value: 'groups', label: lang.value === 'en' ? 'Draw groups' : '抽取小组', icon: 'fluent:group-24-regular' }
+])
+const drawCountOptions = computed(() => [
+  { value: 'single', label: lang.value === 'en' ? 'Single draw' : '单次抽取', icon: 'fluent:person-24-regular' },
+  { value: 'multiple', label: lang.value === 'en' ? 'Multiple draw' : '多人抽取', icon: 'fluent:people-24-regular' }
+])
+const duplicateOptions = computed(() => [
+  { value: 'unique', label: lang.value === 'en' ? 'No repeats' : '禁止重复', icon: 'fluent:shield-checkmark-24-regular' },
+  { value: 'repeat', label: lang.value === 'en' ? 'Repeats allowed' : '允许重复', icon: 'fluent:arrow-repeat-all-24-regular' }
+])
 
 const groupPoolCount = computed(() => {
   const groups = namesStore.currentList.groups || []
@@ -114,6 +127,7 @@ const isRunning = ref(false)
 const lastPickedNames = ref([])
 const sessionCounts = ref({})
 let intervalId = null
+let autoStopTimer = null
 const pendingTimers = []
 const revealed = ref([])
 const gridParams = reactive({ valid: false, font: 52, lineH: 60, cellW: 0, count: 0, positions: [], revealScale: 1 })
@@ -176,6 +190,8 @@ function onMultiModeChange(val) {
   nextTick(computeNameLayout)
 }
 
+function onDrawCountChange(value) { onMultiModeChange(value === 'multiple') }
+
 function onGroupModeChange(val) {
   settingsStore.update('groupMode', val)
   if (settings.value.multiMode && settings.value.forbidDuplicates && (settings.value.peopleCount || 2) > groupPoolCount.value) {
@@ -185,7 +201,10 @@ function onGroupModeChange(val) {
   nextTick(computeNameLayout)
 }
 
+function onDrawTargetChange(value) { onGroupModeChange(value === 'groups') }
+
 function onForbidDuplicatesChange(val) { settingsStore.update('forbidDuplicates', val) }
+function onDuplicateModeChange(value) { onForbidDuplicatesChange(value === 'unique') }
 
 function onPeopleCountChange(val) {
   const c = Math.max(2, Math.min(maxPeopleCount.value, parseInt(val) || 2))
@@ -197,7 +216,7 @@ function changeCount(delta) {
   settingsStore.update('peopleCount', c); if (settings.value.multiMode) initializeDisplays(c)
 }
 
-function emphasize(index) { nameDisplays[index].animating = true; setTimeout(() => { nameDisplays[index].animating = false }, 1200) }
+function emphasize(index) { nameDisplays[index].animating = true; setTimeout(() => { nameDisplays[index].animating = false }, 900) }
 
 function getDisplayName(person) {
   return settings.value.englishMode && person.en ? person.en : person.cn
@@ -265,8 +284,15 @@ function updateNamePositionsOnly() {
   nameLayout.value = gridParams.positions.slice(0, n)
 }
 
+function stopRoll() {
+  clearTimeout(intervalId)
+  clearTimeout(autoStopTimer)
+  isRunning.value = false
+  finishRoll()
+}
+
 function toggleRoll() {
-  if (isRunning.value) { clearTimeout(intervalId); isRunning.value = false; finishRoll(); return }
+  if (isRunning.value) { stopRoll(); return }
   pendingTimers.forEach(id => clearTimeout(id)); pendingTimers.length = 0
   if (!canStart.value) {
     if (settings.value.groupMode && groupPoolCount.value < 1) {
@@ -286,6 +312,7 @@ function toggleRoll() {
     computeGridParams()
     computeNameLayout()
     animationLoop()
+    if (settings.value.autoStop) autoStopTimer = setTimeout(stopRoll, 3000)
   })
 }
 
@@ -587,7 +614,7 @@ onMounted(() => {
   if (controlsCenterRef.value) layoutObserver.observe(controlsCenterRef.value)
   window.addEventListener('resize', onResize)
 })
-onBeforeUnmount(() => { if (intervalId) clearTimeout(intervalId); pendingTimers.forEach(id => clearTimeout(id)); layoutObserver?.disconnect(); window.removeEventListener('resize', onResize) })
+onBeforeUnmount(() => { if (intervalId) clearTimeout(intervalId); clearTimeout(autoStopTimer); pendingTimers.forEach(id => clearTimeout(id)); layoutObserver?.disconnect(); window.removeEventListener('resize', onResize) })
 </script>
 
 <style scoped>
@@ -617,19 +644,21 @@ onBeforeUnmount(() => { if (intervalId) clearTimeout(intervalId); pendingTimers.
   animation: gradient-shift 32s linear infinite;
 }
 
-.name-display.rainbow.final {
-  animation: gradient-shift 32s linear infinite, final-reveal 0.5s cubic-bezier(0.1, 0.9, 0.2, 1);
-}
+.name-display.rainbow.final-spotlight { animation: gradient-shift 32s linear infinite, final-spotlight 0.62s cubic-bezier(0.1, 0.9, 0.2, 1); }
+.name-display.rainbow.final-lift { animation: gradient-shift 32s linear infinite, final-lift 0.68s cubic-bezier(0.12, 0.85, 0.2, 1.15); }
+.name-display.rainbow.final-glow { animation: gradient-shift 32s linear infinite, final-glow 0.8s cubic-bezier(0.16, 0.84, 0.3, 1); }
 
 @keyframes gradient-shift {
   0% { background-position: 0% 50%; }
   100% { background-position: 800% 50%; }
 }
 
-.name-display:not(.rainbow).final {
-  animation: final-reveal 0.5s cubic-bezier(0.1, 0.9, 0.2, 1);
-}
-@keyframes final-reveal { 0% { transform: scale(var(--reveal-scale, 1)); opacity: 0; filter: brightness(2); } 100% { transform: scale(1); filter: brightness(1); } }
+.name-display:not(.rainbow).final-spotlight { animation: final-spotlight 0.62s cubic-bezier(0.1, 0.9, 0.2, 1); }
+.name-display:not(.rainbow).final-lift { animation: final-lift 0.68s cubic-bezier(0.12, 0.85, 0.2, 1.15); }
+.name-display:not(.rainbow).final-glow { animation: final-glow 0.8s cubic-bezier(0.16, 0.84, 0.3, 1); }
+@keyframes final-spotlight { 0% { transform: scale(calc(var(--reveal-scale, 1) * 0.82)); opacity: 0; filter: brightness(2.2) blur(4px); } 62% { transform: scale(calc(var(--reveal-scale, 1) * 1.08)); filter: brightness(1.35); } 100% { transform: scale(1); opacity: 1; filter: brightness(1); } }
+@keyframes final-lift { 0% { transform: translateY(18px) scale(0.88); opacity: 0; filter: blur(5px); } 58% { transform: translateY(-6px) scale(1.05); opacity: 1; filter: brightness(1.3); } 100% { transform: translateY(0) scale(1); filter: brightness(1); } }
+@keyframes final-glow { 0% { transform: scale(0.92); opacity: 0; text-shadow: 0 0 0 var(--accent); } 50% { transform: scale(1.06); opacity: 1; text-shadow: 0 0 32px var(--accent); } 100% { transform: scale(1); text-shadow: 0 4px 20px rgba(234, 94, 193, 0.15); } }
 
 /* 隐藏的文字测量探针 */
 .fit-probe {
@@ -646,7 +675,7 @@ onBeforeUnmount(() => { if (intervalId) clearTimeout(intervalId); pendingTimers.
 }
 
 .controls-center { position: absolute; bottom: 24px; right: 24px; display: flex; flex-direction: column; gap: 10px; align-items: flex-end; z-index: 10; }
-.switches { display: flex; flex-direction: column; gap: 6px; align-items: flex-end; }
+.switches { display: flex; flex-direction: column; gap: 6px; align-items: stretch; width: 280px; }
 .multi-settings { display: flex; align-items: center; gap: 12px; }
 .setting-label { font-size: 14px; color: var(--text-secondary); }
 .count-control { display: flex; align-items: center; gap: 8px; }
