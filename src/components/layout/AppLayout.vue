@@ -1,5 +1,5 @@
 <template>
-  <div class="app-layout" :class="{ dark: settingsStore.darkMode, 'perf-no-blur': !settingsStore.settings.perfBlur, 'perf-no-shadow': !settingsStore.settings.perfShadows, 'perf-no-anim': !settingsStore.settings.perfAnimations }" :style="{ fontSize: (14 * (settingsStore.settings.uiScale || 100) / 100) + 'px' }" @contextmenu.prevent>
+  <div class="app-layout" :class="[settingsStore.settings.colorTheme || 'peach', { dark: settingsStore.darkMode, 'perf-no-blur': !settingsStore.settings.perfBlur, 'perf-no-shadow': !settingsStore.settings.perfShadows, 'perf-no-anim': !settingsStore.settings.perfAnimations }]" :style="themeStyle" @contextmenu.prevent>
     <TitleBar />
     <div class="app-body">
       <NavigationDock />
@@ -73,6 +73,14 @@ const statisticsStore = useStatisticsStore()
 const recordsStore = useRecordsStore()
 
 const lang = computed(() => settingsStore.settings.language)
+const themeStyle = computed(() => ({ fontSize: (14 * (settingsStore.settings.uiScale || 100) / 100) + 'px', ...customThemeVariables(settingsStore.settings) }))
+function customThemeVariables(settings) {
+  if (settings.colorTheme !== 'custom') return {}
+  const hex = String(settings.customThemeColor || '#0078d4').replace('#', '')
+  if (!/^[0-9a-f]{6}$/i.test(hex)) return {}
+  const rgb = [0, 2, 4].map(i => parseInt(hex.slice(i, i + 2), 16))
+  return { '--accent': `rgb(${rgb.join(' ')})`, '--accent-light': `color-mix(in srgb, rgb(${rgb.join(' ')}) 55%, white)`, '--accent-dark': `color-mix(in srgb, rgb(${rgb.join(' ')}) 78%, black)`, '--accent-hover': `color-mix(in srgb, rgb(${rgb.join(' ')}) 82%, black)` }
+}
 const isDesktopApp = computed(() => !!window.electronAPI || isTauri())
 
 const globalToast = ref(null)

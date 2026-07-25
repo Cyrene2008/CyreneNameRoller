@@ -26,6 +26,18 @@
         />
       </div>
       <div class="setting-row">
+        <span class="setting-label">{{ lang === 'en' ? 'Color theme' : '主题色' }}</span>
+        <FluentSelect :model-value="settings.colorTheme" :options="colorThemeOptions" width="200px" @update:model-value="update('colorTheme', $event)" />
+      </div>
+      <div v-if="settings.colorTheme === 'custom'" class="setting-row">
+        <span class="setting-label">{{ lang === 'en' ? 'Custom color' : '自定义颜色' }}</span>
+        <input type="color" :value="settings.customThemeColor" @input="update('customThemeColor', $event.target.value)" />
+      </div>
+      <div v-if="isDesktop" class="setting-row">
+        <span class="setting-label">{{ lang === 'en' ? 'Update download source' : '更新下载源' }}</span>
+        <FluentSelect :model-value="settings.downloadSource" :options="downloadSourceOptions" width="200px" @update:model-value="update('downloadSource', $event)" />
+      </div>
+      <div class="setting-row">
         <span class="setting-label">{{ lang === 'en' ? 'Auto stop after 3 seconds' : '自动停止（3 秒）' }}</span>
         <FluentToggle :model-value="settings.autoStop" @update:model-value="update('autoStop', $event)" />
       </div>
@@ -333,6 +345,8 @@ const fontOptions = [
   { value: 'HarmonyOS', label: 'HarmonyOS Sans SC' },
   { value: 'MiSans', label: 'Mi Sans' }
 ]
+const colorThemeOptions = [{ value: 'peach', label: '桃粉' }, { value: 'fluent', label: 'Fluent（系统色）' }, { value: 'custom', label: lang.value === 'en' ? 'Custom' : '自定义' }]
+const downloadSourceOptions = [{ value: 'cyrene', label: 'gh.昔涟.cn（默认）' }, { value: 'github', label: 'GitHub' }, { value: 'ghproxy', label: 'gh-proxy.com' }]
 const finishAnimationOptions = [
   { value: 'spotlight', label: lang.value === 'en' ? 'Spotlight' : '聚光' },
   { value: 'lift', label: lang.value === 'en' ? 'Lift' : '跃升' },

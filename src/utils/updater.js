@@ -1,6 +1,7 @@
 import { ref } from 'vue'
 import { APP_VERSION } from './version'
 import { tauriAPI, isTauri } from './tauriAPI'
+import { useSettingsStore } from '../stores/settings'
 
 const GITHUB_REPO = 'Cyrene2008/CyreneNameRoller'
 const GHPROXY_BASE = 'https://gh.昔涟.cn/'
@@ -47,7 +48,9 @@ function normalizeVersion(v) {
 
 function getDownloadUrl(originalUrl) {
   if (!originalUrl) return ''
-  return GHPROXY_BASE + originalUrl
+  const source = useSettingsStore().settings.downloadSource || 'cyrene'
+  if (source === 'github') return originalUrl
+  return `${source === 'ghproxy' ? 'https://gh-proxy.com/' : GHPROXY_BASE}${originalUrl}`
 }
 
 function compareVersions(a, b) {
