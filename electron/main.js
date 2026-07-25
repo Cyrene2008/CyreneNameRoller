@@ -462,6 +462,13 @@ ipcMain.handle('storage-clear', () => {
   }
 })
 
+ipcMain.handle('data-location', () => dataFilePath || null)
+ipcMain.handle('show-data-location', () => {
+  if (!dataFilePath) return false
+  shell.showItemInFolder(dataFilePath)
+  return true
+})
+
 // 检查更新（通过主进程避免 CORS）
 ipcMain.handle('check-update', async () => {
   const urls = [

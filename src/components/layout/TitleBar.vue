@@ -5,6 +5,7 @@
     </button>
     <img src="/cyrene.png" class="titlebar-logo" alt="" draggable="false" />
     <span class="titlebar-app-title">Cyreneの随机点名器</span>
+    <div v-if="notice" class="titlebar-notice" :title="notice"><span>{{ notice }}</span><button @click="openDataLocation">打开位置</button></div>
     <div class="titlebar-drag">
     </div>
     <div class="titlebar-controls">
@@ -32,7 +33,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { Icon } from '@iconify/vue'
 import { isTauri } from '../../utils/tauriAPI'
 import { useSettingsStore } from '../../stores/settings'
@@ -40,6 +41,8 @@ import { useSettingsStore } from '../../stores/settings'
 const settingsStore = useSettingsStore()
 const isMaximized = ref(false)
 const dockCollapsed = computed(() => settingsStore.settings.dockCollapsed || false)
+const notice = ref('')
+let noticeTimer
 
 const isDesktopApp = computed(() => {
   return !!window.electronAPI || isTauri()
@@ -64,6 +67,8 @@ function hideToTray() {
     window.electronAPI?.hide()
   }
 }
+function onDataSaved(event) { notice.value = `已保存：${event.detail.location}`; clearTimeout(noticeTimer); noticeTimer = setTimeout(() => { notice.value = '' }, 9000) }
+function openDataLocation() { if (isTauri()) import('@tauri-apps/api/core').then(m => m.invoke('show_data_location')); else window.electronAPI?.showDataLocation?.() }
 
 async function maximize() {
   if (isTauri()) {
@@ -81,6 +86,7 @@ async function maximize() {
 }
 
 onMounted(async () => {
+  window.addEventListener('cyrene:data-saved', onDataSaved)
   if (isTauri()) {
     const w = await import('@tauri-apps/api/window')
     isMaximized.value = await w.getCurrentWindow().isMaximized()
@@ -88,6 +94,7 @@ onMounted(async () => {
     isMaximized.value = await window.electronAPI.isMaximized() || false
   }
 })
+onBeforeUnmount(() => { window.removeEventListener('cyrene:data-saved', onDataSaved); clearTimeout(noticeTimer) })
 </script>
 
 <style scoped>
@@ -156,6 +163,10 @@ onMounted(async () => {
   flex: 1;
   height: 100%;
 }
+.titlebar-notice { min-width: 0; max-width: 420px; display:flex; align-items:center; gap:8px; color:var(--text-secondary); font-size:12px; -webkit-app-region:no-drag; }
+.titlebar-notice span { overflow:hidden; white-space:nowrap; animation:titlebar-scroll 12s ease-in-out infinite; }
+.titlebar-notice button { border:0; background:transparent; color:var(--accent); font:inherit; cursor:pointer; white-space:nowrap; }
+@keyframes titlebar-scroll { 0%,25% { transform:translateX(0) } 75%,100% { transform:translateX(-20%) } }
 
 .titlebar-controls {
   display: flex;

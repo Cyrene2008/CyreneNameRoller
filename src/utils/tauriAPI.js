@@ -21,6 +21,7 @@ export const tauriAPI = {
   async loadNames() { return this.invoke('load_names', {}) },
   async loadChangelog() { return this.invoke('load_changelog', {}) },
   async openExternal(url) { return this.invoke('open_external', { url }) },
+  async showDataLocation() { return this.invoke('show_data_location', {}) },
   async checkUpdate() { return this.invoke('check_update', {}) },
   async fetchAnnouncements() { return this.invoke('fetch_announcements', {}) },
   async showMainWindow() { return this.invoke('show_main_window', {}) },

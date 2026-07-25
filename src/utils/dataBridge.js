@@ -50,7 +50,7 @@ export const dataBridge = {
 
     // Electron
     if (isElectron()) {
-      try { await window.electronAPI.storageSet(key, data) } catch (e) {
+        try { await window.electronAPI.storageSet(key, data); notifyDataSaved() } catch (e) {
         console.warn(`[dataBridge] Electron save failed for "${key}":`, e)
       }
     }
@@ -168,6 +168,10 @@ export const dataBridge = {
       input.click()
     })
   }
+}
+
+function notifyDataSaved() {
+  window.dispatchEvent(new CustomEvent('cyrene:data-saved', { detail: { location: '安装目录/data/cyrene-data.cyrene' } }))
 }
 
 function downloadEncryptedFile(bytes) {

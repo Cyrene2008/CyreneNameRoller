@@ -19,6 +19,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   storageSet: (key, value) => ipcRenderer.invoke('storage-set', key, value),
   storageDelete: (key) => ipcRenderer.invoke('storage-delete', key),
   storageClear: () => ipcRenderer.invoke('storage-clear'),
+  dataLocation: () => ipcRenderer.invoke('data-location'),
+  showDataLocation: () => ipcRenderer.invoke('show-data-location'),
 
   loadNames: () => ipcRenderer.invoke('data:loadNames'),
   loadChangelog: () => ipcRenderer.invoke('data:loadChangelog'),

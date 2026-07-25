@@ -587,6 +587,12 @@ async fn hide_to_tray(app: tauri::AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn show_data_location() {
+    #[cfg(target_os = "windows")]
+    { let _ = Command::new("explorer").arg("/select,").arg(installation_data_dir().join("cyrene-data.cyrene")).spawn(); }
+}
+
+#[tauri::command]
 async fn show_main_window(app: tauri::AppHandle) -> Result<(), String> {
     if let Some(win) = app.get_webview_window("main") {
         win.show().map_err(|e| e.to_string())?;
@@ -686,6 +692,7 @@ pub fn run() {
             load_changelog,
             check_update,
             open_external,
+            show_data_location,
             fetch_announcements,
             download_and_launch_update,
             open_floating_window,
