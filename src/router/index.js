@@ -4,6 +4,7 @@ const routes = [
   { path: '/', redirect: '/roller' },
   { path: '/roller', name: 'Roller', component: () => import('../views/RollerView.vue') },
   { path: '/card', name: 'Card', component: () => import('../views/CardView.vue') },
+  { path: '/lottery', name: 'Lottery', component: () => import('../views/LotteryView.vue') },
   { path: '/statistics', name: 'Statistics', component: () => import('../views/StatisticsView.vue') },
   { path: '/records', name: 'Records', component: () => import('../views/RecordsView.vue') },
   { path: '/lists', name: 'Lists', component: () => import('../views/ListsView.vue') },

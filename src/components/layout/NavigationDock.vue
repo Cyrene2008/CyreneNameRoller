@@ -151,6 +151,7 @@ function toggleListSubmenu() {
 const mainItems = [
   { path: '/roller', icon: 'fluent:flash-24-regular', label: { zh: '随机点名', en: 'Roller' } },
   { path: '/card', icon: 'fluent:card-ui-portrait-flip-24-regular', label: { zh: '翻牌点名', en: 'Card Mode' } },
+  { path: '/lottery', icon: 'fluent:gift-24-regular', label: { zh: '抽奖', en: 'Lottery' } },
   { path: '/statistics', icon: 'fluent:chart-multiple-24-regular', label: { zh: '统计', en: 'Statistics' } },
   { path: '/records', icon: 'fluent:history-24-regular', label: { zh: '抽取记录', en: 'Records' } }
 ]
