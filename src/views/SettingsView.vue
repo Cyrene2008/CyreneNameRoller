@@ -13,10 +13,6 @@
         <FluentSelect :model-value="settings.language" :options="langOptions" width="200px" @update:model-value="update('language', $event)" />
       </div>
       <div class="setting-row">
-        <span class="setting-label">{{ lang === 'en' ? 'Dark Mode' : '深色模式' }}</span>
-        <FluentToggle :model-value="settingsStore.darkMode" @update:model-value="settingsStore.toggleDarkMode()" />
-      </div>
-      <div class="setting-row">
         <div class="setting-label-group">
           <span class="setting-label">{{ t('startupSplash', lang) }}</span>
         </div>
@@ -26,9 +22,17 @@
         />
       </div>
       <div v-if="isDesktop" class="setting-row">
+        <span class="setting-label">{{ lang === 'en' ? 'Update download source' : '更新下载源' }}</span>
+        <FluentSelect :model-value="settings.downloadSource" :options="downloadSourceOptions" width="220px" @update:model-value="update('downloadSource', $event)" />
+      </div>
+      <div v-if="isDesktop" class="setting-row">
         <span class="setting-label">{{ lang === 'en' ? 'Floating Window' : '悬浮窗快捷点名' }}</span>
         <FluentToggle :model-value="settings.floatingWindowEnabled" @update:model-value="onFloatingWindowToggle" />
       </div>
+      <div v-if="isDesktop" class="setting-row"><span class="setting-label">{{ lang === 'en' ? 'Launch at sign-in (administrator task)' : '开机自启动（管理员计划任务）' }}</span><FluentToggle :model-value="settings.autoStart" :disabled="autoStartBusy" @update:model-value="onAutoStart" /></div>
+      <Transition name="toggle-expand">
+        <div v-if="isDesktop && settings.autoStart" class="sub-setting"><div class="setting-row"><span class="setting-label">{{ lang === 'en' ? 'Start hidden in tray' : '启动到托盘' }}</span><FluentToggle :model-value="settings.autoStartToTray" @update:model-value="update('autoStartToTray', $event)" /></div></div>
+      </Transition>
       <div v-if="isDesktop" class="setting-row">
         <span class="setting-label">{{ lang === 'en' ? 'Check for Updates' : '检查更新' }}</span>
         <div class="update-actions">
@@ -61,6 +65,21 @@
     <!-- 主题与显示 -->
     <FluentCard class="settings-section">
       <h3 class="section-title"><FluentIcon icon="color-24-regular" :width="20" /> {{ lang === 'en' ? 'Theme & Display' : '主题与显示' }}</h3>
+      <div class="setting-row">
+        <span class="setting-label">{{ lang === 'en' ? 'Dark Mode' : '深色模式' }}</span>
+        <FluentToggle :model-value="settingsStore.darkMode" @update:model-value="settingsStore.toggleDarkMode()" />
+      </div>
+      <div class="setting-row">
+        <span class="setting-label">{{ lang === 'en' ? 'Color theme' : '主题色' }}</span>
+        <FluentSelect :model-value="settings.colorTheme" :options="colorThemeOptions" width="220px" @update:model-value="update('colorTheme', $event)" />
+      </div>
+      <div v-if="settings.colorTheme === 'custom'" class="setting-row">
+        <span class="setting-label">{{ lang === 'en' ? 'Custom color' : '自定义颜色' }}</span>
+        <div class="color-picker-row">
+          <input class="color-input" type="color" :value="settings.customThemeColor" @input="onCustomColorPicker" />
+          <FluentInput v-model="customColorDraft" class="hex-color-input" placeholder="#0078d4 / rgb(0,120,212)" @enter="commitCustomColor" @blur="commitCustomColor" />
+        </div>
+      </div>
       <div class="setting-row">
         <span class="setting-label">{{ t('nameColorMode', lang) }}</span>
         <FluentSelect :model-value="settings.nameColorMode" :options="colorModeOptions" width="200px" @update:model-value="update('nameColorMode', $event)" />
@@ -184,6 +203,14 @@
     <FluentCard class="settings-section">
       <h3 class="section-title"><FluentIcon icon="play-24-regular" :width="18" /> {{ t('drawSettings', lang) }}</h3>
       <div class="setting-row">
+        <span class="setting-label">{{ lang === 'en' ? 'Auto stop' : '自动停止' }}</span>
+        <FluentToggle :model-value="settings.autoStop" @update:model-value="update('autoStop', $event)" />
+      </div>
+      <div class="setting-row">
+        <span class="setting-label">{{ lang === 'en' ? 'Result emphasis' : '结果强调动画' }}</span>
+        <FluentSelect :model-value="settings.finishAnimation" :options="finishAnimationOptions" width="220px" @update:model-value="update('finishAnimation', $event)" />
+      </div>
+      <div class="setting-row">
         <div class="setting-label-group">
           <span class="setting-label">{{ t('multiStepStop', lang) }}</span>
         </div>
@@ -281,6 +308,7 @@ import FluentToggle from '../components/FluentToggle.vue'
 import FluentInput from '../components/FluentInput.vue'
 import FluentSelect from '../components/FluentSelect.vue'
 import FluentModal from '../components/FluentModal.vue'
+import { normalizeHex } from '../utils/theme'
 
 const settingsStore = useSettingsStore()
 const namesStore = useNamesStore()
@@ -325,6 +353,21 @@ const fontOptions = [
   { value: 'HarmonyOS', label: 'HarmonyOS Sans SC' },
   { value: 'MiSans', label: 'Mi Sans' }
 ]
+const colorThemeOptions = computed(() => [
+  { value: 'peach', label: lang.value === 'en' ? 'Peach' : '桃粉', icon: 'fluent:heart-16-regular' },
+  { value: 'fluent', label: 'Fluent', icon: 'fluent:window-16-regular' },
+  { value: 'custom', label: lang.value === 'en' ? 'Custom' : '自定义', icon: 'fluent:color-16-regular' }
+])
+const downloadSourceOptions = computed(() => [
+  { value: 'cyrene', label: 'gh.昔涟.cn', icon: 'fluent:cloud-arrow-down-16-regular' },
+  { value: 'github', label: 'GitHub', icon: 'fluent:code-16-regular' },
+  { value: 'ghproxy', label: 'gh-proxy.com', icon: 'fluent:globe-16-regular' }
+])
+const finishAnimationOptions = computed(() => [
+  { value: 'spotlight', label: lang.value === 'en' ? 'Classic emphasis' : '经典强调', icon: 'fluent:sparkle-16-regular' },
+  { value: 'lift', label: lang.value === 'en' ? 'Lift' : '跃升', icon: 'fluent:arrow-up-16-regular' },
+  { value: 'glow', label: lang.value === 'en' ? 'Glow' : '辉光', icon: 'fluent:weather-sunny-16-regular' }
+])
 
 const balance = ref({ ...DEFAULT_CYRENE_BALANCE_SETTINGS })
 const changelog = ref([])
@@ -347,7 +390,41 @@ const pwModalHint = computed(() => {
   return lang.value === 'en' ? 'Enter password:' : '请输入密码：'
 })
 
-function update(key, value) { settingsStore.update(key, value) }
+function update(key, value) { return settingsStore.update(key, value) }
+const customColorDraft = ref(settings.value.customThemeColor)
+const autoStartBusy = ref(false)
+watch(() => settings.value.customThemeColor, value => { customColorDraft.value = value })
+function commitCustomColor() {
+  const normalized = normalizeHex(customColorDraft.value, '')
+  if (!normalized) {
+    customColorDraft.value = settings.value.customThemeColor
+    return
+  }
+  customColorDraft.value = normalized
+  update('customThemeColor', normalized)
+}
+function onCustomColorPicker(event) {
+  customColorDraft.value = event.target.value
+  commitCustomColor()
+}
+async function onAutoStart(value) {
+  autoStartBusy.value = true
+  await update('autoStart', value)
+  showBanner({
+    message: value
+      ? (lang.value === 'en' ? 'Administrator permission is required. The app will restart.' : '需要管理员权限创建计划任务，应用即将重启。')
+      : (lang.value === 'en' ? 'Removing the startup task...' : '正在移除开机启动计划任务...'),
+    icon: 'shield-keyhole-16-regular', type: 'info', duration: 5000
+  })
+  const result = isTauri()
+    ? await tauriAPI.setAutoStart(value)
+    : await window.electronAPI?.setAutoStart?.(value)
+  if (!result || result.success === false) {
+    await update('autoStart', !value)
+    showBanner({ message: result.error || (lang.value === 'en' ? 'Startup task update failed' : '计划任务更新失败'), icon: 'warning-16-regular', type: 'warning', duration: 8000 })
+  }
+  autoStartBusy.value = false
+}
 
 async function onFloatingWindowToggle(val) {
   update('floatingWindowEnabled', val)
@@ -434,16 +511,18 @@ function doExport() { requirePassword('export') }
 function doImport() { requirePassword('import') }
 function doClearRecords() { requirePassword('clearRecords') }
 function doClearAll() { requirePassword('clearAll') }
-async function doExportNow() { await dataBridge.exportData() }
+async function doExportNow() {
+  const result = await dataBridge.exportData()
+  if (result?.success) showBanner({ message: lang.value === 'en' ? 'Data exported' : '程序数据导出成功', icon: 'checkmark-circle-16-regular', type: 'success', duration: 5000 })
+  else if (!result?.cancelled) showBanner({ message: `${lang.value === 'en' ? 'Export failed' : '导出失败'}：${result?.error || (lang.value === 'en' ? 'Unknown error' : '未知错误')}`, icon: 'warning-16-regular', type: 'warning', duration: 8000 })
+}
 async function confirmImport() {
   showImportWarning.value = false
   const result = await dataBridge.importData()
   if (result.success) {
-    alert(lang.value === 'en'
-      ? 'Import successful. Please close and restart the app manually.'
-      : '导入成功。请手动关闭并重启应用。')
+    showBanner({ message: lang.value === 'en' ? 'Import successful. Restart the app to apply it.' : '导入成功，重启应用后生效。', icon: 'checkmark-circle-16-regular', type: 'success', duration: 10000, dismissible: true })
   } else if (!result.cancelled) {
-    alert(lang.value === 'en' ? 'Import failed: ' + (result.error || 'Unknown') : '导入失败：' + (result.error || '未知错误'))
+    showBanner({ message: lang.value === 'en' ? 'Import failed: ' + (result.error || 'Unknown') : '导入失败：' + (result.error || '未知错误'), icon: 'warning-16-regular', type: 'warning', duration: 8000 })
   }
 }
 async function doClearAllNow() {
@@ -468,6 +547,8 @@ function onBalanceEnabledChange(enabled) {
 .section-title { font-size: 16px; font-weight: 600; color: var(--text-primary); margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
 .setting-row { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; gap: 16px; }
 .setting-label { font-size: 14px; color: var(--text-secondary); }
+.hex-color-input { width: 220px; }
+.readonly-id { max-width: 170px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .setting-label-group { display: flex; flex-direction: column; gap: 2px; }
 .setting-desc { font-size: 12px; color: var(--text-muted); }
 .balance-sub { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border-default); display: flex; flex-direction: column; gap: 10px; }

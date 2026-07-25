@@ -225,6 +225,6 @@ onBeforeUnmount(() => {
 }
 
 .dark .select-option.selected {
-  background: rgba(234, 94, 193, 0.12);
+  background: var(--accent-50);
 }
 </style>

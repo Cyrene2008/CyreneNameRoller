@@ -1,5 +1,5 @@
 <template>
-  <div class="app-layout" :class="{ dark: settingsStore.darkMode, 'perf-no-blur': !settingsStore.settings.perfBlur, 'perf-no-shadow': !settingsStore.settings.perfShadows, 'perf-no-anim': !settingsStore.settings.perfAnimations }" :style="{ fontSize: (14 * (settingsStore.settings.uiScale || 100) / 100) + 'px' }" @contextmenu.prevent>
+  <div class="app-layout" :class="[settingsStore.settings.colorTheme || 'peach', { dark: settingsStore.darkMode, 'perf-no-blur': !settingsStore.settings.perfBlur, 'perf-no-shadow': !settingsStore.settings.perfShadows, 'perf-no-anim': !settingsStore.settings.perfAnimations }]" :style="themeStyle" @contextmenu.prevent>
     <TitleBar />
     <div class="app-body">
       <NavigationDock />
@@ -50,7 +50,7 @@
 </template>
 
 <script setup>
-import { onMounted, watch, provide, ref, computed, nextTick, reactive } from 'vue'
+import { onMounted, onBeforeUnmount, watch, provide, ref, computed, nextTick, reactive } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import TitleBar from './TitleBar.vue'
 import NavigationDock from './NavigationDock.vue'
@@ -64,6 +64,7 @@ import { useRecordsStore } from '../../stores/records'
 import { APP_VERSION, APP_VERSION_PREFIX, APP_BUILD, APP_PLATFORM, APP_NAME } from '../../utils/version'
 import { updateState, checkForUpdates, downloadUpdate } from '../../utils/updater'
 import { isTauri, tauriAPI } from '../../utils/tauriAPI'
+import { createThemeVariables, DEFAULT_ACCENT, normalizeHex } from '../../utils/theme'
 
 const router = useRouter()
 const currentRoute = useRoute()
@@ -73,6 +74,19 @@ const statisticsStore = useStatisticsStore()
 const recordsStore = useRecordsStore()
 
 const lang = computed(() => settingsStore.settings.language)
+const systemAccent = ref(DEFAULT_ACCENT)
+let removeAccentListener
+const themeStyle = computed(() => {
+  const settings = settingsStore.settings
+  const style = { fontSize: (14 * (settings.uiScale || 100) / 100) + 'px' }
+  if (settings.colorTheme === 'custom') {
+    return { ...style, ...createThemeVariables(settings.customThemeColor, settingsStore.darkMode, false) }
+  }
+  if (settings.colorTheme === 'fluent') {
+    return { ...style, ...createThemeVariables(systemAccent.value, settingsStore.darkMode, true) }
+  }
+  return style
+})
 const isDesktopApp = computed(() => !!window.electronAPI || isTauri())
 
 const globalToast = ref(null)
@@ -146,35 +160,11 @@ function onBannerLeave(b) {
 
 provide('banner', showBanner)
 
-const routeOrder = {
-  '/': 0,
-  '/roller': 1,
-  '/card': 2,
-  '/statistics': 3,
-  '/records': 4,
-  '/lists': 5,
-  '/lists/manage': 5,
-  '/group-manage': 5,
-  '/announcement': 1001,
-  '/download': 1002,
-  '/docs': 1003,
-  '/settings': 9999,
-  '/about': 33550336,
-  '/about/contributors': 33550336
-}
 const transitionName = ref('page-forward')
 
-function getRouteIndex(path) {
-  if (routeOrder[path] !== undefined) return routeOrder[path]
-  const segs = path.split('/').filter(Boolean)
-  const parent = '/' + segs.slice(0, -1).join('/')
-  if (parent && routeOrder[parent] !== undefined) return routeOrder[parent]
-  return 999999
-}
-
 router.beforeEach((to, from) => {
-  const toIdx = getRouteIndex(to.path)
-  const fromIdx = getRouteIndex(from.path)
+  const toIdx = Number(to.meta.order ?? 0)
+  const fromIdx = Number(from.meta.order ?? 0)
   transitionName.value = toIdx >= fromIdx ? 'page-forward' : 'page-back'
 })
 
@@ -190,16 +180,25 @@ router.afterEach((to, from) => {
 document.title = APP_NAME
 
 onMounted(async () => {
-  await settingsStore.initialize()
   await namesStore.initialize()
   await statisticsStore.initialize()
   await recordsStore.initialize()
+  if (isTauri()) {
+    systemAccent.value = normalizeHex(await tauriAPI.systemAccent(), DEFAULT_ACCENT)
+  } else if (window.electronAPI?.getSystemAccentColor) {
+    systemAccent.value = normalizeHex(await window.electronAPI.getSystemAccentColor(), DEFAULT_ACCENT)
+    removeAccentListener = window.electronAPI.onAccentColorChanged?.(value => {
+      systemAccent.value = normalizeHex(value, DEFAULT_ACCENT)
+    })
+  }
   if (isDesktopApp.value) checkForUpdates(true, showBanner)
   if (isDesktopApp.value && settingsStore.settings.floatingWindowEnabled) {
     if (isTauri()) await tauriAPI.invoke('open_floating_window')
     else window.electronAPI?.openFloatingWindow?.()
   }
 })
+
+onBeforeUnmount(() => removeAccentListener?.())
 
 watch(() => settingsStore.settings.uiScale, (val) => {
   document.documentElement.style.setProperty('--ui-scale', (val || 100) / 100 * 1.25)

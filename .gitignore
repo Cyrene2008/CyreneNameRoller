@@ -1,5 +1,7 @@
 .origin
 .local
+.algorithm/
+data/
 node_modules
 dist
 release*

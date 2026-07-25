@@ -46,7 +46,7 @@
         </Transition>
       </div>
       <div class="person-list">
-        <div v-for="(person, index) in namesStore.currentNames" :key="index" class="person-item" :class="{ editing: editingIndex === index }">
+        <div v-for="(person, index) in namesStore.currentNames" :key="person.id" class="person-item" :class="{ editing: editingIndex === index }">
           <!-- 编辑模式 -->
           <template v-if="editingIndex === index">
             <div class="edit-row">
@@ -64,8 +64,10 @@
               <input type="checkbox" :checked="selectedSet.has(index)" @change="toggleSelect(index)" class="person-checkbox" />
             </label>
             <div class="person-info">
-              <span class="person-cn">{{ person.cn }}</span>
-              <span class="person-en">{{ person.en }}</span>
+              <div class="person-identity">
+                <div class="person-name-line"><span class="person-cn">{{ person.cn }}</span><span class="person-en">{{ person.en }}</span></div>
+                <span class="person-id" :title="person.id">{{ person.id }}</span>
+              </div>
               <span v-if="person.isWhiteList" class="whitelist-badge">{{ lang === 'en' ? 'WL' : '白名单' }}</span>
               <span v-if="person.groupId" class="group-badge">{{ groupNameOf(person.groupId) }}</span>
             </div>
@@ -352,6 +354,24 @@ function batchDelete() {
 .person-en {
   font-size: 12px;
   color: var(--text-muted);
+}
+.person-identity { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 3px; }
+.person-name-line { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+
+.person-id {
+  color: var(--text-muted);
+  font-family: Consolas, monospace;
+  font-size: 11px;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.readonly-id {
+  flex: 0 1 190px;
+  padding: 5px 8px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--bg-hover);
 }
 
 .whitelist-badge {

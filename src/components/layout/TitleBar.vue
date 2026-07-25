@@ -5,6 +5,10 @@
     </button>
     <img src="/cyrene.png" class="titlebar-logo" alt="" draggable="false" />
     <span class="titlebar-app-title">Cyreneの随机点名器</span>
+    <div v-if="notice.message" class="titlebar-notice" :title="notice.message">
+      <div ref="noticeViewport" class="titlebar-notice-viewport"><span ref="noticeText">{{ notice.message }}</span></div>
+      <button v-if="notice.path" @click="openDataLocation"><Icon icon="fluent:folder-open-16-regular" :width="14" />打开位置</button>
+    </div>
     <div class="titlebar-drag">
     </div>
     <div class="titlebar-controls">
@@ -32,14 +36,20 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { Icon } from '@iconify/vue'
 import { isTauri } from '../../utils/tauriAPI'
 import { useSettingsStore } from '../../stores/settings'
+import { revealFile } from '../../utils/desktopFiles'
 
 const settingsStore = useSettingsStore()
 const isMaximized = ref(false)
 const dockCollapsed = computed(() => settingsStore.settings.dockCollapsed || false)
+const notice = ref({ message: '', path: '' })
+const noticeViewport = ref(null)
+const noticeText = ref(null)
+let noticeTimer
+let noticeAnimation
 
 const isDesktopApp = computed(() => {
   return !!window.electronAPI || isTauri()
@@ -64,6 +74,40 @@ function hideToTray() {
     window.electronAPI?.hide()
   }
 }
+async function startNoticeAnimation() {
+  await nextTick()
+  noticeAnimation?.cancel()
+  const viewport = noticeViewport.value
+  const text = noticeText.value
+  if (!viewport || !text) return
+  const distance = Math.ceil(text.scrollWidth - viewport.clientWidth)
+  if (distance <= 0) {
+    noticeTimer = setTimeout(() => { notice.value = { message: '', path: '' } }, 8000)
+    return
+  }
+  const pause = 3000
+  const travel = Math.max(1600, distance / 48 * 1000)
+  const duration = pause + travel
+  noticeAnimation = text.animate([
+    { transform: 'translateX(0)', offset: 0 },
+    { transform: 'translateX(0)', offset: pause / duration },
+    { transform: `translateX(-${distance}px)`, offset: 1 }
+  ], { duration, iterations: 1, easing: 'linear', fill: 'forwards' })
+  noticeAnimation.onfinish = () => { notice.value = { message: '', path: '' } }
+}
+function onDataSaved(event) {
+  notice.value = {
+    message: event.detail?.message || `已保存：${event.detail?.location || ''}`,
+    path: event.detail?.path || event.detail?.location || ''
+  }
+  clearTimeout(noticeTimer)
+  startNoticeAnimation()
+}
+function openDataLocation() {
+  if (notice.value.path) revealFile(notice.value.path)
+  else if (isTauri()) import('@tauri-apps/api/core').then(m => m.invoke('show_data_location'))
+  else window.electronAPI?.showDataLocation?.()
+}
 
 async function maximize() {
   if (isTauri()) {
@@ -81,6 +125,7 @@ async function maximize() {
 }
 
 onMounted(async () => {
+  window.addEventListener('cyrene:data-saved', onDataSaved)
   if (isTauri()) {
     const w = await import('@tauri-apps/api/window')
     isMaximized.value = await w.getCurrentWindow().isMaximized()
@@ -88,6 +133,7 @@ onMounted(async () => {
     isMaximized.value = await window.electronAPI.isMaximized() || false
   }
 })
+onBeforeUnmount(() => { window.removeEventListener('cyrene:data-saved', onDataSaved); clearTimeout(noticeTimer); noticeAnimation?.cancel() })
 </script>
 
 <style scoped>
@@ -156,6 +202,10 @@ onMounted(async () => {
   flex: 1;
   height: 100%;
 }
+.titlebar-notice { min-width: 0; width: min(420px, 38vw); display:flex; align-items:center; gap:8px; color:var(--text-secondary); font-size:12px; -webkit-app-region:no-drag; }
+.titlebar-notice-viewport { min-width: 0; flex: 1; overflow: hidden; }
+.titlebar-notice span { display: inline-block; white-space: nowrap; }
+.titlebar-notice button { display:inline-flex; align-items:center; gap:4px; border:0; background:transparent; color:var(--accent); font:inherit; cursor:pointer; white-space:nowrap; }
 
 .titlebar-controls {
   display: flex;

@@ -1,8 +1,8 @@
 <template>
   <div class="download-view">
     <div class="download-header">
-      <FluentIcon icon="arrow-download-24-regular" :width="28" />
-      <h1 class="page-title">{{ lang === 'en' ? 'Download Client' : '下载客户端' }}</h1>
+      <div class="download-title"><FluentIcon icon="arrow-download-24-regular" :width="28" /><h1 class="page-title">{{ lang === 'en' ? 'Download Client' : '下载客户端' }}</h1></div>
+      <label class="source-control"><span>{{ lang === 'en' ? 'Download source' : '下载源' }}</span><FluentSelect :model-value="settingsStore.settings.downloadSource" :options="downloadSourceOptions" width="190px" @update:model-value="settingsStore.update('downloadSource', $event)" /></label>
     </div>
 
     <div v-if="loading" class="loading-state">
@@ -72,6 +72,7 @@ import { isTauri, tauriAPI } from '../utils/tauriAPI'
 import FluentCard from '../components/FluentCard.vue'
 import FluentButton from '../components/FluentButton.vue'
 import FluentIcon from '../components/FluentIcon.vue'
+import FluentSelect from '../components/FluentSelect.vue'
 
 const settingsStore = useSettingsStore()
 const lang = computed(() => settingsStore.settings.language)
@@ -84,6 +85,17 @@ const error = ref('')
 const tagName = ref('')
 const publishedAt = ref('')
 const assets = ref([])
+const downloadSourceOptions = [
+  { value: 'cyrene', label: 'gh.昔涟.cn' },
+  { value: 'github', label: 'GitHub' },
+  { value: 'ghproxy', label: 'gh-proxy.com' }
+]
+
+function downloadUrl(originalUrl) {
+  const source = settingsStore.settings.downloadSource || 'cyrene'
+  if (source === 'github') return originalUrl
+  return `${source === 'ghproxy' ? 'https://gh-proxy.com/' : 'https://gh.昔涟.cn/'}${originalUrl}`
+}
 
 const sortedAssets = computed(() => {
   return [...assets.value].sort((a, b) => {
@@ -158,10 +170,8 @@ async function sha256(buf) {
 }
 
 async function fetchVerified(asset) {
-  const sources = [
-    'https://gh.昔涟.cn/' + asset.browser_download_url,
-    asset.browser_download_url
-  ]
+  const selectedUrl = downloadUrl(asset.browser_download_url)
+  const sources = selectedUrl === asset.browser_download_url ? [selectedUrl] : [selectedUrl, asset.browser_download_url]
   const expected = asset.digest ? String(asset.digest).split(':').pop().toLowerCase() : null
 
   for (const url of sources) {
@@ -223,7 +233,7 @@ async function downloadAsset(asset) {
     }
   }
 
-  window.open('https://gh.昔涟.cn/' + asset.browser_download_url, '_blank')
+  window.open(downloadUrl(asset.browser_download_url), '_blank')
 }
 
 function openGitHub() {
@@ -242,9 +252,12 @@ onMounted(fetchAssets)
 .download-header {
   display: flex;
   align-items: center;
-  gap: 10px;
+  justify-content: space-between;
+  gap: 20px;
   margin-bottom: 24px;
 }
+.download-title { display: flex; align-items: center; gap: 10px; }
+.source-control { display: flex; flex-direction: column; gap: 5px; color: var(--text-muted); font-size: 12px; }
 
 .page-title {
   font-family: var(--font-display);

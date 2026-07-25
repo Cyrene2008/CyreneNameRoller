@@ -1,6 +1,7 @@
 import { ref } from 'vue'
 import { APP_VERSION } from './version'
 import { tauriAPI, isTauri } from './tauriAPI'
+import { useSettingsStore } from '../stores/settings'
 
 const GITHUB_REPO = 'Cyrene2008/CyreneNameRoller'
 const GHPROXY_BASE = 'https://gh.昔涟.cn/'
@@ -47,7 +48,9 @@ function normalizeVersion(v) {
 
 function getDownloadUrl(originalUrl) {
   if (!originalUrl) return ''
-  return GHPROXY_BASE + originalUrl
+  const source = useSettingsStore().settings.downloadSource || 'cyrene'
+  if (source === 'github') return originalUrl
+  return `${source === 'ghproxy' ? 'https://gh-proxy.com/' : GHPROXY_BASE}${originalUrl}`
 }
 
 function compareVersions(a, b) {
@@ -144,6 +147,7 @@ export async function downloadUpdate(bannerFn = null) {
   const originalUrl = updateState.value.url
   const fileName = updateState.value.fileName
   const expectedSize = Number(updateState.value.fileSize) || 0
+  const source = useSettingsStore().settings.downloadSource || 'cyrene'
   const downloadUrl = getDownloadUrl(originalUrl)
 
   if (!isTauri() && !window.electronAPI) {
@@ -182,7 +186,7 @@ export async function downloadUpdate(bannerFn = null) {
           if (bannerHandle) bannerHandle.update({ progress })
         })
       }
-      result = await window.electronAPI.downloadAndLaunchUpdate(originalUrl, fileName, expectedSize)
+      result = await window.electronAPI.downloadAndLaunchUpdate(originalUrl, fileName, expectedSize, source)
     } else if (isTauri()) {
       const { listen } = await import('@tauri-apps/api/event')
       removeProgressListener = await listen('update-download-progress', event => {
@@ -190,7 +194,7 @@ export async function downloadUpdate(bannerFn = null) {
         updateState.value.downloadProgress = progress
         if (bannerHandle) bannerHandle.update({ progress })
       })
-      result = await tauriAPI.downloadAndLaunchUpdate(originalUrl, fileName, expectedSize)
+      result = await tauriAPI.downloadAndLaunchUpdate(originalUrl, fileName, expectedSize, source)
     }
 
     if (!result?.success) throw new Error(result?.error || '原生更新程序未能启动')
