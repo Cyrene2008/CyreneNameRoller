@@ -196,8 +196,10 @@ ipcMain.on('window-maximize', () => { win.isMaximized() ? win.unmaximize() : win
 ipcMain.on('window-close', () => win.close())
 ipcMain.on('window-hide', () => { if (win && !win.isDestroyed()) win.hide() })
 ipcMain.handle('window-is-maximized', () => win.isMaximized())
+ipcMain.handle('set-auto-start', (_, enabled) => { app.setLoginItemSettings({ openAtLogin: !!enabled, args: ['--cyrene-autostart'] }); return true })
 ipcMain.on('window-show-ready', () => {
-  if (win && !win.isDestroyed()) win.show()
+  const startHidden = process.argv.includes('--cyrene-autostart') && appData.settings?.autoStartToTray === true
+  if (win && !win.isDestroyed() && !startHidden) win.show()
 })
 
 let dragWin = null

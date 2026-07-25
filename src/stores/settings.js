@@ -37,6 +37,8 @@ const DEFAULT_SETTINGS = {
   dockCollapsed: false,
   disableSplash: false,
   floatingWindowEnabled: false
+  ,autoStart: false
+  ,autoStartToTray: false
 }
 
 export const useSettingsStore = defineStore('settings', () => {

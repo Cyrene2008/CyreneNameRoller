@@ -49,6 +49,8 @@
         <span class="setting-label">{{ lang === 'en' ? 'Floating Window' : '悬浮窗快捷点名' }}</span>
         <FluentToggle :model-value="settings.floatingWindowEnabled" @update:model-value="onFloatingWindowToggle" />
       </div>
+      <div v-if="isDesktop" class="setting-row"><span class="setting-label">开机自启动</span><FluentToggle :model-value="settings.autoStart" @update:model-value="onAutoStart" /></div>
+      <div v-if="isDesktop && settings.autoStart" class="setting-row"><span class="setting-label">自启动时进入托盘</span><FluentToggle :model-value="settings.autoStartToTray" @update:model-value="update('autoStartToTray', $event)" /></div>
       <div v-if="isDesktop" class="setting-row">
         <span class="setting-label">{{ lang === 'en' ? 'Check for Updates' : '检查更新' }}</span>
         <div class="update-actions">
@@ -375,6 +377,7 @@ const pwModalHint = computed(() => {
 })
 
 function update(key, value) { settingsStore.update(key, value) }
+async function onAutoStart(value) { if (window.electronAPI?.setAutoStart) await window.electronAPI.setAutoStart(value); update('autoStart', value) }
 
 async function onFloatingWindowToggle(val) {
   update('floatingWindowEnabled', val)
