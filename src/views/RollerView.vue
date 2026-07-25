@@ -355,7 +355,7 @@ function finishRoll() {
   }
   for (let i = 0; i < finalPicks.length; i++) {
     const pick = finalPicks[i]
-    recordsStore.addRecord({ cn: pick.cn, en: pick.en, listName: namesStore.currentList.name, source: 'roller' })
+    recordsStore.addRecord({ personId: pick.id || null, listId: namesStore.currentList.id, groupId: pick.isGroup ? pick.id : null, source: 'roller' })
   }
   nextTick(computeNameLayout)
 

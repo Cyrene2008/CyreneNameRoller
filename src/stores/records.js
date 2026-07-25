@@ -22,11 +22,11 @@ export const useRecordsStore = defineStore('records', () => {
     await dataBridge.save('records', records.value)
   }
 
-  function addRecord({ cn, en, listName, source }) {
+  function addRecord({ personId, listId, source, groupId = null }) {
     records.value.unshift({
-      cn,
-      en,
-      listName,
+      personId,
+      listId,
+      groupId,
       source,
       time: Date.now()
     })

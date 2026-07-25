@@ -15,8 +15,8 @@
       <div class="records-list" ref="listRef">
         <div v-for="(rec, i) in records" :key="i" class="record-item">
           <span class="ri-time">{{ formatTime(rec.time) }}</span>
-          <span class="ri-name">{{ rec.cn }} ({{ rec.en }})</span>
-          <span class="ri-list">{{ rec.listName }}</span>
+          <span class="ri-name">{{ resolveName(rec) }}</span>
+          <span class="ri-list">{{ resolveList(rec) }}</span>
           <span class="ri-source">{{ rec.source === 'roller' ? (lang === 'en' ? 'Roller' : '随机点名') : (lang === 'en' ? 'Card' : '翻牌点名') }}</span>
         </div>
         <div v-if="records.length === 0" class="records-empty">
@@ -31,11 +31,13 @@
 import { ref, computed, onMounted } from 'vue'
 import { useSettingsStore } from '../stores/settings'
 import { useRecordsStore } from '../stores/records'
+import { useNamesStore } from '../stores/names'
 import FluentCard from '../components/FluentCard.vue'
 import FluentIcon from '../components/FluentIcon.vue'
 
 const settingsStore = useSettingsStore()
 const recordsStore = useRecordsStore()
+const namesStore = useNamesStore()
 
 const lang = computed(() => settingsStore.settings.language)
 const records = computed(() => recordsStore.records)
@@ -46,6 +48,15 @@ function formatTime(ts) {
   const d = new Date(ts)
   const pad = (n) => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+}
+function resolveList(rec) { return namesStore.allLists.find(list => list.id === rec.listId)?.name || rec.listName || (lang.value === 'en' ? 'Deleted list' : '已删除名单') }
+function resolveName(rec) {
+  const list = namesStore.allLists.find(item => item.id === rec.listId)
+  const person = list?.names?.find(item => item.id === rec.personId)
+  const group = list?.groups?.find(item => item.id === rec.groupId)
+  if (group) return group.enName ? `${group.name} (${group.enName})` : group.name
+  if (person) return person.en ? `${person.cn} (${person.en})` : person.cn
+  return rec.cn || (lang.value === 'en' ? 'Deleted person' : '已删除成员')
 }
 
 onMounted(() => {

@@ -8,6 +8,10 @@ function generateId() {
   return Date.now().toString(36) + Math.random().toString(36).substr(2)
 }
 
+function generatePersonId() {
+  return globalThis.crypto?.randomUUID?.() || `person-${generateId()}`
+}
+
 export const useNamesStore = defineStore('names', () => {
   const nameLists = ref({})
   const currentListId = ref(DEFAULT_LIST_ID)
@@ -43,6 +47,7 @@ export const useNamesStore = defineStore('names', () => {
       delete list.whiteList
     }
     list.names.forEach(p => {
+      if (!p.id) p.id = generatePersonId()
       if (p.groupId === undefined) p.groupId = ''
       if (p.isWhiteList === undefined) p.isWhiteList = false
     })
@@ -71,6 +76,7 @@ export const useNamesStore = defineStore('names', () => {
       }
 
       Object.values(nameLists.value).forEach(migrateList)
+      await save()
 
       if (savedCurrentId && nameLists.value[savedCurrentId]) {
         currentListId.value = savedCurrentId
@@ -103,7 +109,7 @@ export const useNamesStore = defineStore('names', () => {
 
   function addPerson(cn, en) {
     if (!cn || !cn.trim()) return
-    currentList.value.names.push({ cn: cn.trim(), en: (en || '').trim(), isWhiteList: false })
+    currentList.value.names.push({ id: generatePersonId(), cn: cn.trim(), en: (en || '').trim(), isWhiteList: false })
     save()
   }
 
@@ -120,6 +126,7 @@ export const useNamesStore = defineStore('names', () => {
       currentList.value.names[index] = {
         cn: newCn.trim(),
         en: (newEn || '').trim(),
+        id: old?.id || generatePersonId(),
         count: old?.count || 0,
         groupId: old?.groupId || '',
         isWhiteList: old?.isWhiteList || false
@@ -171,6 +178,7 @@ export const useNamesStore = defineStore('names', () => {
   function resetCurrentList() {
     currentList.value.names = (defaultNamesData.value.names || []).map(p => ({
       ...p,
+      id: p.id || generatePersonId(),
       isWhiteList: !!p.isWhiteList
     }))
     save()

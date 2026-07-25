@@ -66,6 +66,7 @@
             <div class="person-info">
               <span class="person-cn">{{ person.cn }}</span>
               <span class="person-en">{{ person.en }}</span>
+              <span class="person-id">{{ person.id }}</span>
               <span v-if="person.isWhiteList" class="whitelist-badge">{{ lang === 'en' ? 'WL' : '白名单' }}</span>
               <span v-if="person.groupId" class="group-badge">{{ groupNameOf(person.groupId) }}</span>
             </div>
