@@ -203,7 +203,7 @@ const bottomItems = [
   border-radius: var(--radius-sm);
   color: var(--text-secondary);
   cursor: pointer;
-  transition: background var(--duration-fast) ease;
+  transition: background var(--duration-normal) var(--ease-standard), color var(--duration-normal) var(--ease-standard), transform var(--duration-normal) var(--ease-standard), box-shadow var(--duration-normal) var(--ease-standard);
   flex-shrink: 0;
 }
 
@@ -262,24 +262,27 @@ const bottomItems = [
   padding: 9px 10px;
 }
 
-.dock-item:hover { background: var(--bg-hover); color: var(--text-primary); }
-.dock-item.active { background: var(--accent-50); color: var(--accent); }
+.dock-item:hover { background: var(--bg-hover); color: var(--text-primary); transform: translateX(2px); }
+.dock-item.active { background: var(--accent-50); color: var(--accent); transform: translateX(4px); box-shadow: inset 0 0 0 1px var(--border-subtle); }
 .dark .dock-item.active { background: rgba(234, 94, 193, 0.15); }
 
 .dock-item-indicator {
   position: absolute;
   left: 0;
   top: 50%;
-  transform: translateY(-50%);
+  transform: translateY(-50%) scaleY(.25);
   width: 3px;
   height: 0;
   background: var(--accent);
   border-radius: var(--radius-full);
-  transition: height var(--duration-normal) var(--ease-standard);
+  opacity: 0;
+  transition: height var(--duration-normal) var(--ease-standard), transform var(--duration-normal) var(--ease-standard), opacity var(--duration-normal) ease;
 }
 
-.dock-item.active .dock-item-indicator { height: 16px; }
-.dock-item-icon { flex-shrink: 0; }
+.dock-item.active .dock-item-indicator { height: 20px; opacity: 1; transform: translateY(-50%) scaleY(1); }
+.dock-item-icon { flex-shrink: 0; transition: transform var(--duration-normal) var(--ease-standard); }
+.dock-item.active .dock-item-icon { animation: dock-icon-arrive .42s var(--ease-standard); transform: scale(1.08); }
+@keyframes dock-icon-arrive { 0% { transform: translateX(-5px) scale(.9); opacity:.5 } 65% { transform: translateX(2px) scale(1.12) } 100% { transform:translateX(0) scale(1.08); opacity:1 } }
 .dock-item-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* 名单管理子菜单 */
