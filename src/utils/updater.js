@@ -184,7 +184,12 @@ export async function downloadUpdate(bannerFn = null) {
       }
       result = await window.electronAPI.downloadAndLaunchUpdate(originalUrl, fileName, expectedSize)
     } else if (isTauri()) {
-      if (bannerHandle) bannerHandle.update({ progress: 5 })
+      const { listen } = await import('@tauri-apps/api/event')
+      removeProgressListener = await listen('update-download-progress', event => {
+        const progress = Math.max(0, Math.min(99, Number(event.payload) || 0))
+        updateState.value.downloadProgress = progress
+        if (bannerHandle) bannerHandle.update({ progress })
+      })
       result = await tauriAPI.downloadAndLaunchUpdate(originalUrl, fileName, expectedSize)
     }
 
