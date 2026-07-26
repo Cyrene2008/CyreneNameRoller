@@ -1,10 +1,13 @@
 [
   {
     "version": "26.0.5",
-    "date": "2026-07-25",
+    "date": "2026-07-26",
     "logs": {
       "zh": [
-        "【抢先测试】开放 v26.0.5 Web 端抢先体验，正式发布前仍会持续优化交互与样式",
+        "【正式发布】v26.0.5 已同步发布 Web、Electron 与 Tauri 版本",
+        "【名单文件】人员名单及绑定小组支持 CSV/JSON 导入导出，导入自动识别格式，导出可独立选择格式并默认使用 CSV",
+        "【点名布局】重构多人结果布局，大量抽取时充分使用可用空间、保持统一行列基线并避让控制区",
+        "【性能优化】移除多人布局的高复杂度穷举，修复极少数情况下大量结果导致界面卡住或无响应",
         "【抽奖模式】新增奖品抽取、按权重分配扇区的幸运转盘、人员奖品批量分配及库存不足校验",
         "【奖品管理】支持多个奖品单的创建、切换、重命名、删除，以及 JSON/CSV 独立格式导入导出",
         "【抽奖记录】新增独立抽奖记录子页面，可按指定奖品单筛选并清理记录",
@@ -14,14 +17,17 @@
         "【名单界面】UUID 移到姓名下方完整显示，编辑时隐藏；抽取记录悬停姓名可查看 UUID",
         "【主题系统】新增桃粉、Fluent、自定义主题；自定义颜色会生成浅/深背景、卡片、文本、边框、阴影和强调色整套色板",
         "【Fluent 主题】桌面端读取 Windows 系统强调色，Web 端使用桃粉强调色和黑白中性表面",
-        "【通知系统】桌面保存、导入和导出时在标题栏显示文件位置，可直接打开目录并选中文件；超长通知暂停后滚动一次并自动消失",
+        "【通知系统】需要展示路径的桌面文件操作可直接打开目录并选中文件；超长通知先停留 3 秒，再滚动一次并自动消失",
         "【桌面启动】Electron/Tauri 统一使用管理员计划任务自启动，支持启动到托盘及首次显示主窗口时补播启动动画",
         "【下载】支持 gh.昔涟.cn、GitHub、gh-proxy.com 下载源；Web 端在下载客户端页面直接选择下载源",
         "【导航】抽奖功能使用独立子菜单，所有路由使用明确顺序编号，修正同级子页面切换动画方向",
         "【修复】修正 Web 全屏/退出全屏图标状态、轮盘裁切与指针缺失、设置分类及多处布局问题"
       ],
       "en": [
-        "[Preview] Opened the v26.0.5 Web preview while interaction and styling continue to be refined before release",
+        "[Release] v26.0.5 is now available for Web, Electron, and Tauri",
+        "[List Files] Added CSV/JSON import and export for people and bound groups, with automatic import detection and CSV as the default export format",
+        "[Roller Layout] Reworked multi-result placement to use available space, preserve shared row and column baselines, and avoid the control area",
+        "[Performance] Removed the high-complexity layout search that could rarely make large draws appear unresponsive",
         "[Lottery] Added prize draws, a weighted-sector wheel, batch person-to-prize assignment, and stock validation",
         "[Prize Management] Added multiple prize lists with create, switch, rename, delete, and independent JSON/CSV import/export formats",
         "[Lottery Records] Added a dedicated records page with prize-list filtering and scoped clearing",
@@ -30,7 +36,7 @@
         "[Identity] Added immutable UUIDs for people and UUID-only extraction records so renamed people remain resolvable",
         "[Themes] Added Peach, Fluent, and generated custom light/dark palettes covering surfaces, text, borders, shadows, and accents",
         "[Fluent] Desktop builds read the Windows accent; Web uses the Peach accent with neutral black/white surfaces",
-        "[Notifications] Desktop save/import/export notices show file locations and can reveal files; long notices pause, scroll once, then close",
+        "[Notifications] Relevant desktop file operations can reveal their files; long notices pause for three seconds, scroll once, then close",
         "[Desktop Startup] Electron and Tauri use elevated scheduled tasks, support startup to tray, and replay the splash on first window show",
         "[Downloads] Added gh.昔涟.cn, GitHub, and gh-proxy.com sources with direct source selection on the Web download page",
         "[Navigation] Added lottery submenus and explicit route order metadata for correct forward/back page transitions",

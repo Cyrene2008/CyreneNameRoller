@@ -460,77 +460,123 @@ function computeGridParams() {
     return
   }
 
-  function buildPlan(font, columns, rows, allowLeftRegion = false) {
+  function buildPlan(font, columns) {
     const actualFont = font * factor
     const lineH = actualFont * 1.18
     const gapX = Math.max(8, actualFont * 0.42)
     const gapY = Math.max(8, actualFont * 0.42)
     const cellW = Math.max(actualFont * 1.5, maxW * (font / 52) * factor + 2)
     const contentW = columns * cellW + (columns - 1) * gapX
-    const contentH = rows * lineH + (rows - 1) * gapY
-    if (contentW > cW + 0.5 || contentH > cH + 0.5) return null
+    if (contentW > cW + 0.5) return null
 
-    const origins = []
-    const addOrigin = (left, top, width, height) => {
-      if (width < contentW || height < contentH) return
-      const originX = left + (width - contentW) / 2
-      const originY = top + (height - contentH) / 2
-      const cells = []
-      let blocked = false
-      for (let row = 0; row < rows && !blocked; row++) {
-        const cellTop = originY + row * (lineH + gapY)
-        for (let column = 0; column < columns; column++) {
-          const x = originX + column * (cellW + gapX)
-          const cell = { left: x, top: cellTop, right: x + cellW, bottom: cellTop + lineH }
-          if (exclusion && rectanglesOverlap(cell, exclusion)) {
-            blocked = true
-            break
-          }
-          cells.push({ x, y: cellTop + (lineH - actualFont) / 2 })
-        }
+    const originX = Math.max(0, Math.min(cW - contentW, visualCenter.x - contentW / 2))
+    const columnPlans = []
+    for (let column = 0; column < columns; column++) {
+      const x = originX + column * (cellW + gapX)
+      const overlapsControls = exclusion
+        && x < exclusion.right
+        && x + cellW > exclusion.left
+      columnPlans.push({ x, overlapsControls, count: 0 })
+    }
+
+    if (n >= 64) {
+      // 大量抽取时按列可用高度均衡填充。所有列稍后仍共享同一个 originY，
+      // 因此左侧长列可以利用控制台下方空间，同时保持严格的横向行基线。
+      columnPlans.forEach(column => {
+        column.availableHeight = column.overlapsControls ? exclusion.top : cH
+        column.capacity = Math.floor((column.availableHeight + gapY) / (lineH + gapY))
+        column.count = 0
+      })
+      const totalCapacity = columnPlans.reduce((sum, column) => sum + column.capacity, 0)
+      if (totalCapacity < n) return null
+      for (let index = 0; index < n; index++) {
+        const candidates = columnPlans.filter(column => column.count < column.capacity)
+        if (!candidates.length) return null
+        const target = candidates.reduce((best, candidate) => {
+          const candidateFill = (candidate.count + 1) * (lineH + gapY) / candidate.availableHeight
+          const bestFill = (best.count + 1) * (lineH + gapY) / best.availableHeight
+          return candidateFill < bestFill ? candidate : best
+        })
+        target.count++
       }
-      if (!blocked) origins.push({ originX, originY, width, height, cells })
+      if (columnPlans.some(column => column.count === 0)) return null
+    } else {
+      const baseCount = Math.floor(n / columns)
+      const extraCount = n % columns
+      if (baseCount < 1) return null
+      columnPlans.forEach(column => { column.count = baseCount })
+      // 常规人数保持各列人数最多差 1，余数优先放在不受控件影响且靠近中心的列。
+      columnPlans
+        .map((column, index) => ({
+          column,
+          index,
+          priority: column.overlapsControls ? 1 : 0,
+          distance: Math.abs(column.x + cellW / 2 - visualCenter.x)
+        }))
+        .sort((left, right) => left.priority - right.priority || left.distance - right.distance || left.index - right.index)
+        .slice(0, extraCount)
+        .forEach(({ column }) => { column.count++ })
     }
 
-    const fullOriginX = Math.max(0, Math.min(cW - contentW, visualCenter.x - contentW / 2))
-    const fullOriginY = Math.max(0, Math.min(cH - contentH, visualCenter.y - contentH / 2))
-    addOrigin(fullOriginX - (cW - contentW) / 2, fullOriginY - (cH - contentH) / 2, cW, cH)
-    if (exclusion) {
-      addOrigin(0, 0, cW, exclusion.top)
-      if (allowLeftRegion) addOrigin(0, 0, exclusion.left, cH)
+    const maxColumnCount = Math.max(...columnPlans.map(column => column.count))
+    const maxColumnHeight = maxColumnCount * lineH + (maxColumnCount - 1) * gapY
+    if (maxColumnHeight > cH + 0.5) return null
+    let latestOriginY = cH - maxColumnHeight
+    for (const column of columnPlans) {
+      if (!column.overlapsControls) continue
+      const columnHeight = column.count * lineH + (column.count - 1) * gapY
+      latestOriginY = Math.min(latestOriginY, exclusion.top - columnHeight)
     }
-    if (origins.length === 0) return null
+    if (latestOriginY < 0) return null
+    const originY = Math.max(0, Math.min(latestOriginY, visualCenter.y - maxColumnHeight / 2))
 
-    const emptySlots = columns * rows - n
-    const layoutAspect = contentW / Math.max(1, contentH)
-    const best = origins.reduce((current, origin) => {
-      const targetAspect = origin.width / Math.max(1, origin.height)
-      const centerDistance = ((origin.originX + contentW / 2 - visualCenter.x) / cW) ** 2
-        + ((origin.originY + contentH / 2 - visualCenter.y) / cH) ** 2
-      const score = Math.abs(Math.log(Math.max(0.01, layoutAspect / targetAspect))) * 34
-        + (emptySlots / n) * 18
-        + centerDistance * 12
-        + (n <= 4 ? (rows - 1) * 100 : 0)
-      return !current || score < current.score ? { ...origin, score } : current
-    }, null)
-
-    const basePerRow = Math.floor(n / rows)
-    const extraRows = n % rows
-    const positions = []
-    for (let row = 0, index = 0; row < rows && index < n; row++) {
-      const rowCount = basePerRow + (row < extraRows ? 1 : 0)
-      const rowStart = (columns - rowCount) / 2
-      for (let column = 0; column < rowCount; column++, index++) {
-        positions.push({
-          x: best.originX + (rowStart + column) * (cellW + Math.max(8, actualFont * 0.42)),
-          y: best.originY + row * (lineH + Math.max(8, actualFont * 0.42)) + (lineH - actualFont) / 2
+    const selected = []
+    columnPlans.forEach((columnPlan, column) => {
+      for (let row = 0; row < columnPlan.count; row++) {
+        selected.push({
+          row,
+          column,
+          x: columnPlan.x,
+          y: originY + row * (lineH + gapY) + (lineH - actualFont) / 2
         })
       }
+    })
+
+    const center = selected.reduce((result, cell) => {
+      result.x += cell.x + cellW / 2
+      result.y += cell.y + actualFont / 2
+      return result
+    }, { x: 0, y: 0 })
+    center.x /= n
+    center.y /= n
+
+    const bounds = selected.reduce((result, cell) => ({
+      left: Math.min(result.left, cell.x),
+      top: Math.min(result.top, cell.y),
+      right: Math.max(result.right, cell.x + cellW),
+      bottom: Math.max(result.bottom, cell.y + actualFont)
+    }), { left: cW, top: cH, right: 0, bottom: 0 })
+    const layoutAspect = (bounds.right - bounds.left) / Math.max(1, bounds.bottom - bounds.top)
+    const targetAspect = cW / Math.max(1, cH)
+    const centerDistance = ((center.x - visualCenter.x) / cW) ** 2
+      + ((center.y - visualCenter.y) / cH) ** 2
+    const minColumnCount = Math.min(...columnPlans.map(column => column.count))
+    const orphanPenalty = columns >= 3 && maxColumnCount >= 3 && minColumnCount === 1 ? 14 : 0
+    const score = Math.abs(Math.log(Math.max(0.01, layoutAspect / targetAspect))) * 28
+      + centerDistance * 260
+      + orphanPenalty
+      + (n <= 4 ? (columns - 1) * 100 : 0)
+
+    return {
+      font,
+      lineH,
+      cellW,
+      positions: selected.map(cell => ({ x: cell.x, y: cell.y })),
+      score
     }
-    return { font, lineH, cellW, positions, score: best.score }
   }
 
-  function findPlan(allowLeftRegion) {
+  function findPlan() {
     for (let font = 52; font >= 2; font--) {
       const actualFont = font * factor
       const gapX = Math.max(8, actualFont * 0.42)
@@ -540,31 +586,19 @@ function computeGridParams() {
       const plans = []
 
       const maxColumns = Math.min(n, Math.floor((cW + gapX) / (cellW + gapX)))
-      const maxRows = Math.min(n, Math.floor((cH + gapY) / (lineH + gapY)))
       for (let columns = 1; columns <= maxColumns; columns++) {
-        for (let rows = 1; rows <= maxRows; rows++) {
-          if (columns * rows < n) continue
-          const plan = buildPlan(font, columns, rows, allowLeftRegion)
-          if (plan) plans.push(plan)
-        }
+        const plan = buildPlan(font, columns)
+        if (plan) plans.push(plan)
       }
       if (plans.length > 0) return plans.reduce((best, plan) => plan.score < best.score ? plan : best)
     }
     return null
   }
-  let chosen = findPlan(false)
-  if (!chosen) chosen = findPlan(true)
+  const chosen = findPlan()
   if (!chosen) { gridParams.valid = false; return }
 
   const revealScale = n === 1 ? 2.2 : 1
   Object.assign(gridParams, { valid: true, ...chosen, count: n, revealScale })
-}
-
-function rectanglesOverlap(left, right) {
-  return left.left < right.right
-    && left.right > right.left
-    && left.top < right.bottom
-    && left.bottom > right.top
 }
 
 function getVisualCenter(container, containerWidth, containerHeight) {
@@ -627,8 +661,7 @@ onBeforeUnmount(() => { if (intervalId) clearTimeout(intervalId); clearTimeout(a
 .roller-view { padding: 32px; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100%; position: relative; }
 .roller-title { font-family: var(--font-display); font-size: 28px; font-weight: 700; color: var(--text-primary); margin-bottom: 24px; width: 100%; text-align: center; position: absolute; top: 32px; left: 0; right: 0; z-index: 5; }
 
-/* 展示区：绝对定位占据标题与 controls-center 之间的区域，名字以绝对定位摆放，
-   仅避让右下角的控件区域（controls-center），其余空间均可显示名字 */
+/* 名字舞台覆盖整个页面主体；布局算法只剔除与右下控制台实际重叠的单元格。 */
 .display-container {
   position: absolute;
   top: 96px;
@@ -636,6 +669,7 @@ onBeforeUnmount(() => { if (intervalId) clearTimeout(intervalId); clearTimeout(a
   right: 24px;
   bottom: 24px;
   overflow: hidden;
+  pointer-events: none;
 }
 
 .name-display { position: absolute; white-space: nowrap; overflow: hidden; text-overflow: clip; font-family: var(--font-display); font-weight: 700; color: var(--text-primary); line-height: 1.05; letter-spacing: 0.5px; transition: left 0.3s ease, top 0.3s ease, width 0.3s ease, font-size 0.3s ease, opacity 0.3s ease; text-shadow: 0 4px 20px rgba(234, 94, 193, 0.15); z-index: 5; }

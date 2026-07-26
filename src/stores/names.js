@@ -17,6 +17,7 @@ export const useNamesStore = defineStore('names', () => {
   const currentListId = ref(DEFAULT_LIST_ID)
   const defaultNamesData = ref({ names: [] })
   const isLoaded = ref(false)
+  let saveQueue = Promise.resolve()
 
   const currentList = computed(() => {
     return nameLists.value[currentListId.value] || nameLists.value[DEFAULT_LIST_ID] || getDefaultList()
@@ -73,15 +74,13 @@ export const useNamesStore = defineStore('names', () => {
             names: defaultNamesData.value.names || []
           }
         }
-        await save()
       }
-
-      Object.values(nameLists.value).forEach(migrateList)
-      await save()
 
       if (savedCurrentId && nameLists.value[savedCurrentId]) {
         currentListId.value = savedCurrentId
       }
+      Object.values(nameLists.value).forEach(migrateList)
+      await save()
     } catch (e) {
       console.error('[names] initialize failed:', e)
       nameLists.value = {
@@ -96,9 +95,15 @@ export const useNamesStore = defineStore('names', () => {
     isLoaded.value = true
   }
 
-  async function save() {
-    await dataBridge.save('lists', nameLists.value)
-    await dataBridge.save('currentListId', currentListId.value)
+  function save() {
+    const listsSnapshot = JSON.parse(JSON.stringify(nameLists.value))
+    const currentIdSnapshot = currentListId.value
+    const task = saveQueue.catch(() => {}).then(async () => {
+      await dataBridge.save('lists', listsSnapshot)
+      await dataBridge.save('currentListId', currentIdSnapshot)
+    })
+    saveQueue = task
+    return task
   }
 
   function switchList(id) {

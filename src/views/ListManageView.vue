@@ -54,7 +54,7 @@
             <FluentButton v-if="list.id !== namesStore.currentListId" variant="subtle" size="sm" @click="namesStore.switchList(list.id)">
               <FluentIcon icon="checkmark-16-regular" :width="14" /> {{ lang === 'en' ? 'Switch' : '切换' }}
             </FluentButton>
-            <FluentButton variant="subtle" size="sm" icon-only @click="exportList(list)">
+            <FluentButton variant="subtle" size="sm" icon-only :title="lang === 'en' ? 'Export list' : '导出名单'" @click="openExport(list)">
               <FluentIcon icon="arrow-download-16-regular" :width="14" />
             </FluentButton>
             <FluentButton variant="subtle" size="sm" icon-only :disabled="namesStore.allLists.length <= 1" @click="deleteList(list)">
@@ -72,9 +72,23 @@
     <FluentCard class="import-section">
       <h2 class="section-title">{{ lang === 'en' ? 'Import List' : '导入名单' }}</h2>
       <FluentButton variant="secondary" size="sm" @click="importList">
-        <FluentIcon icon="arrow-upload-16-regular" :width="14" /> {{ lang === 'en' ? 'Import from JSON' : '从 JSON 导入' }}
+        <FluentIcon icon="arrow-upload-16-regular" :width="14" /> {{ lang === 'en' ? 'Import CSV / JSON' : '导入 CSV / JSON' }}
       </FluentButton>
     </FluentCard>
+
+    <FluentModal v-model="showExportModal" :title="lang === 'en' ? 'Export list' : '导出名单'">
+      <div class="export-form">
+        <div class="export-list-name">{{ pendingExportList?.name }}</div>
+        <label class="export-label">{{ lang === 'en' ? 'File format' : '文件格式' }}</label>
+        <FluentTabs v-model="exportFormat" :options="exportFormatOptions" />
+      </div>
+      <template #footer>
+        <FluentButton variant="subtle" @click="showExportModal = false">{{ lang === 'en' ? 'Cancel' : '取消' }}</FluentButton>
+        <FluentButton variant="primary" @click="exportList">
+          <FluentIcon icon="arrow-download-16-regular" :width="14" /> {{ lang === 'en' ? 'Export' : '导出' }}
+        </FluentButton>
+      </template>
+    </FluentModal>
   </div>
 </template>
 
@@ -88,7 +102,10 @@ import FluentCard from '../components/FluentCard.vue'
 import FluentButton from '../components/FluentButton.vue'
 import FluentIcon from '../components/FluentIcon.vue'
 import FluentInput from '../components/FluentInput.vue'
+import FluentModal from '../components/FluentModal.vue'
+import FluentTabs from '../components/FluentTabs.vue'
 import { emitFileNotice, openTextFile, saveTextFile } from '../utils/desktopFiles'
+import { parseListFile, serializeListFile } from '../utils/listFile'
 
 const router = useRouter()
 const namesStore = useNamesStore()
@@ -99,6 +116,13 @@ const showBanner = inject('banner')
 const newListName = ref('')
 const editingListId = ref(null)
 const editListNameValue = ref('')
+const showExportModal = ref(false)
+const pendingExportList = ref(null)
+const exportFormat = ref('csv')
+const exportFormatOptions = computed(() => [
+  { value: 'csv', label: 'CSV', icon: 'table-16-regular' },
+  { value: 'json', label: 'JSON', icon: 'code-16-regular' }
+])
 
 function createList() {
   if (!newListName.value.trim()) return
@@ -138,10 +162,20 @@ function deleteList(list) {
   })
 }
 
-async function exportList(list) {
+function openExport(list) {
+  pendingExportList.value = list
+  exportFormat.value = 'csv'
+  showExportModal.value = true
+}
+
+async function exportList() {
+  const list = pendingExportList.value
+  if (!list) return
+  const format = exportFormat.value === 'json' ? 'json' : 'csv'
   const safeName = list.name.replace(/[<>:"/\\|?*]/g, '_')
-  const result = await saveTextFile(JSON.stringify(list, null, 2), `${safeName}.json`, 'json')
+  const result = await saveTextFile(serializeListFile(list, format), `${safeName}.${format}`, format)
   if (result?.success) {
+    showExportModal.value = false
     showBanner({ message: `${lang.value === 'en' ? 'Exported' : '导出成功'}: ${list.name}`, icon: 'checkmark-circle-16-regular', type: 'success', duration: 5000 })
   } else if (!result?.cancelled) {
     showBanner({ message: `${lang.value === 'en' ? 'Export failed' : '导出失败'}: ${result?.error || 'Unknown error'}`, icon: 'warning-16-regular', type: 'warning', duration: 8000 })
@@ -149,19 +183,19 @@ async function exportList(list) {
 }
 
 async function importList() {
-  const result = await openTextFile('json')
+  const result = await openTextFile(['csv', 'json'])
   if (!result?.success) {
     if (!result?.cancelled) showBanner({ message: `${lang.value === 'en' ? 'Import failed' : '导入失败'}: ${result?.error || 'Unknown error'}`, icon: 'warning-16-regular', type: 'warning', duration: 8000 })
     return
   }
   try {
-    const data = JSON.parse(result.content)
+    const { list: data } = parseListFile(result.content)
     const imported = namesStore.importList(data)
     if (!imported) throw new Error(lang.value === 'en' ? 'Invalid list structure' : '名单结构无效')
     if (result.filePath) emitFileNotice(`${lang.value === 'en' ? 'List imported' : '名单已导入'}：${result.filePath}`, result.filePath)
     showBanner({ message: `${lang.value === 'en' ? 'Imported' : '导入成功'}: ${data.name}`, icon: 'checkmark-circle-16-regular', type: 'success', duration: 5000 })
   } catch (error) {
-    showBanner({ message: `${lang.value === 'en' ? 'Import failed' : '导入失败'}: ${error.message || (lang.value === 'en' ? 'Invalid JSON' : 'JSON 格式无效')}`, icon: 'warning-16-regular', type: 'warning', duration: 8000 })
+    showBanner({ message: `${lang.value === 'en' ? 'Import failed' : '导入失败'}: ${error.message || (lang.value === 'en' ? 'Invalid CSV / JSON' : 'CSV / JSON 格式无效')}`, icon: 'warning-16-regular', type: 'warning', duration: 8000 })
   }
 }
 </script>
@@ -331,4 +365,8 @@ async function importList() {
 .import-section {
   flex-shrink: 0;
 }
+
+.export-form { display: flex; flex-direction: column; gap: 10px; }
+.export-list-name { color: var(--text-primary); font-weight: 600; }
+.export-label { color: var(--text-muted); font-size: 12px; }
 </style>

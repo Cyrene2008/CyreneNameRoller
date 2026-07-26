@@ -2,8 +2,6 @@ import { isTauri, tauriAPI } from './tauriAPI'
 import { decryptCyreneData, encryptCyreneData } from './cyreneCrypto'
 import { emitFileNotice } from './desktopFiles'
 
-const NOTICE_KEYS = new Set(['lists', 'prizeLists'])
-
 export function isElectron() {
   return typeof window !== 'undefined' && !!window.electronAPI
 }
@@ -47,8 +45,7 @@ export const dataBridge = {
     // Tauri
     if (isTauri()) {
       try {
-        const result = await tauriAPI.storageSet(key, data)
-        if (NOTICE_KEYS.has(key) && result?.filePath) notifyDataSaved(result.filePath)
+        await tauriAPI.storageSet(key, data)
       } catch (e) {
         console.warn(`[dataBridge] Tauri save failed for "${key}":`, e)
       }
@@ -57,8 +54,7 @@ export const dataBridge = {
     // Electron
     if (isElectron()) {
         try {
-          const result = await window.electronAPI.storageSet(key, data)
-          if (NOTICE_KEYS.has(key) && result?.filePath) notifyDataSaved(result.filePath)
+          await window.electronAPI.storageSet(key, data)
         } catch (e) {
         console.warn(`[dataBridge] Electron save failed for "${key}":`, e)
       }
@@ -129,14 +125,12 @@ export const dataBridge = {
     if (isElectron()) {
       try {
         const result = await window.electronAPI.exportData()
-        if (result?.success && result.filePath) emitFileNotice(`程序数据已导出：${result.filePath}`, result.filePath)
         return result
       } catch {}
     }
     if (isTauri()) {
       try {
         const result = await tauriAPI.exportDataFile()
-        if (result?.success && result.filePath) emitFileNotice(`程序数据已导出：${result.filePath}`, result.filePath)
         return result
       } catch (error) {
         return { success: false, error: error.message }
@@ -186,10 +180,6 @@ export const dataBridge = {
       input.click()
     })
   }
-}
-
-function notifyDataSaved(location) {
-  emitFileNotice(`数据已保存：${location}`, location)
 }
 
 function downloadEncryptedFile(bytes) {
