@@ -65,7 +65,7 @@ function restartElevatedForStartupTask(enabled) {
   appArguments.push(`--cyrene-configure-autostart=${enabled ? 'enable' : 'disable'}`)
   appArguments.push(`--cyrene-replace-pid=${process.pid}`)
   const argumentList = appArguments.map(powershellLiteral).join(', ')
-  const script = `$process = Start-Process -FilePath ${powershellLiteral(process.execPath)} -Verb RunAs -ArgumentList ${argumentList} -Wait -PassThru; exit $process.ExitCode`
+  const script = `Start-Process -FilePath ${powershellLiteral(process.execPath)} -Verb RunAs -ArgumentList ${argumentList}`
   const helper = spawn('powershell.exe', ['-NoProfile', '-WindowStyle', 'Hidden', '-Command', script], {
     windowsHide: true,
     stdio: 'ignore'
@@ -76,6 +76,14 @@ function restartElevatedForStartupTask(enabled) {
       ? { success: true, restarting: true }
       : { success: false, error: '管理员授权已取消或管理员进程启动失败' }))
   })
+}
+
+async function waitForProcessExit(pid, timeoutMs = 10000) {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    try { process.kill(pid, 0) } catch { return }
+    await new Promise(resolve => setTimeout(resolve, 100))
+  }
 }
 
 function revealMainWindow() {
@@ -98,14 +106,24 @@ app.on('second-instance', () => {
 })
 
 async function initStore() {
-  const installDir = isDev ? app.getAppPath() : path.dirname(app.getPath('exe'))
-  const dataDir = path.join(installDir, 'data')
+  const dataDir = path.join(app.getPath('userData'), 'data')
   fs.mkdirSync(dataDir, { recursive: true })
   dataFilePath = path.join(dataDir, 'cyrene-data.cyrene')
 
   if (fs.existsSync(dataFilePath)) {
     appData = decryptDataFile(fs.readFileSync(dataFilePath))
     return
+  }
+
+  const installDir = isDev ? app.getAppPath() : path.dirname(app.getPath('exe'))
+  const installedDataPath = path.join(installDir, 'data', 'cyrene-data.cyrene')
+  if (installedDataPath !== dataFilePath && fs.existsSync(installedDataPath)) {
+    try {
+      appData = decryptDataFile(fs.readFileSync(installedDataPath))
+      if (persistData()) return
+    } catch (error) {
+      console.error('[data] Failed to migrate installed data:', error.message)
+    }
   }
 
   const migration = migrateLegacyData()
@@ -124,8 +142,9 @@ function decryptDataFile(buffer) {
   }
   const offset = DATA_MAGIC.length
   const iv = buffer.subarray(offset, offset + DATA_IV_LENGTH)
-  const tag = buffer.subarray(offset + DATA_IV_LENGTH, offset + DATA_IV_LENGTH + DATA_TAG_LENGTH)
-  const encrypted = buffer.subarray(offset + DATA_IV_LENGTH + DATA_TAG_LENGTH)
+  const encryptedEnd = buffer.length - DATA_TAG_LENGTH
+  const tag = buffer.subarray(encryptedEnd)
+  const encrypted = buffer.subarray(offset + DATA_IV_LENGTH, encryptedEnd)
   const decipher = crypto.createDecipheriv('aes-256-gcm', DATA_KEY, iv)
   decipher.setAuthTag(tag)
   const plain = Buffer.concat([decipher.update(encrypted), decipher.final()])
@@ -143,12 +162,20 @@ function encryptDataFile(data) {
 
 function persistData() {
   if (!dataFilePath) return false
+  const temporaryPath = `${dataFilePath}.${process.pid}.tmp`
+  const backupPath = `${dataFilePath}.bak`
   try {
-    const temporaryPath = `${dataFilePath}.${process.pid}.tmp`
     fs.writeFileSync(temporaryPath, encryptDataFile(appData))
+    removeFileIfPresent(backupPath)
+    if (fs.existsSync(dataFilePath)) fs.renameSync(dataFilePath, backupPath)
     fs.renameSync(temporaryPath, dataFilePath)
+    removeFileIfPresent(backupPath)
     return true
   } catch (error) {
+    removeFileIfPresent(temporaryPath)
+    if (!fs.existsSync(dataFilePath) && fs.existsSync(backupPath)) {
+      try { fs.renameSync(backupPath, dataFilePath) } catch {}
+    }
     console.error('[data] Failed to persist encrypted data:', error.message)
     return false
   }
@@ -260,7 +287,14 @@ ipcMain.handle('window-is-maximized', () => win.isMaximized())
 ipcMain.handle('set-auto-start', async (_, enabled) => {
   if (process.platform !== 'win32') return { success: false, error: '管理员计划任务仅支持 Windows' }
   if (isProcessElevated()) return configureStartupTask(!!enabled)
-  return await restartElevatedForStartupTask(!!enabled)
+  const result = await restartElevatedForStartupTask(!!enabled)
+  if (result.success && result.restarting) {
+    setTimeout(() => {
+      quitting = true
+      app.quit()
+    }, 500)
+  }
+  return result
 })
 ipcMain.handle('is-autostart-launch', () => process.argv.includes('--cyrene-autostart'))
 ipcMain.handle('system-accent', () => {
@@ -565,10 +599,13 @@ ipcMain.handle('save-text-file', async (_, content, defaultName, extension = 'js
 
 ipcMain.handle('open-text-file', async (_, extension = 'json') => {
   try {
-    const ext = String(extension).replace(/[^a-z0-9]/gi, '') || 'json'
+    const extensions = (Array.isArray(extension) ? extension : [extension])
+      .map(value => String(value).replace(/[^a-z0-9]/gi, '').toLowerCase())
+      .filter(Boolean)
+    const accepted = extensions.length ? extensions : ['json']
     const result = await dialog.showOpenDialog(win, {
       title: '打开文件',
-      filters: [{ name: `${ext.toUpperCase()} 文件`, extensions: [ext] }],
+      filters: [{ name: `${accepted.map(value => value.toUpperCase()).join(' / ')} 文件`, extensions: accepted }],
       properties: ['openFile']
     })
     if (result.canceled || !result.filePaths[0]) return { success: false, cancelled: true }
@@ -747,7 +784,7 @@ app.whenReady().then(async () => {
       return
     }
     if (result.success && replacedProcessId > 0) {
-      spawnSync('taskkill.exe', ['/PID', String(replacedProcessId), '/T', '/F'], { windowsHide: true })
+      await waitForProcessExit(replacedProcessId)
     }
     if (!app.requestSingleInstanceLock()) {
       app.quit()

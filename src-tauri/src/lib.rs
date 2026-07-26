@@ -1,15 +1,24 @@
+use aes_gcm::aead::{rand_core::RngCore, Aead, OsRng};
 use aes_gcm::{Aes256Gcm, KeyInit, Nonce};
-use aes_gcm::aead::{Aead, OsRng, rand_core::RngCore};
 use base64::Engine;
 use sha2::{Digest, Sha256};
-use std::sync::Mutex;
-use tauri::{Emitter, LogicalSize, Manager, State};
-use tauri::menu::{Menu, MenuItem};
-use tauri::tray::TrayIconBuilder;
-use tauri_plugin_dialog::DialogExt;
+use std::ffi::OsStr;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex};
+use tauri::menu::{Menu, MenuItem};
+use tauri::tray::TrayIconBuilder;
+use tauri::{Emitter, LogicalSize, Manager, State};
+use tauri_plugin_dialog::DialogExt;
+
+#[cfg(target_os = "windows")]
+use std::os::windows::{ffi::OsStrExt, process::CommandExt};
+#[cfg(target_os = "windows")]
+use windows_sys::Win32::UI::Shell::{IsUserAnAdmin, ShellExecuteW};
+#[cfg(target_os = "windows")]
+use windows_sys::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
 
 const UPDATE_PROXY_BASE: &str = "https://gh.xn--8hvv1o.cn/";
 const UPDATE_URL_PREFIX: &str = "https://github.com/Cyrene2008/CyreneNameRoller/releases/download/";
@@ -18,6 +27,44 @@ const DATA_MAGIC: &[u8] = b"CYRENE1\0";
 const DATA_NONCE_LENGTH: usize = 12;
 const DATA_TAG_LENGTH: usize = 16;
 const STARTUP_TASK_NAME: &str = "CyreneNameRollerAutoStart";
+#[cfg(target_os = "windows")]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+fn background_command<S: AsRef<OsStr>>(program: S) -> Command {
+    let mut command = Command::new(program);
+    #[cfg(target_os = "windows")]
+    command.creation_flags(CREATE_NO_WINDOW);
+    command
+}
+
+#[cfg(target_os = "windows")]
+fn wide(value: &OsStr) -> Vec<u16> {
+    value.encode_wide().chain(std::iter::once(0)).collect()
+}
+
+#[cfg(target_os = "windows")]
+fn shell_execute(operation: &str, file: &OsStr, parameters: Option<&str>) -> Result<(), String> {
+    let operation = wide(OsStr::new(operation));
+    let file = wide(file);
+    let parameters = parameters.map(|value| wide(OsStr::new(value)));
+    let result = unsafe {
+        ShellExecuteW(
+            std::ptr::null_mut(),
+            operation.as_ptr(),
+            file.as_ptr(),
+            parameters
+                .as_ref()
+                .map_or(std::ptr::null(), |value| value.as_ptr()),
+            std::ptr::null(),
+            SW_SHOWNORMAL,
+        )
+    } as isize;
+    if result > 32 {
+        Ok(())
+    } else {
+        Err(format!("Windows 启动操作失败 ({})", result))
+    }
+}
 
 struct EncryptedStore {
     path: PathBuf,
@@ -26,17 +73,30 @@ struct EncryptedStore {
 }
 
 impl EncryptedStore {
-    fn load() -> Self {
-        let path = installation_data_dir().join("cyrene-data.cyrene");
-        let (values, integrity_error) = match fs::read(&path) {
-            Ok(bytes) => match decrypt_data(&bytes) {
-                Ok(values) => (values, None),
-                Err(error) => (serde_json::json!({}), Some(error)),
-            },
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => (serde_json::json!({}), None),
-            Err(error) => (serde_json::json!({}), Some(error.to_string())),
+    fn load(path: PathBuf) -> Self {
+        let directory_error = path
+            .parent()
+            .and_then(|parent| fs::create_dir_all(parent).err())
+            .map(|error| error.to_string());
+        let (values, integrity_error) = if let Some(error) = directory_error {
+            (serde_json::json!({}), Some(error))
+        } else {
+            match fs::read(&path) {
+                Ok(bytes) => match decrypt_data(&bytes) {
+                    Ok(values) => (values, None),
+                    Err(error) => (serde_json::json!({}), Some(error)),
+                },
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                    (serde_json::json!({}), None)
+                }
+                Err(error) => (serde_json::json!({}), Some(error.to_string())),
+            }
         };
-        Self { path, values: Mutex::new(values), integrity_error: Mutex::new(integrity_error) }
+        Self {
+            path,
+            values: Mutex::new(values),
+            integrity_error: Mutex::new(integrity_error),
+        }
     }
 
     fn is_healthy(&self) -> Result<(), String> {
@@ -49,10 +109,13 @@ impl EncryptedStore {
 
     fn persist(&self) -> Result<(), String> {
         self.is_healthy()?;
-        let values = self.values.lock().map_err(|_| "数据锁定失败".to_string())?.clone();
+        let values = self
+            .values
+            .lock()
+            .map_err(|_| "数据锁定失败".to_string())?
+            .clone();
         let temporary_path = self.path.with_extension("cyrene.tmp");
-        fs::write(&temporary_path, encrypt_data(&values)?)
-            .map_err(|error| error.to_string())?;
+        fs::write(&temporary_path, encrypt_data(&values)?).map_err(|error| error.to_string())?;
         let backup_path = self.path.with_extension("cyrene.bak");
         let _ = fs::remove_file(&backup_path);
         if self.path.exists() {
@@ -73,7 +136,7 @@ impl EncryptedStore {
     }
 }
 
-fn installation_data_dir() -> PathBuf {
+fn legacy_installation_data_dir() -> PathBuf {
     let root = std::env::current_exe()
         .ok()
         .and_then(|path| path.parent().map(Path::to_path_buf))
@@ -84,7 +147,9 @@ fn installation_data_dir() -> PathBuf {
 }
 
 fn get_resource_dir(app: &tauri::AppHandle) -> PathBuf {
-    app.path().resource_dir().unwrap_or_else(|_| PathBuf::from("."))
+    app.path()
+        .resource_dir()
+        .unwrap_or_else(|_| PathBuf::from("."))
 }
 
 fn data_key() -> [u8; 32] {
@@ -99,7 +164,9 @@ fn encrypt_data(values: &serde_json::Value) -> Result<Vec<u8>, String> {
     let mut nonce = [0u8; DATA_NONCE_LENGTH];
     OsRng.fill_bytes(&mut nonce);
     let plain = serde_json::to_vec(values).map_err(|error| error.to_string())?;
-    let encrypted = cipher.encrypt(Nonce::from_slice(&nonce), plain.as_ref()).map_err(|error| error.to_string())?;
+    let encrypted = cipher
+        .encrypt(Nonce::from_slice(&nonce), plain.as_ref())
+        .map_err(|error| error.to_string())?;
     let mut output = Vec::with_capacity(DATA_MAGIC.len() + nonce.len() + encrypted.len());
     output.extend_from_slice(DATA_MAGIC);
     output.extend_from_slice(&nonce);
@@ -119,9 +186,13 @@ fn decrypt_data(bytes: &[u8]) -> Result<serde_json::Value, String> {
     let key = data_key();
     let cipher = Aes256Gcm::new_from_slice(&key).map_err(|error| error.to_string())?;
     let plain = cipher
-        .decrypt(Nonce::from_slice(&bytes[nonce_start..nonce_end]), &bytes[nonce_end..])
+        .decrypt(
+            Nonce::from_slice(&bytes[nonce_start..nonce_end]),
+            &bytes[nonce_end..],
+        )
         .map_err(|_| "数据完整性校验失败，文件可能已被篡改".to_string())?;
-    let values: serde_json::Value = serde_json::from_slice(&plain).map_err(|_| "数据内容无效".to_string())?;
+    let values: serde_json::Value =
+        serde_json::from_slice(&plain).map_err(|_| "数据内容无效".to_string())?;
     if !values.is_object() {
         return Err("数据内容无效".into());
     }
@@ -147,19 +218,43 @@ fn save_window_state(app: &tauri::AppHandle) {
     }
 }
 
-// 启动时恢复上次记忆的窗口尺寸与位置
+// 恢复尺寸后重新居中，并限制在当前显示器内，避免高 DPI 下窗口被挤到屏幕边缘。
 fn restore_window_state(app: &tauri::AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
         let store = app.state::<EncryptedStore>();
-        if let Ok(values) = store.values.lock() {
-            let state = &values["windowState"];
-            if let (Some(w), Some(h)) = (state["width"].as_u64(), state["height"].as_u64()) {
-                let _ = window.set_size(tauri::PhysicalSize::new(w as u32, h as u32));
+        let state = store
+            .values
+            .lock()
+            .ok()
+            .and_then(|values| values.get("windowState").cloned());
+        if state
+            .as_ref()
+            .and_then(|value| value["isMaximized"].as_bool())
+            == Some(true)
+        {
+            let _ = window.maximize();
+            return;
+        }
+
+        let saved_size = state.as_ref().and_then(|value| {
+            Some((
+                value["width"].as_u64()? as u32,
+                value["height"].as_u64()? as u32,
+            ))
+        });
+        let current_size = window
+            .outer_size()
+            .ok()
+            .map(|size| (size.width, size.height));
+        if let Some((mut width, mut height)) = saved_size.or(current_size) {
+            if let Ok(Some(monitor)) = window.current_monitor() {
+                let monitor_size = monitor.size();
+                width = width.min((monitor_size.width as f64 * 0.9) as u32);
+                height = height.min((monitor_size.height as f64 * 0.86) as u32);
             }
-            if state["isMaximized"].as_bool() == Some(true) {
-                let _ = window.maximize();
-            }
-        };
+            let _ = window.set_size(tauri::PhysicalSize::new(width, height));
+        }
+        let _ = window.center();
     }
 }
 
@@ -221,7 +316,8 @@ async fn download_installer_bytes(
                         Ok(Some(chunk)) => {
                             bytes.extend_from_slice(&chunk);
                             if total_size > 0 {
-                                let progress = ((bytes.len() as u64 * 99) / total_size).min(99) as u8;
+                                let progress =
+                                    ((bytes.len() as u64 * 99) / total_size).min(99) as u8;
                                 if progress > last_progress {
                                     last_progress = progress;
                                     let _ = app.emit("update-download-progress", progress);
@@ -284,12 +380,27 @@ fn installer_temp_path(file_name: &str) -> Result<PathBuf, String> {
 fn launch_installer(path: &Path) -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
-        Command::new(path).spawn().map(|_| ()).map_err(|error| error.to_string())
+        Command::new(path)
+            .spawn()
+            .map(|_| ())
+            .map_err(|error| error.to_string())
     }
     #[cfg(target_os = "macos")]
-    { Command::new("open").arg(path).spawn().map(|_| ()).map_err(|error| error.to_string()) }
+    {
+        Command::new("open")
+            .arg(path)
+            .spawn()
+            .map(|_| ())
+            .map_err(|error| error.to_string())
+    }
     #[cfg(target_os = "linux")]
-    { Command::new("xdg-open").arg(path).spawn().map(|_| ()).map_err(|error| error.to_string()) }
+    {
+        Command::new("xdg-open")
+            .arg(path)
+            .spawn()
+            .map(|_| ())
+            .map_err(|error| error.to_string())
+    }
 }
 
 #[tauri::command]
@@ -297,7 +408,11 @@ fn storage_get(store: State<'_, EncryptedStore>, key: String) -> Option<serde_js
     if store.is_healthy().is_err() {
         return None;
     }
-    store.values.lock().ok().and_then(|values| values.get(&key).cloned())
+    store
+        .values
+        .lock()
+        .ok()
+        .and_then(|values| values.get(&key).cloned())
 }
 
 fn migrate_legacy_data(app: &tauri::AppHandle) {
@@ -305,6 +420,23 @@ fn migrate_legacy_data(app: &tauri::AppHandle) {
     if store.path.exists() || store.is_healthy().is_err() {
         return;
     }
+
+    // 26.0.5 曾把数据写在安装目录。普通用户通常无权写 Program Files，
+    // 因此只读取并迁移到当前用户的 AppData，保留原文件作为回退备份。
+    let installed_data = legacy_installation_data_dir().join("cyrene-data.cyrene");
+    if installed_data != store.path {
+        if let Ok(bytes) = fs::read(&installed_data) {
+            if let Ok(values) = decrypt_data(&bytes) {
+                if let Ok(mut current_values) = store.values.lock() {
+                    *current_values = values;
+                }
+                if store.persist().is_ok() {
+                    return;
+                }
+            }
+        }
+    }
+
     let legacy_dir = match app.path().app_data_dir() {
         Ok(path) => path.join("data"),
         Err(_) => return,
@@ -317,15 +449,24 @@ fn migrate_legacy_data(app: &tauri::AppHandle) {
             if path.extension().and_then(|extension| extension.to_str()) != Some("json") {
                 continue;
             }
-            let Ok(raw) = fs::read_to_string(&path) else { continue };
-            let Ok(value) = serde_json::from_str::<serde_json::Value>(&raw) else { continue };
-            let Some(stem) = path.file_stem().and_then(|stem| stem.to_str()) else { continue };
+            let Ok(raw) = fs::read_to_string(&path) else {
+                continue;
+            };
+            let Ok(value) = serde_json::from_str::<serde_json::Value>(&raw) else {
+                continue;
+            };
+            let Some(stem) = path.file_stem().and_then(|stem| stem.to_str()) else {
+                continue;
+            };
             if stem == "window-state" {
-                values.insert("windowState".into(), serde_json::json!({
-                    "width": value["width"],
-                    "height": value["height"],
-                    "isMaximized": value["maximized"].as_bool().unwrap_or(false),
-                }));
+                values.insert(
+                    "windowState".into(),
+                    serde_json::json!({
+                        "width": value["width"],
+                        "height": value["height"],
+                        "isMaximized": value["maximized"].as_bool().unwrap_or(false),
+                    }),
+                );
             } else {
                 values.insert(stem.to_string(), value);
             }
@@ -341,12 +482,18 @@ fn migrate_legacy_data(app: &tauri::AppHandle) {
         return;
     }
     if store.persist().is_ok() {
-        legacy_paths.into_iter().for_each(|path| { let _ = fs::remove_file(path); });
+        legacy_paths.into_iter().for_each(|path| {
+            let _ = fs::remove_file(path);
+        });
     }
 }
 
 #[tauri::command]
-fn storage_set(store: State<'_, EncryptedStore>, key: String, value: serde_json::Value) -> serde_json::Value {
+fn storage_set(
+    store: State<'_, EncryptedStore>,
+    key: String,
+    value: serde_json::Value,
+) -> serde_json::Value {
     if store.is_healthy().is_err() {
         return serde_json::json!({ "success": false, "error": "数据文件完整性检查失败" });
     }
@@ -403,7 +550,10 @@ fn export_encrypted_data(store: State<'_, EncryptedStore>) -> Result<String, Str
 }
 
 #[tauri::command]
-fn import_encrypted_data(store: State<'_, EncryptedStore>, encoded_data: String) -> Result<bool, String> {
+fn import_encrypted_data(
+    store: State<'_, EncryptedStore>,
+    encoded_data: String,
+) -> Result<bool, String> {
     let bytes = base64::engine::general_purpose::STANDARD
         .decode(encoded_data)
         .map_err(|_| "导入文件编码无效".to_string())?;
@@ -424,14 +574,24 @@ async fn save_text_file(
     default_name: String,
     extension: String,
 ) -> Result<serde_json::Value, String> {
-    let safe_extension: String = extension.chars().filter(|character| character.is_ascii_alphanumeric()).collect();
-    let safe_extension = if safe_extension.is_empty() { "json".to_string() } else { safe_extension };
+    let safe_extension: String = extension
+        .chars()
+        .filter(|character| character.is_ascii_alphanumeric())
+        .collect();
+    let safe_extension = if safe_extension.is_empty() {
+        "json".to_string()
+    } else {
+        safe_extension
+    };
     let selected = app
         .dialog()
         .file()
         .set_title("保存文件")
         .set_file_name(default_name)
-        .add_filter(format!("{} 文件", safe_extension.to_uppercase()), &[safe_extension.as_str()])
+        .add_filter(
+            format!("{} 文件", safe_extension.to_uppercase()),
+            &[safe_extension.as_str()],
+        )
         .blocking_save_file();
     let Some(selected) = selected else {
         return Ok(serde_json::json!({ "success": false, "cancelled": true }));
@@ -442,25 +602,64 @@ async fn save_text_file(
 }
 
 #[tauri::command]
-async fn open_text_file(app: tauri::AppHandle, extension: String) -> Result<serde_json::Value, String> {
-    let safe_extension: String = extension.chars().filter(|character| character.is_ascii_alphanumeric()).collect();
-    let safe_extension = if safe_extension.is_empty() { "json".to_string() } else { safe_extension };
+async fn open_text_file(
+    app: tauri::AppHandle,
+    extension: serde_json::Value,
+) -> Result<serde_json::Value, String> {
+    let raw_extensions: Vec<String> = match extension {
+        serde_json::Value::Array(values) => values
+            .into_iter()
+            .filter_map(|value| value.as_str().map(ToOwned::to_owned))
+            .collect(),
+        serde_json::Value::String(value) => vec![value],
+        _ => Vec::new(),
+    };
+    let mut safe_extensions: Vec<String> = raw_extensions
+        .into_iter()
+        .map(|value| {
+            value
+                .chars()
+                .filter(|character| character.is_ascii_alphanumeric())
+                .collect::<String>()
+                .to_lowercase()
+        })
+        .filter(|value| !value.is_empty())
+        .collect();
+    safe_extensions.sort();
+    safe_extensions.dedup();
+    if safe_extensions.is_empty() {
+        safe_extensions.push("json".to_string());
+    }
+    let filter_name = format!(
+        "{} 文件",
+        safe_extensions
+            .iter()
+            .map(|value| value.to_uppercase())
+            .collect::<Vec<_>>()
+            .join(" / ")
+    );
+    let filter_extensions: Vec<&str> = safe_extensions.iter().map(String::as_str).collect();
     let selected = app
         .dialog()
         .file()
         .set_title("打开文件")
-        .add_filter(format!("{} 文件", safe_extension.to_uppercase()), &[safe_extension.as_str()])
+        .add_filter(filter_name, &filter_extensions)
         .blocking_pick_file();
     let Some(selected) = selected else {
         return Ok(serde_json::json!({ "success": false, "cancelled": true }));
     };
     let path = selected.into_path().map_err(|error| error.to_string())?;
     let content = fs::read_to_string(&path).map_err(|error| error.to_string())?;
-    Ok(serde_json::json!({ "success": true, "content": content, "filePath": path.to_string_lossy() }))
+    Ok(
+        serde_json::json!({ "success": true, "content": content, "filePath": path.to_string_lossy() }),
+    )
 }
 
 #[tauri::command]
-async fn export_data_file(app: tauri::AppHandle, store: State<'_, EncryptedStore>) -> Result<serde_json::Value, String> {
+async fn export_data_file(
+    app: tauri::AppHandle,
+    store: State<'_, EncryptedStore>,
+) -> Result<serde_json::Value, String> {
     store.persist()?;
     let selected = app
         .dialog()
@@ -478,7 +677,10 @@ async fn export_data_file(app: tauri::AppHandle, store: State<'_, EncryptedStore
 }
 
 #[tauri::command]
-async fn import_data_file(app: tauri::AppHandle, store: State<'_, EncryptedStore>) -> Result<serde_json::Value, String> {
+async fn import_data_file(
+    app: tauri::AppHandle,
+    store: State<'_, EncryptedStore>,
+) -> Result<serde_json::Value, String> {
     let selected = app
         .dialog()
         .file()
@@ -491,7 +693,10 @@ async fn import_data_file(app: tauri::AppHandle, store: State<'_, EncryptedStore
     let path = selected.into_path().map_err(|error| error.to_string())?;
     let bytes = fs::read(&path).map_err(|error| error.to_string())?;
     let values = decrypt_data(&bytes)?;
-    *store.values.lock().map_err(|_| "数据锁定失败".to_string())? = values;
+    *store
+        .values
+        .lock()
+        .map_err(|_| "数据锁定失败".to_string())? = values;
     store.persist()?;
     Ok(serde_json::json!({ "success": true, "filePath": path.to_string_lossy() }))
 }
@@ -549,11 +754,17 @@ async fn check_update() -> Result<serde_json::Value, String> {
 #[tauri::command]
 fn open_external(url: String) {
     #[cfg(target_os = "windows")]
-    { let _ = Command::new("cmd").args(["/C", "start", &url]).spawn(); }
+    {
+        let _ = shell_execute("open", OsStr::new(&url), None);
+    }
     #[cfg(target_os = "macos")]
-    { let _ = Command::new("open").arg(&url).spawn(); }
+    {
+        let _ = Command::new("open").arg(&url).spawn();
+    }
     #[cfg(target_os = "linux")]
-    { let _ = Command::new("xdg-open").arg(&url).spawn(); }
+    {
+        let _ = Command::new("xdg-open").arg(&url).spawn();
+    }
 }
 
 // 公告缓存文件路径：写入系统 TEMP（无权限问题，且可离线复用）
@@ -645,7 +856,8 @@ async fn download_and_launch_update(
 #[tauri::command]
 async fn open_floating_window(app: tauri::AppHandle) -> Result<(), String> {
     if let Some(win) = app.get_webview_window("floating") {
-        win.set_size(LogicalSize::new(64.0, 64.0)).map_err(|e| e.to_string())?;
+        win.set_size(LogicalSize::new(64.0, 64.0))
+            .map_err(|e| e.to_string())?;
         win.show().map_err(|e| e.to_string())?;
         win.set_focus().map_err(|e| e.to_string())?;
         return Ok(());
@@ -693,16 +905,32 @@ async fn hide_to_tray(app: tauri::AppHandle) -> Result<(), String> {
 fn reveal_file(path: String) -> bool {
     let path = PathBuf::from(path);
     #[cfg(target_os = "windows")]
-    { return Command::new("explorer").arg("/select,").arg(path).spawn().is_ok(); }
+    {
+        return background_command("explorer")
+            .arg("/select,")
+            .arg(path)
+            .spawn()
+            .is_ok();
+    }
     #[cfg(target_os = "macos")]
-    { return Command::new("open").args(["-R", path.to_string_lossy().as_ref()]).spawn().is_ok(); }
+    {
+        return Command::new("open")
+            .args(["-R", path.to_string_lossy().as_ref()])
+            .spawn()
+            .is_ok();
+    }
     #[cfg(target_os = "linux")]
-    { return Command::new("xdg-open").arg(path.parent().unwrap_or(Path::new("."))).spawn().is_ok(); }
+    {
+        return Command::new("xdg-open")
+            .arg(path.parent().unwrap_or(Path::new(".")))
+            .spawn()
+            .is_ok();
+    }
 }
 
 #[tauri::command]
-fn show_data_location() -> bool {
-    reveal_file(installation_data_dir().join("cyrene-data.cyrene").to_string_lossy().into_owned())
+fn show_data_location(store: State<'_, EncryptedStore>) -> bool {
+    reveal_file(store.path.to_string_lossy().into_owned())
 }
 
 #[tauri::command]
@@ -710,11 +938,17 @@ fn system_accent() -> String {
     #[cfg(target_os = "windows")]
     {
         let queries = [
-            (r"HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Accent", "AccentColorMenu"),
+            (
+                r"HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Accent",
+                "AccentColorMenu",
+            ),
             (r"HKCU\Software\Microsoft\Windows\DWM", "AccentColor"),
         ];
         for (key, value_name) in queries {
-            if let Ok(output) = Command::new("reg").args(["query", key, "/v", value_name]).output() {
+            if let Ok(output) = background_command("reg")
+                .args(["query", key, "/v", value_name])
+                .output()
+            {
                 let text = String::from_utf8_lossy(&output.stdout);
                 if let Some(raw) = text.split_whitespace().find(|part| part.starts_with("0x")) {
                     if let Ok(value) = u32::from_str_radix(raw.trim_start_matches("0x"), 16) {
@@ -732,23 +966,44 @@ fn system_accent() -> String {
 
 fn startup_task_action() -> Result<String, String> {
     let executable = std::env::current_exe().map_err(|error| error.to_string())?;
-    Ok(format!("\"{}\" --cyrene-autostart", executable.to_string_lossy()))
+    Ok(format!(
+        "\"{}\" --cyrene-autostart",
+        executable.to_string_lossy()
+    ))
 }
 
 fn configure_startup_task(enabled: bool) -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
         let output = if enabled {
-            Command::new("schtasks")
-                .args(["/Create", "/TN", STARTUP_TASK_NAME, "/TR", &startup_task_action()?, "/SC", "ONLOGON", "/RL", "HIGHEST", "/F"])
+            background_command("schtasks")
+                .args([
+                    "/Create",
+                    "/TN",
+                    STARTUP_TASK_NAME,
+                    "/TR",
+                    &startup_task_action()?,
+                    "/SC",
+                    "ONLOGON",
+                    "/RL",
+                    "HIGHEST",
+                    "/F",
+                ])
                 .output()
         } else {
-            Command::new("schtasks").args(["/Delete", "/TN", STARTUP_TASK_NAME, "/F"]).output()
-        }.map_err(|error| error.to_string())?;
+            background_command("schtasks")
+                .args(["/Delete", "/TN", STARTUP_TASK_NAME, "/F"])
+                .output()
+        }
+        .map_err(|error| error.to_string())?;
         if output.status.success() || !enabled {
             return Ok(());
         }
-        let error = String::from_utf8_lossy(if output.stderr.is_empty() { &output.stdout } else { &output.stderr });
+        let error = String::from_utf8_lossy(if output.stderr.is_empty() {
+            &output.stdout
+        } else {
+            &output.stderr
+        });
         return Err(error.trim().to_string());
     }
     #[cfg(not(target_os = "windows"))]
@@ -758,44 +1013,40 @@ fn configure_startup_task(enabled: bool) -> Result<(), String> {
 fn process_is_elevated() -> bool {
     #[cfg(target_os = "windows")]
     {
-        let script = "([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)";
-        return Command::new("powershell").args(["-NoProfile", "-Command", script]).output()
-            .map(|output| String::from_utf8_lossy(&output.stdout).trim().eq_ignore_ascii_case("true"))
-            .unwrap_or(false);
+        return unsafe { IsUserAnAdmin() != 0 };
     }
     #[cfg(not(target_os = "windows"))]
     false
 }
 
-fn powershell_literal(value: &str) -> String {
-    format!("'{}'", value.replace('\'', "''"))
-}
-
 #[tauri::command]
-fn set_auto_start(enabled: bool) -> Result<serde_json::Value, String> {
+async fn set_auto_start(app: tauri::AppHandle, enabled: bool) -> Result<serde_json::Value, String> {
     #[cfg(target_os = "windows")]
     {
         if process_is_elevated() {
-            configure_startup_task(enabled)?;
+            tauri::async_runtime::spawn_blocking(move || configure_startup_task(enabled))
+                .await
+                .map_err(|error| error.to_string())??;
             return Ok(serde_json::json!({ "success": true, "restarting": false }));
         }
         let executable = std::env::current_exe().map_err(|error| error.to_string())?;
         let current_pid = std::process::id();
-        let configuration = format!("--cyrene-configure-autostart={}", if enabled { "enable" } else { "disable" });
-        let replace_process = format!("--cyrene-replace-pid={}", current_pid);
-        let script = format!(
-            "$process = Start-Process -FilePath {} -Verb RunAs -ArgumentList {}, {} -Wait -PassThru; exit $process.ExitCode",
-            powershell_literal(executable.to_string_lossy().as_ref()),
-            powershell_literal(&configuration),
-            powershell_literal(&replace_process)
+        let configuration = format!(
+            "--cyrene-configure-autostart={}",
+            if enabled { "enable" } else { "disable" }
         );
-        let status = Command::new("powershell")
-            .args(["-NoProfile", "-WindowStyle", "Hidden", "-Command", &script])
-            .status()
-            .map_err(|error| error.to_string())?;
-        if !status.success() {
-            return Ok(serde_json::json!({ "success": false, "error": "管理员授权已取消或管理员进程启动失败" }));
+        let replace_process = format!("--cyrene-replace-pid={}", current_pid);
+        let parameters = format!("{} {}", configuration, replace_process);
+        if shell_execute("runas", executable.as_os_str(), Some(&parameters)).is_err() {
+            return Ok(
+                serde_json::json!({ "success": false, "error": "管理员授权已取消或管理员进程启动失败" }),
+            );
         }
+        let exit_handle = app.clone();
+        std::thread::spawn(move || {
+            std::thread::sleep(std::time::Duration::from_millis(500));
+            exit_handle.exit(0);
+        });
         return Ok(serde_json::json!({ "success": true, "restarting": true }));
     }
     #[cfg(not(target_os = "windows"))]
@@ -803,7 +1054,9 @@ fn set_auto_start(enabled: bool) -> Result<serde_json::Value, String> {
 }
 
 #[tauri::command]
-fn is_autostart_launch() -> bool { std::env::args().any(|arg| arg == "--cyrene-autostart") }
+fn is_autostart_launch() -> bool {
+    std::env::args().any(|arg| arg == "--cyrene-autostart")
+}
 
 #[tauri::command]
 async fn show_main_window(app: tauri::AppHandle) -> Result<(), String> {
@@ -865,29 +1118,40 @@ fn create_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    if let Some(configuration) = std::env::args().find(|argument| argument.starts_with("--cyrene-configure-autostart=")) {
+    if let Some(configuration) =
+        std::env::args().find(|argument| argument.starts_with("--cyrene-configure-autostart="))
+    {
         if let Err(error) = configure_startup_task(configuration.ends_with("=enable")) {
             eprintln!("[startup-task] {}", error);
             std::process::exit(2);
-        } else if let Some(pid) = std::env::args()
+        } else if std::env::args()
             .find(|argument| argument.starts_with("--cyrene-replace-pid="))
-            .and_then(|argument| argument.split('=').nth(1).and_then(|value| value.parse::<u32>().ok()))
+            .and_then(|argument| {
+                argument
+                    .split('=')
+                    .nth(1)
+                    .and_then(|value| value.parse::<u32>().ok())
+            })
+            .is_some()
         {
-            #[cfg(target_os = "windows")]
-            {
-                let _ = Command::new("taskkill").args(["/PID", &pid.to_string(), "/T", "/F"]).status();
-                std::thread::sleep(std::time::Duration::from_millis(180));
-            }
+            // The original instance exits itself after returning the IPC result.
+            // Waiting here avoids killing the newly elevated child as part of the old process tree.
+            std::thread::sleep(std::time::Duration::from_millis(900));
         }
     }
     tauri::Builder::default()
-        .manage(EncryptedStore::load())
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
             let _ = reveal_main_window(app);
         }))
         .setup(|app| {
+            let data_path = app
+                .path()
+                .app_data_dir()?
+                .join("data")
+                .join("cyrene-data.cyrene");
+            app.manage(EncryptedStore::load(data_path));
             let handle = app.handle().clone();
             migrate_legacy_data(&handle);
             restore_window_state(&handle);
@@ -895,14 +1159,24 @@ pub fn run() {
 
             if let Some(window) = app.get_webview_window("main") {
                 let win = window.clone();
+                let save_revision = Arc::new(AtomicU64::new(0));
                 window.on_window_event(move |event| match event {
                     tauri::WindowEvent::CloseRequested { api, .. } => {
                         // 关闭时最小化到托盘，不退出进程（后台常驻）
                         api.prevent_close();
+                        save_window_state(&handle);
                         let _ = win.hide();
                     }
-                    tauri::WindowEvent::Resized(_) | tauri::WindowEvent::Moved(_) => {
-                        save_window_state(&handle);
+                    tauri::WindowEvent::Resized(_) => {
+                        let revision = save_revision.fetch_add(1, Ordering::Relaxed) + 1;
+                        let revision_state = save_revision.clone();
+                        let save_handle = handle.clone();
+                        std::thread::spawn(move || {
+                            std::thread::sleep(std::time::Duration::from_millis(350));
+                            if revision_state.load(Ordering::Relaxed) == revision {
+                                save_window_state(&save_handle);
+                            }
+                        });
                     }
                     _ => {}
                 });

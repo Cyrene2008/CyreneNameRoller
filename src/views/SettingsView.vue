@@ -410,18 +410,19 @@ function onCustomColorPicker(event) {
 async function onAutoStart(value) {
   autoStartBusy.value = true
   await update('autoStart', value)
-  showBanner({
-    message: value
-      ? (lang.value === 'en' ? 'Administrator permission is required. The app will restart.' : '需要管理员权限创建计划任务，应用即将重启。')
-      : (lang.value === 'en' ? 'Removing the startup task...' : '正在移除开机启动计划任务...'),
-    icon: 'shield-keyhole-16-regular', type: 'info', duration: 5000
-  })
   const result = isTauri()
     ? await tauriAPI.setAutoStart(value)
     : await window.electronAPI?.setAutoStart?.(value)
   if (!result || result.success === false) {
     await update('autoStart', !value)
     showBanner({ message: result.error || (lang.value === 'en' ? 'Startup task update failed' : '计划任务更新失败'), icon: 'warning-16-regular', type: 'warning', duration: 8000 })
+  } else if (!result.restarting) {
+    showBanner({
+      message: value
+        ? (lang.value === 'en' ? 'Startup task created' : '开机启动计划任务已创建')
+        : (lang.value === 'en' ? 'Startup task removed' : '开机启动计划任务已移除'),
+      icon: 'checkmark-circle-16-regular', type: 'success', duration: 5000
+    })
   }
   autoStartBusy.value = false
 }
