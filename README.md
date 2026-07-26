@@ -2,6 +2,10 @@
 
 基于 Vue 3 + Electron/Tauri 的随机点名桌面应用，采用 Windows 11 Fluent Design 设计语言。
 
+本程序将于 v26.1 起停止对 Electron 的支持，届时我们将仅提供 Web版本 与 Tauri版本 的更新和 Tauri版本Release，如您有需求，可自行适配并编译打包 Electron 版本
+
+[在AwesomeIWB查看本项目](https://aiwb.smart-teach.cn/project/3efc8fec6410)
+
 在线使用→ [立即使用](https://xn--web-t33et1i480d.xn--8hvv1o.cn/)
 
 ## 开发计划
@@ -54,7 +58,7 @@
 
 ## 页面展示
 
-<img width="1655" height="1021" alt="ScreenShot_2026-07-10_101123_833" src="https://github.com/user-attachments/assets/f7fcb810-3cd0-4d8c-9a6b-69a1a7f7de4d" />
+<img width="2560" height="1440" alt="image" src="https://github.com/user-attachments/assets/4dd696bd-b5cf-4c5c-810a-e842103384f8" />
 <img width="1655" height="1021" alt="ScreenShot_2026-07-10_100935_090" src="https://github.com/user-attachments/assets/57dc6aa5-8ea6-4a04-9ed1-29cfcc513c50" />
 <img width="1655" height="1021" alt="ScreenShot_2026-07-10_100952_359" src="https://github.com/user-attachments/assets/d0bb484f-f474-42b5-b221-eccd35eca42c" />
 <img width="1655" height="1021" alt="ScreenShot_2026-07-10_100959_607" src="https://github.com/user-attachments/assets/39c997a5-a801-4a24-bc3b-e9c3b87cab33" />
