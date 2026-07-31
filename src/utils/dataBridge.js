@@ -2,14 +2,6 @@ import { isTauri, tauriAPI } from './tauriAPI'
 import { decryptCyreneData, encryptCyreneData } from './cyreneCrypto'
 import { emitFileNotice } from './desktopFiles'
 
-export function isElectron() {
-  return typeof window !== 'undefined' && !!window.electronAPI
-}
-
-function isBrowser() {
-  return !isTauri() && !isElectron()
-}
-
 export const dataBridge = {
   async load(key) {
     // Tauri
@@ -19,16 +11,6 @@ export const dataBridge = {
         if (val !== null && val !== undefined) return val
       } catch (e) {
         console.warn(`[dataBridge] Tauri load failed for "${key}":`, e)
-      }
-    }
-
-    // Electron
-    if (isElectron()) {
-      try {
-        const val = await window.electronAPI.storageGet(key)
-        if (val !== null && val !== undefined) return val
-      } catch (e) {
-        console.warn(`[dataBridge] Electron load failed for "${key}":`, e)
       }
     }
 
@@ -51,15 +33,6 @@ export const dataBridge = {
       }
     }
 
-    // Electron
-    if (isElectron()) {
-        try {
-          await window.electronAPI.storageSet(key, data)
-        } catch (e) {
-        console.warn(`[dataBridge] Electron save failed for "${key}":`, e)
-      }
-    }
-
     // Browser fallback
     try { localStorage.setItem(key, JSON.stringify(data)) } catch {}
   },
@@ -68,9 +41,6 @@ export const dataBridge = {
     if (isTauri()) {
       try { await tauriAPI.storageClear() } catch {}
     }
-    if (isElectron()) {
-      try { await window.electronAPI.storageClear() } catch {}
-    }
     try { localStorage.clear() } catch {}
   },
 
@@ -78,12 +48,6 @@ export const dataBridge = {
     if (isTauri()) {
       try {
         const result = await tauriAPI.loadNames()
-        if (result && result.names) return result
-      } catch {}
-    }
-    if (isElectron()) {
-      try {
-        const result = await window.electronAPI.loadNames()
         if (result && result.names) return result
       } catch {}
     }
@@ -102,12 +66,6 @@ export const dataBridge = {
         if (Array.isArray(result)) return result
       } catch {}
     }
-    if (isElectron()) {
-      try {
-        const result = await window.electronAPI.loadChangelog()
-        if (Array.isArray(result)) return result
-      } catch {}
-    }
     try {
       const res = await fetch('./updatelogs/up.json')
       return await res.json()
@@ -122,12 +80,6 @@ export const dataBridge = {
   },
 
   async exportData() {
-    if (isElectron()) {
-      try {
-        const result = await window.electronAPI.exportData()
-        return result
-      } catch {}
-    }
     if (isTauri()) {
       try {
         const result = await tauriAPI.exportDataFile()
@@ -148,13 +100,6 @@ export const dataBridge = {
   },
 
   async importData() {
-    if (isElectron()) {
-      try {
-        const result = await window.electronAPI.importData()
-        if (result?.success && result.filePath) emitFileNotice(`程序数据已导入：${result.filePath}`, result.filePath)
-        return result
-      } catch {}
-    }
     if (isTauri()) {
       try {
         const result = await tauriAPI.importDataFile()
@@ -191,7 +136,6 @@ export const dataBridge = {
         return { success: false, error: error.message || String(error) }
       }
     }
-    if (isElectron()) return { success: false, error: '当前桌面版本不支持拖放导入程序数据' }
     try {
       const values = await decryptCyreneData(bytes)
       localStorage.clear()

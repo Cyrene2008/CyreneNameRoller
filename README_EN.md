@@ -1,6 +1,6 @@
 # Cyrene's Name Roller
 
-A random name picker desktop app built with Vue 3 + Electron, featuring Windows 11 Fluent Design.
+A random name picker desktop app built with Vue 3 + Tauri, featuring Windows 11 Fluent Design.
 
 ## Views
 
@@ -45,17 +45,17 @@ npm install
 npm run dev
 ```
 
-## Build Electron Client
+## Build Tauri Client
 
 ```bash
-npm run electron:build
+npm run tauri:build
 ```
 
-Output is in the `release/` directory.
+Output is in the Tauri build target directory.
 
 ## Tech Stack
 
-Vue 3 + Vite + Electron + Pinia + Vue Router + @iconify/vue (Fluent UI Icons)
+Vue 3 + Vite + Tauri + Pinia + Vue Router + @iconify/vue (Fluent UI Icons)
 
 ## License
 

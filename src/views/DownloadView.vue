@@ -200,19 +200,6 @@ async function fetchVerified(asset) {
 async function downloadAsset(asset) {
   const fileName = asset.name
 
-  if (window.electronAPI?.saveAndLaunch) {
-    const buf = await fetchVerified(asset)
-    if (!buf) {
-      alert(lang.value === 'en' ? 'Download failed or checksum mismatch, please try again.' : '下载失败或校验不通过，请重试。')
-      return
-    }
-    const uint8 = Array.from(new Uint8Array(buf))
-    try {
-      const result = await window.electronAPI.saveAndLaunch(uint8, fileName)
-      if (result && (result.success || result.cancelled)) return
-    } catch (e) { console.warn('[download] electron saveAndLaunch failed:', e) }
-  }
-
   if (isTauri()) {
     try {
       const result = await tauriAPI.saveAndLaunch(asset.browser_download_url, fileName, asset.digest || '')

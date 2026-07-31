@@ -4,9 +4,9 @@
 ## <p><a href="https://aiwb.smart-teach.cn/project/3efc8fec6410"><img width="32" height="32" alt="image" src="https://github.com/user-attachments/assets/e0faf9bb-55e5-4e27-bea5-a4f5a4061b2e" />Awesome IWB收录项目</a></p>
 
 
-基于 Vue 3 + Electron/Tauri 的随机点名桌面应用，采用 Windows 11 Fluent Design 设计语言。
+基于 Vue 3 + Tauri 的随机点名桌面应用，采用 Windows 11 Fluent Design 设计语言。
 
-本程序将于 v26.1 起停止对 Electron 的支持，届时我们将仅提供 Web版本 与 Tauri版本 的更新和 Tauri版本Release，如您有需求，可自行适配并编译打包 Electron 版本
+自 v26.1 起仅提供 Web 与 Tauri 版本更新及 Tauri Release。
 
 在线使用→ [立即使用](https://xn--web-t33et1i480d.xn--8hvv1o.cn/)
 
@@ -80,17 +80,17 @@ npm install
 npm run dev
 ```
 
-## 构建 Electron 客户端
+## 构建 Tauri 客户端
 
 ```bash
-npm run electron:build
+npm run tauri:build
 ```
 
-打包产物在 `release/` 目录下。
+打包产物在 `src-tauri/target/` 目录下。
 
 ## 技术栈
 
-Vue 3 + Vite + Electron/Tauri + Pinia + Vue Router + @iconify/vue (Fluent UI Icons)
+Vue 3 + Vite + Tauri + Pinia + Vue Router + @iconify/vue (Fluent UI Icons)
 
 ## 许可证
 
