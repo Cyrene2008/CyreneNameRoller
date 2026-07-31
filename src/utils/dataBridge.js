@@ -179,6 +179,29 @@ export const dataBridge = {
       }
       input.click()
     })
+  },
+
+  async importDataBytes(input) {
+    const bytes = input instanceof Uint8Array ? input : new Uint8Array(input)
+    if (isTauri()) {
+      try {
+        const success = await tauriAPI.importEncryptedData(bytesToBase64(bytes))
+        return { success: !!success }
+      } catch (error) {
+        return { success: false, error: error.message || String(error) }
+      }
+    }
+    if (isElectron()) return { success: false, error: '当前桌面版本不支持拖放导入程序数据' }
+    try {
+      const values = await decryptCyreneData(bytes)
+      localStorage.clear()
+      for (const [key, value] of Object.entries(values)) {
+        localStorage.setItem(key, JSON.stringify(value))
+      }
+      return { success: true }
+    } catch (error) {
+      return { success: false, error: error.message || 'Parse error' }
+    }
   }
 }
 
