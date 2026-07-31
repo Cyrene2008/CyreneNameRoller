@@ -20,19 +20,28 @@ const splashPlayed = ref(false)
 let unlistenMainShown
 
 function playSplashOnce() {
-  if (splashPlayed.value || settingsStore.settings.disableSplash === true) return
+  if (splashPlayed.value || settingsStore.settings.disableSplash === true) return false
   splashPlayed.value = true
   showSplash.value = true
+  return true
 }
 
-async function listenForFirstMainWindowShow() {
+function waitForPaint() {
+  return new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+}
+
+async function prepareTauriMainWindowShow() {
+  playSplashOnce()
+  await nextTick()
+  await waitForPaint()
+  await tauriAPI.showMainWindow()
+}
+
+async function listenForMainWindowShow() {
   if (isTauri()) {
     const { listen } = await import('@tauri-apps/api/event')
-    unlistenMainShown = await listen('main-window-shown', () => {
-      playSplashOnce()
-      unlistenMainShown?.()
-      unlistenMainShown = null
-    })
+    unlistenMainShown = await listen('main-window-show-requested', prepareTauriMainWindowShow)
+    await tauriAPI.mainWindowReady()
   } else if (window.electronAPI?.onMainWindowShown) {
     unlistenMainShown = window.electronAPI.onMainWindowShown(() => {
       playSplashOnce()
@@ -46,18 +55,16 @@ onMounted(async () => {
   await nextTick()
   if (isFloatingRoute.value) return
   if (isTauri()) {
+    await listenForMainWindowShow()
     const autoStart = await tauriAPI.isAutoStartLaunch()
     if (autoStart && settingsStore.settings.autoStartToTray) {
-      await listenForFirstMainWindowShow()
       return
     }
-    playSplashOnce()
-    await nextTick()
-    await tauriAPI.showMainWindow()
+    await prepareTauriMainWindowShow()
   } else if (window.electronAPI) {
     const autoStart = await window.electronAPI.isAutoStartLaunch?.()
     if (autoStart && settingsStore.settings.autoStartToTray) {
-      await listenForFirstMainWindowShow()
+      await listenForMainWindowShow()
       return
     }
     playSplashOnce()

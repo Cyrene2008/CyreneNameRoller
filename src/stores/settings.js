@@ -36,9 +36,10 @@ const DEFAULT_SETTINGS = {
   perfAnimations: true,
   dockCollapsed: false,
   disableSplash: false,
-  floatingWindowEnabled: false
-  ,autoStart: false
-  ,autoStartToTray: false
+  floatingWindowEnabled: false,
+  autoStart: false,
+  autoStartMode: 'scheduled',
+  autoStartToTray: false
 }
 
 export const useSettingsStore = defineStore('settings', () => {
