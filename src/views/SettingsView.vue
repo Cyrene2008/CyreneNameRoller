@@ -29,6 +29,58 @@
         <span class="setting-label">{{ lang === 'en' ? 'Floating Window' : '悬浮窗快捷点名' }}</span>
         <FluentToggle :model-value="settings.floatingWindowEnabled" @update:model-value="onFloatingWindowToggle" />
       </div>
+      <Transition name="toggle-expand">
+        <div v-if="isDesktop && settings.floatingWindowEnabled" class="sub-setting floating-window-settings">
+          <div class="floating-style-setting">
+            <span class="setting-label">{{ lang === 'en' ? 'Floating window style' : '悬浮窗样式' }}</span>
+            <div class="floating-style-options" role="radiogroup" :aria-label="lang === 'en' ? 'Floating window style' : '悬浮窗样式'">
+              <label
+                v-for="option in floatingStyleOptions"
+                :key="option.value"
+                :class="['floating-style-option', { selected: settings.floatingWindowStyle === option.value }]"
+              >
+                <input
+                  class="floating-style-radio"
+                  type="radio"
+                  name="floating-window-style"
+                  :value="option.value"
+                  :checked="settings.floatingWindowStyle === option.value"
+                  @change="onFloatingWindowStyleChange(option.value)"
+                />
+                <span :class="['floating-style-preview', { 'text-preview': option.value === 'text' }]">
+                  <span v-if="option.value === 'text'">点名</span>
+                  <img v-else :src="floatingWindowImagePath(option.value)" alt="" />
+                </span>
+                <span class="floating-style-label">{{ option.label }}</span>
+              </label>
+            </div>
+          </div>
+          <div class="setting-row floating-size-row">
+            <div class="setting-label-group">
+              <span class="setting-label">{{ lang === 'en' ? 'Floating window size' : '悬浮窗大小' }}</span>
+              <span class="setting-desc">{{ floatingSizeDraft }} px</span>
+            </div>
+            <input
+              class="floating-size-range"
+              type="range"
+              min="40"
+              max="256"
+              step="4"
+              :value="floatingSizeDraft"
+              :aria-label="lang === 'en' ? 'Floating window size' : '悬浮窗大小'"
+              @input="onFloatingWindowSizeInput"
+              @change="onFloatingWindowSizeChange"
+            />
+          </div>
+          <div class="setting-row floating-reset-row">
+            <span class="setting-label">{{ lang === 'en' ? 'Floating window position' : '悬浮窗位置' }}</span>
+            <FluentButton variant="secondary" size="sm" @click="resetFloatingWindowPosition">
+              <FluentIcon icon="arrow-reset-20-regular" :width="16" />
+              {{ lang === 'en' ? 'Reset position' : '重置位置' }}
+            </FluentButton>
+          </div>
+        </div>
+      </Transition>
       <div v-if="isDesktop" class="setting-row"><span class="setting-label">{{ lang === 'en' ? 'Launch at sign-in (administrator task)' : '开机自启动（管理员计划任务）' }}</span><FluentToggle :model-value="settings.autoStart" :disabled="autoStartBusy" @update:model-value="onAutoStart" /></div>
       <Transition name="toggle-expand">
         <div v-if="isDesktop && settings.autoStart" class="sub-setting"><div class="setting-row"><span class="setting-label">{{ lang === 'en' ? 'Start hidden in tray' : '启动到托盘' }}</span><FluentToggle :model-value="settings.autoStartToTray" @update:model-value="update('autoStartToTray', $event)" /></div></div>
@@ -286,7 +338,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, nextTick, watch, inject } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch, inject } from 'vue'
 import { useNamesStore } from '../stores/names'
 import { useSettingsStore } from '../stores/settings'
 import { useRecordsStore } from '../stores/records'
@@ -309,6 +361,8 @@ import FluentInput from '../components/FluentInput.vue'
 import FluentSelect from '../components/FluentSelect.vue'
 import FluentModal from '../components/FluentModal.vue'
 import { normalizeHex } from '../utils/theme'
+import { FLOATING_WINDOW_STYLES, floatingWindowImagePath, normalizeFloatingWindowStyle } from '../utils/floatingWindowStyle'
+import { normalizeFloatingWindowSize } from '../utils/floatingWindowSize'
 
 const settingsStore = useSettingsStore()
 const namesStore = useNamesStore()
@@ -320,6 +374,16 @@ const lang = computed(() => settingsStore.settings.language)
 const settings = computed(() => settingsStore.settings)
 
 const isDesktop = computed(() => !!window.electronAPI || isTauri())
+const floatingStyleOptions = computed(() => FLOATING_WINDOW_STYLES.map((value, index) => ({
+  value,
+  label: value === 'text'
+    ? (lang.value === 'en' ? 'Text' : '文字')
+    : (lang.value === 'en' ? `Image ${index}` : `图片 ${index}`)
+})))
+const floatingSizeDraft = ref(normalizeFloatingWindowSize(settings.value.floatingWindowSize))
+watch(() => settings.value.floatingWindowSize, value => {
+  floatingSizeDraft.value = normalizeFloatingWindowSize(value)
+})
 
 const langOptions = [
   { value: 'zh', label: '中文' },
@@ -427,12 +491,96 @@ async function onAutoStart(value) {
 }
 
 async function onFloatingWindowToggle(val) {
-  update('floatingWindowEnabled', val)
+  await update('floatingWindowEnabled', val)
   if (isTauri()) {
     await tauriAPI.invoke(val ? 'open_floating_window' : 'close_floating_window')
   } else if (window.electronAPI) {
     val ? window.electronAPI.openFloatingWindow() : window.electronAPI.closeFloatingWindow()
   }
+}
+
+async function onFloatingWindowStyleChange(value) {
+  const style = normalizeFloatingWindowStyle(value)
+  await update('floatingWindowStyle', style)
+  if (isTauri()) {
+    await tauriAPI.setFloatingWindowStyle(style)
+  } else {
+    await window.electronAPI?.setFloatingWindowStyle?.(style)
+  }
+}
+
+let floatingSizeTimer = null
+let floatingSizePending = null
+let floatingSizeRunning = false
+let floatingSizeWaiters = []
+
+function sendFloatingWindowSize(size) {
+  floatingSizePending = size
+  const completion = new Promise(resolve => { floatingSizeWaiters.push(resolve) })
+  if (!floatingSizeRunning) processFloatingWindowSizeQueue()
+  return completion
+}
+
+async function processFloatingWindowSizeQueue() {
+  floatingSizeRunning = true
+  let result = { success: true }
+  while (floatingSizePending !== null) {
+    const size = floatingSizePending
+    floatingSizePending = null
+    result = isTauri()
+      ? await tauriAPI.setFloatingWindowSize(size)
+      : await window.electronAPI?.setFloatingWindowSize?.(size)
+    if (result?.success === false) {
+      showBanner({
+        message: result.error || (lang.value === 'en' ? 'Failed to resize floating window' : '调整悬浮窗大小失败'),
+        icon: 'warning-16-regular', type: 'warning', duration: 6000
+      })
+    }
+  }
+  floatingSizeRunning = false
+  const waiters = floatingSizeWaiters
+  floatingSizeWaiters = []
+  waiters.forEach(resolve => resolve(result))
+}
+
+onBeforeUnmount(() => {
+  clearTimeout(floatingSizeTimer)
+  floatingSizePending = null
+  const waiters = floatingSizeWaiters
+  floatingSizeWaiters = []
+  waiters.forEach(resolve => resolve({ success: false, cancelled: true }))
+})
+
+function onFloatingWindowSizeInput(event) {
+  const size = normalizeFloatingWindowSize(event.target.value)
+  floatingSizeDraft.value = size
+  clearTimeout(floatingSizeTimer)
+  floatingSizeTimer = setTimeout(() => { sendFloatingWindowSize(size) }, 60)
+}
+
+async function onFloatingWindowSizeChange(event) {
+  const size = normalizeFloatingWindowSize(event.target.value)
+  floatingSizeDraft.value = size
+  clearTimeout(floatingSizeTimer)
+  await update('floatingWindowSize', size)
+  await sendFloatingWindowSize(size)
+}
+
+async function resetFloatingWindowPosition() {
+  const result = isTauri()
+    ? await tauriAPI.resetFloatingWindowPosition()
+    : await window.electronAPI?.resetFloatingWindowPosition?.()
+  if (result?.success) {
+    showBanner({
+      message: lang.value === 'en' ? 'Floating window position reset' : '悬浮窗位置已重置',
+      icon: 'checkmark-circle-16-regular', type: 'success', duration: 4000
+    })
+    return
+  }
+  showBanner({
+    message: result?.error || (lang.value === 'en' ? 'Failed to reset floating window position' : '重置悬浮窗位置失败'),
+    icon: 'warning-16-regular', type: 'warning', duration: 8000
+  })
 }
 
 const stepIntervalDraft = ref(settings.value.stepStopInterval)
@@ -555,6 +703,25 @@ function onBalanceEnabledChange(enabled) {
 .balance-explain { font-size: 13px; color: var(--text-secondary); line-height: 1.6; }
 .balance-info { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-muted); padding: 8px 12px; background: var(--bg-subtle); border-radius: var(--radius-sm); }
 .sub-setting { padding-left: 16px; border-left: 2px solid var(--accent-200); margin-left: 0; }
+.floating-window-settings { display: flex; flex-direction: column; gap: 12px; margin: 4px 0 8px; }
+.floating-style-setting { display: flex; flex-direction: column; gap: 10px; padding: 8px 0; }
+.floating-style-options { display: flex; flex-wrap: wrap; gap: 10px; }
+.floating-style-option {
+  width: 82px; min-height: 88px; padding: 8px; display: flex; flex-direction: column; align-items: center; gap: 6px;
+  border: 1px solid var(--border-default); border-radius: var(--radius-sm); background: var(--bg-subtle);
+  color: var(--text-secondary); cursor: pointer; transition: border-color var(--duration-fast), background var(--duration-fast);
+}
+.floating-style-option:hover { border-color: var(--border-strong); }
+.floating-style-option.selected { border-color: var(--accent); background: var(--accent-50); color: var(--text-primary); }
+.floating-style-option:has(.floating-style-radio:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+.floating-style-radio { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.floating-style-preview { width: 52px; height: 52px; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.floating-style-preview.text-preview { border-radius: 50%; background: var(--accent); color: #fff; font-size: 12px; font-weight: 600; }
+.floating-style-preview img { width: 100%; height: 100%; display: block; object-fit: cover; }
+.floating-style-label { max-width: 100%; font-size: 12px; line-height: 1.25; text-align: center; overflow-wrap: anywhere; }
+.floating-reset-row { padding: 4px 0; }
+.floating-size-row { align-items: center; }
+.floating-size-range { width: min(240px, 48%); accent-color: var(--accent); cursor: pointer; }
 .color-picker-row { display: flex; align-items: center; gap: 10px; }
 .color-input { width: 40px; height: 32px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); cursor: pointer; padding: 2px; background: transparent; }
 .scale-control { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }

@@ -33,6 +33,28 @@ export const tauriAPI = {
   async checkUpdate() { return this.invoke('check_update', {}) },
   async fetchAnnouncements() { return this.invoke('fetch_announcements', {}) },
   async showMainWindow() { return this.invoke('show_main_window', {}) },
+  async saveFloatingWindowPosition() { return this.invoke('save_floating_window_position', {}) },
+  async resetFloatingWindowPosition() {
+    if (!isTauri()) return { success: false, error: 'Tauri is unavailable' }
+    try {
+      await window.__TAURI_INTERNALS__.invoke('reset_floating_window_position', {})
+      return { success: true }
+    } catch (error) {
+      console.warn('[tauri] reset floating window position failed:', error)
+      return { success: false, error: String(error) }
+    }
+  },
+  async setFloatingWindowStyle(style) { return this.invoke('set_floating_window_style', { style }) },
+  async setFloatingWindowSize(size) {
+    if (!isTauri()) return { success: false, error: 'Tauri is unavailable' }
+    try {
+      const normalizedSize = await window.__TAURI_INTERNALS__.invoke('set_floating_window_size', { size })
+      return { success: true, size: normalizedSize }
+    } catch (error) {
+      console.warn('[tauri] set floating window size failed:', error)
+      return { success: false, error: String(error) }
+    }
+  },
   async downloadAndLaunchUpdate(url, fileName, expectedSize, source) {
     if (!isTauri()) return null
     return window.__TAURI_INTERNALS__.invoke('download_and_launch_update', {
