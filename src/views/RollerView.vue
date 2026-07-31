@@ -28,7 +28,9 @@
       <div class="switches">
         <FluentToggle class="english-mode-toggle" v-model="settings.englishMode" label="English Mode" @update:model-value="saveSetting('englishMode', $event)" />
         <FluentTabs :model-value="settings.groupMode ? 'groups' : 'people'" :options="drawTargetOptions" @update:model-value="onDrawTargetChange" />
-        <FluentTabs v-if="!settings.groupMode" v-model="genderFilter" :options="genderFilterOptions" />
+        <Transition name="toggle-expand">
+          <FluentTabs v-if="!settings.groupMode" v-model="genderFilter" :options="genderFilterOptions" />
+        </Transition>
         <FluentTabs :model-value="settings.multiMode ? 'multiple' : 'single'" :options="drawCountOptions" @update:model-value="onDrawCountChange" />
         <Transition name="toggle-expand">
           <FluentTabs v-if="settings.multiMode" :model-value="settings.forbidDuplicates ? 'unique' : 'repeat'" :options="duplicateOptions" @update:model-value="onDuplicateModeChange" />
