@@ -17,6 +17,7 @@ export const useNamesStore = defineStore('names', () => {
   const currentListId = ref(DEFAULT_LIST_ID)
   const defaultNamesData = ref({ names: [] })
   const isLoaded = ref(false)
+  let saveQueue = Promise.resolve()
 
   const currentList = computed(() => {
     return nameLists.value[currentListId.value] || nameLists.value[DEFAULT_LIST_ID] || getDefaultList()
@@ -50,6 +51,7 @@ export const useNamesStore = defineStore('names', () => {
       if (!p.id) p.id = generatePersonId()
       if (p.groupId === undefined) p.groupId = ''
       if (p.isWhiteList === undefined) p.isWhiteList = false
+      p.gender = p.gender === 'female' || p.gender === '女' ? 'female' : 'male'
     })
   }
 
@@ -73,15 +75,13 @@ export const useNamesStore = defineStore('names', () => {
             names: defaultNamesData.value.names || []
           }
         }
-        await save()
       }
-
-      Object.values(nameLists.value).forEach(migrateList)
-      await save()
 
       if (savedCurrentId && nameLists.value[savedCurrentId]) {
         currentListId.value = savedCurrentId
       }
+      Object.values(nameLists.value).forEach(migrateList)
+      await save()
     } catch (e) {
       console.error('[names] initialize failed:', e)
       nameLists.value = {
@@ -96,9 +96,15 @@ export const useNamesStore = defineStore('names', () => {
     isLoaded.value = true
   }
 
-  async function save() {
-    await dataBridge.save('lists', nameLists.value)
-    await dataBridge.save('currentListId', currentListId.value)
+  function save() {
+    const listsSnapshot = JSON.parse(JSON.stringify(nameLists.value))
+    const currentIdSnapshot = currentListId.value
+    const task = saveQueue.catch(() => {}).then(async () => {
+      await dataBridge.save('lists', listsSnapshot)
+      await dataBridge.save('currentListId', currentIdSnapshot)
+    })
+    saveQueue = task
+    return task
   }
 
   function switchList(id) {
@@ -108,9 +114,9 @@ export const useNamesStore = defineStore('names', () => {
     }
   }
 
-  function addPerson(cn, en) {
+  function addPerson(cn, en, gender = 'male') {
     if (!cn || !cn.trim()) return
-    currentList.value.names.push({ id: generatePersonId(), cn: cn.trim(), en: (en || '').trim(), groupId: '', isWhiteList: false })
+    currentList.value.names.push({ id: generatePersonId(), cn: cn.trim(), en: (en || '').trim(), gender: gender === 'female' ? 'female' : 'male', groupId: '', isWhiteList: false })
     save()
   }
 
@@ -121,7 +127,7 @@ export const useNamesStore = defineStore('names', () => {
     }
   }
 
-  function editPerson(index, newCn, newEn) {
+  function editPerson(index, newCn, newEn, gender) {
     if (index >= 0 && index < currentList.value.names.length) {
       const old = currentList.value.names[index]
       currentList.value.names[index] = {
@@ -129,6 +135,7 @@ export const useNamesStore = defineStore('names', () => {
         en: (newEn || '').trim(),
         id: old?.id || generatePersonId(),
         count: old?.count || 0,
+        gender: gender === 'female' || (gender === undefined && old?.gender === 'female') ? 'female' : 'male',
         groupId: old?.groupId || '',
         isWhiteList: old?.isWhiteList || false
       }
@@ -255,6 +262,23 @@ export const useNamesStore = defineStore('names', () => {
     return true
   }
 
+  function setGender(listId, personIndex, gender) {
+    const list = nameLists.value[listId]
+    if (!list?.names?.[personIndex]) return false
+    list.names[personIndex].gender = gender === 'female' ? 'female' : 'male'
+    save()
+    return true
+  }
+
+  function batchSetGender(listId, indices, gender) {
+    const list = nameLists.value[listId]
+    if (!list?.names) return false
+    const normalized = gender === 'female' ? 'female' : 'male'
+    indices.forEach(index => { if (list.names[index]) list.names[index].gender = normalized })
+    save()
+    return true
+  }
+
   function clearCurrentList() {
     currentList.value.names = []
     save()
@@ -291,6 +315,8 @@ export const useNamesStore = defineStore('names', () => {
     updateGroup,
     deleteGroup,
     assignGroup,
-    batchAssignGroup
+    batchAssignGroup,
+    setGender,
+    batchSetGender
   }
 })

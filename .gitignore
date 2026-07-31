@@ -22,4 +22,4 @@ public/up.json
 src-tauri/target
 src-tauri/gen
 target/
-/docs
+docs/assets/

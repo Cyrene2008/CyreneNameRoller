@@ -81,9 +81,12 @@
           </div>
         </div>
       </Transition>
-      <div v-if="isDesktop" class="setting-row"><span class="setting-label">{{ lang === 'en' ? 'Launch at sign-in (administrator task)' : '开机自启动（管理员计划任务）' }}</span><FluentToggle :model-value="settings.autoStart" :disabled="autoStartBusy" @update:model-value="onAutoStart" /></div>
+      <div v-if="isTauri()" class="setting-row"><span class="setting-label">{{ lang === 'en' ? 'Launch at sign-in' : '开机自启动' }}</span><FluentToggle :model-value="settings.autoStart" :disabled="autoStartBusy" @update:model-value="onAutoStart" /></div>
+      <div v-if="isTauri()" class="setting-row"><span class="setting-label">{{ lang === 'en' ? 'Startup method' : '启动方式' }}</span><FluentSelect :model-value="settings.autoStartMode" :options="autoStartModeOptions" width="240px" :disabled="autoStartBusy" @update:model-value="onAutoStartModeChange" /></div>
       <Transition name="toggle-expand">
-        <div v-if="isDesktop && settings.autoStart" class="sub-setting"><div class="setting-row"><span class="setting-label">{{ lang === 'en' ? 'Start hidden in tray' : '启动到托盘' }}</span><FluentToggle :model-value="settings.autoStartToTray" @update:model-value="update('autoStartToTray', $event)" /></div></div>
+        <div v-if="isTauri() && settings.autoStart" class="sub-setting">
+          <div class="setting-row"><span class="setting-label">{{ lang === 'en' ? 'Start hidden in tray' : '启动到托盘' }}</span><FluentToggle :model-value="settings.autoStartToTray" @update:model-value="update('autoStartToTray', $event)" /></div>
+        </div>
       </Transition>
       <div v-if="isDesktop" class="setting-row">
         <span class="setting-label">{{ lang === 'en' ? 'Check for Updates' : '检查更新' }}</span>
@@ -427,6 +430,10 @@ const downloadSourceOptions = computed(() => [
   { value: 'github', label: 'GitHub', icon: 'fluent:code-16-regular' },
   { value: 'ghproxy', label: 'gh-proxy.com', icon: 'fluent:globe-16-regular' }
 ])
+const autoStartModeOptions = computed(() => [
+  { value: 'scheduled', label: lang.value === 'en' ? 'Administrator scheduled task' : '管理员计划任务', icon: 'fluent:shield-keyhole-16-regular' },
+  { value: 'registry', label: lang.value === 'en' ? 'Traditional startup entry' : '传统自启动项', icon: 'fluent:window-console-20-regular' }
+])
 const finishAnimationOptions = computed(() => [
   { value: 'spotlight', label: lang.value === 'en' ? 'Classic emphasis' : '经典强调', icon: 'fluent:sparkle-16-regular' },
   { value: 'lift', label: lang.value === 'en' ? 'Lift' : '跃升', icon: 'fluent:arrow-up-16-regular' },
@@ -473,19 +480,63 @@ function onCustomColorPicker(event) {
 }
 async function onAutoStart(value) {
   autoStartBusy.value = true
+  const previousValue = !value
+  const mode = settings.value.autoStartMode || 'scheduled'
   await update('autoStart', value)
-  showBanner({
-    message: value
-      ? (lang.value === 'en' ? 'Administrator permission is required. The app will restart.' : '需要管理员权限创建计划任务，应用即将重启。')
-      : (lang.value === 'en' ? 'Removing the startup task...' : '正在移除开机启动计划任务...'),
-    icon: 'shield-keyhole-16-regular', type: 'info', duration: 5000
-  })
-  const result = await tauriAPI.setAutoStart(value)
+  const result = await tauriAPI.setAutoStart(value, mode, mode)
   if (!result || result.success === false) {
-    await update('autoStart', !value)
-    showBanner({ message: result.error || (lang.value === 'en' ? 'Startup task update failed' : '计划任务更新失败'), icon: 'warning-16-regular', type: 'warning', duration: 8000 })
+    await update('autoStart', previousValue)
+    if (result?.requiresElevation) offerAutoStartElevation({ enabled: value, mode, previousMode: mode, rollbackEnabled: previousValue, rollbackMode: mode })
+    else showBanner({ message: result?.error || (lang.value === 'en' ? 'Startup task update failed' : '启动项更新失败'), icon: 'warning-16-regular', type: 'warning', duration: 8000 })
+  } else if (!result.restarting) {
+    showBanner({
+      message: value
+        ? (lang.value === 'en' ? 'Startup entry created' : '开机启动已启用')
+        : (lang.value === 'en' ? 'Startup entry removed' : '开机启动已关闭'),
+      icon: 'checkmark-circle-16-regular', type: 'success', duration: 5000
+    })
   }
   autoStartBusy.value = false
+}
+
+async function onAutoStartModeChange(mode) {
+  const previousMode = settings.value.autoStartMode || 'scheduled'
+  if (mode === previousMode) return
+  await update('autoStartMode', mode)
+  if (!settings.value.autoStart) return
+  autoStartBusy.value = true
+  const result = await tauriAPI.setAutoStart(true, mode, previousMode)
+  if (!result || result.success === false) {
+    await update('autoStartMode', previousMode)
+    if (result?.requiresElevation) offerAutoStartElevation({ enabled: true, mode, previousMode, rollbackEnabled: true, rollbackMode: previousMode })
+    else showBanner({ message: result?.error || (lang.value === 'en' ? 'Startup method update failed' : '启动方式更新失败'), icon: 'warning-16-regular', type: 'warning', duration: 8000 })
+  } else {
+    showBanner({ message: lang.value === 'en' ? 'Startup method updated' : '启动方式已更新', icon: 'checkmark-circle-16-regular', type: 'success', duration: 5000 })
+  }
+  autoStartBusy.value = false
+}
+
+function offerAutoStartElevation({ enabled, mode, previousMode, rollbackEnabled, rollbackMode }) {
+  showBanner({
+    message: lang.value === 'en' ? 'Administrator permission is required to update the scheduled task.' : '修改管理员计划任务需要提升权限。',
+    icon: 'shield-keyhole-16-regular',
+    type: 'warning',
+    duration: 0,
+    dismissible: true,
+    actionLabel: lang.value === 'en' ? 'Restart as administrator' : '以管理员身份重启',
+    action: async () => {
+      await update('autoStart', enabled)
+      await update('autoStartMode', mode)
+      const result = await tauriAPI.restartElevatedForAutoStart(enabled, mode, previousMode)
+      if (!result?.success) {
+        await update('autoStart', rollbackEnabled)
+        await update('autoStartMode', rollbackMode)
+        showBanner({ message: result?.error || (lang.value === 'en' ? 'Administrator restart failed' : '管理员重启失败'), icon: 'warning-16-regular', type: 'warning', duration: 8000 })
+        return false
+      }
+      return true
+    }
+  })
 }
 
 async function onFloatingWindowToggle(val) {

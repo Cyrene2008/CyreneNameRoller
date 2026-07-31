@@ -1,15 +1,27 @@
+use aes_gcm::aead::{rand_core::RngCore, Aead, OsRng};
 use aes_gcm::{Aes256Gcm, KeyInit, Nonce};
-use aes_gcm::aead::{Aead, OsRng, rand_core::RngCore};
 use base64::Engine;
 use sha2::{Digest, Sha256};
-use std::sync::Mutex;
-use tauri::{Emitter, EventTarget, LogicalSize, Manager, PhysicalPosition, State};
-use tauri::menu::{Menu, MenuItem};
-use tauri::tray::TrayIconBuilder;
-use tauri_plugin_dialog::DialogExt;
+use std::ffi::OsStr;
 use std::fs;
+use std::io::{BufRead, BufReader, Read, Write};
+use std::net::{Ipv4Addr, SocketAddrV4, TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
+use tauri::menu::{Menu, MenuItem};
+use tauri::tray::TrayIconBuilder;
+use tauri::{Emitter, EventTarget, LogicalSize, Manager, PhysicalPosition, State};
+use tauri_plugin_dialog::DialogExt;
+
+#[cfg(target_os = "windows")]
+use std::os::windows::{ffi::OsStrExt, process::CommandExt};
+#[cfg(target_os = "windows")]
+use windows_sys::Win32::UI::Shell::{IsUserAnAdmin, ShellExecuteW};
+#[cfg(target_os = "windows")]
+use windows_sys::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
 
 const UPDATE_PROXY_BASE: &str = "https://gh.xn--8hvv1o.cn/";
 const UPDATE_URL_PREFIX: &str = "https://github.com/Cyrene2008/CyreneNameRoller/releases/download/";
@@ -27,8 +39,154 @@ fn normalize_floating_window_size(value: Option<f64>) -> i32 {
     let Some(value) = value.filter(|value| value.is_finite()) else {
         return FLOATING_WINDOW_SIZE;
     };
-    let rounded = (value / FLOATING_WINDOW_SIZE_STEP as f64).round() as i32 * FLOATING_WINDOW_SIZE_STEP;
+    let rounded =
+        (value / FLOATING_WINDOW_SIZE_STEP as f64).round() as i32 * FLOATING_WINDOW_SIZE_STEP;
     rounded.clamp(MIN_FLOATING_WINDOW_SIZE, MAX_FLOATING_WINDOW_SIZE)
+}
+
+const STARTUP_REGISTRY_VALUE: &str = "CyreneNameRoller";
+const INSTANCE_PORT: u16 = 47618;
+const INSTANCE_MESSAGE: &[u8] = b"CYRENE_SHOW_MAIN_V1\n";
+const INSTANCE_ACK: &[u8] = b"CYRENE_SHOW_ACK_V1\n";
+const INSTANCE_REPLACE_MESSAGE: &[u8] = b"CYRENE_REPLACE_INSTANCE_V1\n";
+const INSTANCE_REPLACE_ACK: &[u8] = b"CYRENE_REPLACE_ACK_V1\n";
+#[cfg(target_os = "windows")]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+fn background_command<S: AsRef<OsStr>>(program: S) -> Command {
+    let mut command = Command::new(program);
+    #[cfg(target_os = "windows")]
+    command.creation_flags(CREATE_NO_WINDOW);
+    command
+}
+
+#[cfg(target_os = "windows")]
+fn wide(value: &OsStr) -> Vec<u16> {
+    value.encode_wide().chain(std::iter::once(0)).collect()
+}
+
+#[cfg(target_os = "windows")]
+fn shell_execute(operation: &str, file: &OsStr, parameters: Option<&str>) -> Result<(), String> {
+    let operation = wide(OsStr::new(operation));
+    let file = wide(file);
+    let parameters = parameters.map(|value| wide(OsStr::new(value)));
+    let result = unsafe {
+        ShellExecuteW(
+            std::ptr::null_mut(),
+            operation.as_ptr(),
+            file.as_ptr(),
+            parameters
+                .as_ref()
+                .map_or(std::ptr::null(), |value| value.as_ptr()),
+            std::ptr::null(),
+            SW_SHOWNORMAL,
+        )
+    } as isize;
+    if result > 32 {
+        Ok(())
+    } else {
+        Err(format!("Windows 启动操作失败 ({})", result))
+    }
+}
+
+fn instance_address() -> SocketAddrV4 {
+    SocketAddrV4::new(Ipv4Addr::LOCALHOST, INSTANCE_PORT)
+}
+
+fn notify_instance(message: &[u8], expected_ack: &[u8]) -> bool {
+    let Ok(mut stream) =
+        TcpStream::connect_timeout(&instance_address().into(), Duration::from_millis(800))
+    else {
+        return false;
+    };
+    let _ = stream.set_read_timeout(Some(Duration::from_millis(800)));
+    let _ = stream.set_write_timeout(Some(Duration::from_millis(800)));
+    if stream.write_all(message).is_err() {
+        return false;
+    }
+    let mut acknowledgement = vec![0u8; expected_ack.len()];
+    stream.read_exact(&mut acknowledgement).is_ok() && acknowledgement == expected_ack
+}
+
+fn notify_existing_instance() -> bool {
+    notify_instance(INSTANCE_MESSAGE, INSTANCE_ACK)
+}
+
+fn request_existing_instance_exit() -> bool {
+    notify_instance(INSTANCE_REPLACE_MESSAGE, INSTANCE_REPLACE_ACK)
+}
+
+fn acquire_instance_listener(wait_for_replaced_instance: bool) -> TcpListener {
+    let deadline = Instant::now()
+        + if wait_for_replaced_instance {
+            Duration::from_secs(12)
+        } else {
+            Duration::from_millis(1200)
+        };
+    loop {
+        match TcpListener::bind(instance_address()) {
+            Ok(listener) => return listener,
+            Err(error) => {
+                if !wait_for_replaced_instance && notify_existing_instance() {
+                    std::process::exit(0);
+                }
+                if Instant::now() >= deadline {
+                    if notify_existing_instance() {
+                        std::process::exit(0);
+                    }
+                    eprintln!("[single-instance] 无法绑定本机 IPC：{}", error);
+                    std::process::exit(3);
+                }
+                std::thread::sleep(Duration::from_millis(120));
+            }
+        }
+    }
+}
+
+fn start_instance_listener(listener: TcpListener, app: tauri::AppHandle) {
+    std::thread::spawn(move || {
+        for incoming in listener.incoming() {
+            let Ok(mut stream) = incoming else { continue };
+            let _ = stream.set_read_timeout(Some(Duration::from_secs(2)));
+            let mut message = String::new();
+            let read_result = {
+                let mut reader = BufReader::new(&mut stream);
+                reader.read_line(&mut message)
+            };
+            if read_result.is_err() {
+                continue;
+            }
+            match message.as_bytes() {
+                INSTANCE_MESSAGE => {
+                    let _ = stream.write_all(INSTANCE_ACK);
+                    let _ = request_reveal_main_window(&app);
+                }
+                INSTANCE_REPLACE_MESSAGE => {
+                    let _ = stream.write_all(INSTANCE_REPLACE_ACK);
+                    let exit_handle = app.clone();
+                    std::thread::spawn(move || {
+                        std::thread::sleep(Duration::from_millis(100));
+                        exit_handle.exit(0);
+                    });
+                }
+                _ => {}
+            }
+        }
+    });
+}
+
+struct MainWindowRevealState {
+    frontend_ready: AtomicBool,
+    pending: AtomicBool,
+}
+
+impl MainWindowRevealState {
+    fn new() -> Self {
+        Self {
+            frontend_ready: AtomicBool::new(false),
+            pending: AtomicBool::new(false),
+        }
+    }
 }
 
 struct EncryptedStore {
@@ -38,17 +196,30 @@ struct EncryptedStore {
 }
 
 impl EncryptedStore {
-    fn load() -> Self {
-        let path = installation_data_dir().join("cyrene-data.cyrene");
-        let (values, integrity_error) = match fs::read(&path) {
-            Ok(bytes) => match decrypt_data(&bytes) {
-                Ok(values) => (values, None),
-                Err(error) => (serde_json::json!({}), Some(error)),
-            },
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => (serde_json::json!({}), None),
-            Err(error) => (serde_json::json!({}), Some(error.to_string())),
+    fn load(path: PathBuf) -> Self {
+        let directory_error = path
+            .parent()
+            .and_then(|parent| fs::create_dir_all(parent).err())
+            .map(|error| error.to_string());
+        let (values, integrity_error) = if let Some(error) = directory_error {
+            (serde_json::json!({}), Some(error))
+        } else {
+            match fs::read(&path) {
+                Ok(bytes) => match decrypt_data(&bytes) {
+                    Ok(values) => (values, None),
+                    Err(error) => (serde_json::json!({}), Some(error)),
+                },
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                    (serde_json::json!({}), None)
+                }
+                Err(error) => (serde_json::json!({}), Some(error.to_string())),
+            }
         };
-        Self { path, values: Mutex::new(values), integrity_error: Mutex::new(integrity_error) }
+        Self {
+            path,
+            values: Mutex::new(values),
+            integrity_error: Mutex::new(integrity_error),
+        }
     }
 
     fn is_healthy(&self) -> Result<(), String> {
@@ -61,10 +232,13 @@ impl EncryptedStore {
 
     fn persist(&self) -> Result<(), String> {
         self.is_healthy()?;
-        let values = self.values.lock().map_err(|_| "数据锁定失败".to_string())?.clone();
+        let values = self
+            .values
+            .lock()
+            .map_err(|_| "数据锁定失败".to_string())?
+            .clone();
         let temporary_path = self.path.with_extension("cyrene.tmp");
-        fs::write(&temporary_path, encrypt_data(&values)?)
-            .map_err(|error| error.to_string())?;
+        fs::write(&temporary_path, encrypt_data(&values)?).map_err(|error| error.to_string())?;
         let backup_path = self.path.with_extension("cyrene.bak");
         let _ = fs::remove_file(&backup_path);
         if self.path.exists() {
@@ -85,7 +259,7 @@ impl EncryptedStore {
     }
 }
 
-fn installation_data_dir() -> PathBuf {
+fn legacy_installation_data_dir() -> PathBuf {
     let root = std::env::current_exe()
         .ok()
         .and_then(|path| path.parent().map(Path::to_path_buf))
@@ -96,7 +270,9 @@ fn installation_data_dir() -> PathBuf {
 }
 
 fn get_resource_dir(app: &tauri::AppHandle) -> PathBuf {
-    app.path().resource_dir().unwrap_or_else(|_| PathBuf::from("."))
+    app.path()
+        .resource_dir()
+        .unwrap_or_else(|_| PathBuf::from("."))
 }
 
 fn data_key() -> [u8; 32] {
@@ -111,7 +287,9 @@ fn encrypt_data(values: &serde_json::Value) -> Result<Vec<u8>, String> {
     let mut nonce = [0u8; DATA_NONCE_LENGTH];
     OsRng.fill_bytes(&mut nonce);
     let plain = serde_json::to_vec(values).map_err(|error| error.to_string())?;
-    let encrypted = cipher.encrypt(Nonce::from_slice(&nonce), plain.as_ref()).map_err(|error| error.to_string())?;
+    let encrypted = cipher
+        .encrypt(Nonce::from_slice(&nonce), plain.as_ref())
+        .map_err(|error| error.to_string())?;
     let mut output = Vec::with_capacity(DATA_MAGIC.len() + nonce.len() + encrypted.len());
     output.extend_from_slice(DATA_MAGIC);
     output.extend_from_slice(&nonce);
@@ -131,9 +309,13 @@ fn decrypt_data(bytes: &[u8]) -> Result<serde_json::Value, String> {
     let key = data_key();
     let cipher = Aes256Gcm::new_from_slice(&key).map_err(|error| error.to_string())?;
     let plain = cipher
-        .decrypt(Nonce::from_slice(&bytes[nonce_start..nonce_end]), &bytes[nonce_end..])
+        .decrypt(
+            Nonce::from_slice(&bytes[nonce_start..nonce_end]),
+            &bytes[nonce_end..],
+        )
         .map_err(|_| "数据完整性校验失败，文件可能已被篡改".to_string())?;
-    let values: serde_json::Value = serde_json::from_slice(&plain).map_err(|_| "数据内容无效".to_string())?;
+    let values: serde_json::Value =
+        serde_json::from_slice(&plain).map_err(|_| "数据内容无效".to_string())?;
     if !values.is_object() {
         return Err("数据内容无效".into());
     }
@@ -159,19 +341,43 @@ fn save_window_state(app: &tauri::AppHandle) {
     }
 }
 
-// 启动时恢复上次记忆的窗口尺寸与位置
+// 恢复尺寸后重新居中，并限制在当前显示器内，避免高 DPI 下窗口被挤到屏幕边缘。
 fn restore_window_state(app: &tauri::AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
         let store = app.state::<EncryptedStore>();
-        if let Ok(values) = store.values.lock() {
-            let state = &values["windowState"];
-            if let (Some(w), Some(h)) = (state["width"].as_u64(), state["height"].as_u64()) {
-                let _ = window.set_size(tauri::PhysicalSize::new(w as u32, h as u32));
+        let state = store
+            .values
+            .lock()
+            .ok()
+            .and_then(|values| values.get("windowState").cloned());
+        if state
+            .as_ref()
+            .and_then(|value| value["isMaximized"].as_bool())
+            == Some(true)
+        {
+            let _ = window.maximize();
+            return;
+        }
+
+        let saved_size = state.as_ref().and_then(|value| {
+            Some((
+                value["width"].as_u64()? as u32,
+                value["height"].as_u64()? as u32,
+            ))
+        });
+        let current_size = window
+            .outer_size()
+            .ok()
+            .map(|size| (size.width, size.height));
+        if let Some((mut width, mut height)) = saved_size.or(current_size) {
+            if let Ok(Some(monitor)) = window.current_monitor() {
+                let monitor_size = monitor.size();
+                width = width.min((monitor_size.width as f64 * 0.9) as u32);
+                height = height.min((monitor_size.height as f64 * 0.86) as u32);
             }
-            if state["isMaximized"].as_bool() == Some(true) {
-                let _ = window.maximize();
-            }
-        };
+            let _ = window.set_size(tauri::PhysicalSize::new(width, height));
+        }
+        let _ = window.center();
     }
 }
 
@@ -198,21 +404,26 @@ fn floating_window_position_visible(
     let left = x as i64;
     let top = y as i64;
 
-    work_areas.iter().any(|(work_x, work_y, work_width, work_height, scale_factor)| {
-        let physical_size = (logical_size as f64 * scale_factor).round() as i64;
-        let right = left + physical_size;
-        let bottom = top + physical_size;
-        let work_left = *work_x as i64;
-        let work_top = *work_y as i64;
-        let work_right = work_left + *work_width as i64;
-        let work_bottom = work_top + *work_height as i64;
-        left < work_right && right > work_left && top < work_bottom && bottom > work_top
-    })
+    work_areas
+        .iter()
+        .any(|(work_x, work_y, work_width, work_height, scale_factor)| {
+            let physical_size = (logical_size as f64 * scale_factor).round() as i64;
+            let right = left + physical_size;
+            let bottom = top + physical_size;
+            let work_left = *work_x as i64;
+            let work_top = *work_y as i64;
+            let work_right = work_left + *work_width as i64;
+            let work_bottom = work_top + *work_height as i64;
+            left < work_right && right > work_left && top < work_bottom && bottom > work_top
+        })
 }
 
 fn resize_floating_window_position(x: i32, y: i32, old_size: i32, new_size: i32) -> (i32, i32) {
     let delta = (old_size - new_size) as f64 / 2.0;
-    ((x as f64 + delta).round() as i32, (y as f64 + delta).round() as i32)
+    (
+        (x as f64 + delta).round() as i32,
+        (y as f64 + delta).round() as i32,
+    )
 }
 
 fn constrain_floating_window_position(
@@ -224,9 +435,16 @@ fn constrain_floating_window_position(
     work_width: u32,
     work_height: u32,
 ) -> (i32, i32) {
-    let max_x = work_x.saturating_add(work_width as i32).saturating_sub(physical_size);
-    let max_y = work_y.saturating_add(work_height as i32).saturating_sub(physical_size);
-    (x.clamp(work_x, max_x.max(work_x)), y.clamp(work_y, max_y.max(work_y)))
+    let max_x = work_x
+        .saturating_add(work_width as i32)
+        .saturating_sub(physical_size);
+    let max_y = work_y
+        .saturating_add(work_height as i32)
+        .saturating_sub(physical_size);
+    (
+        x.clamp(work_x, max_x.max(work_x)),
+        y.clamp(work_y, max_y.max(work_y)),
+    )
 }
 
 fn floating_work_areas(app: &tauri::AppHandle) -> Result<Vec<(i32, i32, u32, u32, f64)>, String> {
@@ -254,12 +472,19 @@ fn floating_window_size(app: &tauri::AppHandle) -> i32 {
     let value = store.values.lock().ok().and_then(|values| {
         values["settings"]["floatingWindowSize"]
             .as_f64()
-            .or_else(|| values["settings"]["floatingWindowSize"].as_i64().map(|value| value as f64))
+            .or_else(|| {
+                values["settings"]["floatingWindowSize"]
+                    .as_i64()
+                    .map(|value| value as f64)
+            })
     });
     normalize_floating_window_size(value)
 }
 
-fn primary_floating_position(app: &tauri::AppHandle, logical_size: i32) -> Result<(i32, i32), String> {
+fn primary_floating_position(
+    app: &tauri::AppHandle,
+    logical_size: i32,
+) -> Result<(i32, i32), String> {
     let monitor = app
         .primary_monitor()
         .map_err(|error| error.to_string())?
@@ -284,7 +509,10 @@ fn stored_tauri_floating_position(app: &tauri::AppHandle) -> Option<(i32, i32)> 
     Some((x, y))
 }
 
-fn resolve_tauri_floating_position(app: &tauri::AppHandle, logical_size: i32) -> Result<((i32, i32), bool), String> {
+fn resolve_tauri_floating_position(
+    app: &tauri::AppHandle,
+    logical_size: i32,
+) -> Result<((i32, i32), bool), String> {
     let work_areas = floating_work_areas(app)?;
     if let Some((x, y)) = stored_tauri_floating_position(app) {
         if floating_window_position_visible(x, y, &work_areas, logical_size) {
@@ -299,15 +527,12 @@ fn floating_work_area_for_center(
     center_x: i32,
     center_y: i32,
 ) -> Option<(i32, i32, u32, u32, f64)> {
-    work_areas
-        .iter()
-        .copied()
-        .find(|(x, y, width, height, _)| {
-            center_x >= *x
-                && center_x < x.saturating_add(*width as i32)
-                && center_y >= *y
-                && center_y < y.saturating_add(*height as i32)
-        })
+    work_areas.iter().copied().find(|(x, y, width, height, _)| {
+        center_x >= *x
+            && center_x < x.saturating_add(*width as i32)
+            && center_y >= *y
+            && center_y < y.saturating_add(*height as i32)
+    })
 }
 
 fn persist_tauri_floating_position(app: &tauri::AppHandle, x: i32, y: i32) -> Result<(), String> {
@@ -315,8 +540,13 @@ fn persist_tauri_floating_position(app: &tauri::AppHandle, x: i32, y: i32) -> Re
     store.is_healthy()?;
     let previous_position_value;
     {
-        let mut values = store.values.lock().map_err(|_| "数据锁定失败".to_string())?;
-        let root = values.as_object_mut().ok_or_else(|| "数据内容无效".to_string())?;
+        let mut values = store
+            .values
+            .lock()
+            .map_err(|_| "数据锁定失败".to_string())?;
+        let root = values
+            .as_object_mut()
+            .ok_or_else(|| "数据内容无效".to_string())?;
         previous_position_value = root.get("floatingWindowPosition").cloned();
         let positions = root
             .entry("floatingWindowPosition".to_string())
@@ -403,7 +633,8 @@ async fn download_installer_bytes(
                         Ok(Some(chunk)) => {
                             bytes.extend_from_slice(&chunk);
                             if total_size > 0 {
-                                let progress = ((bytes.len() as u64 * 99) / total_size).min(99) as u8;
+                                let progress =
+                                    ((bytes.len() as u64 * 99) / total_size).min(99) as u8;
                                 if progress > last_progress {
                                     last_progress = progress;
                                     let _ = app.emit("update-download-progress", progress);
@@ -466,12 +697,27 @@ fn installer_temp_path(file_name: &str) -> Result<PathBuf, String> {
 fn launch_installer(path: &Path) -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
-        Command::new(path).spawn().map(|_| ()).map_err(|error| error.to_string())
+        Command::new(path)
+            .spawn()
+            .map(|_| ())
+            .map_err(|error| error.to_string())
     }
     #[cfg(target_os = "macos")]
-    { Command::new("open").arg(path).spawn().map(|_| ()).map_err(|error| error.to_string()) }
+    {
+        Command::new("open")
+            .arg(path)
+            .spawn()
+            .map(|_| ())
+            .map_err(|error| error.to_string())
+    }
     #[cfg(target_os = "linux")]
-    { Command::new("xdg-open").arg(path).spawn().map(|_| ()).map_err(|error| error.to_string()) }
+    {
+        Command::new("xdg-open")
+            .arg(path)
+            .spawn()
+            .map(|_| ())
+            .map_err(|error| error.to_string())
+    }
 }
 
 #[tauri::command]
@@ -479,7 +725,11 @@ fn storage_get(store: State<'_, EncryptedStore>, key: String) -> Option<serde_js
     if store.is_healthy().is_err() {
         return None;
     }
-    store.values.lock().ok().and_then(|values| values.get(&key).cloned())
+    store
+        .values
+        .lock()
+        .ok()
+        .and_then(|values| values.get(&key).cloned())
 }
 
 fn migrate_legacy_data(app: &tauri::AppHandle) {
@@ -487,6 +737,23 @@ fn migrate_legacy_data(app: &tauri::AppHandle) {
     if store.path.exists() || store.is_healthy().is_err() {
         return;
     }
+
+    // 26.0.5 曾把数据写在安装目录。普通用户通常无权写 Program Files，
+    // 因此只读取并迁移到当前用户的 AppData，保留原文件作为回退备份。
+    let installed_data = legacy_installation_data_dir().join("cyrene-data.cyrene");
+    if installed_data != store.path {
+        if let Ok(bytes) = fs::read(&installed_data) {
+            if let Ok(values) = decrypt_data(&bytes) {
+                if let Ok(mut current_values) = store.values.lock() {
+                    *current_values = values;
+                }
+                if store.persist().is_ok() {
+                    return;
+                }
+            }
+        }
+    }
+
     let legacy_dir = match app.path().app_data_dir() {
         Ok(path) => path.join("data"),
         Err(_) => return,
@@ -499,15 +766,24 @@ fn migrate_legacy_data(app: &tauri::AppHandle) {
             if path.extension().and_then(|extension| extension.to_str()) != Some("json") {
                 continue;
             }
-            let Ok(raw) = fs::read_to_string(&path) else { continue };
-            let Ok(value) = serde_json::from_str::<serde_json::Value>(&raw) else { continue };
-            let Some(stem) = path.file_stem().and_then(|stem| stem.to_str()) else { continue };
+            let Ok(raw) = fs::read_to_string(&path) else {
+                continue;
+            };
+            let Ok(value) = serde_json::from_str::<serde_json::Value>(&raw) else {
+                continue;
+            };
+            let Some(stem) = path.file_stem().and_then(|stem| stem.to_str()) else {
+                continue;
+            };
             if stem == "window-state" {
-                values.insert("windowState".into(), serde_json::json!({
-                    "width": value["width"],
-                    "height": value["height"],
-                    "isMaximized": value["maximized"].as_bool().unwrap_or(false),
-                }));
+                values.insert(
+                    "windowState".into(),
+                    serde_json::json!({
+                        "width": value["width"],
+                        "height": value["height"],
+                        "isMaximized": value["maximized"].as_bool().unwrap_or(false),
+                    }),
+                );
             } else {
                 values.insert(stem.to_string(), value);
             }
@@ -523,12 +799,18 @@ fn migrate_legacy_data(app: &tauri::AppHandle) {
         return;
     }
     if store.persist().is_ok() {
-        legacy_paths.into_iter().for_each(|path| { let _ = fs::remove_file(path); });
+        legacy_paths.into_iter().for_each(|path| {
+            let _ = fs::remove_file(path);
+        });
     }
 }
 
 #[tauri::command]
-fn storage_set(store: State<'_, EncryptedStore>, key: String, value: serde_json::Value) -> serde_json::Value {
+fn storage_set(
+    store: State<'_, EncryptedStore>,
+    key: String,
+    value: serde_json::Value,
+) -> serde_json::Value {
     if store.is_healthy().is_err() {
         return serde_json::json!({ "success": false, "error": "数据文件完整性检查失败" });
     }
@@ -585,7 +867,10 @@ fn export_encrypted_data(store: State<'_, EncryptedStore>) -> Result<String, Str
 }
 
 #[tauri::command]
-fn import_encrypted_data(store: State<'_, EncryptedStore>, encoded_data: String) -> Result<bool, String> {
+fn import_encrypted_data(
+    store: State<'_, EncryptedStore>,
+    encoded_data: String,
+) -> Result<bool, String> {
     let bytes = base64::engine::general_purpose::STANDARD
         .decode(encoded_data)
         .map_err(|_| "导入文件编码无效".to_string())?;
@@ -606,14 +891,24 @@ async fn save_text_file(
     default_name: String,
     extension: String,
 ) -> Result<serde_json::Value, String> {
-    let safe_extension: String = extension.chars().filter(|character| character.is_ascii_alphanumeric()).collect();
-    let safe_extension = if safe_extension.is_empty() { "json".to_string() } else { safe_extension };
+    let safe_extension: String = extension
+        .chars()
+        .filter(|character| character.is_ascii_alphanumeric())
+        .collect();
+    let safe_extension = if safe_extension.is_empty() {
+        "json".to_string()
+    } else {
+        safe_extension
+    };
     let selected = app
         .dialog()
         .file()
         .set_title("保存文件")
         .set_file_name(default_name)
-        .add_filter(format!("{} 文件", safe_extension.to_uppercase()), &[safe_extension.as_str()])
+        .add_filter(
+            format!("{} 文件", safe_extension.to_uppercase()),
+            &[safe_extension.as_str()],
+        )
         .blocking_save_file();
     let Some(selected) = selected else {
         return Ok(serde_json::json!({ "success": false, "cancelled": true }));
@@ -624,25 +919,64 @@ async fn save_text_file(
 }
 
 #[tauri::command]
-async fn open_text_file(app: tauri::AppHandle, extension: String) -> Result<serde_json::Value, String> {
-    let safe_extension: String = extension.chars().filter(|character| character.is_ascii_alphanumeric()).collect();
-    let safe_extension = if safe_extension.is_empty() { "json".to_string() } else { safe_extension };
+async fn open_text_file(
+    app: tauri::AppHandle,
+    extension: serde_json::Value,
+) -> Result<serde_json::Value, String> {
+    let raw_extensions: Vec<String> = match extension {
+        serde_json::Value::Array(values) => values
+            .into_iter()
+            .filter_map(|value| value.as_str().map(ToOwned::to_owned))
+            .collect(),
+        serde_json::Value::String(value) => vec![value],
+        _ => Vec::new(),
+    };
+    let mut safe_extensions: Vec<String> = raw_extensions
+        .into_iter()
+        .map(|value| {
+            value
+                .chars()
+                .filter(|character| character.is_ascii_alphanumeric())
+                .collect::<String>()
+                .to_lowercase()
+        })
+        .filter(|value| !value.is_empty())
+        .collect();
+    safe_extensions.sort();
+    safe_extensions.dedup();
+    if safe_extensions.is_empty() {
+        safe_extensions.push("json".to_string());
+    }
+    let filter_name = format!(
+        "{} 文件",
+        safe_extensions
+            .iter()
+            .map(|value| value.to_uppercase())
+            .collect::<Vec<_>>()
+            .join(" / ")
+    );
+    let filter_extensions: Vec<&str> = safe_extensions.iter().map(String::as_str).collect();
     let selected = app
         .dialog()
         .file()
         .set_title("打开文件")
-        .add_filter(format!("{} 文件", safe_extension.to_uppercase()), &[safe_extension.as_str()])
+        .add_filter(filter_name, &filter_extensions)
         .blocking_pick_file();
     let Some(selected) = selected else {
         return Ok(serde_json::json!({ "success": false, "cancelled": true }));
     };
     let path = selected.into_path().map_err(|error| error.to_string())?;
     let content = fs::read_to_string(&path).map_err(|error| error.to_string())?;
-    Ok(serde_json::json!({ "success": true, "content": content, "filePath": path.to_string_lossy() }))
+    Ok(
+        serde_json::json!({ "success": true, "content": content, "filePath": path.to_string_lossy() }),
+    )
 }
 
 #[tauri::command]
-async fn export_data_file(app: tauri::AppHandle, store: State<'_, EncryptedStore>) -> Result<serde_json::Value, String> {
+async fn export_data_file(
+    app: tauri::AppHandle,
+    store: State<'_, EncryptedStore>,
+) -> Result<serde_json::Value, String> {
     store.persist()?;
     let selected = app
         .dialog()
@@ -660,7 +994,10 @@ async fn export_data_file(app: tauri::AppHandle, store: State<'_, EncryptedStore
 }
 
 #[tauri::command]
-async fn import_data_file(app: tauri::AppHandle, store: State<'_, EncryptedStore>) -> Result<serde_json::Value, String> {
+async fn import_data_file(
+    app: tauri::AppHandle,
+    store: State<'_, EncryptedStore>,
+) -> Result<serde_json::Value, String> {
     let selected = app
         .dialog()
         .file()
@@ -673,7 +1010,10 @@ async fn import_data_file(app: tauri::AppHandle, store: State<'_, EncryptedStore
     let path = selected.into_path().map_err(|error| error.to_string())?;
     let bytes = fs::read(&path).map_err(|error| error.to_string())?;
     let values = decrypt_data(&bytes)?;
-    *store.values.lock().map_err(|_| "数据锁定失败".to_string())? = values;
+    *store
+        .values
+        .lock()
+        .map_err(|_| "数据锁定失败".to_string())? = values;
     store.persist()?;
     Ok(serde_json::json!({ "success": true, "filePath": path.to_string_lossy() }))
 }
@@ -731,11 +1071,17 @@ async fn check_update() -> Result<serde_json::Value, String> {
 #[tauri::command]
 fn open_external(url: String) {
     #[cfg(target_os = "windows")]
-    { let _ = Command::new("cmd").args(["/C", "start", &url]).spawn(); }
+    {
+        let _ = shell_execute("open", OsStr::new(&url), None);
+    }
     #[cfg(target_os = "macos")]
-    { let _ = Command::new("open").arg(&url).spawn(); }
+    {
+        let _ = Command::new("open").arg(&url).spawn();
+    }
     #[cfg(target_os = "linux")]
-    { let _ = Command::new("xdg-open").arg(&url).spawn(); }
+    {
+        let _ = Command::new("xdg-open").arg(&url).spawn();
+    }
 }
 
 // 公告缓存文件路径：写入系统 TEMP（无权限问题，且可离线复用）
@@ -828,7 +1174,8 @@ async fn download_and_launch_update(
 async fn open_floating_window(app: tauri::AppHandle) -> Result<(), String> {
     let size = floating_window_size(&app);
     if let Some(win) = app.get_webview_window("floating") {
-        win.set_size(LogicalSize::new(size as f64, size as f64)).map_err(|e| e.to_string())?;
+        win.set_size(LogicalSize::new(size as f64, size as f64))
+            .map_err(|e| e.to_string())?;
         win.show().map_err(|e| e.to_string())?;
         win.set_focus().map_err(|e| e.to_string())?;
         return Ok(());
@@ -857,7 +1204,8 @@ async fn open_floating_window(app: tauri::AppHandle) -> Result<(), String> {
     .visible(false)
     .build()
     .map_err(|e| e.to_string())?;
-    win.set_position(PhysicalPosition::new(x, y)).map_err(|e| e.to_string())?;
+    win.set_position(PhysicalPosition::new(x, y))
+        .map_err(|e| e.to_string())?;
     if used_fallback {
         if let Err(error) = persist_tauri_floating_position(&app, x, y) {
             eprintln!("[floating] failed to persist fallback position: {}", error);
@@ -895,7 +1243,8 @@ async fn reset_floating_window_position(app: tauri::AppHandle) -> Result<(), Str
         .ok_or_else(|| "悬浮窗不可用".to_string())?;
     let previous = win.outer_position().map_err(|error| error.to_string())?;
     let (x, y) = primary_floating_position(&app, floating_window_size(&app))?;
-    win.set_position(PhysicalPosition::new(x, y)).map_err(|error| error.to_string())?;
+    win.set_position(PhysicalPosition::new(x, y))
+        .map_err(|error| error.to_string())?;
     if let Err(error) = persist_tauri_floating_position(&app, x, y) {
         let _ = win.set_position(previous);
         return Err(error);
@@ -932,8 +1281,12 @@ async fn set_floating_window_size(app: tauri::AppHandle, size: f64) -> Result<i3
         previous_size.width as i32,
         physical_size,
     );
-    let center_x = previous_position.x.saturating_add(previous_size.width as i32 / 2);
-    let center_y = previous_position.y.saturating_add(previous_size.height as i32 / 2);
+    let center_x = previous_position
+        .x
+        .saturating_add(previous_size.width as i32 / 2);
+    let center_y = previous_position
+        .y
+        .saturating_add(previous_size.height as i32 / 2);
     let work_areas = floating_work_areas(&app)?;
     if let Some((work_x, work_y, work_width, work_height, _)) =
         floating_work_area_for_center(&work_areas, center_x, center_y)
@@ -974,7 +1327,7 @@ async fn set_floating_window_size(app: tauri::AppHandle, size: f64) -> Result<i3
 
 #[tauri::command]
 async fn focus_main_window(app: tauri::AppHandle) -> Result<(), String> {
-    reveal_main_window(&app)
+    request_reveal_main_window(&app)
 }
 
 #[tauri::command]
@@ -989,16 +1342,32 @@ async fn hide_to_tray(app: tauri::AppHandle) -> Result<(), String> {
 fn reveal_file(path: String) -> bool {
     let path = PathBuf::from(path);
     #[cfg(target_os = "windows")]
-    { return Command::new("explorer").arg("/select,").arg(path).spawn().is_ok(); }
+    {
+        return background_command("explorer")
+            .arg("/select,")
+            .arg(path)
+            .spawn()
+            .is_ok();
+    }
     #[cfg(target_os = "macos")]
-    { return Command::new("open").args(["-R", path.to_string_lossy().as_ref()]).spawn().is_ok(); }
+    {
+        return Command::new("open")
+            .args(["-R", path.to_string_lossy().as_ref()])
+            .spawn()
+            .is_ok();
+    }
     #[cfg(target_os = "linux")]
-    { return Command::new("xdg-open").arg(path.parent().unwrap_or(Path::new("."))).spawn().is_ok(); }
+    {
+        return Command::new("xdg-open")
+            .arg(path.parent().unwrap_or(Path::new(".")))
+            .spawn()
+            .is_ok();
+    }
 }
 
 #[tauri::command]
-fn show_data_location() -> bool {
-    reveal_file(installation_data_dir().join("cyrene-data.cyrene").to_string_lossy().into_owned())
+fn show_data_location(store: State<'_, EncryptedStore>) -> bool {
+    reveal_file(store.path.to_string_lossy().into_owned())
 }
 
 #[tauri::command]
@@ -1006,11 +1375,17 @@ fn system_accent() -> String {
     #[cfg(target_os = "windows")]
     {
         let queries = [
-            (r"HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Accent", "AccentColorMenu"),
+            (
+                r"HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Accent",
+                "AccentColorMenu",
+            ),
             (r"HKCU\Software\Microsoft\Windows\DWM", "AccentColor"),
         ];
         for (key, value_name) in queries {
-            if let Ok(output) = Command::new("reg").args(["query", key, "/v", value_name]).output() {
+            if let Ok(output) = background_command("reg")
+                .args(["query", key, "/v", value_name])
+                .output()
+            {
                 let text = String::from_utf8_lossy(&output.stdout);
                 if let Some(raw) = text.split_whitespace().find(|part| part.starts_with("0x")) {
                     if let Ok(value) = u32::from_str_radix(raw.trim_start_matches("0x"), 16) {
@@ -1028,69 +1403,222 @@ fn system_accent() -> String {
 
 fn startup_task_action() -> Result<String, String> {
     let executable = std::env::current_exe().map_err(|error| error.to_string())?;
-    Ok(format!("\"{}\" --cyrene-autostart", executable.to_string_lossy()))
+    Ok(format!(
+        "\"{}\" --cyrene-autostart",
+        executable.to_string_lossy()
+    ))
+}
+
+#[tauri::command]
+fn read_dropped_file(path: String) -> Result<serde_json::Value, String> {
+    let path = PathBuf::from(path);
+    if !path.is_file() {
+        return Err("拖入的路径不是文件".into());
+    }
+    let metadata = fs::metadata(&path).map_err(|error| error.to_string())?;
+    if metadata.len() > 64 * 1024 * 1024 {
+        return Err("文件过大，最多支持 64 MB".into());
+    }
+    let bytes = fs::read(&path).map_err(|error| error.to_string())?;
+    let name = path
+        .file_name()
+        .and_then(OsStr::to_str)
+        .unwrap_or("import")
+        .to_string();
+    let extension = path
+        .extension()
+        .and_then(OsStr::to_str)
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    Ok(serde_json::json!({
+        "name": name,
+        "extension": extension,
+        "path": path.to_string_lossy(),
+        "base64": base64::engine::general_purpose::STANDARD.encode(bytes)
+    }))
+}
+
+fn startup_registry_action() -> Result<String, String> {
+    startup_task_action()
 }
 
 fn configure_startup_task(enabled: bool) -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
+        if !enabled {
+            let query = background_command("schtasks")
+                .args(["/Query", "/TN", STARTUP_TASK_NAME])
+                .output()
+                .map_err(|error| error.to_string())?;
+            if !query.status.success() {
+                return Ok(());
+            }
+        }
         let output = if enabled {
-            Command::new("schtasks")
-                .args(["/Create", "/TN", STARTUP_TASK_NAME, "/TR", &startup_task_action()?, "/SC", "ONLOGON", "/RL", "HIGHEST", "/F"])
+            background_command("schtasks")
+                .args([
+                    "/Create",
+                    "/TN",
+                    STARTUP_TASK_NAME,
+                    "/TR",
+                    &startup_task_action()?,
+                    "/SC",
+                    "ONLOGON",
+                    "/RL",
+                    "HIGHEST",
+                    "/F",
+                ])
                 .output()
         } else {
-            Command::new("schtasks").args(["/Delete", "/TN", STARTUP_TASK_NAME, "/F"]).output()
-        }.map_err(|error| error.to_string())?;
-        if output.status.success() || !enabled {
+            background_command("schtasks")
+                .args(["/Delete", "/TN", STARTUP_TASK_NAME, "/F"])
+                .output()
+        }
+        .map_err(|error| error.to_string())?;
+        if output.status.success() {
             return Ok(());
         }
-        let error = String::from_utf8_lossy(if output.stderr.is_empty() { &output.stdout } else { &output.stderr });
+        let error = String::from_utf8_lossy(if output.stderr.is_empty() {
+            &output.stdout
+        } else {
+            &output.stderr
+        });
         return Err(error.trim().to_string());
     }
     #[cfg(not(target_os = "windows"))]
     Err("管理员计划任务仅支持 Windows".into())
 }
 
+fn configure_registry_startup(enabled: bool) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        if !enabled {
+            let query = background_command("reg")
+                .args([
+                    "query",
+                    r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run",
+                    "/v",
+                    STARTUP_REGISTRY_VALUE,
+                ])
+                .output()
+                .map_err(|error| error.to_string())?;
+            if !query.status.success() {
+                return Ok(());
+            }
+        }
+        let mut command = background_command("reg");
+        command.args([
+            if enabled { "add" } else { "delete" },
+            r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run",
+            "/v",
+            STARTUP_REGISTRY_VALUE,
+        ]);
+        if enabled {
+            command.args(["/t", "REG_SZ", "/d", &startup_registry_action()?, "/f"]);
+        } else {
+            command.arg("/f");
+        }
+        let output = command.output().map_err(|error| error.to_string())?;
+        if output.status.success() {
+            return Ok(());
+        }
+        let error = String::from_utf8_lossy(if output.stderr.is_empty() {
+            &output.stdout
+        } else {
+            &output.stderr
+        });
+        return Err(error.trim().to_string());
+    }
+    #[cfg(not(target_os = "windows"))]
+    Err("传统启动项当前仅支持 Windows".into())
+}
+
+fn configure_auto_start(enabled: bool, mode: &str, previous_mode: &str) -> Result<(), String> {
+    if !enabled {
+        if mode == "scheduled" || previous_mode == "scheduled" {
+            configure_startup_task(false)?;
+        }
+        configure_registry_startup(false)?;
+        return Ok(());
+    }
+    match mode {
+        "scheduled" => {
+            configure_registry_startup(false)?;
+            configure_startup_task(true)
+        }
+        "registry" => {
+            if previous_mode == "scheduled" {
+                configure_startup_task(false)?;
+            }
+            configure_registry_startup(true)
+        }
+        _ => Err("未知的开机启动方式".into()),
+    }
+}
+
 fn process_is_elevated() -> bool {
     #[cfg(target_os = "windows")]
     {
-        let script = "([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)";
-        return Command::new("powershell").args(["-NoProfile", "-Command", script]).output()
-            .map(|output| String::from_utf8_lossy(&output.stdout).trim().eq_ignore_ascii_case("true"))
-            .unwrap_or(false);
+        return unsafe { IsUserAnAdmin() != 0 };
     }
     #[cfg(not(target_os = "windows"))]
     false
 }
 
-fn powershell_literal(value: &str) -> String {
-    format!("'{}'", value.replace('\'', "''"))
+#[tauri::command]
+fn is_process_elevated() -> bool {
+    process_is_elevated()
 }
 
 #[tauri::command]
-fn set_auto_start(enabled: bool) -> Result<serde_json::Value, String> {
+async fn set_auto_start(
+    enabled: bool,
+    mode: String,
+    previous_mode: String,
+) -> Result<serde_json::Value, String> {
     #[cfg(target_os = "windows")]
     {
-        if process_is_elevated() {
-            configure_startup_task(enabled)?;
-            return Ok(serde_json::json!({ "success": true, "restarting": false }));
+        let needs_scheduled_privilege = mode == "scheduled"
+            || previous_mode == "scheduled" && (!enabled || mode != previous_mode);
+        if needs_scheduled_privilege && !process_is_elevated() {
+            return Ok(serde_json::json!({
+                "success": false,
+                "requiresElevation": true,
+                "error": "需要管理员权限修改计划任务"
+            }));
+        }
+        tauri::async_runtime::spawn_blocking(move || {
+            configure_auto_start(enabled, &mode, &previous_mode)
+        })
+        .await
+        .map_err(|error| error.to_string())??;
+        return Ok(serde_json::json!({ "success": true, "restarting": false }));
+    }
+    #[cfg(not(target_os = "windows"))]
+    Ok(serde_json::json!({ "success": false, "error": "管理员计划任务仅支持 Windows" }))
+}
+
+#[tauri::command]
+fn restart_elevated_for_auto_start(
+    enabled: bool,
+    mode: String,
+    previous_mode: String,
+) -> Result<serde_json::Value, String> {
+    #[cfg(target_os = "windows")]
+    {
+        if mode != "scheduled" && mode != "registry" {
+            return Err("未知的开机启动方式".into());
         }
         let executable = std::env::current_exe().map_err(|error| error.to_string())?;
-        let current_pid = std::process::id();
-        let configuration = format!("--cyrene-configure-autostart={}", if enabled { "enable" } else { "disable" });
-        let replace_process = format!("--cyrene-replace-pid={}", current_pid);
-        let script = format!(
-            "$process = Start-Process -FilePath {} -Verb RunAs -ArgumentList {}, {} -Wait -PassThru; exit $process.ExitCode",
-            powershell_literal(executable.to_string_lossy().as_ref()),
-            powershell_literal(&configuration),
-            powershell_literal(&replace_process)
+        let parameters = format!(
+            "--cyrene-configure-autostart={} --cyrene-autostart-mode={} --cyrene-previous-autostart-mode={} --cyrene-replace-pid={}",
+            if enabled { "enable" } else { "disable" },
+            mode,
+            previous_mode,
+            std::process::id()
         );
-        let status = Command::new("powershell")
-            .args(["-NoProfile", "-WindowStyle", "Hidden", "-Command", &script])
-            .status()
-            .map_err(|error| error.to_string())?;
-        if !status.success() {
-            return Ok(serde_json::json!({ "success": false, "error": "管理员授权已取消或管理员进程启动失败" }));
+        if let Err(error) = shell_execute("runas", executable.as_os_str(), Some(&parameters)) {
+            return Ok(serde_json::json!({ "success": false, "error": error }));
         }
         return Ok(serde_json::json!({ "success": true, "restarting": true }));
     }
@@ -1099,25 +1627,44 @@ fn set_auto_start(enabled: bool) -> Result<serde_json::Value, String> {
 }
 
 #[tauri::command]
-fn is_autostart_launch() -> bool { std::env::args().any(|arg| arg == "--cyrene-autostart") }
+fn is_autostart_launch() -> bool {
+    std::env::args().any(|arg| arg == "--cyrene-autostart")
+}
 
 #[tauri::command]
 async fn show_main_window(app: tauri::AppHandle) -> Result<(), String> {
-    reveal_main_window(&app)
+    app.state::<MainWindowRevealState>()
+        .pending
+        .store(false, Ordering::Release);
+    show_main_window_now(&app)
 }
 
-fn reveal_main_window(app: &tauri::AppHandle) -> Result<(), String> {
-    if app.get_webview_window("main").is_some() {
-        let _ = app.emit("main-window-shown", ());
-        let handle = app.clone();
-        std::thread::spawn(move || {
-            std::thread::sleep(std::time::Duration::from_millis(50));
-            if let Some(window) = handle.get_webview_window("main") {
-                let _ = window.unminimize();
-                let _ = window.show();
-                let _ = window.set_focus();
-            }
-        });
+#[tauri::command]
+fn main_window_ready(app: tauri::AppHandle) -> Result<(), String> {
+    let state = app.state::<MainWindowRevealState>();
+    state.frontend_ready.store(true, Ordering::Release);
+    if state.pending.load(Ordering::Acquire) {
+        app.emit("main-window-show-requested", ())
+            .map_err(|error| error.to_string())?;
+    }
+    Ok(())
+}
+
+fn show_main_window_now(app: &tauri::AppHandle) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("main") {
+        window.unminimize().map_err(|error| error.to_string())?;
+        window.show().map_err(|error| error.to_string())?;
+        window.set_focus().map_err(|error| error.to_string())?;
+    }
+    Ok(())
+}
+
+fn request_reveal_main_window(app: &tauri::AppHandle) -> Result<(), String> {
+    let state = app.state::<MainWindowRevealState>();
+    state.pending.store(true, Ordering::Release);
+    if state.frontend_ready.load(Ordering::Acquire) {
+        app.emit("main-window-show-requested", ())
+            .map_err(|error| error.to_string())?;
     }
     Ok(())
 }
@@ -1144,13 +1691,13 @@ fn create_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                 if button == tauri::tray::MouseButton::Left
                     && button_state == tauri::tray::MouseButtonState::Up
                 {
-                    let _ = reveal_main_window(tray.app_handle());
+                    let _ = request_reveal_main_window(tray.app_handle());
                 }
             }
         })
         .on_menu_event(|app, event| match event.id.as_ref() {
             "show" => {
-                let _ = reveal_main_window(app);
+                let _ = request_reveal_main_window(app);
             }
             "quit" => app.exit(0),
             _ => {}
@@ -1161,44 +1708,70 @@ fn create_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    if let Some(configuration) = std::env::args().find(|argument| argument.starts_with("--cyrene-configure-autostart=")) {
-        if let Err(error) = configure_startup_task(configuration.ends_with("=enable")) {
+    let arguments: Vec<String> = std::env::args().collect();
+    let replacing_instance = arguments
+        .iter()
+        .any(|argument| argument.starts_with("--cyrene-replace-pid="));
+    if let Some(configuration) = arguments
+        .iter()
+        .find(|argument| argument.starts_with("--cyrene-configure-autostart="))
+    {
+        let mode = arguments
+            .iter()
+            .find_map(|argument| argument.strip_prefix("--cyrene-autostart-mode="))
+            .unwrap_or("scheduled");
+        let previous_mode = arguments
+            .iter()
+            .find_map(|argument| argument.strip_prefix("--cyrene-previous-autostart-mode="))
+            .unwrap_or(mode);
+        if let Err(error) =
+            configure_auto_start(configuration.ends_with("=enable"), mode, previous_mode)
+        {
             eprintln!("[startup-task] {}", error);
             std::process::exit(2);
-        } else if let Some(pid) = std::env::args()
-            .find(|argument| argument.starts_with("--cyrene-replace-pid="))
-            .and_then(|argument| argument.split('=').nth(1).and_then(|value| value.parse::<u32>().ok()))
-        {
-            #[cfg(target_os = "windows")]
-            {
-                let _ = Command::new("taskkill").args(["/PID", &pid.to_string(), "/T", "/F"]).status();
-                std::thread::sleep(std::time::Duration::from_millis(180));
-            }
+        }
+        if replacing_instance {
+            let _ = request_existing_instance_exit();
         }
     }
+    let instance_listener = acquire_instance_listener(replacing_instance);
     tauri::Builder::default()
-        .manage(EncryptedStore::load())
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
-            let _ = reveal_main_window(app);
-        }))
-        .setup(|app| {
+        .setup(move |app| {
+            let data_path = app
+                .path()
+                .app_data_dir()?
+                .join("data")
+                .join("cyrene-data.cyrene");
+            app.manage(EncryptedStore::load(data_path));
+            app.manage(MainWindowRevealState::new());
             let handle = app.handle().clone();
+            start_instance_listener(instance_listener, handle.clone());
             migrate_legacy_data(&handle);
             restore_window_state(&handle);
             create_tray(app)?;
 
             if let Some(window) = app.get_webview_window("main") {
                 let win = window.clone();
+                let save_revision = Arc::new(AtomicU64::new(0));
                 window.on_window_event(move |event| match event {
                     tauri::WindowEvent::CloseRequested { api, .. } => {
                         // 关闭时最小化到托盘，不退出进程（后台常驻）
                         api.prevent_close();
+                        save_window_state(&handle);
                         let _ = win.hide();
                     }
-                    tauri::WindowEvent::Resized(_) | tauri::WindowEvent::Moved(_) => {
-                        save_window_state(&handle);
+                    tauri::WindowEvent::Resized(_) => {
+                        let revision = save_revision.fetch_add(1, Ordering::Relaxed) + 1;
+                        let revision_state = save_revision.clone();
+                        let save_handle = handle.clone();
+                        std::thread::spawn(move || {
+                            std::thread::sleep(std::time::Duration::from_millis(350));
+                            if revision_state.load(Ordering::Relaxed) == revision {
+                                save_window_state(&save_handle);
+                            }
+                        });
                     }
                     _ => {}
                 });
@@ -1216,6 +1789,7 @@ pub fn run() {
             import_data_file,
             save_text_file,
             open_text_file,
+            read_dropped_file,
             load_names,
             load_changelog,
             check_update,
@@ -1224,6 +1798,8 @@ pub fn run() {
             reveal_file,
             system_accent,
             set_auto_start,
+            restart_elevated_for_auto_start,
+            is_process_elevated,
             is_autostart_launch,
             fetch_announcements,
             download_and_launch_update,
@@ -1235,6 +1811,7 @@ pub fn run() {
             set_floating_window_size,
             focus_main_window,
             hide_to_tray,
+            main_window_ready,
             show_main_window
         ])
         .run(tauri::generate_context!())
@@ -1244,8 +1821,9 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::{
-        center_floating_window, floating_window_position_visible, normalize_floating_window_size,
-        constrain_floating_window_position, resize_floating_window_position,
+        center_floating_window, constrain_floating_window_position,
+        floating_window_position_visible, normalize_floating_window_size,
+        resize_floating_window_position,
     };
 
     #[test]
@@ -1259,12 +1837,18 @@ mod tests {
 
     #[test]
     fn floating_window_centers_in_offset_work_area() {
-        assert_eq!(center_floating_window(1920, 40, 1920, 1040, 1.0, 64), (2848, 528));
+        assert_eq!(
+            center_floating_window(1920, 40, 1920, 1040, 1.0, 64),
+            (2848, 528)
+        );
     }
 
     #[test]
     fn floating_window_centers_logical_size_at_high_dpi() {
-        assert_eq!(center_floating_window(0, 0, 1920, 1080, 1.5, 64), (912, 492));
+        assert_eq!(
+            center_floating_window(0, 0, 1920, 1080, 1.5, 64),
+            (912, 492)
+        );
     }
 
     #[test]
@@ -1289,7 +1873,10 @@ mod tests {
 
     #[test]
     fn floating_window_centers_requested_logical_size() {
-        assert_eq!(center_floating_window(0, 0, 1920, 1080, 1.0, 128), (896, 476));
+        assert_eq!(
+            center_floating_window(0, 0, 1920, 1080, 1.0, 128),
+            (896, 476)
+        );
     }
 
     #[test]
@@ -1310,8 +1897,14 @@ mod tests {
 
     #[test]
     fn floating_window_resizes_around_physical_center() {
-        assert_eq!(resize_floating_window_position(100, 200, 64, 128), (68, 168));
-        assert_eq!(resize_floating_window_position(68, 168, 128, 40), (112, 212));
+        assert_eq!(
+            resize_floating_window_position(100, 200, 64, 128),
+            (68, 168)
+        );
+        assert_eq!(
+            resize_floating_window_position(68, 168, 128, 40),
+            (112, 212)
+        );
     }
 
     #[test]

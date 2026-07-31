@@ -174,7 +174,7 @@ const showBanner = inject('banner')
 const lang = computed(() => settingsStore.settings.language)
 const section = computed(() => props.section)
 const pageTitle = computed(() => section.value === 'assign' ? (lang.value === 'en' ? 'Prize assignment' : '人员奖品分配') : section.value === 'prizes' ? (lang.value === 'en' ? 'Prizes' : '奖品管理') : (lang.value === 'en' ? 'Prize draw' : '奖品抽取'))
-const pageIcon = computed(() => section.value === 'assign' ? 'people-team-24-regular' : section.value === 'prizes' ? 'clipboard-bullet-list-24-regular' : 'gift-24-regular')
+const pageIcon = computed(() => section.value === 'assign' ? 'people-team-24-regular' : section.value === 'prizes' ? 'clipboard-task-list-24-regular' : 'gift-24-regular')
 const prizeListOptions = computed(() => Object.values(prizes.lists).map(list => ({ value: list.id, label: list.name })))
 const peopleListOptions = computed(() => names.allLists.map(list => ({ value: list.id, label: list.name })))
 

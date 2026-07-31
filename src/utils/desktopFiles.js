@@ -23,18 +23,24 @@ export async function saveTextFile(content, defaultName, extension = 'json') {
   if (isTauri()) {
     result = await tauriAPI.saveTextFile(content, defaultName, extension)
   } else {
-    return browserDownload(content, defaultName, extension === 'json' ? 'application/json' : 'text/plain')
+    const mimeType = extension === 'json'
+      ? 'application/json'
+      : (extension === 'csv' ? 'text/csv;charset=utf-8' : 'text/plain')
+    return browserDownload(content, defaultName, mimeType)
   }
-  if (result?.success && result.filePath) emitFileNotice(`已保存：${result.filePath}`, result.filePath)
   return result || { success: false, error: '保存失败' }
 }
 
 export async function openTextFile(extension = 'json') {
-  if (isTauri()) return tauriAPI.openTextFile(extension)
+  const extensions = (Array.isArray(extension) ? extension : [extension])
+    .map(value => String(value).replace(/[^a-z0-9]/gi, '').toLowerCase())
+    .filter(Boolean)
+  const accepted = extensions.length ? extensions : ['json']
+  if (isTauri()) return tauriAPI.openTextFile(accepted)
   return new Promise(resolve => {
     const input = document.createElement('input')
     input.type = 'file'
-    input.accept = `.${extension}`
+    input.accept = accepted.map(value => `.${value}`).join(',')
     input.onchange = async event => {
       const file = event.target.files?.[0]
       if (!file) return resolve({ success: false, cancelled: true })

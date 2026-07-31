@@ -2,8 +2,6 @@ import { isTauri, tauriAPI } from './tauriAPI'
 import { decryptCyreneData, encryptCyreneData } from './cyreneCrypto'
 import { emitFileNotice } from './desktopFiles'
 
-const NOTICE_KEYS = new Set(['lists', 'prizeLists'])
-
 export const dataBridge = {
   async load(key) {
     // Tauri
@@ -29,8 +27,7 @@ export const dataBridge = {
     // Tauri
     if (isTauri()) {
       try {
-        const result = await tauriAPI.storageSet(key, data)
-        if (NOTICE_KEYS.has(key) && result?.filePath) notifyDataSaved(result.filePath)
+        await tauriAPI.storageSet(key, data)
       } catch (e) {
         console.warn(`[dataBridge] Tauri save failed for "${key}":`, e)
       }
@@ -86,7 +83,6 @@ export const dataBridge = {
     if (isTauri()) {
       try {
         const result = await tauriAPI.exportDataFile()
-        if (result?.success && result.filePath) emitFileNotice(`程序数据已导出：${result.filePath}`, result.filePath)
         return result
       } catch (error) {
         return { success: false, error: error.message }
@@ -128,11 +124,29 @@ export const dataBridge = {
       }
       input.click()
     })
-  }
-}
+  },
 
-function notifyDataSaved(location) {
-  emitFileNotice(`数据已保存：${location}`, location)
+  async importDataBytes(input) {
+    const bytes = input instanceof Uint8Array ? input : new Uint8Array(input)
+    if (isTauri()) {
+      try {
+        const success = await tauriAPI.importEncryptedData(bytesToBase64(bytes))
+        return { success: !!success }
+      } catch (error) {
+        return { success: false, error: error.message || String(error) }
+      }
+    }
+    try {
+      const values = await decryptCyreneData(bytes)
+      localStorage.clear()
+      for (const [key, value] of Object.entries(values)) {
+        localStorage.setItem(key, JSON.stringify(value))
+      }
+      return { success: true }
+    } catch (error) {
+      return { success: false, error: error.message || 'Parse error' }
+    }
+  }
 }
 
 function downloadEncryptedFile(bytes) {

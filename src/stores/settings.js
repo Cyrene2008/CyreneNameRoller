@@ -40,9 +40,10 @@ const DEFAULT_SETTINGS = {
   disableSplash: false,
   floatingWindowEnabled: false,
   floatingWindowStyle: 'text',
-  floatingWindowSize: 64
-  ,autoStart: false
-  ,autoStartToTray: false
+  floatingWindowSize: 64,
+  autoStart: false,
+  autoStartMode: 'scheduled',
+  autoStartToTray: false
 }
 
 export const useSettingsStore = defineStore('settings', () => {

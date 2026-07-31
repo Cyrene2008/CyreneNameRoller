@@ -1,14 +1,14 @@
 [
   {
     "id": 5,
-    "title": { "cn": "v26.0.5 Web 端抢先测试现已开放", "en": "v26.0.5 Web Preview Is Now Available" },
+    "title": { "cn": "v26.0.5 正式版现已发布", "en": "v26.0.5 Is Now Available" },
     "important": true,
     "pinned": true,
-    "tag": { "cn": "抢先测试", "en": "Preview" },
-    "time": "2026/07/25 23:30",
+    "tag": { "cn": "版本更新", "en": "Update" },
+    "time": "2026/07/26 14:30",
     "content": {
-      "cn": "v26.0.5 Web 端抢先测试现已开放。\n\n本次测试包含：\n\n- 全新的抽奖模式、加权轮盘、人员奖品分配、奖品单管理与独立抽奖记录\n- Fluent Tabs、智能自定义主题配色和 Windows Fluent 主题\n- 自动停止与多种结果强调动画\n- UUID 人员身份记录与更可靠的历史记录\n- 标题栏文件保存通知、下载源选择及多项桌面启动体验改进\n\n这是抢先测试版本，如遇异常请通过 GitHub Issues 反馈。正式发布前仍可能继续调整交互与样式。",
-      "en": "The v26.0.5 Web preview is now available.\n\nThis preview includes the new lottery workflow, weighted wheel, person-to-prize assignment, prize-list management, lottery records, Fluent tabs, generated custom palettes, auto stop, result animations, UUID-based identity records, file-location notices, selectable download sources, and desktop startup improvements.\n\nThis is a preview build. Please report issues through GitHub Issues; interactions and styling may continue to change before the formal release."
+      "cn": "v26.0.5 正式版现已发布，Web、Electron 与 Tauri 版本同步更新。\n\n本次更新包含：\n\n- 全新的抽奖模式、加权轮盘、人员奖品分配、奖品单管理与独立抽奖记录\n- 人员名单及其小组绑定支持 CSV/JSON 导入导出，导入时自动识别格式，默认导出 CSV\n- 多人点名布局与启动性能优化，大量结果保持统一行列基线并避让控制区\n- Fluent Tabs、智能自定义主题配色、Windows Fluent 主题、自动停止与多种结果强调动画\n- UUID 人员身份记录与更可靠的历史记录\n- 管理员计划任务自启动、启动到托盘、下载源选择及多项桌面稳定性修复\n\n桌面安装包可在 GitHub Releases 下载。如遇异常，请通过 GitHub Issues 反馈。",
+      "en": "v26.0.5 is now available for Web, Electron, and Tauri.\n\nThis release adds the complete lottery workflow, weighted wheel, person-to-prize assignment, prize-list management and records; automatic CSV/JSON name-list import with group bindings; improved large-result layout and startup performance; Fluent tabs and generated themes; UUID-based identity records; auto stop and result animations; elevated scheduled-task startup, startup to tray, selectable download sources, and desktop stability fixes.\n\nDesktop installers are available from GitHub Releases. Please report issues through GitHub Issues."
     }
   },
   {

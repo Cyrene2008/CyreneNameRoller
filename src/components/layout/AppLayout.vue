@@ -17,6 +17,16 @@
       <span class="v-sep">build:</span><span class="v-num">{{ APP_BUILD }}</span><span class="v-sep">-{{ APP_PLATFORM }}</span>
     </div>
 
+    <Transition name="drop-overlay">
+      <div v-if="dragActive" class="file-drop-overlay">
+        <div class="file-drop-target">
+          <FluentIcon icon="arrow-upload-20-regular" :width="28" />
+          <strong>{{ lang === 'en' ? 'Drop to import' : '松开以导入文件' }}</strong>
+          <span>CSV / XLSX / JSON / CYRENE</span>
+        </div>
+      </div>
+    </Transition>
+
     <!-- Banner Notification System -->
     <TransitionGroup name="banner-enter" tag="div" class="banner-container">
       <div
@@ -38,12 +48,59 @@
           <button v-if="b.undoAction" class="banner-undo" @click="b.undoAction(); dismissBanner(b.id)">
             <FluentIcon icon="arrow-undo-16-regular" :width="12" /> {{ lang === 'en' ? 'Undo' : '撤销' }}
           </button>
+          <button v-if="b.action" class="banner-undo" @click="runBannerAction(b)">
+            <FluentIcon :icon="b.actionIcon || 'shield-keyhole-16-regular'" :width="12" /> {{ b.actionLabel }}
+          </button>
           <button v-if="b.dismissible" class="banner-dismiss" @click="dismissBanner(b.id)">
             <FluentIcon icon="dismiss-12-regular" :width="12" />
           </button>
         </div>
       </div>
     </TransitionGroup>
+
+    <FluentModal
+      v-model="showDropPassword"
+      :title="dropPasswordMode === 'set'
+        ? (lang === 'en' ? 'Set a protection password' : '设置安全密码')
+        : (lang === 'en' ? 'Verify password' : '验证密码')"
+      max-width="440px"
+      @close="cancelProtectedImport"
+    >
+      <div class="drop-modal-body">
+        <p>{{ dropPasswordMode === 'set'
+          ? (lang === 'en' ? 'Set a password before importing data that overwrites this app.' : '覆盖程序数据前需要先设置安全密码。')
+          : (lang === 'en' ? 'Enter the protection password to continue.' : '请输入安全密码以继续覆盖程序数据。') }}</p>
+        <FluentInput
+          ref="dropPasswordInputRef"
+          v-model="dropPassword"
+          type="password"
+          :placeholder="lang === 'en' ? 'Password' : '密码'"
+          @enter="confirmDropPassword"
+        />
+        <span v-if="dropPasswordError" class="drop-modal-error">{{ dropPasswordError }}</span>
+      </div>
+      <template #footer>
+        <FluentButton variant="secondary" size="sm" @click="cancelProtectedImport">{{ lang === 'en' ? 'Cancel' : '取消' }}</FluentButton>
+        <FluentButton variant="primary" size="sm" @click="confirmDropPassword">{{ lang === 'en' ? 'Continue' : '继续' }}</FluentButton>
+      </template>
+    </FluentModal>
+
+    <FluentModal
+      v-model="showDropDataWarning"
+      :title="lang === 'en' ? 'Overwrite application data?' : '覆盖程序数据？'"
+      max-width="440px"
+      @close="cancelProtectedImport"
+    >
+      <div class="drop-modal-body">
+        <p>{{ lang === 'en'
+          ? 'All current lists, records and settings will be replaced by the dropped CYRENE file.'
+          : '当前名单、记录和设置将被拖入的 CYRENE 文件全部替换。' }}</p>
+      </div>
+      <template #footer>
+        <FluentButton variant="secondary" size="sm" @click="cancelProtectedImport">{{ lang === 'en' ? 'Cancel' : '取消' }}</FluentButton>
+        <FluentButton variant="danger" size="sm" @click="importProtectedData">{{ lang === 'en' ? 'Overwrite' : '确认覆盖' }}</FluentButton>
+      </template>
+    </FluentModal>
 
     <FluentToast ref="globalToast" />
   </div>
@@ -55,15 +112,20 @@ import { useRouter, useRoute } from 'vue-router'
 import TitleBar from './TitleBar.vue'
 import NavigationDock from './NavigationDock.vue'
 import FluentToast from '../FluentToast.vue'
+import FluentModal from '../FluentModal.vue'
+import FluentInput from '../FluentInput.vue'
+import FluentButton from '../FluentButton.vue'
 import FullscreenToggle from '../FullscreenToggle.vue'
 import FluentIcon from '../FluentIcon.vue'
 import { useSettingsStore } from '../../stores/settings'
 import { useNamesStore } from '../../stores/names'
 import { useStatisticsStore } from '../../stores/statistics'
 import { useRecordsStore } from '../../stores/records'
+import { usePrizesStore } from '../../stores/prizes'
 import { APP_VERSION, APP_VERSION_PREFIX, APP_BUILD, APP_PLATFORM, APP_NAME } from '../../utils/version'
 import { updateState, checkForUpdates, downloadUpdate } from '../../utils/updater'
 import { isTauri, tauriAPI } from '../../utils/tauriAPI'
+import { dataBridge } from '../../utils/dataBridge'
 import { createThemeVariables, DEFAULT_ACCENT, normalizeHex } from '../../utils/theme'
 
 const router = useRouter()
@@ -72,6 +134,7 @@ const settingsStore = useSettingsStore()
 const namesStore = useNamesStore()
 const statisticsStore = useStatisticsStore()
 const recordsStore = useRecordsStore()
+const prizesStore = usePrizesStore()
 
 const lang = computed(() => settingsStore.settings.language)
 const systemAccent = ref(DEFAULT_ACCENT)
@@ -89,6 +152,28 @@ const themeStyle = computed(() => {
 })
 const isDesktopApp = computed(() => isTauri())
 
+const dragActive = ref(false)
+const showDropPassword = ref(false)
+const showDropDataWarning = ref(false)
+const dropPasswordMode = ref('verify')
+const dropPassword = ref('')
+const dropPasswordError = ref('')
+const dropPasswordInputRef = ref(null)
+let pendingDataImport = null
+let removeDropListener
+let browserDragDepth = 0
+const recentDropFingerprints = new Map()
+
+function claimDroppedFile(fingerprint) {
+  const now = Date.now()
+  for (const [key, timestamp] of recentDropFingerprints) {
+    if (now - timestamp > 3000) recentDropFingerprints.delete(key)
+  }
+  if (recentDropFingerprints.has(fingerprint)) return false
+  recentDropFingerprints.set(fingerprint, now)
+  return true
+}
+
 const globalToast = ref(null)
 provide('toast', globalToast)
 
@@ -96,13 +181,13 @@ provide('toast', globalToast)
 const banners = ref([])
 let bannerIdCounter = 0
 
-function showBanner({ message, icon = 'info-16-regular', type = 'info', duration = 8000, dismissible = false, progress = 0, undoAction = null }) {
+function showBanner({ message, icon = 'info-16-regular', type = 'info', duration = 8000, dismissible = false, progress = 0, undoAction = null, action = null, actionLabel = '', actionIcon = '' }) {
   const existing = banners.value.find(b => b.message === message)
   if (existing) return { id: existing.id, update(opts) { Object.assign(existing, opts) }, dismiss() { dismissBanner(existing.id) } }
 
   const id = ++bannerIdCounter
   const banner = reactive({
-    id, message, icon, type, dismissible, progress, undoAction,
+    id, message, icon, type, dismissible, progress, undoAction, action, actionLabel, actionIcon,
     hovered: false, countdown: 100, duration,
     _timer: null, _countdownInterval: null, _remaining: duration, _startTime: Date.now()
   })
@@ -118,6 +203,11 @@ function showBanner({ message, icon = 'info-16-regular', type = 'info', duration
     update(opts) { Object.assign(banner, opts) },
     dismiss() { dismissBanner(id) }
   }
+}
+
+async function runBannerAction(banner) {
+  const result = await banner.action?.()
+  if (result !== false) dismissBanner(banner.id)
 }
 
 function startBannerTimer(banner, id) {
@@ -160,6 +250,173 @@ function onBannerLeave(b) {
 
 provide('banner', showBanner)
 
+async function sha256(value) {
+  const bytes = new TextEncoder().encode(value)
+  const hash = await crypto.subtle.digest('SHA-256', bytes)
+  return Array.from(new Uint8Array(hash), byte => byte.toString(16).padStart(2, '0')).join('')
+}
+
+async function requestProtectedImport(bytes) {
+  pendingDataImport = bytes
+  const savedPassword = await dataBridge.load('password')
+  dropPasswordMode.value = savedPassword?.hash ? 'verify' : 'set'
+  dropPassword.value = ''
+  dropPasswordError.value = ''
+  showDropPassword.value = true
+  await nextTick()
+  dropPasswordInputRef.value?.focus()
+}
+
+function cancelProtectedImport() {
+  showDropPassword.value = false
+  showDropDataWarning.value = false
+  dropPassword.value = ''
+  dropPasswordError.value = ''
+  pendingDataImport = null
+}
+
+async function confirmDropPassword() {
+  if (!dropPassword.value) {
+    dropPasswordError.value = lang.value === 'en' ? 'Enter a password.' : '请输入密码。'
+    return
+  }
+  const hash = await sha256(dropPassword.value)
+  if (dropPasswordMode.value === 'set') {
+    await dataBridge.save('password', { hash })
+  } else {
+    const savedPassword = await dataBridge.load('password')
+    if (!savedPassword?.hash || hash !== savedPassword.hash) {
+      dropPasswordError.value = lang.value === 'en' ? 'Incorrect password.' : '密码错误。'
+      return
+    }
+  }
+  showDropPassword.value = false
+  dropPassword.value = ''
+  showDropDataWarning.value = true
+}
+
+async function importProtectedData() {
+  if (!pendingDataImport) return
+  const bytes = pendingDataImport
+  showDropDataWarning.value = false
+  pendingDataImport = null
+  const result = await dataBridge.importDataBytes(bytes)
+  if (!result?.success) {
+    showBanner({
+      message: `${lang.value === 'en' ? 'Data import failed' : '程序数据导入失败'}：${result?.error || (lang.value === 'en' ? 'Unknown error' : '未知错误')}`,
+      icon: 'warning-16-regular', type: 'warning', duration: 10000, dismissible: true
+    })
+    return
+  }
+  showBanner({
+    message: lang.value === 'en' ? 'Data imported. Reload to apply it.' : '程序数据已导入，重新加载后生效。',
+    icon: 'checkmark-circle-16-regular', type: 'success', duration: 0, dismissible: true,
+    action: () => window.location.reload(),
+    actionLabel: lang.value === 'en' ? 'Reload' : '重新加载',
+    actionIcon: 'arrow-clockwise-16-regular'
+  })
+}
+
+async function routeSmartImport(fileName, bytes) {
+  const { parseSmartFile } = await import('../../utils/smartImport')
+  const parsed = parseSmartFile(fileName, bytes)
+  if (parsed.kind === 'data') {
+    await requestProtectedImport(parsed.bytes)
+    return
+  }
+  if (parsed.kind === 'names') {
+    const imported = namesStore.importList(parsed.list)
+    if (!imported) throw new Error(lang.value === 'en' ? 'Invalid people list' : '人员名单格式无效')
+    await router.push('/lists')
+    showBanner({ message: `${lang.value === 'en' ? 'People list imported' : '人员名单已导入'}：${imported.name}`, icon: 'checkmark-circle-16-regular', type: 'success', duration: 6000 })
+    return
+  }
+  const result = prizesStore.importList(parsed.list)
+  if (!result?.success) throw new Error(result?.error || (lang.value === 'en' ? 'Invalid prize list' : '奖品单格式无效'))
+  await router.push('/lottery/prizes/manage')
+  showBanner({ message: `${lang.value === 'en' ? 'Prize list imported' : '奖品单已导入'}：${result.list.name}`, icon: 'checkmark-circle-16-regular', type: 'success', duration: 6000 })
+}
+
+async function processBrowserFiles(files) {
+  for (const file of Array.from(files || [])) {
+    const fingerprint = `web:${file.name}:${file.size}:${file.lastModified}`
+    if (!claimDroppedFile(fingerprint)) continue
+    try {
+      await routeSmartImport(file.name, new Uint8Array(await file.arrayBuffer()))
+    } catch (error) {
+      showBanner({ message: `${file.name}：${error.message || error}`, icon: 'warning-16-regular', type: 'warning', duration: 10000, dismissible: true })
+    }
+  }
+}
+
+async function processTauriPaths(paths) {
+  for (const path of new Set(paths || [])) {
+    const fingerprint = `tauri:${String(path).toLowerCase()}`
+    if (!claimDroppedFile(fingerprint)) continue
+    try {
+      const file = await tauriAPI.readDroppedFile(path)
+      if (!file?.base64) throw new Error(lang.value === 'en' ? 'Unable to read file' : '无法读取文件')
+      const binary = atob(file.base64)
+      const bytes = Uint8Array.from(binary, character => character.charCodeAt(0))
+      await routeSmartImport(file.name, bytes)
+    } catch (error) {
+      const fileName = String(path).split(/[\\/]/).pop() || String(path)
+      showBanner({ message: `${fileName}：${error.message || error}`, icon: 'warning-16-regular', type: 'warning', duration: 10000, dismissible: true })
+    }
+  }
+}
+
+function onBrowserDragEnter(event) {
+  if (!Array.from(event.dataTransfer?.types || []).includes('Files')) return
+  event.preventDefault()
+  browserDragDepth += 1
+  dragActive.value = true
+}
+
+function onBrowserDragOver(event) {
+  if (!Array.from(event.dataTransfer?.types || []).includes('Files')) return
+  event.preventDefault()
+  if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy'
+}
+
+function onBrowserDragLeave(event) {
+  event.preventDefault()
+  browserDragDepth = Math.max(0, browserDragDepth - 1)
+  if (browserDragDepth === 0) dragActive.value = false
+}
+
+function onBrowserDrop(event) {
+  event.preventDefault()
+  browserDragDepth = 0
+  dragActive.value = false
+  processBrowserFiles(event.dataTransfer?.files)
+}
+
+async function setupFileDrop() {
+  if (isTauri()) {
+    const { getCurrentWebview } = await import('@tauri-apps/api/webview')
+    removeDropListener = await getCurrentWebview().onDragDropEvent(event => {
+      if (event.payload.type === 'enter' || event.payload.type === 'over') dragActive.value = true
+      if (event.payload.type === 'leave') dragActive.value = false
+      if (event.payload.type === 'drop') {
+        dragActive.value = false
+        processTauriPaths(event.payload.paths)
+      }
+    })
+    return
+  }
+  window.addEventListener('dragenter', onBrowserDragEnter)
+  window.addEventListener('dragover', onBrowserDragOver)
+  window.addEventListener('dragleave', onBrowserDragLeave)
+  window.addEventListener('drop', onBrowserDrop)
+  removeDropListener = () => {
+    window.removeEventListener('dragenter', onBrowserDragEnter)
+    window.removeEventListener('dragover', onBrowserDragOver)
+    window.removeEventListener('dragleave', onBrowserDragLeave)
+    window.removeEventListener('drop', onBrowserDrop)
+  }
+}
+
 const transitionName = ref('page-forward')
 
 router.beforeEach((to, from) => {
@@ -183,6 +440,8 @@ onMounted(async () => {
   await namesStore.initialize()
   await statisticsStore.initialize()
   await recordsStore.initialize()
+  await prizesStore.initialize()
+  await setupFileDrop()
   if (isTauri()) {
     systemAccent.value = normalizeHex(await tauriAPI.systemAccent(), DEFAULT_ACCENT)
   }
@@ -192,7 +451,10 @@ onMounted(async () => {
   }
 })
 
-onBeforeUnmount(() => removeAccentListener?.())
+onBeforeUnmount(() => {
+  removeAccentListener?.()
+  removeDropListener?.()
+})
 
 watch(() => settingsStore.settings.uiScale, (val) => {
   document.documentElement.style.setProperty('--ui-scale', (val || 100) / 100 * 1.25)
@@ -255,6 +517,41 @@ watch(() => settingsStore.settings.fontFamily, (val) => {
   align-items: baseline;
   gap: 3px;
 }
+
+.file-drop-overlay {
+  position: fixed;
+  inset: 40px 0 0 var(--dock-width);
+  z-index: 999998;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  background: color-mix(in srgb, var(--bg-base) 74%, transparent);
+  backdrop-filter: blur(10px);
+}
+
+.file-drop-target {
+  width: min(420px, calc(100vw - var(--dock-width) - 48px));
+  min-height: 180px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border: 2px dashed var(--accent);
+  border-radius: var(--radius-lg);
+  color: var(--text-primary);
+  background: var(--bg-card-solid);
+  box-shadow: var(--shadow-16);
+}
+
+.file-drop-target strong { font-size: 18px; font-weight: 600; }
+.file-drop-target span { font-size: 12px; color: var(--text-muted); }
+.drop-overlay-enter-active, .drop-overlay-leave-active { transition: opacity var(--duration-fast) ease; }
+.drop-overlay-enter-from, .drop-overlay-leave-to { opacity: 0; }
+
+.drop-modal-body { display: grid; gap: 12px; }
+.drop-modal-body p { margin: 0; color: var(--text-secondary); line-height: 1.6; }
+.drop-modal-error { color: #c42b1c; font-size: 12px; }
 
 .v-prefix { font-family: var(--font-ui); font-size: 12px; }
 .v-num { font-family: var(--font-num); font-size: calc(12px * var(--font-num-scale, 1.6)); }
