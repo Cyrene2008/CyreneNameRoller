@@ -3,7 +3,7 @@
     <header class="list-header">
       <div class="list-header-left">
         <FluentButton variant="subtle" size="sm" icon-only :title="lang === 'en' ? 'Back' : '返回'" @click="router.back()"><FluentIcon icon="arrow-left-16-regular" :width="18" /></FluentButton>
-        <FluentIcon icon="clipboard-bullet-list-24-regular" :width="22" />
+        <FluentIcon icon="clipboard-task-list-24-regular" :width="22" />
         <h1>{{ lang === 'en' ? 'Prize List Management' : '奖品单管理' }}</h1>
       </div>
     </header>
