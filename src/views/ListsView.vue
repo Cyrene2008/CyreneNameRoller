@@ -19,6 +19,7 @@
       <div class="add-person-row">
         <FluentInput v-model="newCn" :placeholder="t('cnName', lang)" @enter="newEnRef?.focus()" />
         <FluentInput ref="newEnRef" v-model="newEn" :placeholder="t('enName', lang)" @enter="addPerson" />
+        <FluentTabs v-model="newGender" :options="genderOptions" class="gender-tabs" />
         <FluentButton variant="primary" size="sm" @click="addPerson">
           <FluentIcon icon="add-16-regular" :width="14" /> {{ t('addPerson', lang) }}
         </FluentButton>
@@ -38,6 +39,10 @@
               <FluentIcon icon="fluent:people-team-16-regular" :width="14" />
               {{ t('batchAssignGroup', lang) }}
             </FluentButton>
+            <FluentButton variant="secondary" size="sm" @click="openBatchGender">
+              <FluentIcon icon="fluent:person-settings-20-regular" :width="14" />
+              {{ lang === 'en' ? 'Set gender' : '批量设置性别' }}
+            </FluentButton>
             <FluentButton variant="danger" size="sm" @click="batchDelete">
               <FluentIcon icon="delete-16-regular" :width="14" />
               {{ lang === 'en' ? `Delete ${selectedIndices.length}` : `删除 ${selectedIndices.length} 项` }}
@@ -53,6 +58,7 @@
               <FluentInput v-model="editCn" style="flex:1;" :placeholder="t('cnName', lang)" />
               <FluentInput v-model="editEn" style="flex:1;" :placeholder="t('enName', lang)" />
               <FluentSelect v-model="editGroup" :options="groupOptions" :placeholder="t('groupOf', lang)" style="min-width: 150px;" />
+              <FluentTabs v-model="editGender" :options="genderOptions" class="gender-tabs" />
               <FluentToggle v-model="editWhite" :label="t('whitelist', lang)" :title="t('whitelistHint', lang)" />
               <FluentButton variant="primary" size="sm" icon-only @click="saveEdit(index)"><FluentIcon icon="checkmark-16-regular" :width="14" /></FluentButton>
               <FluentButton variant="subtle" size="sm" icon-only @click="editingIndex = -1"><FluentIcon icon="dismiss-16-regular" :width="14" /></FluentButton>
@@ -69,6 +75,7 @@
                 <span class="person-id" :title="person.id">{{ person.id }}</span>
               </div>
               <span v-if="person.isWhiteList" class="whitelist-badge">{{ lang === 'en' ? 'WL' : '白名单' }}</span>
+              <span class="gender-badge" :class="person.gender === 'female' ? 'female' : 'male'">{{ person.gender === 'female' ? (lang === 'en' ? 'Female' : '女') : (lang === 'en' ? 'Male' : '男') }}</span>
               <span v-if="person.groupId" class="group-badge">{{ groupNameOf(person.groupId) }}</span>
             </div>
             <div class="person-actions">
@@ -99,6 +106,15 @@
         <FluentButton variant="primary" @click="applyBatchGroup">{{ t('apply', lang) }}</FluentButton>
       </template>
     </FluentModal>
+
+    <FluentModal v-model="showBatchGenderModal" :title="lang === 'en' ? 'Set gender' : '批量设置性别'">
+      <FluentTabs v-model="batchGender" :options="genderOptions" />
+      <p class="batch-note">{{ t('selectedCount', lang).replace('{n}', selectedIndices.length) }}</p>
+      <template #footer>
+        <FluentButton variant="subtle" @click="showBatchGenderModal = false">{{ t('cancel', lang) }}</FluentButton>
+        <FluentButton variant="primary" @click="applyBatchGender">{{ t('apply', lang) }}</FluentButton>
+      </template>
+    </FluentModal>
   </div>
 </template>
 
@@ -115,6 +131,7 @@ import FluentSelect from '../components/FluentSelect.vue'
 import FluentInput from '../components/FluentInput.vue'
 import FluentModal from '../components/FluentModal.vue'
 import FluentToggle from '../components/FluentToggle.vue'
+import FluentTabs from '../components/FluentTabs.vue'
 
 const router = useRouter()
 const namesStore = useNamesStore()
@@ -136,6 +153,7 @@ function groupNameOf(id) {
 
 const newCn = ref('')
 const newEn = ref('')
+const newGender = ref('male')
 const newEnRef = ref(null)
 
 const editingIndex = ref(-1)
@@ -143,6 +161,11 @@ const editCn = ref('')
 const editEn = ref('')
 const editGroup = ref('')
 const editWhite = ref(false)
+const editGender = ref('male')
+const genderOptions = computed(() => [
+  { value: 'male', label: lang.value === 'en' ? 'Male' : '男', icon: 'fluent:person-16-regular' },
+  { value: 'female', label: lang.value === 'en' ? 'Female' : '女', icon: 'fluent:person-16-regular' }
+])
 
 const selectedSet = ref(new Set())
 const selectedIndices = computed(() => [...selectedSet.value])
@@ -165,9 +188,10 @@ function toggleSelectAll() {
 
 function addPerson() {
   if (!newCn.value.trim()) return
-  namesStore.addPerson(newCn.value, newEn.value)
+  namesStore.addPerson(newCn.value, newEn.value, newGender.value)
   newCn.value = ''
   newEn.value = ''
+  newGender.value = 'male'
 }
 
 function startEdit(index, person) {
@@ -176,11 +200,12 @@ function startEdit(index, person) {
   editEn.value = person.en
   editGroup.value = person.groupId || ''
   editWhite.value = !!person.isWhiteList
+  editGender.value = person.gender === 'female' ? 'female' : 'male'
 }
 
 function saveEdit(index) {
   if (!editCn.value.trim()) return
-  namesStore.editPerson(index, editCn.value, editEn.value)
+  namesStore.editPerson(index, editCn.value, editEn.value, editGender.value)
   namesStore.assignGroup(namesStore.currentListId, index, editGroup.value)
   namesStore.currentNames[index].isWhiteList = editWhite.value
   namesStore.save()
@@ -199,9 +224,21 @@ function applyBatchGroup() {
   showBatchModal.value = false
 }
 
+const showBatchGenderModal = ref(false)
+const batchGender = ref('male')
+function openBatchGender() {
+  batchGender.value = 'male'
+  showBatchGenderModal.value = true
+}
+function applyBatchGender() {
+  namesStore.batchSetGender(namesStore.currentListId, selectedIndices.value, batchGender.value)
+  selectedSet.value = new Set()
+  showBatchGenderModal.value = false
+}
+
 function batchDelete() {
   const indices = [...selectedIndices.value].sort((a, b) => b - a)
-  const deletedPersons = indices.map(i => ({ ...namesStore.currentNames[i] }))
+  const deletedPersons = indices.map(index => ({ index, person: { ...namesStore.currentNames[index] } }))
   indices.forEach(i => namesStore.deletePerson(i))
   selectedSet.value = new Set()
   showBanner({
@@ -210,7 +247,11 @@ function batchDelete() {
     type: 'warning',
     duration: 8000,
     undoAction: () => {
-      deletedPersons.forEach(p => namesStore.addPerson(p.cn, p.en))
+      deletedPersons
+        .slice()
+        .sort((left, right) => left.index - right.index)
+        .forEach(({ index, person }) => namesStore.currentList.names.splice(index, 0, person))
+      namesStore.save()
     }
   })
 }
@@ -269,6 +310,8 @@ function batchDelete() {
   flex: 1;
   min-width: 0;
 }
+
+.add-person-row .gender-tabs { flex: 0 0 150px; }
 
 /* 列表区域 */
 .person-list-card {
@@ -355,6 +398,7 @@ function batchDelete() {
   font-size: 12px;
   color: var(--text-muted);
 }
+
 .person-identity { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 3px; }
 .person-name-line { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
 
@@ -393,6 +437,11 @@ function batchDelete() {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+.gender-tabs { width: 150px; flex: 0 0 150px; }
+.gender-tabs :deep(.fluent-tab) { min-height: 30px; padding: 0 8px; }
+.gender-badge { padding: 2px 7px; border: 1px solid var(--border-default); border-radius: var(--radius-sm); font-size: 11px; color: var(--text-secondary); background: var(--bg-card-solid); }
+.gender-badge.female { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 35%, var(--border-default)); }
 
 .dark .group-badge {
   background: rgba(234, 94, 193, 0.15);
