@@ -1,6 +1,10 @@
 <template>
   <div class="roller-view" ref="rollerViewRef">
     <h1 class="roller-title">{{ t('h1', lang) }}</h1>
+    <div class="balance-status" :class="{ enabled: balanceSettings.enabled }">
+      <FluentIcon :icon="balanceSettings.enabled ? 'fluent:shield-checkmark-24-regular' : 'fluent:shield-error-24-regular'" :width="18" />
+      <span>{{ balanceSettings.enabled ? (lang === 'en' ? 'Balance enabled' : '平衡算法已启用') : (lang === 'en' ? 'Balance disabled' : '平衡算法未启用') }}</span>
+    </div>
 
     <div
       class="display-container"
@@ -24,6 +28,9 @@
       <div class="switches">
         <FluentToggle class="english-mode-toggle" v-model="settings.englishMode" label="English Mode" @update:model-value="saveSetting('englishMode', $event)" />
         <FluentTabs :model-value="settings.groupMode ? 'groups' : 'people'" :options="drawTargetOptions" @update:model-value="onDrawTargetChange" />
+        <Transition name="toggle-expand">
+          <FluentTabs v-if="!settings.groupMode" v-model="genderFilter" :options="genderFilterOptions" />
+        </Transition>
         <FluentTabs :model-value="settings.multiMode ? 'multiple' : 'single'" :options="drawCountOptions" @update:model-value="onDrawCountChange" />
         <Transition name="toggle-expand">
           <FluentTabs v-if="settings.multiMode" :model-value="settings.forbidDuplicates ? 'unique' : 'repeat'" :options="duplicateOptions" @update:model-value="onDuplicateModeChange" />
@@ -32,10 +39,10 @@
 
       <Transition name="toggle-expand">
         <div v-if="settings.multiMode" class="multi-settings">
-          <span class="setting-label">{{ t('peopleCount', lang) }}</span>
+          <span class="setting-label">{{ countSettingLabel }}</span>
           <div class="count-control">
             <FluentButton variant="secondary" size="sm" @click="changeCount(-1)"><FluentIcon icon="subtract-16-regular" :width="14" /></FluentButton>
-            <FluentInput v-model="settings.peopleCount" type="number" :min="2" :max="maxPeopleCount" class="count-input" @update:model-value="onPeopleCountChange" />
+            <FluentInput v-model="settings.peopleCount" type="number" :min="1" :max="maxPeopleCount" class="count-input" @update:model-value="onPeopleCountChange" />
             <FluentButton variant="secondary" size="sm" @click="changeCount(1)"><FluentIcon icon="add-16-regular" :width="14" /></FluentButton>
           </div>
         </div>
@@ -84,20 +91,35 @@ const showBanner = inject('banner')
 const lang = computed(() => settingsStore.settings.language)
 const settings = computed(() => settingsStore.settings)
 const listOptions = computed(() => namesStore.allLists.map(l => ({ value: l.id, label: l.name })))
+const genderFilter = ref('all')
 const drawTargetOptions = computed(() => [
   { value: 'people', label: lang.value === 'en' ? 'Draw people' : '抽取人员', icon: 'fluent:person-24-regular' },
   { value: 'groups', label: lang.value === 'en' ? 'Draw groups' : '抽取小组', icon: 'fluent:group-24-regular' }
 ])
 const drawCountOptions = computed(() => [
-  { value: 'single', label: lang.value === 'en' ? 'Single draw' : '单次抽取', icon: 'fluent:person-24-regular' },
+  {
+    value: 'single',
+    label: settings.value.groupMode
+      ? (lang.value === 'en' ? 'Single draw' : '单次抽取')
+      : (lang.value === 'en' ? 'Draw one person' : '抽取单人'),
+    icon: 'fluent:person-24-regular'
+  },
   {
     value: 'multiple',
     label: settings.value.groupMode
       ? (lang.value === 'en' ? 'Multiple draws' : '多次抽取')
-      : (lang.value === 'en' ? 'Multiple people' : '多人抽取'),
+      : (lang.value === 'en' ? 'Draw multiple people' : '抽取多人'),
     icon: 'fluent:people-24-regular'
   }
 ])
+const genderFilterOptions = computed(() => [
+  { value: 'all', label: lang.value === 'en' ? 'All' : '全部', icon: 'fluent:people-16-regular' },
+  { value: 'male', label: lang.value === 'en' ? 'Male only' : '仅男', icon: 'fluent:person-16-regular' },
+  { value: 'female', label: lang.value === 'en' ? 'Female only' : '仅女', icon: 'fluent:person-16-regular' }
+])
+const countSettingLabel = computed(() => settings.value.groupMode
+  ? (lang.value === 'en' ? 'Draw count' : '抽取次数')
+  : t('peopleCount', lang.value))
 const duplicateOptions = computed(() => [
   { value: 'unique', label: lang.value === 'en' ? 'No repeats' : '禁止重复', icon: 'fluent:shield-checkmark-24-regular' },
   { value: 'repeat', label: lang.value === 'en' ? 'Repeats allowed' : '允许重复', icon: 'fluent:arrow-repeat-all-24-regular' }
@@ -109,7 +131,10 @@ const groupPoolCount = computed(() => {
   return groups.length + (hasUnassigned ? 1 : 0)
 })
 
-const nonWhiteListCount = computed(() => namesStore.currentNames.filter(n => !n.isWhiteList).length)
+const availableNames = computed(() => namesStore.currentNames.filter(person =>
+  genderFilter.value === 'all' || person.gender === genderFilter.value
+))
+const nonWhiteListCount = computed(() => availableNames.value.filter(n => !n.isWhiteList).length)
 const maxPeopleCount = computed(() => {
   if (!settings.value.multiMode) return 1
   if (settings.value.forbidDuplicates) {
@@ -123,7 +148,7 @@ const canStart = computed(() => {
     if (settings.value.multiMode && settings.value.forbidDuplicates && (settings.value.peopleCount || 2) > groupPoolCount.value) return false
     return true
   }
-  if (nonWhiteListCount.value < 2) return false
+  if (nonWhiteListCount.value < 1) return false
   if (settings.value.multiMode && settings.value.forbidDuplicates && (settings.value.peopleCount || 2) > nonWhiteListCount.value) return false
   return true
 })
@@ -153,7 +178,7 @@ onMounted(async () => {
 
 function initializeDisplays(count) {
   nameDisplays.splice(0); lastPickedNames.value = []
-  const pool = settings.value.groupMode ? getCurrentPool() : namesStore.currentNames
+  const pool = settings.value.groupMode ? getCurrentPool() : availableNames.value
   for (let i = 0; i < count; i++) {
     const src = pool.length ? pool[Math.floor(Math.random() * pool.length)] : { cn: '...', en: '' }
     const txt = getDisplayName(src)
@@ -189,7 +214,7 @@ function onMultiModeChange(val) {
   settingsStore.update('multiMode', val)
   if (!val) initializeDisplays(1)
   else {
-    let c = Math.min(settings.value.peopleCount || 2, maxPeopleCount.value)
+    let c = Math.max(2, Math.min(settings.value.peopleCount || 2, maxPeopleCount.value))
     if (settings.value.groupMode && settings.value.forbidDuplicates) c = Math.min(c, groupPoolCount.value)
     settingsStore.update('peopleCount', c); initializeDisplays(c)
   }
@@ -213,13 +238,29 @@ function onForbidDuplicatesChange(val) { settingsStore.update('forbidDuplicates'
 function onDuplicateModeChange(value) { onForbidDuplicatesChange(value === 'unique') }
 
 function onPeopleCountChange(val) {
-  const c = Math.max(2, Math.min(maxPeopleCount.value, parseInt(val) || 2))
+  const requested = parseInt(val) || 1
+  if (requested <= 1) {
+    switchToSingleFromCount()
+    return
+  }
+  const c = Math.max(2, Math.min(maxPeopleCount.value, requested))
   settingsStore.update('peopleCount', c); if (settings.value.multiMode) initializeDisplays(c)
 }
 
 function changeCount(delta) {
+  if (delta < 0 && (settings.value.peopleCount || 2) <= 2) {
+    switchToSingleFromCount()
+    return
+  }
   const c = Math.max(2, Math.min(maxPeopleCount.value, (settings.value.peopleCount || 2) + delta))
   settingsStore.update('peopleCount', c); if (settings.value.multiMode) initializeDisplays(c)
+}
+
+function switchToSingleFromCount() {
+  settingsStore.update('peopleCount', 2)
+  settingsStore.update('multiMode', false)
+  initializeDisplays(1)
+  nextTick(computeNameLayout)
 }
 
 function emphasize(index) { nameDisplays[index].animating = true; setTimeout(() => { nameDisplays[index].animating = false }, 900) }
@@ -246,7 +287,7 @@ function doPick(excludeList = []) {
     }
     return pool[Math.floor(Math.random() * pool.length)]
   }
-  const names = namesStore.currentNames
+  const names = availableNames.value
   const wl = names.filter(n => n.isWhiteList).map(n => n.cn)
   const forbidDup = settings.value.multiMode && settings.value.forbidDuplicates
   const combinedCounts = { ...statisticsStore.counts }
@@ -303,7 +344,7 @@ function toggleRoll() {
   if (!canStart.value) {
     if (settings.value.groupMode && groupPoolCount.value < 1) {
       showBanner({ message: lang.value === 'en' ? 'No groups yet, create some in Group Management' : '还没有小组，请先在「小组管理」中创建小组♪', icon: 'info-16-regular', type: 'warning', duration: 8000 })
-    } else if (nonWhiteListCount.value < 2) {
+    } else if (nonWhiteListCount.value < 1) {
       showBanner({ message: lang.value === 'en' ? 'No names available yet' : '唔...你还没添加名单呢♪', icon: 'info-16-regular', type: 'warning', duration: 8000 })
     } else {
       showBanner({ message: lang.value === 'en' ? 'Too many people for available names' : '人数超过了可用名单数量', icon: 'warning-16-regular', type: 'warning', duration: 8000 })
@@ -324,7 +365,7 @@ function toggleRoll() {
 
 function finishRoll() {
   const count = settings.value.multiMode ? (settings.value.peopleCount || 2) : 1
-  const names = namesStore.currentNames
+  const names = availableNames.value
   const wl = names.filter(n => n.isWhiteList).map(n => n.cn)
   const forbidDup = settings.value.multiMode && settings.value.forbidDuplicates
   lastPickedNames.value = []
@@ -648,6 +689,9 @@ onMounted(() => {
   watch(() => namesStore.isLoaded, (loaded) => { if (loaded) initializeDisplays(settings.value.multiMode ? (settings.value.peopleCount || 2) : 1) })
   watch(() => namesStore.currentListId, () => nextTick(() => { computeGridParams(); computeNameLayout() }))
   watch(() => settings.value.englishMode, () => nextTick(() => { computeGridParams(); computeNameLayout() }))
+  watch(genderFilter, () => {
+    if (!settings.value.groupMode) initializeDisplays(settings.value.multiMode ? (settings.value.peopleCount || 2) : 1)
+  })
   watch(() => [settings.value.multiMode, settings.value.groupMode, settings.value.forbidDuplicates, settings.value.peopleCount, settings.value.nameFontSize], () => nextTick(() => { computeGridParams(); computeNameLayout() }))
   layoutObserver = new ResizeObserver(onResize)
   if (displayRef.value) layoutObserver.observe(displayRef.value)
@@ -660,6 +704,8 @@ onBeforeUnmount(() => { if (intervalId) clearTimeout(intervalId); clearTimeout(a
 <style scoped>
 .roller-view { padding: 32px; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100%; position: relative; }
 .roller-title { font-family: var(--font-display); font-size: 28px; font-weight: 700; color: var(--text-primary); margin-bottom: 24px; width: 100%; text-align: center; position: absolute; top: 32px; left: 0; right: 0; z-index: 5; }
+.balance-status { position: absolute; top: 28px; right: 28px; z-index: 8; display: inline-flex; align-items: center; gap: 7px; min-height: 32px; padding: 0 11px; border: 1px solid color-mix(in srgb, var(--text-muted) 45%, transparent); border-radius: var(--radius-sm); color: var(--text-muted); background: color-mix(in srgb, var(--bg-card-solid) 68%, transparent); backdrop-filter: blur(10px); font-size: 12px; opacity: 0.82; }
+.balance-status.enabled { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 48%, transparent); }
 
 /* 名字舞台覆盖整个页面主体；布局算法只剔除与右下控制台实际重叠的单元格。 */
 .display-container {

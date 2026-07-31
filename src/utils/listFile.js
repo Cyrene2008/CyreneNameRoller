@@ -1,14 +1,14 @@
 const CSV_HEADERS = [
-  'record_type',
-  'list_name',
-  'list_id',
-  'record_id',
-  'chinese_name',
-  'english_name',
-  'group_id',
-  'group_name',
-  'group_english_name',
-  'is_whitelist'
+  '名单名称',
+  '名单ID',
+  '中文名',
+  '英文名',
+  '性别',
+  '小组名称',
+  '小组英文名',
+  '小组ID',
+  '人员UUID',
+  '白名单'
 ]
 
 function csvCell(value) {
@@ -19,18 +19,29 @@ function csvCell(value) {
 export function serializeListFile(list, format = 'csv') {
   if (format === 'json') return JSON.stringify(list, null, 2)
 
-  const rows = [
-    CSV_HEADERS,
-    ['list', list.name, list.id, '', '', '', '', '', '', ''],
-    ...(list.groups || []).map(group => [
-      'group', list.name, list.id, group.id, '', '', group.id,
-      group.name, group.enName || '', ''
-    ]),
-    ...(list.names || []).map(person => [
-      'person', list.name, list.id, person.id || '', person.cn || '', person.en || '',
-      person.groupId || '', '', '', person.isWhiteList ? 'true' : 'false'
+  const groups = list.groups || []
+  const groupMap = new Map(groups.map(group => [group.id, group]))
+  const usedGroups = new Set((list.names || []).map(person => person.groupId).filter(Boolean))
+  const rows = [CSV_HEADERS]
+  for (const person of list.names || []) {
+    const group = groupMap.get(person.groupId)
+    rows.push([
+      list.name,
+      list.id || '',
+      person.cn || '',
+      person.en || '',
+      person.gender === 'female' ? '女' : '男',
+      group?.name || '',
+      group?.enName || '',
+      person.groupId || '',
+      person.id || '',
+      person.isWhiteList ? '是' : '否'
     ])
-  ]
+  }
+  for (const group of groups.filter(group => !usedGroups.has(group.id))) {
+    rows.push([list.name, list.id || '', '', '', '', group.name, group.enName || '', group.id, '', ''])
+  }
+  if (rows.length === 1) rows.push([list.name, list.id || '', '', '', '', '', '', '', '', ''])
   // UTF-8 BOM keeps Chinese headers and names readable when opened directly in Excel.
   return `\uFEFF${rows.map(row => row.map(csvCell).join(',')).join('\r\n')}`
 }
@@ -89,6 +100,13 @@ function csvToList(content) {
   const rows = parseCsv(content.replace(/^\uFEFF/, ''))
   if (rows.length < 2) throw new Error('CSV 中没有可导入的数据')
   const headers = rows[0].map(normalizeHeader)
+  const recognizedHeaders = new Set([
+    'record_type', 'list_name', 'list_id', 'chinese_name', 'english_name', 'group_id',
+    '名单名称', '名单id', '中文名', '英文名', '小组id', '人员uuid'
+  ])
+  if (!headers.some(header => recognizedHeaders.has(header))) {
+    throw new Error('CSV 表头无法识别为人员名单')
+  }
   const records = rows.slice(1).map(values => Object.fromEntries(headers.map((header, index) => [header, values[index] || ''])))
   const typeOf = record => field(record, ['record_type', 'type', '类型']).toLowerCase()
   const listRecord = records.find(record => typeOf(record) === 'list')
@@ -118,27 +136,28 @@ function csvToList(content) {
   records.forEach(record => {
     const type = typeOf(record)
     if (type === 'list' || type === 'group' || type === '小组') return
-    const cn = field(record, ['chinese_name', 'cn', 'name', '姓名', '中文名', '名称'])
-    if (!cn) return
     const groupId = field(record, ['group_id', '小组id', '小组_id'])
     addGroup(
       groupId,
       field(record, ['group_name', '小组名称', '组名']),
       field(record, ['group_english_name', 'group_en_name', '小组英文名'])
     )
+    const cn = field(record, ['chinese_name', 'cn', 'name', '姓名', '中文名', '名称'])
+    if (!cn) return
     const whiteListValue = field(record, ['is_whitelist', 'whitelist', '白名单']).toLowerCase()
+    const genderValue = field(record, ['gender', 'sex', '性别']).toLowerCase()
     const count = Number(field(record, ['count', '次数', '抽取次数']))
     names.push({
-      id: field(record, ['record_id', 'person_id', 'uuid', '人员id', '人员_id']),
+      id: field(record, ['record_id', 'person_id', 'uuid', '人员uuid', '人员id', '人员_id']),
       cn,
       en: field(record, ['english_name', 'en', '英文名']),
+      gender: ['female', 'f', '女'].includes(genderValue) ? 'female' : 'male',
       groupId,
       isWhiteList: ['true', '1', 'yes', '是'].includes(whiteListValue),
       count: Number.isFinite(count) && count > 0 ? count : 0
     })
   })
 
-  if (!names.length && !groups.length) throw new Error('CSV 中未识别到人员或小组数据')
   return { id: listId, name: listName, groups, names }
 }
 

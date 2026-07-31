@@ -7,7 +7,7 @@ import { useSettingsStore } from './stores/settings'
 import './assets/variables.css'
 import './assets/global.css'
 
-import fluentIcons from '@iconify-json/fluent/icons.json'
+import fluentIcons from 'virtual:fluent-icons'
 addCollection(fluentIcons)
 
 async function bootstrap() {

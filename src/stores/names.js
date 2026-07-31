@@ -51,6 +51,7 @@ export const useNamesStore = defineStore('names', () => {
       if (!p.id) p.id = generatePersonId()
       if (p.groupId === undefined) p.groupId = ''
       if (p.isWhiteList === undefined) p.isWhiteList = false
+      p.gender = p.gender === 'female' || p.gender === '女' ? 'female' : 'male'
     })
   }
 
@@ -113,9 +114,9 @@ export const useNamesStore = defineStore('names', () => {
     }
   }
 
-  function addPerson(cn, en) {
+  function addPerson(cn, en, gender = 'male') {
     if (!cn || !cn.trim()) return
-    currentList.value.names.push({ id: generatePersonId(), cn: cn.trim(), en: (en || '').trim(), groupId: '', isWhiteList: false })
+    currentList.value.names.push({ id: generatePersonId(), cn: cn.trim(), en: (en || '').trim(), gender: gender === 'female' ? 'female' : 'male', groupId: '', isWhiteList: false })
     save()
   }
 
@@ -126,7 +127,7 @@ export const useNamesStore = defineStore('names', () => {
     }
   }
 
-  function editPerson(index, newCn, newEn) {
+  function editPerson(index, newCn, newEn, gender) {
     if (index >= 0 && index < currentList.value.names.length) {
       const old = currentList.value.names[index]
       currentList.value.names[index] = {
@@ -134,6 +135,7 @@ export const useNamesStore = defineStore('names', () => {
         en: (newEn || '').trim(),
         id: old?.id || generatePersonId(),
         count: old?.count || 0,
+        gender: gender === 'female' || (gender === undefined && old?.gender === 'female') ? 'female' : 'male',
         groupId: old?.groupId || '',
         isWhiteList: old?.isWhiteList || false
       }
@@ -260,6 +262,23 @@ export const useNamesStore = defineStore('names', () => {
     return true
   }
 
+  function setGender(listId, personIndex, gender) {
+    const list = nameLists.value[listId]
+    if (!list?.names?.[personIndex]) return false
+    list.names[personIndex].gender = gender === 'female' ? 'female' : 'male'
+    save()
+    return true
+  }
+
+  function batchSetGender(listId, indices, gender) {
+    const list = nameLists.value[listId]
+    if (!list?.names) return false
+    const normalized = gender === 'female' ? 'female' : 'male'
+    indices.forEach(index => { if (list.names[index]) list.names[index].gender = normalized })
+    save()
+    return true
+  }
+
   function clearCurrentList() {
     currentList.value.names = []
     save()
@@ -296,6 +315,8 @@ export const useNamesStore = defineStore('names', () => {
     updateGroup,
     deleteGroup,
     assignGroup,
-    batchAssignGroup
+    batchAssignGroup,
+    setGender,
+    batchSetGender
   }
 })
