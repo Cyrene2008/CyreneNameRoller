@@ -51,28 +51,18 @@ const noticeText = ref(null)
 let noticeTimer
 let noticeAnimation
 
-const isDesktopApp = computed(() => {
-  return !!window.electronAPI || isTauri()
-})
+const isDesktopApp = computed(() => isTauri())
 
 function toggleDock() {
   settingsStore.update('dockCollapsed', !dockCollapsed.value)
 }
 
 function minimize() {
-  if (isTauri()) {
-    import('@tauri-apps/api/window').then(w => w.getCurrentWindow().minimize())
-  } else {
-    window.electronAPI?.minimize()
-  }
+  if (isTauri()) import('@tauri-apps/api/window').then(w => w.getCurrentWindow().minimize())
 }
 
 function hideToTray() {
-  if (isTauri()) {
-    import('@tauri-apps/api/core').then(m => m.invoke('hide_to_tray'))
-  } else {
-    window.electronAPI?.hide()
-  }
+  if (isTauri()) import('@tauri-apps/api/core').then(m => m.invoke('hide_to_tray'))
 }
 async function startNoticeAnimation() {
   await nextTick()
@@ -106,7 +96,6 @@ function onDataSaved(event) {
 function openDataLocation() {
   if (notice.value.path) revealFile(notice.value.path)
   else if (isTauri()) import('@tauri-apps/api/core').then(m => m.invoke('show_data_location'))
-  else window.electronAPI?.showDataLocation?.()
 }
 
 async function maximize() {
@@ -116,11 +105,6 @@ async function maximize() {
     const maxed = await win.isMaximized()
     maxed ? await win.unmaximize() : await win.maximize()
     isMaximized.value = await win.isMaximized()
-  } else {
-    window.electronAPI?.maximize()
-    setTimeout(async () => {
-      isMaximized.value = await window.electronAPI?.isMaximized() || false
-    }, 100)
   }
 }
 
@@ -129,8 +113,6 @@ onMounted(async () => {
   if (isTauri()) {
     const w = await import('@tauri-apps/api/window')
     isMaximized.value = await w.getCurrentWindow().isMaximized()
-  } else if (window.electronAPI) {
-    isMaximized.value = await window.electronAPI.isMaximized() || false
   }
 })
 onBeforeUnmount(() => { window.removeEventListener('cyrene:data-saved', onDataSaved); clearTimeout(noticeTimer); noticeAnimation?.cancel() })

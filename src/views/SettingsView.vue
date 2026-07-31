@@ -373,7 +373,7 @@ const showBanner = inject('banner')
 const lang = computed(() => settingsStore.settings.language)
 const settings = computed(() => settingsStore.settings)
 
-const isDesktop = computed(() => !!window.electronAPI || isTauri())
+const isDesktop = computed(() => isTauri())
 const floatingStyleOptions = computed(() => FLOATING_WINDOW_STYLES.map((value, index) => ({
   value,
   label: value === 'text'
@@ -480,9 +480,7 @@ async function onAutoStart(value) {
       : (lang.value === 'en' ? 'Removing the startup task...' : '正在移除开机启动计划任务...'),
     icon: 'shield-keyhole-16-regular', type: 'info', duration: 5000
   })
-  const result = isTauri()
-    ? await tauriAPI.setAutoStart(value)
-    : await window.electronAPI?.setAutoStart?.(value)
+  const result = await tauriAPI.setAutoStart(value)
   if (!result || result.success === false) {
     await update('autoStart', !value)
     showBanner({ message: result.error || (lang.value === 'en' ? 'Startup task update failed' : '计划任务更新失败'), icon: 'warning-16-regular', type: 'warning', duration: 8000 })
@@ -494,8 +492,6 @@ async function onFloatingWindowToggle(val) {
   await update('floatingWindowEnabled', val)
   if (isTauri()) {
     await tauriAPI.invoke(val ? 'open_floating_window' : 'close_floating_window')
-  } else if (window.electronAPI) {
-    val ? window.electronAPI.openFloatingWindow() : window.electronAPI.closeFloatingWindow()
   }
 }
 
@@ -504,8 +500,6 @@ async function onFloatingWindowStyleChange(value) {
   await update('floatingWindowStyle', style)
   if (isTauri()) {
     await tauriAPI.setFloatingWindowStyle(style)
-  } else {
-    await window.electronAPI?.setFloatingWindowStyle?.(style)
   }
 }
 
@@ -527,9 +521,7 @@ async function processFloatingWindowSizeQueue() {
   while (floatingSizePending !== null) {
     const size = floatingSizePending
     floatingSizePending = null
-    result = isTauri()
-      ? await tauriAPI.setFloatingWindowSize(size)
-      : await window.electronAPI?.setFloatingWindowSize?.(size)
+    result = await tauriAPI.setFloatingWindowSize(size)
     if (result?.success === false) {
       showBanner({
         message: result.error || (lang.value === 'en' ? 'Failed to resize floating window' : '调整悬浮窗大小失败'),
@@ -567,9 +559,7 @@ async function onFloatingWindowSizeChange(event) {
 }
 
 async function resetFloatingWindowPosition() {
-  const result = isTauri()
-    ? await tauriAPI.resetFloatingWindowPosition()
-    : await window.electronAPI?.resetFloatingWindowPosition?.()
+  const result = await tauriAPI.resetFloatingWindowPosition()
   if (result?.success) {
     showBanner({
       message: lang.value === 'en' ? 'Floating window position reset' : '悬浮窗位置已重置',

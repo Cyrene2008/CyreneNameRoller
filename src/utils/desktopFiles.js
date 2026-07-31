@@ -20,9 +20,7 @@ function browserDownload(content, defaultName, mimeType) {
 
 export async function saveTextFile(content, defaultName, extension = 'json') {
   let result
-  if (window.electronAPI?.saveTextFile) {
-    result = await window.electronAPI.saveTextFile(content, defaultName, extension)
-  } else if (isTauri()) {
+  if (isTauri()) {
     result = await tauriAPI.saveTextFile(content, defaultName, extension)
   } else {
     return browserDownload(content, defaultName, extension === 'json' ? 'application/json' : 'text/plain')
@@ -32,7 +30,6 @@ export async function saveTextFile(content, defaultName, extension = 'json') {
 }
 
 export async function openTextFile(extension = 'json') {
-  if (window.electronAPI?.openTextFile) return window.electronAPI.openTextFile(extension)
   if (isTauri()) return tauriAPI.openTextFile(extension)
   return new Promise(resolve => {
     const input = document.createElement('input')
@@ -52,7 +49,6 @@ export async function openTextFile(extension = 'json') {
 }
 
 export async function revealFile(path) {
-  if (window.electronAPI?.revealFile) return window.electronAPI.revealFile(path)
   if (isTauri()) return tauriAPI.revealFile(path)
   return false
 }

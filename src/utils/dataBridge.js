@@ -4,14 +4,6 @@ import { emitFileNotice } from './desktopFiles'
 
 const NOTICE_KEYS = new Set(['lists', 'prizeLists'])
 
-export function isElectron() {
-  return typeof window !== 'undefined' && !!window.electronAPI
-}
-
-function isBrowser() {
-  return !isTauri() && !isElectron()
-}
-
 export const dataBridge = {
   async load(key) {
     // Tauri
@@ -21,16 +13,6 @@ export const dataBridge = {
         if (val !== null && val !== undefined) return val
       } catch (e) {
         console.warn(`[dataBridge] Tauri load failed for "${key}":`, e)
-      }
-    }
-
-    // Electron
-    if (isElectron()) {
-      try {
-        const val = await window.electronAPI.storageGet(key)
-        if (val !== null && val !== undefined) return val
-      } catch (e) {
-        console.warn(`[dataBridge] Electron load failed for "${key}":`, e)
       }
     }
 
@@ -54,16 +36,6 @@ export const dataBridge = {
       }
     }
 
-    // Electron
-    if (isElectron()) {
-        try {
-          const result = await window.electronAPI.storageSet(key, data)
-          if (NOTICE_KEYS.has(key) && result?.filePath) notifyDataSaved(result.filePath)
-        } catch (e) {
-        console.warn(`[dataBridge] Electron save failed for "${key}":`, e)
-      }
-    }
-
     // Browser fallback
     try { localStorage.setItem(key, JSON.stringify(data)) } catch {}
   },
@@ -72,9 +44,6 @@ export const dataBridge = {
     if (isTauri()) {
       try { await tauriAPI.storageClear() } catch {}
     }
-    if (isElectron()) {
-      try { await window.electronAPI.storageClear() } catch {}
-    }
     try { localStorage.clear() } catch {}
   },
 
@@ -82,12 +51,6 @@ export const dataBridge = {
     if (isTauri()) {
       try {
         const result = await tauriAPI.loadNames()
-        if (result && result.names) return result
-      } catch {}
-    }
-    if (isElectron()) {
-      try {
-        const result = await window.electronAPI.loadNames()
         if (result && result.names) return result
       } catch {}
     }
@@ -106,12 +69,6 @@ export const dataBridge = {
         if (Array.isArray(result)) return result
       } catch {}
     }
-    if (isElectron()) {
-      try {
-        const result = await window.electronAPI.loadChangelog()
-        if (Array.isArray(result)) return result
-      } catch {}
-    }
     try {
       const res = await fetch('./updatelogs/up.json')
       return await res.json()
@@ -126,13 +83,6 @@ export const dataBridge = {
   },
 
   async exportData() {
-    if (isElectron()) {
-      try {
-        const result = await window.electronAPI.exportData()
-        if (result?.success && result.filePath) emitFileNotice(`程序数据已导出：${result.filePath}`, result.filePath)
-        return result
-      } catch {}
-    }
     if (isTauri()) {
       try {
         const result = await tauriAPI.exportDataFile()
@@ -154,13 +104,6 @@ export const dataBridge = {
   },
 
   async importData() {
-    if (isElectron()) {
-      try {
-        const result = await window.electronAPI.importData()
-        if (result?.success && result.filePath) emitFileNotice(`程序数据已导入：${result.filePath}`, result.filePath)
-        return result
-      } catch {}
-    }
     if (isTauri()) {
       try {
         const result = await tauriAPI.importDataFile()

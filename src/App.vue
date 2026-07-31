@@ -33,12 +33,6 @@ async function listenForFirstMainWindowShow() {
       unlistenMainShown?.()
       unlistenMainShown = null
     })
-  } else if (window.electronAPI?.onMainWindowShown) {
-    unlistenMainShown = window.electronAPI.onMainWindowShown(() => {
-      playSplashOnce()
-      unlistenMainShown?.()
-      unlistenMainShown = null
-    })
   }
 }
 
@@ -54,15 +48,6 @@ onMounted(async () => {
     playSplashOnce()
     await nextTick()
     await tauriAPI.showMainWindow()
-  } else if (window.electronAPI) {
-    const autoStart = await window.electronAPI.isAutoStartLaunch?.()
-    if (autoStart && settingsStore.settings.autoStartToTray) {
-      await listenForFirstMainWindowShow()
-      return
-    }
-    playSplashOnce()
-    await nextTick()
-    window.electronAPI?.showMainWindow?.()
   } else {
     playSplashOnce()
   }

@@ -1,6 +1,6 @@
 # Cyreneの随机点名器
 
-基于 Vue 3 + Electron/Tauri 的随机点名桌面应用，采用 Windows 11 Fluent Design 设计语言。
+基于 Vue 3 + Tauri 的随机点名桌面应用，采用 Windows 11 Fluent Design 设计语言。
 
 在线使用→ [立即使用](https://xn--web-t33et1i480d.xn--8hvv1o.cn/)
 
@@ -73,17 +73,17 @@ npm install
 npm run dev
 ```
 
-## 构建 Electron 客户端
+## 构建 Tauri 客户端
 
 ```bash
-npm run electron:build
+npm run tauri:build
 ```
 
-打包产物在 `release/` 目录下。
+打包产物在 `src-tauri/target/` 目录下。
 
 ## 技术栈
 
-Vue 3 + Vite + Electron/Tauri + Pinia + Vue Router + @iconify/vue (Fluent UI Icons)
+Vue 3 + Vite + Tauri + Pinia + Vue Router + @iconify/vue (Fluent UI Icons)
 
 ## 许可证
 

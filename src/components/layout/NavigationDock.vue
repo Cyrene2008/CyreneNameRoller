@@ -176,7 +176,7 @@ const route = useRoute()
 const settingsStore = useSettingsStore()
 const lang = computed(() => settingsStore.settings.language)
 const dockCollapsed = computed(() => settingsStore.settings.dockCollapsed || false)
-const isDesktopApp = computed(() => !!window.electronAPI || isTauri())
+const isDesktopApp = computed(() => isTauri())
 
 function toggleDock() {
   settingsStore.update('dockCollapsed', !dockCollapsed.value)

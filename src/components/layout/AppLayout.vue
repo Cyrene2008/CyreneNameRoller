@@ -87,7 +87,7 @@ const themeStyle = computed(() => {
   }
   return style
 })
-const isDesktopApp = computed(() => !!window.electronAPI || isTauri())
+const isDesktopApp = computed(() => isTauri())
 
 const globalToast = ref(null)
 provide('toast', globalToast)
@@ -185,16 +185,10 @@ onMounted(async () => {
   await recordsStore.initialize()
   if (isTauri()) {
     systemAccent.value = normalizeHex(await tauriAPI.systemAccent(), DEFAULT_ACCENT)
-  } else if (window.electronAPI?.getSystemAccentColor) {
-    systemAccent.value = normalizeHex(await window.electronAPI.getSystemAccentColor(), DEFAULT_ACCENT)
-    removeAccentListener = window.electronAPI.onAccentColorChanged?.(value => {
-      systemAccent.value = normalizeHex(value, DEFAULT_ACCENT)
-    })
   }
   if (isDesktopApp.value) checkForUpdates(true, showBanner)
   if (isDesktopApp.value && settingsStore.settings.floatingWindowEnabled) {
     if (isTauri()) await tauriAPI.invoke('open_floating_window')
-    else window.electronAPI?.openFloatingWindow?.()
   }
 })
 

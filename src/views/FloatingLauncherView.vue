@@ -52,10 +52,6 @@ onMounted(async () => {
     const removeStyleListener = await listen('floating-window-style-changed', event => applyStyle(event.payload))
     const removeSizeListener = await listen('floating-window-size-changed', event => applySize(event.payload))
     removeNativeListeners = () => { removeStyleListener(); removeSizeListener() }
-  } else {
-    const removeStyleListener = window.electronAPI?.onFloatingWindowStyleChanged?.(applyStyle)
-    const removeSizeListener = window.electronAPI?.onFloatingWindowSizeChanged?.(applySize)
-    removeNativeListeners = () => { removeStyleListener?.(); removeSizeListener?.() }
   }
 })
 
@@ -140,14 +136,6 @@ async function startDrag() {
     }
   }
 
-  if (window.electronAPI?.windowDragStart && window.electronAPI?.windowDragMove) {
-    await window.electronAPI.windowDragStart()
-    return {
-      move: (dx, dy) => window.electronAPI.windowDragMove(Math.round(dx), Math.round(dy)),
-      end: () => window.electronAPI.windowDragEnd?.()
-    }
-  }
-
   return { move: () => Promise.resolve(), end: () => Promise.resolve() }
 }
 
@@ -174,8 +162,6 @@ function movePointer(activePointer, screenX, screenY) {
 async function openMainWindow() {
   if (isTauri()) {
     await tauriAPI.invoke('focus_main_window')
-  } else if (window.electronAPI?.focusMainWindow) {
-    window.electronAPI.focusMainWindow()
   }
 }
 </script>
