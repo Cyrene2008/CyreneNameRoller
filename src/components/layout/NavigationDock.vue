@@ -144,6 +144,17 @@
         </a>
       </template>
       <router-link
+        to="/plugins"
+        class="dock-item"
+        :class="{ active: route.path === '/plugins' || route.path.startsWith('/plugin/') }"
+        draggable="false"
+        :title="lang === 'en' ? 'Plugins' : '插件'"
+      >
+        <div class="dock-item-indicator" />
+        <Icon icon="fluent:plug-connected-24-regular" :width="20" class="dock-item-icon" />
+        <span v-if="!dockCollapsed" class="dock-item-label">{{ lang === 'en' ? 'Plugins' : '插件' }}</span>
+      </router-link>
+      <router-link
         v-for="item in bottomItems"
         :key="item.path"
         :to="item.path"

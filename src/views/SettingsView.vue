@@ -232,6 +232,13 @@
           <FluentToggle :model-value="settings.recordCounts" :disabled="balance.enabled" @update:model-value="update('recordCounts', $event)" />
       </div>
       <div class="setting-row">
+        <div class="setting-label-group">
+          <span class="setting-label">{{ lang === 'en' ? 'New member initial count' : '新成员初始统计' }}</span>
+          <span class="setting-desc">{{ lang === 'en' ? 'Choose the baseline used when adding a person.' : '选择新增人员时使用的初始次数。' }}</span>
+        </div>
+        <FluentSelect :model-value="settings.newMemberCountMode" :options="newMemberCountModeOptions" width="220px" @update:model-value="update('newMemberCountMode', $event)" />
+      </div>
+      <div class="setting-row">
         <span class="setting-label">{{ lang === 'en' ? 'Data Password' : '数据操作密码' }}</span>
         <FluentButton variant="secondary" size="sm" @click="openPasswordModal">
           <FluentIcon icon="lock-closed-16-regular" :width="14" />
@@ -375,7 +382,6 @@ const showBanner = inject('banner')
 
 const lang = computed(() => settingsStore.settings.language)
 const settings = computed(() => settingsStore.settings)
-
 const isDesktop = computed(() => isTauri())
 const floatingStyleOptions = computed(() => FLOATING_WINDOW_STYLES.map((value, index) => ({
   value,
@@ -433,6 +439,10 @@ const downloadSourceOptions = computed(() => [
 const autoStartModeOptions = computed(() => [
   { value: 'scheduled', label: lang.value === 'en' ? 'Administrator scheduled task' : '管理员计划任务', icon: 'fluent:shield-keyhole-16-regular' },
   { value: 'registry', label: lang.value === 'en' ? 'Traditional startup entry' : '传统自启动项', icon: 'fluent:window-console-20-regular' }
+])
+const newMemberCountModeOptions = computed(() => [
+  { value: 'midpoint', label: lang.value === 'en' ? 'Current range midpoint' : '当前极值中间值', icon: 'fluent:branch-compare-16-regular' },
+  { value: 'zero', label: lang.value === 'en' ? 'Start from zero' : '从 0 开始', icon: 'fluent:number-symbol-16-regular' }
 ])
 const finishAnimationOptions = computed(() => [
   { value: 'spotlight', label: lang.value === 'en' ? 'Classic emphasis' : '经典强调', icon: 'fluent:sparkle-16-regular' },

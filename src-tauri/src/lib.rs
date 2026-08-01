@@ -7,7 +7,7 @@ use std::fs;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{Ipv4Addr, SocketAddrV4, TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -973,6 +973,125 @@ async fn open_text_file(
 }
 
 #[tauri::command]
+async fn plugin_select_file(
+    app: tauri::AppHandle,
+    extensions: Vec<String>,
+) -> Result<serde_json::Value, String> {
+    let mut safe_extensions: Vec<String> = extensions
+        .into_iter()
+        .map(|value| {
+            value
+                .chars()
+                .filter(|character| character.is_ascii_alphanumeric())
+                .collect::<String>()
+                .to_lowercase()
+        })
+        .filter(|value| !value.is_empty() && value.len() <= 12)
+        .take(24)
+        .collect();
+    safe_extensions.sort();
+    safe_extensions.dedup();
+    let mut picker = app.dialog().file().set_title("插件选择文件");
+    if !safe_extensions.is_empty() {
+        let filter_extensions: Vec<&str> = safe_extensions.iter().map(String::as_str).collect();
+        picker = picker.add_filter("允许的文件", &filter_extensions);
+    }
+    let Some(selected) = picker.blocking_pick_file() else {
+        return Ok(serde_json::json!({ "success": false, "cancelled": true }));
+    };
+    let path = selected.into_path().map_err(|error| error.to_string())?;
+    let metadata = fs::metadata(&path).map_err(|error| error.to_string())?;
+    if !metadata.is_file() {
+        return Err("插件只能选择普通文件".into());
+    }
+    if metadata.len() > 32 * 1024 * 1024 {
+        return Err("插件选择的文件不能超过 32 MB".into());
+    }
+    let bytes = fs::read(&path).map_err(|error| error.to_string())?;
+    Ok(serde_json::json!({
+        "success": true,
+        "name": path.file_name().and_then(OsStr::to_str).unwrap_or("file"),
+        "path": path.to_string_lossy(),
+        "size": metadata.len(),
+        "base64": base64::engine::general_purpose::STANDARD.encode(bytes)
+    }))
+}
+
+#[tauri::command]
+async fn plugin_select_directory(app: tauri::AppHandle) -> Result<serde_json::Value, String> {
+    let Some(selected) = app
+        .dialog()
+        .file()
+        .set_title("插件选择目录")
+        .blocking_pick_folder()
+    else {
+        return Ok(serde_json::json!({ "success": false, "cancelled": true }));
+    };
+    let path = selected.into_path().map_err(|error| error.to_string())?;
+    Ok(serde_json::json!({
+        "success": true,
+        "name": path.file_name().and_then(OsStr::to_str).unwrap_or("directory"),
+        "path": path.to_string_lossy()
+    }))
+}
+
+#[tauri::command]
+async fn plugin_execute_operation(
+    program: String,
+    args: Vec<String>,
+    timeout_ms: u64,
+) -> Result<serde_json::Value, String> {
+    if program.is_empty()
+        || program.len() > 128
+        || !program
+            .chars()
+            .all(|character| character.is_ascii_alphanumeric() || "_.-".contains(character))
+    {
+        return Err("插件系统操作的程序名无效".into());
+    }
+    if args.len() > 32
+        || args
+            .iter()
+            .any(|argument| argument.contains('\0') || argument.len() > 2048)
+    {
+        return Err("插件系统操作的固定参数无效".into());
+    }
+    let timeout_ms = timeout_ms.clamp(1000, 30000);
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut command = background_command(&program);
+        command
+            .args(&args)
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null());
+        let mut child = command.spawn().map_err(|error| error.to_string())?;
+        let deadline = Instant::now() + Duration::from_millis(timeout_ms);
+        loop {
+            if let Some(status) = child.try_wait().map_err(|error| error.to_string())? {
+                return Ok(serde_json::json!({
+                    "success": status.success(),
+                    "exitCode": status.code(),
+                    "timedOut": false,
+                    "error": if status.success() { "" } else { "系统操作返回非零退出状态" }
+                }));
+            }
+            if Instant::now() >= deadline {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Ok(serde_json::json!({
+                    "success": false,
+                    "timedOut": true,
+                    "error": "系统操作执行超时"
+                }));
+            }
+            std::thread::sleep(Duration::from_millis(25));
+        }
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+
+#[tauri::command]
 async fn export_data_file(
     app: tauri::AppHandle,
     store: State<'_, EncryptedStore>,
@@ -1789,6 +1908,9 @@ pub fn run() {
             import_data_file,
             save_text_file,
             open_text_file,
+            plugin_select_file,
+            plugin_select_directory,
+            plugin_execute_operation,
             read_dropped_file,
             load_names,
             load_changelog,

@@ -81,6 +81,7 @@ import { ref, computed, onMounted, watch, inject } from 'vue'
 import { useNamesStore } from '../stores/names'
 import { useSettingsStore } from '../stores/settings'
 import { useRecordsStore } from '../stores/records'
+import { usePluginsStore } from '../plugins/store'
 import { dataBridge } from '../utils/dataBridge'
 import { t } from '../utils/i18n'
 import FluentButton from '../components/FluentButton.vue'
@@ -92,6 +93,7 @@ import FluentSelect from '../components/FluentSelect.vue'
 const namesStore = useNamesStore()
 const settingsStore = useSettingsStore()
 const recordsStore = useRecordsStore()
+const pluginsStore = usePluginsStore()
 const showBanner = inject('banner')
 
 const lang = computed(() => settingsStore.settings.language)
@@ -115,7 +117,7 @@ const remainingCount = computed(() => allNonWL.value.length - usedNames.value.si
 const maxCards = computed(() => Math.max(1, allNonWL.value.length - usedNames.value.size))
 
 function getAvailableNames() {
-  return allNonWL.value.map(n => ({ cn: n.cn, en: n.en })).filter(n => !usedNames.value.has(n.cn))
+  return allNonWL.value.filter(person => !usedNames.value.has(person.id) && !usedNames.value.has(person.cn))
 }
 
 function getDisplayName(person) {
@@ -173,14 +175,29 @@ function shuffle() {
   cards.value.forEach((card, i) => { setTimeout(() => { card.visible = true }, i * 80) })
 }
 
-function flipCard(index) {
+function flipCard(index, operation = null) {
   const card = cards.value[index]
   if (!card || card.flipped) return
   card.flipped = true
-  usedNames.value.add(card.cn)
+  usedNames.value.add(card.personId || card.cn)
   trayHistory.value.unshift({ id: ++historyIdCounter, name: card.displayName })
   const personId = card.personId || namesStore.currentNames.find(person => person.cn === card.cn && (!card.en || person.en === card.en))?.id || null
   recordsStore.addRecord({ personId, listId: namesStore.currentList.id, source: 'card' })
+  const result = { id: personId || '', name: card.cn, englishName: card.en || '' }
+  pluginsStore.dispatchEvent('card:item-result', {
+    operationId: operation?.id || `card-${card.id}`,
+    index: operation?.index || 0,
+    count: operation?.count || 1,
+    listId: namesStore.currentList.id,
+    result
+  })
+  if (!operation || operation.index === operation.count - 1) {
+    pluginsStore.dispatchEvent('card:result', {
+      operationId: operation?.id || `card-${card.id}`,
+      listId: namesStore.currentList.id,
+      results: operation?.results || [result]
+    })
+  }
   saveTrayState()
 }
 
@@ -207,8 +224,10 @@ function quickDraw() {
   const copy = [...available]
   while (chosen.length < count && copy.length > 0) { const idx = Math.floor(Math.random() * copy.length); chosen.push(copy.splice(idx, 1)[0]) }
   cards.value = chosen.map(p => ({ id: ++cardIdCounter, personId: p.id, cn: p.cn, en: p.en, displayName: getDisplayName(p), visible: false, flipped: false }))
+  const operationId = crypto.randomUUID?.() || `card-${Date.now()}`
+  const results = chosen.map(person => ({ id: person.id || '', name: person.cn, englishName: person.en || '' }))
   cards.value.forEach((card, i) => {
-    setTimeout(() => { card.visible = true; setTimeout(() => flipCard(i), 300 + i * 200) }, i * 80)
+    setTimeout(() => { card.visible = true; setTimeout(() => flipCard(i, { id: operationId, index: i, count: cards.value.length, results }), 300 + i * 200) }, i * 80)
   })
 }
 
