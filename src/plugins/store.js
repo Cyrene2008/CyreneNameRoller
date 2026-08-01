@@ -9,8 +9,8 @@ import {
 } from './package'
 import {
   PLUGIN_DOWNLOAD_SOURCES,
-  pluginListUrl,
-  pluginSourceUrl
+  pluginListCandidates,
+  pluginSourceCandidates
 } from './constants'
 import { PluginRuntime } from './runtime'
 import { PluginPlatformBridge } from './platform'
@@ -23,6 +23,20 @@ const MAX_PLUGIN_DATA_SIZE = 96 * 1024 * 1024
 
 function clone(value) {
   return value === undefined ? undefined : JSON.parse(JSON.stringify(value))
+}
+
+async function fetchFirstSuccessful(urls, options = {}, label = '插件资源') {
+  const failures = []
+  for (const url of urls) {
+    try {
+      const response = await fetch(url, options)
+      if (response.ok) return response
+      failures.push(`${url} → HTTP ${response.status}`)
+    } catch (error) {
+      failures.push(`${url} → ${error?.message || String(error)}`)
+    }
+  }
+  throw new Error(`${label}获取失败：${failures.join('；') || '没有可用地址'}`)
 }
 
 function mimeFor(path) {
@@ -340,8 +354,11 @@ export const usePluginsStore = defineStore('plugins', () => {
   }
 
   async function fetchList() {
-    const response = await fetch(pluginListUrl(source.value), { cache: 'no-store', headers: { Accept: 'application/json' } })
-    if (!response.ok) throw new Error(`插件列表获取失败：HTTP ${response.status}`)
+    const response = await fetchFirstSuccessful(
+      pluginListCandidates(source.value),
+      { cache: 'no-store', headers: { Accept: 'application/json' } },
+      '插件列表'
+    )
     const payload = await response.json()
     if (!Array.isArray(payload.plugins)) throw new Error('插件列表格式无效')
     const ids = new Set()
@@ -356,8 +373,11 @@ export const usePluginsStore = defineStore('plugins', () => {
   async function fetchPackage(item) {
     const original = item.downloadUrl || item.packageUrl
     if (!original) throw new Error(`${item.name || item.id} 没有可下载地址`)
-    const response = await fetch(pluginSourceUrl(original, source.value), { cache: 'no-store' })
-    if (!response.ok) throw new Error(`插件下载失败：HTTP ${response.status}`)
+    const response = await fetchFirstSuccessful(
+      pluginSourceCandidates(original, source.value),
+      { cache: 'no-store' },
+      `${item.name || item.id} 插件包`
+    )
     return new Uint8Array(await response.arrayBuffer())
   }
 
@@ -405,29 +425,29 @@ export const usePluginsStore = defineStore('plugins', () => {
     const details = { ...item }
     if (details.readme || details.readmeContent) return details
     if (details.readmeUrl) {
-      const response = await fetch(pluginSourceUrl(details.readmeUrl, source.value), { cache: 'no-store' })
-      if (response.ok) details.readme = await response.text()
+      const response = await fetchFirstSuccessful(
+        pluginSourceCandidates(details.readmeUrl, source.value),
+        { cache: 'no-store' },
+        `${details.name || details.id} README`
+      )
+      details.readme = await response.text()
       return details
     }
     const slug = repositorySlug(details.repository)
     if (!slug) return details
     try {
-      const repoResponse = await fetch(pluginSourceUrl(`https://api.github.com/repos/${slug}`, source.value), {
+      const repoResponse = await fetchFirstSuccessful(pluginSourceCandidates(`https://api.github.com/repos/${slug}`, source.value), {
         cache: 'no-store', headers: { Accept: 'application/vnd.github+json' }
-      })
-      if (repoResponse.ok) {
-        const repository = await repoResponse.json()
-        details.author ||= repository.owner?.login || ''
-        details.icon ||= repository.owner?.avatar_url || ''
-        details.description ||= repository.description || ''
-      }
-      const readmeResponse = await fetch(pluginSourceUrl(`https://api.github.com/repos/${slug}/readme`, source.value), {
+      }, '插件仓库信息')
+      const repository = await repoResponse.json()
+      details.author ||= repository.owner?.login || ''
+      details.icon ||= repository.owner?.avatar_url || ''
+      details.description ||= repository.description || ''
+      const readmeResponse = await fetchFirstSuccessful(pluginSourceCandidates(`https://api.github.com/repos/${slug}/readme`, source.value), {
         cache: 'no-store', headers: { Accept: 'application/vnd.github+json' }
-      })
-      if (readmeResponse.ok) {
-        const readme = await readmeResponse.json()
-        if (readme.content) details.readme = decodeBase64Utf8(readme.content)
-      }
+      }, '插件 README')
+      const readme = await readmeResponse.json()
+      if (readme.content) details.readme = decodeBase64Utf8(readme.content)
     } catch (error) {
       console.warn('[plugins] catalog metadata unavailable', error)
     }
@@ -468,7 +488,7 @@ export const usePluginsStore = defineStore('plugins', () => {
     if (!runtime.ownsFrameSource(event.source, message.pluginId)) return
     try {
       const result = await runtime.handleRpc(message.pluginId, message.method, message.args)
-      event.source?.postMessage({ type: 'rpc-response', id: message.id, result }, '*')
+      event.source?.postMessage({ type: 'rpc-response', id: message.id, result: clone(result) }, '*')
     } catch (error) {
       event.source?.postMessage({ type: 'rpc-response', id: message.id, error: error.message || String(error) }, '*')
     }

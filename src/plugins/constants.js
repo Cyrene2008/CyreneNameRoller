@@ -42,12 +42,45 @@ export const PLUGIN_PLATFORM_IDS = new Set([
   'web', 'tauri', 'windows', 'macos', 'linux', 'android', 'ios'
 ])
 
+function githubRawAlternative(url) {
+  const match = String(url || '').match(/^https:\/\/raw\.githubusercontent\.com\/([^/]+)\/([^/]+)\/([^/]+)\/(.+)$/i)
+  return match ? `https://github.com/${match[1]}/${match[2]}/raw/${match[3]}/${match[4]}` : ''
+}
+
+export function pluginSourceCandidates(originalUrl, source = 'cyrene') {
+  const original = String(originalUrl || '').trim()
+  if (!original) return []
+
+  const candidates = []
+  const add = value => {
+    if (value && !candidates.includes(value)) candidates.push(value)
+  }
+  if (source === 'github') {
+    add(original)
+    return candidates
+  }
+
+  const proxy = source === 'ghproxy' ? 'https://gh-proxy.com/' : 'https://gh.昔涟.cn/'
+  add(`${proxy}${original}`)
+  const rawAlternative = githubRawAlternative(original)
+  if (rawAlternative) add(`${proxy}${rawAlternative}`)
+
+  // A selected mirror is a preference, not a single point of failure. Direct
+  // GitHub remains the final fallback so Web users can still load the catalog.
+  add(original)
+  return candidates
+}
+
 export function pluginSourceUrl(originalUrl, source = 'cyrene') {
-  if (!originalUrl || source === 'github') return originalUrl
-  return `${source === 'ghproxy' ? 'https://gh-proxy.com/' : 'https://gh.昔涟.cn/'}${originalUrl}`
+  return pluginSourceCandidates(originalUrl, source)[0] || ''
 }
 
 export function pluginListUrl(source = 'cyrene') {
   const raw = `https://raw.githubusercontent.com/${PLUGIN_LIST_REPOSITORY}/master/${PLUGIN_LIST_PATH}`
   return pluginSourceUrl(raw, source)
+}
+
+export function pluginListCandidates(source = 'cyrene') {
+  const raw = `https://raw.githubusercontent.com/${PLUGIN_LIST_REPOSITORY}/master/${PLUGIN_LIST_PATH}`
+  return pluginSourceCandidates(raw, source)
 }

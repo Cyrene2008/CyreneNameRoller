@@ -22,6 +22,11 @@ function storageKey(value) {
   return key
 }
 
+function transferableValue(value) {
+  if (value === undefined) return undefined
+  return JSON.parse(JSON.stringify(value))
+}
+
 export class PluginRuntime {
   constructor({ getPlugin, savePluginData, loadPluginData, showBanner, getNames, selectFile, playAudio, platformBridge, onFault }) {
     this.getPlugin = getPlugin
@@ -111,7 +116,7 @@ export class PluginRuntime {
       if (message.type === 'rpc-request') {
         try {
           const result = await this.handleRpc(plugin.manifest.id, message.method, message.args)
-          worker.postMessage({ type: 'rpc-response', id: message.id, result })
+          worker.postMessage({ type: 'rpc-response', id: message.id, result: transferableValue(result) })
         } catch (error) {
           worker.postMessage({ type: 'rpc-response', id: message.id, error: error.message || String(error) })
         }
@@ -129,9 +134,9 @@ export class PluginRuntime {
     }
     const context = {
       plugin: { id: plugin.manifest.id, version: plugin.manifest.version },
-      permissions: plugin.manifest.permissions,
-      platform: this.platformBridge.info(),
-      capabilities: this.platformBridge.capabilities(),
+      permissions: transferableValue(plugin.manifest.permissions || []),
+      platform: transferableValue(this.platformBridge.info()),
+      capabilities: transferableValue(this.platformBridge.capabilities()),
       request: true
     }
     this.workers.set(plugin.manifest.id, { worker, workerUrl })
@@ -166,13 +171,13 @@ export class PluginRuntime {
     for (const [pluginId, runtime] of this.workers) {
       const plugin = this.getPlugin(pluginId)
       if (!plugin?.manifest.permissions.includes('events:draw')) continue
-      try { runtime.worker.postMessage({ type: 'event', event, payload }) } catch {}
+      try { runtime.worker.postMessage({ type: 'event', event, payload: transferableValue(payload) }) } catch {}
     }
     for (const [key, frame] of this.frames) {
       const pluginId = key.split(':')[0]
       const plugin = this.getPlugin(pluginId)
       if (!plugin?.manifest.permissions.includes('events:draw')) continue
-      try { frame.contentWindow?.postMessage({ type: 'event', event, payload }, '*') } catch {}
+      try { frame.contentWindow?.postMessage({ type: 'event', event, payload: transferableValue(payload) }, '*') } catch {}
     }
   }
 
@@ -259,13 +264,14 @@ export class PluginRuntime {
         });
       })();
     <\/script>`
-    return html.includes('<head>') ? html.replace('<head>', `<head>${csp}${bootstrap}`) : `${csp}${bootstrap}${html}`
+    return /<head(?:\s[^>]*)?>/i.test(html)
+      ? html.replace(/<head(\s[^>]*)?>/i, match => `${match}${csp}${bootstrap}`)
+      : `${csp}${bootstrap}${html}`
   }
 
   mountFrame(frame, pluginId, pageId) {
     const key = `${pluginId}:${pageId}`
     this.frames.set(key, frame)
-    frame.contentWindow?.postMessage({ type: 'init', pluginId, pageId }, '*')
   }
 
   unmountFrame(pluginId, pageId) { this.frames.delete(`${pluginId}:${pageId}`) }
