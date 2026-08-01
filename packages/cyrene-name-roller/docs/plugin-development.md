@@ -189,7 +189,7 @@ npx cnrp pack ./my-plugin \
   --private-key ./publisher-private.pem
 ```
 
-Never commit the private key. Publish the package SHA-256 and base64 SPKI public key in `plugins/list.json`. Encryption discourages casual inspection and detects modification; the Ed25519 signature is the publisher-identity trust mechanism.
+Never commit the private key. Publish the base64 SPKI public key in `plugins/list.json`. GitHub Release assets expose their SHA-256 digest through the API, while the Ed25519 signature remains the publisher-identity trust mechanism.
 
 ## Catalog entry
 
@@ -197,17 +197,20 @@ Never commit the private key. Publish the package SHA-256 and base64 SPKI public
 {
   "id": "cn.example.my-plugin",
   "name": "My Plugin",
-  "version": "1.0.0",
   "repository": "owner/repository",
-  "downloadUrl": "https://github.com/.../my-plugin-1.0.0.cnrp",
-  "sha256": "...",
+  "release": {
+    "provider": "github",
+    "channel": "latest",
+    "assetPattern": "my-plugin-*.cnrp"
+  },
   "publisherKey": "base64-spki-ed25519",
-  "readmeUrl": "https://raw.githubusercontent.com/.../README.md",
   "dependencies": []
 }
 ```
 
-The application downloads `plugins/list.json` at runtime through the selected source (`gh.昔涟.cn`, `gh-proxy.com` or GitHub). A proxy is only a transport; package hash and publisher signature remain the trust boundary.
+For GitHub plugins, do not hard-code `version`, `downloadUrl` or `sha256`. The application resolves the latest stable GitHub Release, selects the uploaded `.cnrp` asset with `assetPattern`, and uses the asset's `sha256:` digest automatically. Drafts and prereleases are not selected. Fixed `version`/`downloadUrl`/`sha256` entries remain supported for non-GitHub or pinned-version catalogs.
+
+The application downloads `plugins/list.json` at runtime through the selected source (`gh.昔涟.cn`, `gh-proxy.com` or GitHub). A proxy is only a transport; the GitHub asset digest and publisher signature remain the trust boundary.
 
 ## Recovery and release checklist
 
@@ -217,5 +220,5 @@ The application downloads `plugins/list.json` at runtime through the selected so
 - Test the page in light/dark themes and narrow layouts.
 - Test all declared draw events without duplicating summary/item behavior.
 - Do not include secrets, absolute local paths or publisher private keys.
-- Verify the Release asset SHA-256 and catalog public key.
+- Verify the Release asset name matches `assetPattern` and the catalog public key is current.
 - If a plugin crashes the application session, the next startup enters clean mode and disables all plugins for recovery.

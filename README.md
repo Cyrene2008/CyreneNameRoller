@@ -20,7 +20,7 @@
 - [x] 小组管理功能
 - [x] 桌面端后台常驻
 - [x] 抽奖模式
-- [ ] 插件系统
+- [x] [插件系统](https://github.com/Cyrene2008/CyreneNameRoller-Plugin-Template)
 - [ ] 积分系统
 - [ ] 多平台支持
   - [x] Windows10+
@@ -58,6 +58,12 @@
 - UI 缩放（50%-200%）、名字字体大小调整
 - 桃粉、Windows Fluent 与智能生成的自定义浅/深主题
 - 深色/浅色模式、中/英文切换、自动停止与多种结果强调动画
+
+**插件系统**
+- 支持在线安装、更新、卸载、启用和禁用 `.cnrp` 插件
+- 插件可贡献宿主原生 Fluent 设置页面，并在 Web/Tauri 间使用权限化能力桥接
+- 名单、抽取历史、统计与公平平衡参数仅向插件提供只读快照
+- [官方插件模板、Fluent 组件画廊与 API 文档](https://github.com/Cyrene2008/CyreneNameRoller-Plugin-Template)
 
 ## 页面展示
 

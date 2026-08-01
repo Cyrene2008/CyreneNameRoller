@@ -17,6 +17,7 @@ import {
 } from './constants'
 import { PluginRuntime } from './runtime'
 import { PluginPlatformBridge } from './platform'
+import { repositorySlug, resolveCatalogRelease } from './catalog'
 
 const STATE_KEY = 'pluginState'
 const PLUGIN_DATA_KEY = 'pluginData'
@@ -48,15 +49,6 @@ function mimeFor(path) {
     png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', svg: 'image/svg+xml',
     mp3: 'audio/mpeg', m4a: 'audio/mp4', wav: 'audio/wav', flac: 'audio/flac', ogg: 'audio/ogg'
   }[extension] || 'application/octet-stream'
-}
-
-function repositorySlug(repository) {
-  const value = typeof repository === 'string' ? repository : repository?.url
-  if (!value) return ''
-  const short = value.match(/^([\w.-]+)\/([\w.-]+)$/)
-  if (short) return `${short[1]}/${short[2].replace(/\.git$/i, '')}`
-  const github = value.match(/github\.com[/:]([^/]+)\/([^/#]+?)(?:\.git)?(?:[#/].*)?$/i)
-  return github ? `${github[1]}/${github[2]}` : ''
 }
 
 function decodeBase64Utf8(value) {
@@ -381,11 +373,19 @@ export const usePluginsStore = defineStore('plugins', () => {
     const payload = await response.json()
     if (!Array.isArray(payload.plugins)) throw new Error('插件列表格式无效')
     const ids = new Set()
-    list.value = payload.plugins.map(item => {
-      if (!item?.id || !item?.version || ids.has(item.id)) throw new Error(`插件目录条目无效：${item?.id || '未知'}`)
+    const entries = payload.plugins.map(item => {
+      if (!item?.id || (!item?.version && !item?.release) || ids.has(item.id)) throw new Error(`插件目录条目无效：${item?.id || '未知'}`)
       ids.add(item.id)
       return { ...item, dependencies: Array.isArray(item.dependencies) ? item.dependencies : [] }
     })
+    list.value = await Promise.all(entries.map(async item => {
+      if (!item.release) return item
+      try {
+        return await resolveCatalogRelease(item, { source: source.value })
+      } catch (error) {
+        return { ...item, version: item.version || '', releaseError: error.message || String(error) }
+      }
+    }))
     return list.value
   }
 
@@ -406,6 +406,10 @@ export const usePluginsStore = defineStore('plugins', () => {
 
   async function downloadPlugin(item, trail = [], authorize = null) {
     if (trail.includes(item.id)) throw new Error(`检测到插件目录依赖环：${[...trail, item.id].join(' → ')}`)
+    if (item.release) {
+      const resolved = await resolveCatalogRelease(item, { source: source.value })
+      Object.assign(item, resolved, { releaseError: '' })
+    }
     const nextTrail = [...trail, item.id]
     const bytes = await fetchPackage(item)
     const expectedPublisherKey = item.publisherKey || ''

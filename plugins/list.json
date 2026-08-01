@@ -6,15 +6,15 @@
     {
       "id": "cn.cyrene2008.sound-effects",
       "name": "来点音效",
-      "version": "1.0.0",
       "author": "Cyrene2008",
       "description": "为随机点名、翻牌点名和抽奖添加可选音效。",
       "repository": "Cyrene2008/CyreneNameRoller-SoundEffects",
-      "downloadUrl": "https://github.com/Cyrene2008/CyreneNameRoller-SoundEffects/releases/download/v1.0.0/sound-effects-1.0.0.cnrp",
-      "sha256": "328252fda3125fd82b65bfb1a37198eb8d3403f643d02fdc17e2b8b3955a27de",
+      "release": {
+        "provider": "github",
+        "channel": "latest",
+        "assetPattern": "sound-effects-*.cnrp"
+      },
       "publisherKey": "",
-      "icon": "https://raw.githubusercontent.com/Cyrene2008/CyreneNameRoller-SoundEffects/main/assets/icon.svg",
-      "readmeUrl": "https://raw.githubusercontent.com/Cyrene2008/CyreneNameRoller-SoundEffects/main/README.md",
       "permissions": [
         "storage:read",
         "storage:write",
