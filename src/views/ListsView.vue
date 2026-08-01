@@ -123,6 +123,7 @@ import { ref, computed, inject } from 'vue'
 import { useRouter } from 'vue-router'
 import { useNamesStore } from '../stores/names'
 import { useSettingsStore } from '../stores/settings'
+import { useStatisticsStore } from '../stores/statistics'
 import { t } from '../utils/i18n'
 import FluentCard from '../components/FluentCard.vue'
 import FluentButton from '../components/FluentButton.vue'
@@ -136,6 +137,7 @@ import FluentTabs from '../components/FluentTabs.vue'
 const router = useRouter()
 const namesStore = useNamesStore()
 const settingsStore = useSettingsStore()
+const statisticsStore = useStatisticsStore()
 const lang = computed(() => settingsStore.settings.language)
 const showBanner = inject('banner')
 
@@ -186,9 +188,12 @@ function toggleSelectAll() {
   selectedSet.value = s
 }
 
-function addPerson() {
+async function addPerson() {
   if (!newCn.value.trim()) return
-  namesStore.addPerson(newCn.value, newEn.value, newGender.value)
+  const existingPeople = [...namesStore.currentNames]
+  const person = namesStore.addPerson(newCn.value, newEn.value, newGender.value)
+  if (!person) return
+  await statisticsStore.initializePersonCount(person, existingPeople, settingsStore.settings.newMemberCountMode)
   newCn.value = ''
   newEn.value = ''
   newGender.value = 'male'

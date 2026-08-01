@@ -1,6 +1,6 @@
 {
   "name": "cyrene-name-roller",
-  "version": "26.0.5",
+  "version": "26.1.0",
   "description": "随机点名器 - 支持多人模式、平衡算法、翻牌模式的桌面端点名应用",
   "author": "Cyrene2008 <https://github.com/Cyrene2008>",
   "scripts": {
@@ -10,13 +10,19 @@
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
     "preview": "vite preview",
-    "test": "node --test scripts/removed-desktop-runtime.test.js"
+    "plugin:create": "node packages/cyrene-name-roller/bin/cnrp.mjs create",
+    "plugin:validate": "node packages/cyrene-name-roller/bin/cnrp.mjs validate",
+    "plugin:pack": "node packages/cyrene-name-roller/bin/cnrp.mjs pack",
+    "plugin:pack:sound": "node packages/cyrene-name-roller/bin/cnrp.mjs pack plugin-dev/sound-effects --out plugin-dev/dist/sound-effects-1.0.0.cnrp",
+    "plugin:sdk:pack": "node scripts/prepare-plugin-sdk-output.mjs",
+    "test": "node --test scripts/removed-desktop-runtime.test.js scripts/cyrene-balance.test.mjs scripts/plugin-sdk.test.mjs scripts/uri-navigation.test.mjs"
   },
   "dependencies": {
     "@iconify-json/fluent": "^1.2.10",
     "@iconify/vue": "^4.3.0",
     "@tauri-apps/api": "^2.11.1",
     "@tauri-apps/plugin-store": "^2.4.3",
+    "jszip": "^3.10.1",
     "pinia": "^3.0.3",
     "vue": "^3.5.17",
     "vue-router": "^4.5.1",
@@ -25,6 +31,7 @@
   "devDependencies": {
     "@tauri-apps/cli": "^2.11.4",
     "@vitejs/plugin-vue": "^5.2.4",
+    "javascript-obfuscator": "^5.5.0",
     "sass": "^1.89.2",
     "vite": "^6.3.5"
   },

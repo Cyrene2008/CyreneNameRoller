@@ -115,9 +115,11 @@ export const useNamesStore = defineStore('names', () => {
   }
 
   function addPerson(cn, en, gender = 'male') {
-    if (!cn || !cn.trim()) return
-    currentList.value.names.push({ id: generatePersonId(), cn: cn.trim(), en: (en || '').trim(), gender: gender === 'female' ? 'female' : 'male', groupId: '', isWhiteList: false })
+    if (!cn || !cn.trim()) return null
+    const person = { id: generatePersonId(), cn: cn.trim(), en: (en || '').trim(), gender: gender === 'female' ? 'female' : 'male', groupId: '', isWhiteList: false }
+    currentList.value.names.push(person)
     save()
+    return person
   }
 
   function deletePerson(index) {

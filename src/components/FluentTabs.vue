@@ -11,6 +11,7 @@
       @click="$emit('update:modelValue', option.value)"
     >
       <FluentIcon v-if="option.icon" :icon="option.icon" :width="16" />
+      <span v-else-if="option.symbol" class="fluent-tab-symbol" aria-hidden="true">{{ option.symbol }}</span>
       <span>{{ option.label }}</span>
     </button>
   </div>
@@ -35,4 +36,5 @@ defineEmits(['update:modelValue'])
 .fluent-tab:active { transform: scale(0.98); }
 .fluent-tab.active { background: var(--bg-card-solid); color: var(--text-primary); box-shadow: var(--shadow-2); }
 .fluent-tab.active::before { transform: scaleY(1); }
+.fluent-tab-symbol { width: 16px; font-family: "Segoe UI Symbol", sans-serif; font-size: 18px; font-weight: 600; line-height: 1; text-align: center; flex-shrink: 0; }
 </style>

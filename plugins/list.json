@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "apiVersion": "1.0.0",
+  "updatedAt": "2026-08-01",
+  "plugins": [
+    {
+      "id": "cn.cyrene2008.sound-effects",
+      "name": "来点音效",
+      "version": "1.0.0",
+      "author": "Cyrene2008",
+      "description": "为随机点名、翻牌点名和抽奖添加可选音效。",
+      "repository": "Cyrene2008/CyreneNameRoller",
+      "downloadUrl": "https://github.com/Cyrene2008/CyreneNameRoller/releases/latest/download/sound-effects-1.0.0.cnrp",
+      "sha256": "",
+      "publisherKey": "",
+      "icon": "https://raw.githubusercontent.com/Cyrene2008/CyreneNameRoller/master/plugins/catalog/cn.cyrene2008.sound-effects/icon.svg",
+      "readmeUrl": "https://raw.githubusercontent.com/Cyrene2008/CyreneNameRoller/master/plugins/catalog/cn.cyrene2008.sound-effects/README.md",
+      "permissions": [
+        "storage:read",
+        "storage:write",
+        "events:draw",
+        "audio:select",
+        "audio:play",
+        "notifications:show"
+      ],
+      "dependencies": [],
+      "defaultEnabled": true,
+      "status": "preview"
+    }
+  ]
+}

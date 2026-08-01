@@ -22,7 +22,7 @@
         <div class="file-drop-target">
           <FluentIcon icon="arrow-upload-20-regular" :width="28" />
           <strong>{{ lang === 'en' ? 'Drop to import' : '松开以导入文件' }}</strong>
-          <span>CSV / XLSX / JSON / CYRENE</span>
+          <span>CSV / XLSX / JSON / CYRENE / CNRP</span>
         </div>
       </div>
     </Transition>
@@ -122,6 +122,7 @@ import { useNamesStore } from '../../stores/names'
 import { useStatisticsStore } from '../../stores/statistics'
 import { useRecordsStore } from '../../stores/records'
 import { usePrizesStore } from '../../stores/prizes'
+import { usePluginsStore } from '../../plugins/store'
 import { APP_VERSION, APP_VERSION_PREFIX, APP_BUILD, APP_PLATFORM, APP_NAME } from '../../utils/version'
 import { updateState, checkForUpdates, downloadUpdate } from '../../utils/updater'
 import { isTauri, tauriAPI } from '../../utils/tauriAPI'
@@ -135,6 +136,7 @@ const namesStore = useNamesStore()
 const statisticsStore = useStatisticsStore()
 const recordsStore = useRecordsStore()
 const prizesStore = usePrizesStore()
+const pluginsStore = usePluginsStore()
 
 const lang = computed(() => settingsStore.settings.language)
 const systemAccent = ref(DEFAULT_ACCENT)
@@ -176,6 +178,14 @@ function claimDroppedFile(fingerprint) {
 
 const globalToast = ref(null)
 provide('toast', globalToast)
+
+function onPluginMessage(event) {
+  pluginsStore.handlePluginMessage(event)
+}
+
+function onBeforeWindowUnload() {
+  pluginsStore.markCleanShutdown()
+}
 
 // Banner notification system
 const banners = ref([])
@@ -318,6 +328,24 @@ async function importProtectedData() {
 }
 
 async function routeSmartImport(fileName, bytes) {
+  if (/\.cnrp$/i.test(String(fileName || ''))) {
+    const inspected = await pluginsStore.inspectPackage(bytes)
+    const permissions = inspected.manifest.permissions?.length ? inspected.manifest.permissions.join('\n• ') : (lang.value === 'en' ? 'None' : '无')
+    const dependencies = inspected.manifest.dependencies?.length
+      ? inspected.manifest.dependencies.map(item => `${item.id} ${item.range || item.version || '*'}`).join('\n• ')
+      : (lang.value === 'en' ? 'None' : '无')
+    const confirmed = window.confirm(lang.value === 'en'
+      ? `Install ${inspected.manifest.name} v${inspected.manifest.version}?\n\nPermissions:\n• ${permissions}\n\nDependencies:\n• ${dependencies}`
+      : `安装「${inspected.manifest.name}」v${inspected.manifest.version}？\n\n所需权限：\n• ${permissions}\n\n依赖插件：\n• ${dependencies}`)
+    if (!confirmed) return
+    const installed = await pluginsStore.installPackage(bytes, { origin: 'local' })
+    await router.push('/plugins')
+    showBanner({
+      message: `${lang.value === 'en' ? 'Plugin installed' : '插件已安装'}：${installed.manifest.name}`,
+      icon: 'plug-connected-16-regular', type: 'success', duration: 6000
+    })
+    return
+  }
   const { parseSmartFile } = await import('../../utils/smartImport')
   const parsed = parseSmartFile(fileName, bytes)
   if (parsed.kind === 'data') {
@@ -441,6 +469,15 @@ onMounted(async () => {
   await statisticsStore.initialize()
   await recordsStore.initialize()
   await prizesStore.initialize()
+  await pluginsStore.initialize()
+  pluginsStore.setBannerHandler(showBanner)
+  try {
+    await pluginsStore.activateEnabled()
+  } catch (error) {
+    showBanner({ message: `插件已进入纯净模式：${error.message || error}`, icon: 'shield-error-24-regular', type: 'warning', duration: 10000, dismissible: true })
+  }
+  window.addEventListener('message', onPluginMessage)
+  window.addEventListener('beforeunload', onBeforeWindowUnload)
   await setupFileDrop()
   if (isTauri()) {
     systemAccent.value = normalizeHex(await tauriAPI.systemAccent(), DEFAULT_ACCENT)
@@ -452,8 +489,11 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
+  pluginsStore.markCleanShutdown()
   removeAccentListener?.()
   removeDropListener?.()
+  window.removeEventListener('message', onPluginMessage)
+  window.removeEventListener('beforeunload', onBeforeWindowUnload)
 })
 
 watch(() => settingsStore.settings.uiScale, (val) => {

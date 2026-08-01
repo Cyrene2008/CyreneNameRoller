@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "id": "cn.example.cyrene.plugin",
+  "name": "Cyrene Plugin",
+  "version": "1.0.0",
+  "author": "Your Name",
+  "description": "A CyreneNameRoller plugin.",
+  "engine": { "min": "1.0.0", "max": "1.0.0" },
+  "entry": "src/worker.js",
+  "readme": "README.md",
+  "permissions": ["events:draw", "storage:read", "storage:write", "notifications:show"],
+  "contributes": {
+    "pages": [
+      { "id": "main", "title": "Plugin", "location": "plugins", "entry": "pages/main.html" }
+    ]
+  }
+}

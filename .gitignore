@@ -3,6 +3,7 @@
 .algorithm/
 data/
 node_modules
+.npm-cache/
 dist
 release*
 build-output
@@ -22,4 +23,6 @@ public/up.json
 src-tauri/target
 src-tauri/gen
 target/
-docs/assets/
+/docs/
+plugin-dev/
+*.cnrp

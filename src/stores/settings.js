@@ -43,7 +43,9 @@ const DEFAULT_SETTINGS = {
   floatingWindowSize: 64,
   autoStart: false,
   autoStartMode: 'scheduled',
-  autoStartToTray: false
+  autoStartToTray: false,
+  uriSchemeEnabled: false,
+  newMemberCountMode: 'midpoint'
 }
 
 export const useSettingsStore = defineStore('settings', () => {
@@ -56,6 +58,7 @@ export const useSettingsStore = defineStore('settings', () => {
       const saved = await dataBridge.load('settings')
       if (saved && typeof saved === 'object') {
         settings.value = { ...DEFAULT_SETTINGS, ...saved }
+        settings.value.newMemberCountMode = settings.value.newMemberCountMode === 'zero' ? 'zero' : 'midpoint'
         settings.value.floatingWindowStyle = normalizeFloatingWindowStyle(settings.value.floatingWindowStyle)
         settings.value.floatingWindowSize = normalizeFloatingWindowSize(settings.value.floatingWindowSize)
         darkMode.value = !!saved.darkMode

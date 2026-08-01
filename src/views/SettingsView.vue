@@ -88,6 +88,13 @@
           <div class="setting-row"><span class="setting-label">{{ lang === 'en' ? 'Start hidden in tray' : '启动到托盘' }}</span><FluentToggle :model-value="settings.autoStartToTray" @update:model-value="update('autoStartToTray', $event)" /></div>
         </div>
       </Transition>
+      <div v-if="isTauri()" class="setting-row">
+        <div class="setting-label-group">
+          <span class="setting-label">{{ lang === 'en' ? 'Cyrene URI protocol' : 'Cyrene URI 协议' }}</span>
+          <span class="setting-desc">cyrenenr://</span>
+        </div>
+        <FluentToggle :model-value="settings.uriSchemeEnabled" :disabled="uriSchemeBusy" @update:model-value="onUriSchemeToggle" />
+      </div>
       <div v-if="isDesktop" class="setting-row">
         <span class="setting-label">{{ lang === 'en' ? 'Check for Updates' : '检查更新' }}</span>
         <div class="update-actions">
@@ -230,6 +237,13 @@
             : (lang === 'en' ? 'When off, no selection counts are recorded.' : '关闭后不记录中签次数。') }}</span>
         </div>
           <FluentToggle :model-value="settings.recordCounts" :disabled="balance.enabled" @update:model-value="update('recordCounts', $event)" />
+      </div>
+      <div class="setting-row">
+        <div class="setting-label-group">
+          <span class="setting-label">{{ lang === 'en' ? 'New member initial count' : '新成员初始统计' }}</span>
+          <span class="setting-desc">{{ lang === 'en' ? 'Choose the baseline used when adding a person.' : '选择新增人员时使用的初始次数。' }}</span>
+        </div>
+        <FluentSelect :model-value="settings.newMemberCountMode" :options="newMemberCountModeOptions" width="220px" @update:model-value="update('newMemberCountMode', $event)" />
       </div>
       <div class="setting-row">
         <span class="setting-label">{{ lang === 'en' ? 'Data Password' : '数据操作密码' }}</span>
@@ -375,7 +389,6 @@ const showBanner = inject('banner')
 
 const lang = computed(() => settingsStore.settings.language)
 const settings = computed(() => settingsStore.settings)
-
 const isDesktop = computed(() => isTauri())
 const floatingStyleOptions = computed(() => FLOATING_WINDOW_STYLES.map((value, index) => ({
   value,
@@ -434,6 +447,10 @@ const autoStartModeOptions = computed(() => [
   { value: 'scheduled', label: lang.value === 'en' ? 'Administrator scheduled task' : '管理员计划任务', icon: 'fluent:shield-keyhole-16-regular' },
   { value: 'registry', label: lang.value === 'en' ? 'Traditional startup entry' : '传统自启动项', icon: 'fluent:window-console-20-regular' }
 ])
+const newMemberCountModeOptions = computed(() => [
+  { value: 'midpoint', label: lang.value === 'en' ? 'Current range midpoint' : '当前极值中间值', icon: 'fluent:branch-compare-16-regular' },
+  { value: 'zero', label: lang.value === 'en' ? 'Start from zero' : '从 0 开始', icon: 'fluent:number-symbol-16-regular' }
+])
 const finishAnimationOptions = computed(() => [
   { value: 'spotlight', label: lang.value === 'en' ? 'Classic emphasis' : '经典强调', icon: 'fluent:sparkle-16-regular' },
   { value: 'lift', label: lang.value === 'en' ? 'Lift' : '跃升', icon: 'fluent:arrow-up-16-regular' },
@@ -464,6 +481,7 @@ const pwModalHint = computed(() => {
 function update(key, value) { return settingsStore.update(key, value) }
 const customColorDraft = ref(settings.value.customThemeColor)
 const autoStartBusy = ref(false)
+const uriSchemeBusy = ref(false)
 watch(() => settings.value.customThemeColor, value => { customColorDraft.value = value })
 function commitCustomColor() {
   const normalized = normalizeHex(customColorDraft.value, '')
@@ -497,6 +515,25 @@ async function onAutoStart(value) {
     })
   }
   autoStartBusy.value = false
+}
+
+async function onUriSchemeToggle(value) {
+  uriSchemeBusy.value = true
+  const result = await tauriAPI.setUriSchemeEnabled(value)
+  if (result?.success) {
+    await update('uriSchemeEnabled', value)
+    showBanner({
+      message: value
+        ? (lang.value === 'en' ? 'cyrenenr:// links are enabled' : 'cyrenenr:// 协议已启用')
+        : (lang.value === 'en' ? 'cyrenenr:// links are disabled' : 'cyrenenr:// 协议已关闭'),
+      icon: value ? 'link-16-regular' : 'link-dismiss-16-regular',
+      type: 'success',
+      duration: 5000
+    })
+  } else {
+    showBanner({ message: result?.error || (lang.value === 'en' ? 'URI protocol update failed' : 'URI 协议更新失败'), icon: 'warning-16-regular', type: 'warning', duration: 8000 })
+  }
+  uriSchemeBusy.value = false
 }
 
 async function onAutoStartModeChange(mode) {
@@ -673,6 +710,14 @@ function getLogEntries(log) {
 }
 
 onMounted(async () => {
+  if (isTauri()) {
+    let registered = !!(await tauriAPI.isUriSchemeEnabled())
+    if (settings.value.uriSchemeEnabled && !registered) {
+      const result = await tauriAPI.setUriSchemeEnabled(true)
+      registered = !!result?.success
+    }
+    if (registered !== settings.value.uriSchemeEnabled) await update('uriSchemeEnabled', registered)
+  }
   await loadPasswordHash()
   const saved = await dataBridge.load('balance')
   balance.value = normalizeCyreneBalanceSettings(saved)
