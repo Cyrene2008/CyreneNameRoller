@@ -44,6 +44,7 @@ const DEFAULT_SETTINGS = {
   autoStart: false,
   autoStartMode: 'scheduled',
   autoStartToTray: false,
+  uriSchemeEnabled: false,
   newMemberCountMode: 'midpoint'
 }
 
