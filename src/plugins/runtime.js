@@ -28,12 +28,12 @@ function transferableValue(value) {
 }
 
 export class PluginRuntime {
-  constructor({ getPlugin, savePluginData, loadPluginData, showBanner, getNames, selectFile, playAudio, platformBridge, onFault }) {
+  constructor({ getPlugin, savePluginData, loadPluginData, showBanner, getCoreSnapshot, selectFile, playAudio, platformBridge, onFault }) {
     this.getPlugin = getPlugin
     this.savePluginData = savePluginData
     this.loadPluginData = loadPluginData
     this.showBanner = showBanner
-    this.getNames = getNames
+    this.getCoreSnapshot = getCoreSnapshot
     this.selectFile = selectFile
     this.playAudio = playAudio
     this.platformBridge = platformBridge
@@ -46,8 +46,8 @@ export class PluginRuntime {
   registerPages(plugin) {
     for (const page of plugin.manifest.contributes?.pages || []) {
       const entry = resolvePlatformEntry(page, this.platformBridge.info())
-      if (!entry) continue
-      this.pages.set(`${plugin.manifest.id}:${page.id}`, { pluginId: plugin.manifest.id, ...page, entry })
+      if (!entry && !page.native) continue
+      this.pages.set(`${plugin.manifest.id}:${page.id}`, { pluginId: plugin.manifest.id, ...page, entry: entry || '' })
     }
   }
 
@@ -186,7 +186,8 @@ export class PluginRuntime {
     if (!plugin) throw new Error('插件不存在')
     const permissionFor = method => ({
       'storage.read': 'storage:read', 'storage.write': 'storage:write',
-      'names.read': 'names:read', 'notifications.show': 'notifications:show',
+      'names.read': 'names:read', 'records.read': 'records:read', 'statistics.read': 'statistics:read', 'balance.read': 'balance:read',
+      'notifications.show': 'notifications:show',
       'audio.select': 'audio:select', 'audio.play': 'audio:play',
       'system.open-url': 'system:open-url', 'system.select-file': 'system:select-file',
       'system.select-directory': 'system:select-directory',
@@ -200,7 +201,10 @@ export class PluginRuntime {
       case 'runtime.capabilities': return this.platformBridge.capabilities()
       case 'storage.read': return this.loadPluginData(pluginId, storageKey(args.key))
       case 'storage.write': return this.savePluginData(pluginId, storageKey(args.key), args.value)
-      case 'names.read': return this.getNames()
+      case 'names.read': return this.getCoreSnapshot('names')
+      case 'records.read': return this.getCoreSnapshot('records')
+      case 'statistics.read': return this.getCoreSnapshot('statistics')
+      case 'balance.read': return this.getCoreSnapshot('balance')
       case 'notifications.show': return this.showBanner?.({ message: String(args.message || '').slice(0, 1000), type: ['info', 'success', 'warning'].includes(args.type) ? args.type : 'info', duration: Math.max(0, Math.min(30000, Number(args.duration) || 5000)), icon: args.icon || 'info-16-regular' })
       case 'audio.select': return this.selectFile?.('audio/*,.mp3,.m4a,.wav,.flac,.ogg')
       case 'audio.play': {

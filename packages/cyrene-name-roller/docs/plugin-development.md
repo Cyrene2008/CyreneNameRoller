@@ -72,7 +72,12 @@ Activation must complete within ten seconds. The Worker has no host DOM, Pinia, 
 | `notifications:show` | `notifications.show` | Show a host notification. |
 | `audio:select` | `audio.select` | Ask the user to choose an audio file. |
 | `audio:play` | `audio.play` | Play a user-selected local audio data URL. |
-| `names:read` | `names.read` | Read a snapshot of the current people list. |
+| `names:read` | `names.read` | Read a snapshot of lists, people and groups. |
+| `records:read` | `records.read` | Read a snapshot of draw history. |
+| `statistics:read` | `statistics.read` | Read aggregate draw counts and the total count. |
+| `balance:read` | `balance.read` | Read the fairness algorithm version, enabled state and public parameters. |
+
+Core lists, draw history, statistics and fairness parameters are intentionally read-only. The SDK does not expose matching write RPCs, so plugins cannot fabricate history, alter counts or weaken fairness. `storage.write` writes only inside that plugin's own namespace.
 
 Audio files are limited to 16 MB each. The plugin namespace has a 96 MB serialized data quota. Storage keys are restricted to short alphanumeric/dot/dash/underscore values.
 
@@ -132,13 +137,28 @@ Use item events for per-result behavior and summary events for once-per-operatio
 
 ## Plugin pages
 
-Pages run in `iframe sandbox="allow-scripts"` with a restrictive Content Security Policy. The host injects:
+Use host-native settings pages whenever possible. The application renders these schemas with its own Fluent components, theme, spacing and responsive layout, so the plugin looks and behaves like a first-party page:
 
-```js
-window.CyrenePlugin.request(method, args)
+```json
+{
+  "id": "settings",
+  "title": "My plugin",
+  "native": {
+    "type": "settings",
+    "settingsKey": "settings",
+    "controls": [
+      { "id": "enabled", "type": "toggle", "path": "enabled", "label": "Enabled", "default": true },
+      { "id": "volume", "type": "range", "path": "volume", "label": "Volume", "min": 0, "max": 1, "step": 0.01, "default": 0.7 },
+      { "id": "mode", "type": "select", "path": "mode", "label": "Mode", "options": [{ "value": "once", "label": "Once" }] },
+      { "id": "sound", "type": "audio", "path": "sound", "label": "Sound" }
+    ]
+  }
+}
 ```
 
-Pages cannot access the host DOM or network. Use system CSS colors such as `Canvas`, `CanvasText` and `color-mix()` to support light and dark modes.
+Supported controls are `toggle`, `range`, `select` and `audio`. Values are stored in the plugin namespace and can be read by the Worker through `storage.read`.
+
+Legacy HTML pages remain supported for compatibility, but new catalog plugins should prefer native pages. They avoid iframe lifecycle problems and automatically follow Peach, Fluent, custom, light and dark themes.
 
 ## Dependencies
 

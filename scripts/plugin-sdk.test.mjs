@@ -41,6 +41,21 @@ async function loadPlatformBridge(directory) {
   return import(`${pathToFileURL(output).href}?v=${Date.now()}`)
 }
 
+async function loadPluginRuntime(directory) {
+  const output = path.join(directory, 'application-plugin-runtime.mjs')
+  await build({
+    entryPoints: [path.join(projectRoot, 'src/plugins/runtime.js')],
+    bundle: true,
+    write: true,
+    outfile: output,
+    platform: 'browser',
+    format: 'esm',
+    target: ['es2022'],
+    legalComments: 'none'
+  })
+  return import(`${pathToFileURL(output).href}?v=${Date.now()}`)
+}
+
 test('SDK creates, validates and packs a CNRP package accepted by the application parser', async t => {
   const temporary = await fs.mkdtemp(path.join(os.tmpdir(), 'cyrene-plugin-sdk-'))
   t.after(() => fs.rm(temporary, { recursive: true, force: true }))
@@ -95,6 +110,72 @@ test('application parser rejects a tampered CNRP package', async t => {
   const tampered = Buffer.concat([magic, Buffer.from(JSON.stringify(envelope), 'utf8')])
   const parser = await loadApplicationParser(temporary)
   await assert.rejects(() => parser.parsePluginPackage(new Uint8Array(tampered)), /解密|认证|封装|篡改/)
+})
+
+test('native Fluent settings pages validate and pack without an iframe entry', async t => {
+  const temporary = await fs.mkdtemp(path.join(os.tmpdir(), 'cyrene-plugin-native-page-'))
+  t.after(() => fs.rm(temporary, { recursive: true, force: true }))
+  const source = path.join(temporary, 'plugin')
+  const output = path.join(temporary, 'sound-effects.cnrp')
+  await createTemplate(source, 'sound-effects')
+
+  const validation = await validateDirectory(source)
+  const nativePage = validation.manifest.contributes.pages[0]
+  assert.equal(nativePage.entry, undefined)
+  assert.equal(nativePage.native.type, 'settings')
+  assert.ok(nativePage.native.controls.some(control => control.type === 'audio'))
+
+  await packDirectory(source, output)
+  const parser = await loadApplicationParser(temporary)
+  const parsed = await parser.parsePluginPackage(new Uint8Array(await fs.readFile(output)))
+  assert.equal(parsed.manifest.contributes.pages[0].native.type, 'settings')
+  assert.equal(parsed.manifest.contributes.pages[0].entry, undefined)
+})
+
+test('core plugin data exposes read-only snapshots and no write RPCs', async t => {
+  const temporary = await fs.mkdtemp(path.join(os.tmpdir(), 'cyrene-plugin-readonly-core-'))
+  t.after(() => fs.rm(temporary, { recursive: true, force: true }))
+  const { PluginRuntime } = await loadPluginRuntime(temporary)
+  const plugin = {
+    manifest: {
+      id: 'cn.example.readonly',
+      version: '1.0.0',
+      permissions: ['names:read', 'records:read', 'statistics:read', 'balance:read'],
+      contributes: { pages: [] }
+    }
+  }
+  const snapshots = {
+    names: { currentListId: 'list-a', lists: { 'list-a': { names: [] } } },
+    records: [{ personId: 'person-a', listId: 'list-a' }],
+    statistics: { counts: { 'person-a': 3 }, totalCount: 3 },
+    balance: { enabled: true, algorithm: 'Cyrene Balance' }
+  }
+  const runtime = new PluginRuntime({
+    getPlugin: id => id === plugin.manifest.id ? plugin : null,
+    savePluginData: async () => true,
+    loadPluginData: async () => null,
+    showBanner: () => {},
+    getCoreSnapshot: async kind => structuredClone(snapshots[kind]),
+    selectFile: async () => null,
+    playAudio: async () => true,
+    platformBridge: {
+      info: () => ({ runtime: 'web', os: 'unknown', desktop: false }),
+      capabilities: () => ({}),
+      request: async () => ({ ok: false })
+    },
+    onFault: () => {}
+  })
+
+  const namesSnapshot = await runtime.handleRpc(plugin.manifest.id, 'names.read', {})
+  assert.deepEqual(namesSnapshot, snapshots.names)
+  namesSnapshot.lists['list-a'].names.push({ id: 'local-only' })
+  assert.deepEqual(await runtime.handleRpc(plugin.manifest.id, 'names.read', {}), snapshots.names)
+  assert.deepEqual(await runtime.handleRpc(plugin.manifest.id, 'records.read', {}), snapshots.records)
+  assert.deepEqual(await runtime.handleRpc(plugin.manifest.id, 'statistics.read', {}), snapshots.statistics)
+  assert.deepEqual(await runtime.handleRpc(plugin.manifest.id, 'balance.read', {}), snapshots.balance)
+  for (const method of ['names.write', 'records.write', 'statistics.write', 'balance.write']) {
+    await assert.rejects(() => runtime.handleRpc(plugin.manifest.id, method, {}), /不支持的插件请求/)
+  }
 })
 
 test('catalog packages can bind an Ed25519 publisher key', async t => {
