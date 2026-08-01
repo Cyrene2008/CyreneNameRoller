@@ -39,8 +39,9 @@
       <div class="section-heading"><h2>{{ lang === 'en' ? 'Plugin catalog' : '插件列表' }}</h2><span v-if="listUpdated">{{ listUpdated }}</span></div>
       <div v-if="plugins.list.length" class="plugin-grid">
         <article v-for="item in plugins.list" :key="item.id" class="plugin-card catalog-card">
-          <div class="plugin-card-header"><div class="plugin-icon"><img v-if="item.icon" :src="item.icon" alt="" /><FluentIcon v-else icon="plug-connected-24-regular" :width="24" /></div><div class="plugin-heading"><h3>{{ item.name }}</h3><small>{{ item.id }} · v{{ item.version }}</small></div></div>
+          <div class="plugin-card-header"><div class="plugin-icon"><img v-if="item.icon" :src="item.icon" alt="" /><FluentIcon v-else icon="plug-connected-24-regular" :width="24" /></div><div class="plugin-heading"><h3>{{ item.name }}</h3><small>{{ item.id }} · {{ item.version ? `v${item.version}` : (lang === 'en' ? 'Release unavailable' : '版本获取失败') }}</small></div></div>
           <p class="plugin-description">{{ item.description || (lang === 'en' ? 'No description.' : '暂无说明。') }}</p>
+          <div v-if="item.releaseError" class="compatibility-warning"><FluentIcon icon="warning-16-regular" :width="14" /><span>{{ item.releaseError }}</span></div>
           <div class="plugin-meta"><span>{{ lang === 'en' ? 'By' : '开发者' }} {{ item.author || '—' }}</span><span v-if="installedVersion(item.id)">{{ catalogAction(item) }}</span></div>
           <div class="plugin-actions"><FluentButton variant="subtle" size="sm" @click="openCatalogDetails(item)">{{ lang === 'en' ? 'README / Dependencies' : 'README / 依赖' }}</FluentButton><FluentButton variant="primary" size="sm" :disabled="catalogInstallDisabled(item)" @click="installCatalogItem(item)"><FluentIcon icon="arrow-download-16-regular" :width="14" />{{ catalogButtonLabel(item) }}</FluentButton></div>
         </article>
@@ -124,9 +125,10 @@ function catalogAction(item) {
   if (!installed) return ''
   return compareVersion(item.version, installed) > 0 ? `${lang.value === 'en' ? 'Update available' : '可更新'} · v${installed}` : `v${installed}`
 }
-function catalogInstallDisabled(item) { return downloading.value === item.id || (!!installedVersion(item.id) && compareVersion(item.version, installedVersion(item.id)) <= 0) }
+function catalogInstallDisabled(item) { return downloading.value === item.id || !item.version || !!item.releaseError || (!!installedVersion(item.id) && compareVersion(item.version, installedVersion(item.id)) <= 0) }
 function catalogButtonLabel(item) {
   if (downloading.value === item.id) return '...'
+  if (!item.version || item.releaseError) return lang.value === 'en' ? 'Unavailable' : '暂不可用'
   const installed = installedVersion(item.id)
   if (!installed) return lang.value === 'en' ? 'Install' : '安装'
   if (compareVersion(item.version, installed) > 0) return lang.value === 'en' ? 'Update' : '更新'

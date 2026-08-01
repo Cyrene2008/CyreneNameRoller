@@ -56,6 +56,21 @@ async function loadPluginRuntime(directory) {
   return import(`${pathToFileURL(output).href}?v=${Date.now()}`)
 }
 
+async function loadPluginCatalog(directory) {
+  const output = path.join(directory, 'application-plugin-catalog.mjs')
+  await build({
+    entryPoints: [path.join(projectRoot, 'src/plugins/catalog.js')],
+    bundle: true,
+    write: true,
+    outfile: output,
+    platform: 'browser',
+    format: 'esm',
+    target: ['es2022'],
+    legalComments: 'none'
+  })
+  return import(`${pathToFileURL(output).href}?v=${Date.now()}`)
+}
+
 test('SDK creates, validates and packs a CNRP package accepted by the application parser', async t => {
   const temporary = await fs.mkdtemp(path.join(os.tmpdir(), 'cyrene-plugin-sdk-'))
   t.after(() => fs.rm(temporary, { recursive: true, force: true }))
@@ -175,6 +190,59 @@ test('core plugin data exposes read-only snapshots and no write RPCs', async t =
   assert.deepEqual(await runtime.handleRpc(plugin.manifest.id, 'balance.read', {}), snapshots.balance)
   for (const method of ['names.write', 'records.write', 'statistics.write', 'balance.write']) {
     await assert.rejects(() => runtime.handleRpc(plugin.manifest.id, method, {}), /不支持的插件请求/)
+  }
+})
+
+test('plugin catalog resolves the latest GitHub Release asset and digest dynamically', async t => {
+  const temporary = await fs.mkdtemp(path.join(os.tmpdir(), 'cyrene-plugin-catalog-'))
+  t.after(() => fs.rm(temporary, { recursive: true, force: true }))
+  const { resolveCatalogRelease } = await loadPluginCatalog(temporary)
+  const catalogItem = {
+    id: 'cn.example.sound',
+    name: 'Sound',
+    repository: 'example/sound-plugin',
+    release: { provider: 'github', channel: 'latest', assetPattern: 'sound-*.cnrp' }
+  }
+  const resolved = await resolveCatalogRelease(catalogItem, {
+    source: 'github',
+    fetchImpl: async url => {
+      assert.equal(url, 'https://api.github.com/repos/example/sound-plugin/releases/latest')
+      return {
+        ok: true,
+        async json() {
+          return {
+            tag_name: 'v2.3.4',
+            name: '2.3.4',
+            draft: false,
+            prerelease: false,
+            html_url: 'https://github.com/example/sound-plugin/releases/tag/v2.3.4',
+            published_at: '2026-08-01T00:00:00Z',
+            assets: [{
+              name: 'sound-2.3.4.cnrp',
+              state: 'uploaded',
+              digest: `sha256:${'ab'.repeat(32)}`,
+              browser_download_url: 'https://github.com/example/sound-plugin/releases/download/v2.3.4/sound-2.3.4.cnrp'
+            }]
+          }
+        }
+      }
+    }
+  })
+  assert.equal(resolved.version, '2.3.4')
+  assert.equal(resolved.release.assetName, 'sound-2.3.4.cnrp')
+  assert.equal(resolved.sha256, 'ab'.repeat(32))
+  assert.match(resolved.downloadUrl, /releases\/download\/v2\.3\.4/)
+})
+
+test('repository catalog uses dynamic GitHub Release metadata instead of pinned asset URLs', async () => {
+  const catalog = JSON.parse(await fs.readFile(path.join(projectRoot, 'plugins/list.json'), 'utf8'))
+  for (const plugin of catalog.plugins) {
+    assert.ok(plugin.repository)
+    assert.equal(plugin.downloadUrl, undefined)
+    assert.equal(plugin.sha256, undefined)
+    assert.equal(plugin.version, undefined)
+    assert.equal(plugin.release?.provider, 'github')
+    assert.match(plugin.release?.assetPattern || '', /\.cnrp$/)
   }
 })
 
