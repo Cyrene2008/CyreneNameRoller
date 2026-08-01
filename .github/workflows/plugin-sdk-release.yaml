@@ -8,6 +8,9 @@ on:
         required: true
         type: boolean
         default: true
+  push:
+    tags:
+      - 'plugin-sdk-v*'
   release:
     types: [published]
 
@@ -31,7 +34,9 @@ jobs:
       - run: npm run build
       - run: npm run plugin:sdk:pack
       - name: Publish SDK to GitHub Packages
-        if: github.event_name == 'workflow_dispatch' && inputs.publish_package
+        if: >-
+          (github.event_name == 'workflow_dispatch' && inputs.publish_package) ||
+          (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/plugin-sdk-v'))
         working-directory: packages/cyrene-name-roller
         env:
           NODE_AUTH_TOKEN: ${{ github.token }}
