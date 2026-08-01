@@ -75,7 +75,7 @@ export function getManifestCompatibility(manifest, platform = getCurrentPlatform
     }
   }
   const hasWorker = !!resolvePlatformEntry(manifest, platform)
-  const hasPage = (manifest?.contributes?.pages || []).some(page => !!resolvePlatformEntry(page, platform))
+  const hasPage = (manifest?.contributes?.pages || []).some(page => !!page.native || !!resolvePlatformEntry(page, platform))
   if (!hasWorker && !hasPage) {
     return {
       compatible: false,

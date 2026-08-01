@@ -17,6 +17,9 @@ export declare const PluginPermissions: {
   readonly AUDIO_SELECT: 'audio:select'
   readonly AUDIO_PLAY: 'audio:play'
   readonly NAMES_READ: 'names:read'
+  readonly RECORDS_READ: 'records:read'
+  readonly STATISTICS_READ: 'statistics:read'
+  readonly BALANCE_READ: 'balance:read'
   readonly SYSTEM_OPEN_URL: 'system:open-url'
   readonly SYSTEM_SELECT_FILE: 'system:select-file'
   readonly SYSTEM_SELECT_DIRECTORY: 'system:select-directory'
@@ -82,6 +85,32 @@ export interface PluginModule {
   activate(context: PluginContext): void | Promise<void>
   onEvent?(event: string, payload: unknown): void | Promise<void>
   deactivate?(): void | Promise<void>
+}
+
+export interface ReadonlyNamesSnapshot {
+  readonly currentListId: string
+  readonly lists: Readonly<Record<string, unknown>>
+}
+
+export type ReadonlyRecordsSnapshot = ReadonlyArray<Readonly<{
+  personId: string | null
+  listId: string | null
+  groupId?: string | null
+  source?: string
+  time?: number
+}>>
+
+export interface ReadonlyStatisticsSnapshot {
+  readonly counts: Readonly<Record<string, number>>
+  readonly totalCount: number
+}
+
+export interface ReadonlyBalanceSnapshot {
+  readonly enabled: boolean
+  readonly algorithm: string
+  readonly version: string
+  readonly targetGap: number
+  readonly defaults: Readonly<Record<string, unknown>>
 }
 
 export declare function definePlugin<T extends PluginModule>(plugin: T): T

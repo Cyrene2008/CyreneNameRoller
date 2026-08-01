@@ -121,6 +121,42 @@ function normalizeSystemOperations(value, permissions) {
   })
 }
 
+function normalizeNativePage(value, label) {
+  if (value === undefined || value === null) return null
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error(`${label} 无效`)
+  if (value.type !== 'settings') throw new Error(`${label}.type 仅支持 settings`)
+  if (!Array.isArray(value.controls) || value.controls.length > 64) throw new Error(`${label}.controls 无效`)
+  const ids = new Set()
+  const controls = value.controls.map((control, index) => {
+    if (!control || typeof control !== 'object' || !/^[a-z][a-z0-9._-]{0,63}$/i.test(control.id || '') || ids.has(control.id)) {
+      throw new Error(`${label}.controls[${index}] 的 ID 无效或重复`)
+    }
+    ids.add(control.id)
+    const type = String(control.type || '')
+    if (!['toggle', 'range', 'select', 'audio'].includes(type)) throw new Error(`${label}.controls[${index}] 类型不受支持`)
+    if (!control.label || String(control.label).length > 120) throw new Error(`${label}.controls[${index}] 缺少 label`)
+    if (!/^[a-z][a-z0-9._-]{0,63}$/i.test(control.path || '')) throw new Error(`${label}.controls[${index}] path 无效`)
+    if (type === 'select' && (!Array.isArray(control.options) || !control.options.length || control.options.length > 32)) {
+      throw new Error(`${label}.controls[${index}] options 无效`)
+    }
+    if (type === 'range') {
+      const min = Number(control.min)
+      const max = Number(control.max)
+      if (!Number.isFinite(min) || !Number.isFinite(max) || min >= max) throw new Error(`${label}.controls[${index}] 范围无效`)
+    }
+    return {
+      id: String(control.id), type, label: control.label, description: control.description || '', path: String(control.path),
+      accept: type === 'audio' ? String(control.accept || 'audio/*') : undefined,
+      min: type === 'range' ? Number(control.min) : undefined,
+      max: type === 'range' ? Number(control.max) : undefined,
+      step: type === 'range' ? Number(control.step || 0.01) : undefined,
+      options: type === 'select' ? control.options.map(option => ({ value: String(option.value), label: option.label })) : undefined,
+      default: control.default
+    }
+  })
+  return { type: 'settings', settingsKey: String(value.settingsKey || 'settings'), controls }
+}
+
 export function normalizePluginManifest(raw) {
   if (!raw || typeof raw !== 'object') throw new Error('manifest.json 无效')
   const manifest = JSON.parse(JSON.stringify(raw))
@@ -152,9 +188,10 @@ export function normalizePluginManifest(raw) {
     throw new Error('插件至少需要一个 Worker 或页面入口')
   }
   for (const page of manifest.contributes.pages || []) {
-    if (!page.id || !page.title || (!page.entry && !page.platformEntries)) throw new Error('插件页面声明不完整')
+    if (!page.id || !page.title || (!page.entry && !page.platformEntries && !page.native)) throw new Error('插件页面声明不完整')
     if (page.entry) page.entry = validatePath(page.entry)
     page.platformEntries = normalizePlatformEntries(page.platformEntries, `页面 ${page.id}.platformEntries`)
+    page.native = normalizeNativePage(page.native, `页面 ${page.id}.native`)
   }
   if (manifest.icon) manifest.icon = validatePath(manifest.icon)
   if (manifest.readme) manifest.readme = validatePath(manifest.readme)

@@ -126,6 +126,25 @@ function normalizeSystemOperations(value, permissions) {
   })
 }
 
+function normalizeNativePage(value, label) {
+  if (value === undefined || value === null) return null
+  if (!value || typeof value !== 'object' || Array.isArray(value)) fail(`${label} must be an object`)
+  if (value.type !== 'settings') fail(`${label}.type must be settings`)
+  if (!Array.isArray(value.controls) || value.controls.length > 64) fail(`${label}.controls must be an array with at most 64 items`)
+  const ids = new Set()
+  const controls = value.controls.map((control, index) => {
+    if (!control || typeof control !== 'object' || !/^[a-z][a-z0-9._-]{0,63}$/i.test(control.id || '') || ids.has(control.id)) fail(`${label}.controls[${index}] has an invalid or duplicate id`)
+    ids.add(control.id)
+    const type = String(control.type || '')
+    if (!['toggle', 'range', 'select', 'audio'].includes(type)) fail(`${label}.controls[${index}] has an unsupported type`)
+    if (!control.label || !/^[a-z][a-z0-9._-]{0,63}$/i.test(control.path || '')) fail(`${label}.controls[${index}] needs label and path`)
+    if (type === 'select' && (!Array.isArray(control.options) || !control.options.length || control.options.length > 32)) fail(`${label}.controls[${index}] needs options`)
+    if (type === 'range' && (!Number.isFinite(Number(control.min)) || !Number.isFinite(Number(control.max)) || Number(control.min) >= Number(control.max))) fail(`${label}.controls[${index}] has an invalid range`)
+    return structuredClone(control)
+  })
+  return { type: 'settings', settingsKey: String(value.settingsKey || 'settings'), controls }
+}
+
 function normalizeManifest(raw) {
   if (!raw || typeof raw !== 'object') fail('manifest.json must be an object')
   const manifest = structuredClone(raw)
@@ -135,7 +154,7 @@ function normalizeManifest(raw) {
   if (!manifest.engine || compareVersions(API_VERSION, manifest.engine.min || '0') < 0) fail(`plugin requires API ${manifest.engine?.min || 'unknown'}`)
   if (manifest.engine.max && compareVersions(API_VERSION, manifest.engine.max) > 0) fail(`plugin supports API ${manifest.engine.max} or lower`)
   manifest.permissions = [...new Set(manifest.permissions || [])]
-  const permissions = new Set(['storage:read', 'storage:write', 'events:draw', 'notifications:show', 'audio:select', 'audio:play', 'names:read'])
+  const permissions = new Set(['storage:read', 'storage:write', 'events:draw', 'notifications:show', 'audio:select', 'audio:play', 'names:read', 'records:read', 'statistics:read', 'balance:read'])
   for (const permission of ['system:open-url', 'system:select-file', 'system:select-directory', 'system:clipboard-read', 'system:clipboard-write', 'system:reveal-file', 'system:execute']) permissions.add(permission)
   const unknown = manifest.permissions.find(permission => !permissions.has(permission))
   if (unknown) fail(`unknown permission: ${unknown}`)
@@ -149,9 +168,10 @@ function normalizeManifest(raw) {
   if (manifest.icon) manifest.icon = normalizePath(manifest.icon)
   if (manifest.readme) manifest.readme = normalizePath(manifest.readme)
   for (const page of manifest.contributes.pages || []) {
-    if (!page.id || !page.title || (!page.entry && !page.platformEntries)) fail('each contributed page needs id, title and entry')
+    if (!page.id || !page.title || (!page.entry && !page.platformEntries && !page.native)) fail('each contributed page needs id, title and an entry or native schema')
     if (page.entry) page.entry = normalizePath(page.entry)
     page.platformEntries = normalizePlatformEntries(page.platformEntries, `page ${page.id}.platformEntries`)
+    page.native = normalizeNativePage(page.native, `page ${page.id}.native`)
   }
   return manifest
 }

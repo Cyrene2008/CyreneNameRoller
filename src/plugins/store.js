@@ -2,6 +2,9 @@ import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { dataBridge } from '../utils/dataBridge'
 import { useNamesStore } from '../stores/names'
+import { useRecordsStore } from '../stores/records'
+import { useStatisticsStore } from '../stores/statistics'
+import { ALGORITHM_NAME, ALGORITHM_VERSION, DEFAULT_CYRENE_BALANCE_SETTINGS, TARGET_GAP, normalizeCyreneBalanceSettings } from '../utils/cyrene-balance'
 import { emitPluginEvent } from './eventBus'
 import {
   parsePluginPackage,
@@ -76,9 +79,25 @@ export const usePluginsStore = defineStore('plugins', () => {
     savePluginData,
     loadPluginData,
     showBanner: null,
-    getNames: () => {
+    getCoreSnapshot: async kind => {
       const namesStore = useNamesStore()
-      return clone(namesStore.currentNames)
+      if (kind === 'names') return clone({ currentListId: namesStore.currentListId, lists: namesStore.nameLists })
+      if (kind === 'records') return clone(useRecordsStore().records)
+      if (kind === 'statistics') {
+        const statisticsStore = useStatisticsStore()
+        return clone({ counts: statisticsStore.counts, totalCount: statisticsStore.totalCount })
+      }
+      if (kind === 'balance') {
+        const balance = normalizeCyreneBalanceSettings(await dataBridge.load('balance'))
+        return clone({
+          enabled: balance.enabled,
+          algorithm: ALGORITHM_NAME,
+          version: ALGORITHM_VERSION,
+          targetGap: TARGET_GAP,
+          defaults: DEFAULT_CYRENE_BALANCE_SETTINGS
+        })
+      }
+      return null
     },
     selectFile,
     playAudio,
@@ -474,6 +493,10 @@ export const usePluginsStore = defineStore('plugins', () => {
     return plugin && page ? runtime.frameSource(plugin, page) : ''
   }
 
+  async function requestPlugin(pluginId, method, args = {}) {
+    return runtime.handleRpc(pluginId, method, args)
+  }
+
   function mountPageFrame(frame, pluginId, pageId) { runtime.mountFrame(frame, pluginId, pageId) }
   function unmountPageFrame(pluginId, pageId) { runtime.unmountFrame(pluginId, pageId) }
 
@@ -515,7 +538,7 @@ export const usePluginsStore = defineStore('plugins', () => {
     installed, list, source, initialized, recovering, lastError, enabledPlugins, contributedPages,
     initialize, setBannerHandler, saveState, activateEnabled, inspectPackage, installPackage, uninstall, setEnabled,
     setSource, fetchList, downloadPlugin, loadCatalogDetails, pageById, pluginById, pluginAssetUrl,
-    pluginPageSource, mountPageFrame, unmountPageFrame, dispatchEvent, handlePluginMessage, markCleanShutdown,
+    pluginPageSource, requestPlugin, mountPageFrame, unmountPageFrame, dispatchEvent, handlePluginMessage, markCleanShutdown,
     compatibilityFor, platform: platformBridge.info(), platformCapabilities: platformBridge.capabilities()
   }
 })
@@ -553,7 +576,8 @@ function selectFile(accept = 'audio/*') {
       const bytes = new Uint8Array(await file.arrayBuffer())
       let binary = ''
       for (let index = 0; index < bytes.length; index += 0x8000) binary += String.fromCharCode(...bytes.subarray(index, index + 0x8000))
-      resolve({ name: file.name, type: file.type, size: file.size, dataUrl: `data:${file.type || 'application/octet-stream'};base64,${btoa(binary)}` })
+      const type = file.type || mimeFor(file.name)
+      resolve({ name: file.name, type, size: file.size, dataUrl: `data:${type};base64,${btoa(binary)}` })
     }
     input.click()
   })
