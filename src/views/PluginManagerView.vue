@@ -51,6 +51,25 @@
     <FluentModal v-model="showDetails" :title="detailsTitle" max-width="720px">
       <div class="details-body"><div class="readme" v-html="detailsReadmeHtml"></div><div v-if="detailsCapabilities.length" class="dependency-block"><h3>{{ lang === 'en' ? 'Platform capabilities' : '平台能力' }}</h3><div v-for="capability in detailsCapabilities" :key="capability.id" class="dependency-item capability-item"><strong>{{ capability.label }}</strong><span>{{ capability.required ? (lang === 'en' ? 'Required' : '必需') : (lang === 'en' ? 'Optional' : '可选') }}</span><small :class="{ unavailable: !capability.available }">{{ capability.available ? (lang === 'en' ? 'Available here' : '当前可用') : (lang === 'en' ? 'Unavailable here; safely skipped' : '当前不可用，将安全跳过') }}</small></div></div><div v-if="detailsOperations.length" class="dependency-block"><h3>{{ lang === 'en' ? 'Declared system operations' : '声明的系统操作' }}</h3><div v-for="operation in detailsOperations" :key="operation.id" class="operation-item"><strong>{{ operation.label }}</strong><code>{{ operation.command.program }} {{ (operation.command.args || []).join(' ') }}</code><small>{{ (operation.platforms || []).join(' / ') }}</small></div></div><div v-if="detailsPermissions.length" class="dependency-block"><h3>{{ lang === 'en' ? 'Permissions' : '权限' }}</h3><div v-for="permission in detailsPermissions" :key="permission" class="dependency-item"><strong>{{ permission }}</strong></div></div><div v-if="detailsDependencies.length" class="dependency-block"><h3>{{ lang === 'en' ? 'Dependencies' : '依赖插件' }}</h3><div v-for="dependency in detailsDependencies" :key="dependency.id" class="dependency-item"><strong>{{ dependency.id }}</strong><span>{{ dependency.range || dependency.version || '*' }}</span><small v-if="dependency.dataAccess">{{ lang === 'en' ? 'May access shared data' : '可能访问前置插件共享数据' }}</small></div></div></div>
     </FluentModal>
+    <FluentModal v-model="confirmVisible" :title="confirmTitle" max-width="560px" persistent @close="resolveConfirmation(false)">
+      <div class="confirm-body" v-if="confirmMode === 'install' && confirmManifest">
+        <p>{{ lang === 'en' ? `Install ${confirmManifest.name} v${confirmManifest.version}?` : `确定安装「${confirmManifest.name}」v${confirmManifest.version}？` }}</p>
+        <div class="confirm-summary">
+          <div><span>{{ lang === 'en' ? 'Platform' : '运行平台' }}</span><strong>{{ plugins.platform.runtime }} / {{ plugins.platform.os }}</strong></div>
+          <div><span>{{ lang === 'en' ? 'Compatibility' : '兼容性' }}</span><strong :class="{ danger: !confirmCompatibility.compatible }">{{ confirmCompatibility.compatible ? (lang === 'en' ? 'Compatible' : '兼容') : confirmCompatibility.reason }}</strong></div>
+        </div>
+        <div v-if="confirmManifest.permissions?.length" class="confirm-list"><h3>{{ lang === 'en' ? 'Permissions' : '所需权限' }}</h3><ul><li v-for="permission in confirmManifest.permissions" :key="permission">{{ permission }}</li></ul></div>
+        <div v-if="confirmManifest.dependencies?.length" class="confirm-list"><h3>{{ lang === 'en' ? 'Dependencies' : '依赖插件' }}</h3><ul><li v-for="dependency in confirmManifest.dependencies" :key="dependency.id">{{ dependency.id }} {{ dependency.range || dependency.version || '*' }}</li></ul></div>
+        <p v-if="!confirmCompatibility.compatible" class="confirm-warning">{{ confirmCompatibility.reason }}</p>
+      </div>
+      <div class="confirm-body" v-else-if="confirmPlugin">
+        <p>{{ lang === 'en' ? `Uninstall ${confirmPlugin.manifest.name}? Its settings and plugin data will be removed.` : `确定卸载「${confirmPlugin.manifest.name}」？插件设置和插件数据将一并移除。` }}</p>
+      </div>
+      <template #footer>
+        <FluentButton variant="subtle" @click="resolveConfirmation(false)">{{ lang === 'en' ? 'Cancel' : '取消' }}</FluentButton>
+        <FluentButton :variant="confirmMode === 'uninstall' ? 'danger' : 'primary'" @click="resolveConfirmation(true)">{{ confirmMode === 'uninstall' ? (lang === 'en' ? 'Uninstall' : '卸载') : (lang === 'en' ? 'Install' : '安装') }}</FluentButton>
+      </template>
+    </FluentModal>
   </div>
 </template>
 
@@ -82,6 +101,11 @@ const detailsDependencies = ref([])
 const detailsPermissions = ref([])
 const detailsCapabilities = ref([])
 const detailsOperations = ref([])
+const confirmVisible = ref(false)
+const confirmMode = ref('install')
+const confirmManifest = ref(null)
+const confirmPlugin = ref(null)
+let confirmResolver = null
 const installedPlugins = computed(() => Object.values(plugins.installed))
 const contributedPages = computed(() => plugins.contributedPages)
 
@@ -124,20 +148,34 @@ function markdownToHtml(markdown) { return escapeHtml(markdown).replace(/^### (.
 async function refreshList() { loading.value = true; try { await plugins.fetchList(); listUpdated.value = new Date().toLocaleTimeString() } catch (error) { showBanner({ message: error.message, icon: 'warning-16-regular', type: 'warning', duration: 8000 }) } finally { loading.value = false } }
 async function changeSource(value) { await plugins.setSource(value); await refreshList() }
 async function togglePlugin(plugin, enabled) { try { await plugins.setEnabled(plugin.manifest.id, enabled) } catch (error) { showBanner({ message: error.message, icon: 'warning-16-regular', type: 'warning', duration: 8000 }); plugin.enabled = false } }
-async function removePlugin(plugin) { if (!window.confirm(lang.value === 'en' ? `Uninstall ${plugin.manifest.name}?` : `确定卸载「${plugin.manifest.name}」？`)) return; try { await plugins.uninstall(plugin.manifest.id) } catch (error) { showBanner({ message: error.message, icon: 'warning-16-regular', type: 'warning', duration: 8000 }) } }
-function confirmPluginInstall(manifest) {
-  const permissions = manifest.permissions?.length ? manifest.permissions.join('\n• ') : (lang.value === 'en' ? 'None' : '无')
-  const dependencies = manifest.dependencies?.length ? manifest.dependencies.map(item => `${item.id} ${item.range || item.version || '*'}`).join('\n• ') : (lang.value === 'en' ? 'None' : '无')
-  const capabilities = capabilityDetails(manifest)
-  const capabilityText = capabilities.length ? capabilities.map(item => `${item.label}：${item.required ? (lang.value === 'en' ? 'required' : '必需') : (lang.value === 'en' ? 'optional' : '可选')} / ${item.available ? (lang.value === 'en' ? 'available' : '当前可用') : (lang.value === 'en' ? 'unavailable, will be skipped' : '当前不可用，将安全跳过')}`).join('\n• ') : (lang.value === 'en' ? 'None' : '无')
-  const operations = manifest.systemOperations?.length ? manifest.systemOperations.map(item => `${item.label}\n  ${item.command.program} ${(item.command.args || []).join(' ')}`).join('\n• ') : (lang.value === 'en' ? 'None' : '无')
-  const compatibility = plugins.compatibilityFor(manifest)
-  return window.confirm(lang.value === 'en'
-    ? `Install ${manifest.name} v${manifest.version}?\n\nPlatform: ${plugins.platform.runtime}/${plugins.platform.os}\nCompatibility: ${compatibility.compatible ? 'compatible' : compatibility.reason}\n\nCapabilities:\n• ${capabilityText}\n\nFixed system operations:\n• ${operations}\n\nPermissions:\n• ${permissions}\n\nDependencies:\n• ${dependencies}`
-    : `安装「${manifest.name}」v${manifest.version}？\n\n当前平台：${plugins.platform.runtime}/${plugins.platform.os}\n兼容性：${compatibility.compatible ? '兼容' : compatibility.reason}\n\n平台能力：\n• ${capabilityText}\n\n固定系统操作（将按以下原样执行，插件运行时不可修改）：\n• ${operations}\n\n所需权限：\n• ${permissions}\n\n依赖插件：\n• ${dependencies}`)
+const confirmTitle = computed(() => confirmMode.value === 'uninstall' ? (lang.value === 'en' ? 'Confirm uninstall' : '确认卸载') : (lang.value === 'en' ? 'Confirm installation' : '确认安装'))
+const confirmCompatibility = computed(() => confirmManifest.value ? plugins.compatibilityFor(confirmManifest.value) : { compatible: true, reason: '' })
+function resolveConfirmation(value) {
+  if (!confirmResolver) return
+  const resolver = confirmResolver
+  confirmResolver = null
+  confirmVisible.value = false
+  confirmManifest.value = null
+  confirmPlugin.value = null
+  resolver(value)
 }
+function confirmPluginInstall(manifest) {
+  confirmMode.value = 'install'
+  confirmManifest.value = manifest
+  confirmPlugin.value = null
+  confirmVisible.value = true
+  return new Promise(resolve => { confirmResolver = resolve })
+}
+function confirmPluginUninstall(plugin) {
+  confirmMode.value = 'uninstall'
+  confirmPlugin.value = plugin
+  confirmManifest.value = null
+  confirmVisible.value = true
+  return new Promise(resolve => { confirmResolver = resolve })
+}
+async function removePlugin(plugin) { if (!await confirmPluginUninstall(plugin)) return; try { await plugins.uninstall(plugin.manifest.id) } catch (error) { showBanner({ message: error.message, icon: 'warning-16-regular', type: 'warning', duration: 8000 }) } }
 async function installCatalogItem(item) { downloading.value = item.id; try { await plugins.downloadPlugin(item, [], confirmPluginInstall); showBanner({ message: `${lang.value === 'en' ? 'Installed' : '已安装'}：${item.name}`, icon: 'checkmark-circle-16-regular', type: 'success', duration: 5000 }) } catch (error) { if (!/取消|cancel/i.test(error.message)) showBanner({ message: error.message, icon: 'warning-16-regular', type: 'warning', duration: 8000 }) } finally { downloading.value = '' } }
-async function importLocal() { const input = document.createElement('input'); input.type = 'file'; input.accept = '.cnrp,application/octet-stream'; input.onchange = async () => { const file = input.files?.[0]; if (!file) return; try { const bytes = new Uint8Array(await file.arrayBuffer()); const inspected = await plugins.inspectPackage(bytes); if (!confirmPluginInstall(inspected.manifest)) return; const installed = await plugins.installPackage(bytes, { origin: 'local' }); showBanner({ message: `${lang.value === 'en' ? 'Installed' : '已安装'}：${installed.manifest.name}`, icon: 'checkmark-circle-16-regular', type: 'success', duration: 5000 }) } catch (error) { showBanner({ message: error.message, icon: 'warning-16-regular', type: 'warning', duration: 8000 }) } }; input.click() }
+async function importLocal() { const input = document.createElement('input'); input.type = 'file'; input.accept = '.cnrp,application/octet-stream'; input.onchange = async () => { const file = input.files?.[0]; if (!file) return; try { const bytes = new Uint8Array(await file.arrayBuffer()); const inspected = await plugins.inspectPackage(bytes); if (!await confirmPluginInstall(inspected.manifest)) return; const installed = await plugins.installPackage(bytes, { origin: 'local' }); showBanner({ message: `${lang.value === 'en' ? 'Installed' : '已安装'}：${installed.manifest.name}`, icon: 'checkmark-circle-16-regular', type: 'success', duration: 5000 }) } catch (error) { showBanner({ message: error.message, icon: 'warning-16-regular', type: 'warning', duration: 8000 }) } }; input.click() }
 function openDetails(plugin) { detailsTitle.value = `${plugin.manifest.name} v${plugin.manifest.version}`; detailsReadmeHtml.value = markdownToHtml(plugin.readme); detailsDependencies.value = plugin.manifest.dependencies || []; detailsPermissions.value = plugin.manifest.permissions || []; detailsCapabilities.value = capabilityDetails(plugin.manifest); detailsOperations.value = plugin.manifest.systemOperations || []; showDetails.value = true }
 async function openCatalogDetails(item) { detailsTitle.value = item.name; detailsReadmeHtml.value = markdownToHtml(lang.value === 'en' ? 'Loading README…' : '正在获取 README…'); detailsDependencies.value = item.dependencies || []; detailsPermissions.value = item.permissions || []; detailsCapabilities.value = capabilityDetails(item); detailsOperations.value = item.systemOperations || []; showDetails.value = true; try { const details = await plugins.loadCatalogDetails(item); Object.assign(item, details); detailsTitle.value = `${details.name || item.name} v${details.version || item.version}`; detailsReadmeHtml.value = markdownToHtml(details.readme || details.readmeContent || (lang.value === 'en' ? 'README is not available.' : 'README 暂未提供。')); detailsDependencies.value = details.dependencies || []; detailsPermissions.value = details.permissions || []; detailsCapabilities.value = capabilityDetails(details); detailsOperations.value = details.systemOperations || [] } catch (error) { detailsReadmeHtml.value = markdownToHtml(error.message || String(error)) } }
 function openPluginPage(page) { router.push(`/plugin/${encodeURIComponent(page.pluginId)}/${encodeURIComponent(page.id)}`) }
@@ -184,5 +222,16 @@ onMounted(async () => { await plugins.initialize(); plugins.setBannerHandler(sho
 .operation-item { display: grid; grid-template-columns: minmax(120px, .7fr) minmax(0, 1.6fr) auto; gap: 10px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border-subtle); }
 .operation-item code { min-width: 0; overflow-wrap: anywhere; color: var(--text-secondary); font: 11px/1.5 Consolas, monospace; }
 .operation-item small { color: var(--text-muted); }
+.confirm-body { color: var(--text-secondary); font-size: 13px; line-height: 1.6; }
+.confirm-body > p { margin: 0 0 14px; }
+.confirm-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-bottom: 14px; }
+.confirm-summary > div { display: flex; flex-direction: column; gap: 4px; padding: 11px 12px; border: 1px solid var(--border-default); border-radius: var(--radius-md); background: var(--bg-hover); }
+.confirm-summary span { color: var(--text-muted); font-size: 11px; }
+.confirm-summary strong { color: var(--text-primary); overflow-wrap: anywhere; }
+.confirm-summary strong.danger, .confirm-warning { color: var(--danger); }
+.confirm-list { padding-top: 12px; border-top: 1px solid var(--border-subtle); }
+.confirm-list h3 { margin: 0 0 6px; color: var(--text-primary); font-size: 13px; }
+.confirm-list ul { margin: 0 0 12px; padding-left: 20px; color: var(--text-secondary); font-family: Consolas, monospace; font-size: 12px; }
+.confirm-warning { padding: 9px 11px; border: 1px solid color-mix(in srgb, var(--danger) 35%, var(--border-default)); border-radius: var(--radius-sm); background: color-mix(in srgb, var(--danger) 7%, var(--bg-card)); }
 @media (max-width: 760px) { .page-header { flex-direction: column; } .header-actions { justify-content: flex-start; } .plugins-view { padding: 20px 14px; } }
 </style>
