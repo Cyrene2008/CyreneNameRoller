@@ -25,6 +25,7 @@ jobs:
           node-version: 20.x
           cache: 'npm'
       - run: npm ci
+      - run: npm test
       - run: npm run build
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

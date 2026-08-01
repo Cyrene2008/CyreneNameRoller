@@ -13,7 +13,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
-use tauri::{Emitter, LogicalSize, Manager, State};
+use tauri::{Emitter, EventTarget, LogicalSize, Manager, PhysicalPosition, State};
 use tauri_plugin_dialog::DialogExt;
 
 #[cfg(target_os = "windows")]
@@ -30,6 +30,20 @@ const DATA_MAGIC: &[u8] = b"CYRENE1\0";
 const DATA_NONCE_LENGTH: usize = 12;
 const DATA_TAG_LENGTH: usize = 16;
 const STARTUP_TASK_NAME: &str = "CyreneNameRollerAutoStart";
+const FLOATING_WINDOW_SIZE: i32 = 64;
+const MIN_FLOATING_WINDOW_SIZE: i32 = 40;
+const MAX_FLOATING_WINDOW_SIZE: i32 = 256;
+const FLOATING_WINDOW_SIZE_STEP: i32 = 4;
+
+fn normalize_floating_window_size(value: Option<f64>) -> i32 {
+    let Some(value) = value.filter(|value| value.is_finite()) else {
+        return FLOATING_WINDOW_SIZE;
+    };
+    let rounded =
+        (value / FLOATING_WINDOW_SIZE_STEP as f64).round() as i32 * FLOATING_WINDOW_SIZE_STEP;
+    rounded.clamp(MIN_FLOATING_WINDOW_SIZE, MAX_FLOATING_WINDOW_SIZE)
+}
+
 const STARTUP_REGISTRY_VALUE: &str = "CyreneNameRoller";
 const INSTANCE_PORT: u16 = 47618;
 const INSTANCE_MESSAGE: &[u8] = b"CYRENE_SHOW_MAIN_V1\n";
@@ -365,6 +379,200 @@ fn restore_window_state(app: &tauri::AppHandle) {
         }
         let _ = window.center();
     }
+}
+
+fn center_floating_window(
+    work_x: i32,
+    work_y: i32,
+    work_width: u32,
+    work_height: u32,
+    scale_factor: f64,
+    logical_size: i32,
+) -> (i32, i32) {
+    let physical_size = logical_size as f64 * scale_factor;
+    let x = work_x as f64 + (work_width as f64 - physical_size) / 2.0;
+    let y = work_y as f64 + (work_height as f64 - physical_size) / 2.0;
+    (x.round() as i32, y.round() as i32)
+}
+
+fn floating_window_position_visible(
+    x: i32,
+    y: i32,
+    work_areas: &[(i32, i32, u32, u32, f64)],
+    logical_size: i32,
+) -> bool {
+    let left = x as i64;
+    let top = y as i64;
+
+    work_areas
+        .iter()
+        .any(|(work_x, work_y, work_width, work_height, scale_factor)| {
+            let physical_size = (logical_size as f64 * scale_factor).round() as i64;
+            let right = left + physical_size;
+            let bottom = top + physical_size;
+            let work_left = *work_x as i64;
+            let work_top = *work_y as i64;
+            let work_right = work_left + *work_width as i64;
+            let work_bottom = work_top + *work_height as i64;
+            left < work_right && right > work_left && top < work_bottom && bottom > work_top
+        })
+}
+
+fn resize_floating_window_position(x: i32, y: i32, old_size: i32, new_size: i32) -> (i32, i32) {
+    let delta = (old_size - new_size) as f64 / 2.0;
+    (
+        (x as f64 + delta).round() as i32,
+        (y as f64 + delta).round() as i32,
+    )
+}
+
+fn constrain_floating_window_position(
+    x: i32,
+    y: i32,
+    physical_size: i32,
+    work_x: i32,
+    work_y: i32,
+    work_width: u32,
+    work_height: u32,
+) -> (i32, i32) {
+    let max_x = work_x
+        .saturating_add(work_width as i32)
+        .saturating_sub(physical_size);
+    let max_y = work_y
+        .saturating_add(work_height as i32)
+        .saturating_sub(physical_size);
+    (
+        x.clamp(work_x, max_x.max(work_x)),
+        y.clamp(work_y, max_y.max(work_y)),
+    )
+}
+
+fn floating_work_areas(app: &tauri::AppHandle) -> Result<Vec<(i32, i32, u32, u32, f64)>, String> {
+    app.available_monitors()
+        .map_err(|error| error.to_string())
+        .map(|monitors| {
+            monitors
+                .into_iter()
+                .map(|monitor| {
+                    let area = monitor.work_area();
+                    (
+                        area.position.x,
+                        area.position.y,
+                        area.size.width,
+                        area.size.height,
+                        monitor.scale_factor(),
+                    )
+                })
+                .collect()
+        })
+}
+
+fn floating_window_size(app: &tauri::AppHandle) -> i32 {
+    let store = app.state::<EncryptedStore>();
+    let value = store.values.lock().ok().and_then(|values| {
+        values["settings"]["floatingWindowSize"]
+            .as_f64()
+            .or_else(|| {
+                values["settings"]["floatingWindowSize"]
+                    .as_i64()
+                    .map(|value| value as f64)
+            })
+    });
+    normalize_floating_window_size(value)
+}
+
+fn primary_floating_position(
+    app: &tauri::AppHandle,
+    logical_size: i32,
+) -> Result<(i32, i32), String> {
+    let monitor = app
+        .primary_monitor()
+        .map_err(|error| error.to_string())?
+        .ok_or_else(|| "无法获取主屏幕信息".to_string())?;
+    let area = monitor.work_area();
+    Ok(center_floating_window(
+        area.position.x,
+        area.position.y,
+        area.size.width,
+        area.size.height,
+        monitor.scale_factor(),
+        logical_size,
+    ))
+}
+
+fn stored_tauri_floating_position(app: &tauri::AppHandle) -> Option<(i32, i32)> {
+    let store = app.state::<EncryptedStore>();
+    let values = store.values.lock().ok()?;
+    let position = &values["floatingWindowPosition"]["tauri"];
+    let x = i32::try_from(position["x"].as_i64()?).ok()?;
+    let y = i32::try_from(position["y"].as_i64()?).ok()?;
+    Some((x, y))
+}
+
+fn resolve_tauri_floating_position(
+    app: &tauri::AppHandle,
+    logical_size: i32,
+) -> Result<((i32, i32), bool), String> {
+    let work_areas = floating_work_areas(app)?;
+    if let Some((x, y)) = stored_tauri_floating_position(app) {
+        if floating_window_position_visible(x, y, &work_areas, logical_size) {
+            return Ok(((x, y), false));
+        }
+    }
+    Ok((primary_floating_position(app, logical_size)?, true))
+}
+
+fn floating_work_area_for_center(
+    work_areas: &[(i32, i32, u32, u32, f64)],
+    center_x: i32,
+    center_y: i32,
+) -> Option<(i32, i32, u32, u32, f64)> {
+    work_areas.iter().copied().find(|(x, y, width, height, _)| {
+        center_x >= *x
+            && center_x < x.saturating_add(*width as i32)
+            && center_y >= *y
+            && center_y < y.saturating_add(*height as i32)
+    })
+}
+
+fn persist_tauri_floating_position(app: &tauri::AppHandle, x: i32, y: i32) -> Result<(), String> {
+    let store = app.state::<EncryptedStore>();
+    store.is_healthy()?;
+    let previous_position_value;
+    {
+        let mut values = store
+            .values
+            .lock()
+            .map_err(|_| "数据锁定失败".to_string())?;
+        let root = values
+            .as_object_mut()
+            .ok_or_else(|| "数据内容无效".to_string())?;
+        previous_position_value = root.get("floatingWindowPosition").cloned();
+        let positions = root
+            .entry("floatingWindowPosition".to_string())
+            .or_insert_with(|| serde_json::json!({}));
+        if !positions.is_object() {
+            *positions = serde_json::json!({});
+        }
+        positions
+            .as_object_mut()
+            .expect("floatingWindowPosition was normalized to an object")
+            .insert("tauri".to_string(), serde_json::json!({ "x": x, "y": y }));
+    }
+
+    if let Err(error) = store.persist() {
+        if let Ok(mut values) = store.values.lock() {
+            if let Some(root) = values.as_object_mut() {
+                if let Some(previous) = previous_position_value {
+                    root.insert("floatingWindowPosition".to_string(), previous);
+                } else {
+                    root.remove("floatingWindowPosition");
+                }
+            }
+        }
+        return Err(error);
+    }
+    Ok(())
 }
 
 async fn download_installer_bytes(
@@ -964,28 +1172,47 @@ async fn download_and_launch_update(
 
 #[tauri::command]
 async fn open_floating_window(app: tauri::AppHandle) -> Result<(), String> {
+    let size = floating_window_size(&app);
     if let Some(win) = app.get_webview_window("floating") {
-        win.set_size(LogicalSize::new(64.0, 64.0))
+        win.set_size(LogicalSize::new(size as f64, size as f64))
             .map_err(|e| e.to_string())?;
         win.show().map_err(|e| e.to_string())?;
         win.set_focus().map_err(|e| e.to_string())?;
         return Ok(());
     }
-    tauri::WebviewWindowBuilder::new(
+    let ((x, y), used_fallback) = resolve_tauri_floating_position(&app, size)?;
+    let win = tauri::WebviewWindowBuilder::new(
         &app,
         "floating",
         tauri::WebviewUrl::App("index.html#/floating".into()),
     )
     .always_on_top(true)
+    .skip_taskbar(true)
     .decorations(false)
     .shadow(false)
     .resizable(false)
     .transparent(true)
-    .inner_size(64.0, 64.0)
-    .min_inner_size(64.0, 64.0)
-    .max_inner_size(64.0, 64.0)
+    .inner_size(size as f64, size as f64)
+    .min_inner_size(
+        MIN_FLOATING_WINDOW_SIZE as f64,
+        MIN_FLOATING_WINDOW_SIZE as f64,
+    )
+    .max_inner_size(
+        MAX_FLOATING_WINDOW_SIZE as f64,
+        MAX_FLOATING_WINDOW_SIZE as f64,
+    )
+    .visible(false)
     .build()
     .map_err(|e| e.to_string())?;
+    win.set_position(PhysicalPosition::new(x, y))
+        .map_err(|e| e.to_string())?;
+    if used_fallback {
+        if let Err(error) = persist_tauri_floating_position(&app, x, y) {
+            eprintln!("[floating] failed to persist fallback position: {}", error);
+        }
+    }
+    win.show().map_err(|e| e.to_string())?;
+    win.set_focus().map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -995,6 +1222,107 @@ async fn close_floating_window(app: tauri::AppHandle) -> Result<(), String> {
         win.close().map_err(|e| e.to_string())?;
     }
     Ok(())
+}
+
+#[tauri::command]
+async fn save_floating_window_position(app: tauri::AppHandle) -> Result<(), String> {
+    let win = app
+        .get_webview_window("floating")
+        .ok_or_else(|| "悬浮窗不可用".to_string())?;
+    let position = win.outer_position().map_err(|error| error.to_string())?;
+    persist_tauri_floating_position(&app, position.x, position.y)
+}
+
+#[tauri::command]
+async fn reset_floating_window_position(app: tauri::AppHandle) -> Result<(), String> {
+    if app.get_webview_window("floating").is_none() {
+        open_floating_window(app.clone()).await?;
+    }
+    let win = app
+        .get_webview_window("floating")
+        .ok_or_else(|| "悬浮窗不可用".to_string())?;
+    let previous = win.outer_position().map_err(|error| error.to_string())?;
+    let (x, y) = primary_floating_position(&app, floating_window_size(&app))?;
+    win.set_position(PhysicalPosition::new(x, y))
+        .map_err(|error| error.to_string())?;
+    if let Err(error) = persist_tauri_floating_position(&app, x, y) {
+        let _ = win.set_position(previous);
+        return Err(error);
+    }
+    win.show().map_err(|error| error.to_string())?;
+    win.set_focus().map_err(|error| error.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+async fn set_floating_window_style(app: tauri::AppHandle, style: String) -> Result<(), String> {
+    app.emit_to(
+        EventTarget::webview_window("floating"),
+        "floating-window-style-changed",
+        style,
+    )
+    .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+async fn set_floating_window_size(app: tauri::AppHandle, size: f64) -> Result<i32, String> {
+    let size = normalize_floating_window_size(Some(size));
+    let Some(win) = app.get_webview_window("floating") else {
+        return Ok(size);
+    };
+
+    let previous_position = win.outer_position().map_err(|error| error.to_string())?;
+    let previous_size = win.outer_size().map_err(|error| error.to_string())?;
+    let scale_factor = win.scale_factor().map_err(|error| error.to_string())?;
+    let physical_size = (size as f64 * scale_factor).round() as i32;
+    let (mut x, mut y) = resize_floating_window_position(
+        previous_position.x,
+        previous_position.y,
+        previous_size.width as i32,
+        physical_size,
+    );
+    let center_x = previous_position
+        .x
+        .saturating_add(previous_size.width as i32 / 2);
+    let center_y = previous_position
+        .y
+        .saturating_add(previous_size.height as i32 / 2);
+    let work_areas = floating_work_areas(&app)?;
+    if let Some((work_x, work_y, work_width, work_height, _)) =
+        floating_work_area_for_center(&work_areas, center_x, center_y)
+    {
+        (x, y) = constrain_floating_window_position(
+            x,
+            y,
+            physical_size,
+            work_x,
+            work_y,
+            work_width,
+            work_height,
+        );
+    } else {
+        (x, y) = primary_floating_position(&app, size)?;
+    }
+
+    win.set_size(LogicalSize::new(size as f64, size as f64))
+        .map_err(|error| error.to_string())?;
+    if let Err(error) = win.set_position(PhysicalPosition::new(x, y)) {
+        let _ = win.set_size(previous_size);
+        let _ = win.set_position(previous_position);
+        return Err(error.to_string());
+    }
+    if let Err(error) = persist_tauri_floating_position(&app, x, y) {
+        let _ = win.set_size(previous_size);
+        let _ = win.set_position(previous_position);
+        return Err(error);
+    }
+    app.emit_to(
+        EventTarget::webview_window("floating"),
+        "floating-window-size-changed",
+        size,
+    )
+    .map_err(|error| error.to_string())?;
+    Ok(size)
 }
 
 #[tauri::command]
@@ -1477,6 +1805,10 @@ pub fn run() {
             download_and_launch_update,
             open_floating_window,
             close_floating_window,
+            save_floating_window_position,
+            reset_floating_window_position,
+            set_floating_window_style,
+            set_floating_window_size,
             focus_main_window,
             hide_to_tray,
             main_window_ready,
@@ -1484,4 +1816,102 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        center_floating_window, constrain_floating_window_position,
+        floating_window_position_visible, normalize_floating_window_size,
+        resize_floating_window_position,
+    };
+
+    #[test]
+    fn floating_window_size_normalizes_to_supported_steps() {
+        assert_eq!(normalize_floating_window_size(None), 64);
+        assert_eq!(normalize_floating_window_size(Some(20.0)), 40);
+        assert_eq!(normalize_floating_window_size(Some(66.0)), 68);
+        assert_eq!(normalize_floating_window_size(Some(200.0)), 200);
+        assert_eq!(normalize_floating_window_size(Some(300.0)), 256);
+    }
+
+    #[test]
+    fn floating_window_centers_in_offset_work_area() {
+        assert_eq!(
+            center_floating_window(1920, 40, 1920, 1040, 1.0, 64),
+            (2848, 528)
+        );
+    }
+
+    #[test]
+    fn floating_window_centers_logical_size_at_high_dpi() {
+        assert_eq!(
+            center_floating_window(0, 0, 1920, 1080, 1.5, 64),
+            (912, 492)
+        );
+    }
+
+    #[test]
+    fn floating_window_accepts_positive_overlap() {
+        assert!(floating_window_position_visible(
+            1919,
+            100,
+            &[(0, 0, 1920, 1080, 1.0)],
+            64
+        ));
+    }
+
+    #[test]
+    fn floating_window_rejects_off_screen_position() {
+        assert!(!floating_window_position_visible(
+            3000,
+            100,
+            &[(0, 0, 1920, 1080, 1.0)],
+            64
+        ));
+    }
+
+    #[test]
+    fn floating_window_centers_requested_logical_size() {
+        assert_eq!(
+            center_floating_window(0, 0, 1920, 1080, 1.0, 128),
+            (896, 476)
+        );
+    }
+
+    #[test]
+    fn floating_window_visibility_uses_requested_logical_size() {
+        assert!(floating_window_position_visible(
+            -100,
+            100,
+            &[(-0, 0, 1920, 1080, 1.0)],
+            128
+        ));
+        assert!(!floating_window_position_visible(
+            -100,
+            100,
+            &[(0, 0, 1920, 1080, 1.0)],
+            40
+        ));
+    }
+
+    #[test]
+    fn floating_window_resizes_around_physical_center() {
+        assert_eq!(
+            resize_floating_window_position(100, 200, 64, 128),
+            (68, 168)
+        );
+        assert_eq!(
+            resize_floating_window_position(68, 168, 128, 40),
+            (112, 212)
+        );
+    }
+
+    #[test]
+    fn floating_window_constrains_into_physical_work_area() {
+        assert_eq!(
+            constrain_floating_window_position(-20, 1070, 128, 0, 40, 1920, 1040),
+            (0, 952)
+        );
+    }
 }

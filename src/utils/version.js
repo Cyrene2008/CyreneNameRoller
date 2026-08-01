@@ -13,7 +13,6 @@ function getBuildNumber() {
 
 function getPlatformSuffix() {
   if (typeof window !== 'undefined' && window.__TAURI_INTERNALS__) return 'tauri-win64'
-  if (typeof window !== 'undefined' && window.electronAPI) return 'electron-win64'
   return 'web'
 }
 

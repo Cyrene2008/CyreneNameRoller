@@ -10,9 +10,6 @@ async function fetchAnnouncementsNative() {
     if (isTauri()) {
       const r = await tauriAPI.fetchAnnouncements()
       if (r) return r
-    } else if (typeof window !== 'undefined' && window.electronAPI?.fetchAnnouncements) {
-      const r = await window.electronAPI.fetchAnnouncements()
-      if (r && r.ok) return r.data
     }
   } catch (e) {
     console.warn('[announcement] native fetch failed, fallback to webview:', e)

@@ -9,7 +9,7 @@ import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { Icon } from '@iconify/vue'
 import { isTauri } from '../utils/tauriAPI'
 
-const show = computed(() => !isTauri() && !window.electronAPI)
+const show = computed(() => !isTauri())
 const isFullscreen = ref(false)
 
 function toggle() {

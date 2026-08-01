@@ -1,6 +1,8 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { dataBridge } from '../utils/dataBridge'
+import { normalizeFloatingWindowStyle } from '../utils/floatingWindowStyle'
+import { normalizeFloatingWindowSize } from '../utils/floatingWindowSize'
 
 const DEFAULT_SETTINGS = {
   recordCounts: true,
@@ -37,6 +39,8 @@ const DEFAULT_SETTINGS = {
   dockCollapsed: false,
   disableSplash: false,
   floatingWindowEnabled: false,
+  floatingWindowStyle: 'text',
+  floatingWindowSize: 64,
   autoStart: false,
   autoStartMode: 'scheduled',
   autoStartToTray: false
@@ -52,6 +56,8 @@ export const useSettingsStore = defineStore('settings', () => {
       const saved = await dataBridge.load('settings')
       if (saved && typeof saved === 'object') {
         settings.value = { ...DEFAULT_SETTINGS, ...saved }
+        settings.value.floatingWindowStyle = normalizeFloatingWindowStyle(settings.value.floatingWindowStyle)
+        settings.value.floatingWindowSize = normalizeFloatingWindowSize(settings.value.floatingWindowSize)
         darkMode.value = !!saved.darkMode
 
         if (!saved.uiScaleVersion || saved.uiScaleVersion < 2) {

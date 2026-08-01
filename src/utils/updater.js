@@ -25,14 +25,11 @@ export const updateState = ref({
 
 export function getPlatform() {
   if (isTauri()) return 'tauri-win64'
-  if (typeof window !== 'undefined' && window.electronAPI) return 'electron-win64'
   return 'web'
 }
 
 export function findPlatformAsset(assets, platform = getPlatform()) {
-  const platformName = platform.startsWith('tauri')
-    ? 'tauri'
-    : platform.startsWith('electron') ? 'electron' : ''
+  const platformName = platform.startsWith('tauri') ? 'tauri' : ''
   if (!platformName) return null
 
   return (assets || []).find(asset => {
@@ -66,11 +63,6 @@ function compareVersions(a, b) {
 }
 
 export async function fetchRelease() {
-  if (typeof window !== 'undefined' && window.electronAPI?.checkUpdate) {
-    const result = await window.electronAPI.checkUpdate()
-    if (result?.ok && result.data) return result.data
-    throw new Error(result?.error || 'update check failed')
-  }
   if (isTauri()) {
     const data = await tauriAPI.checkUpdate()
     if (data) return data
@@ -150,14 +142,13 @@ export async function downloadUpdate(bannerFn = null) {
   const source = useSettingsStore().settings.downloadSource || 'cyrene'
   const downloadUrl = getDownloadUrl(originalUrl)
 
-  if (!isTauri() && !window.electronAPI) {
+  if (!isTauri()) {
     window.open(downloadUrl, '_blank')
     return
   }
 
   if (!fileName || !fileName.toLowerCase().endsWith('.exe')) {
-    if (isTauri()) await tauriAPI.openExternal(originalUrl)
-    else await window.electronAPI.openExternal(originalUrl)
+    await tauriAPI.openExternal(originalUrl)
     return
   }
 
@@ -179,15 +170,7 @@ export async function downloadUpdate(bannerFn = null) {
   let removeProgressListener = null
   try {
     let result
-    if (window.electronAPI?.downloadAndLaunchUpdate) {
-      if (window.electronAPI.onUpdateDownloadProgress) {
-        removeProgressListener = window.electronAPI.onUpdateDownloadProgress(progress => {
-          updateState.value.downloadProgress = progress
-          if (bannerHandle) bannerHandle.update({ progress })
-        })
-      }
-      result = await window.electronAPI.downloadAndLaunchUpdate(originalUrl, fileName, expectedSize, source)
-    } else if (isTauri()) {
+    if (isTauri()) {
       const { listen } = await import('@tauri-apps/api/event')
       removeProgressListener = await listen('update-download-progress', event => {
         const progress = Math.max(0, Math.min(99, Number(event.payload) || 0))
