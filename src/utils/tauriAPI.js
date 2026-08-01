@@ -33,6 +33,8 @@ export const tauriAPI = {
   async restartElevatedForAutoStart(enabled, mode = 'scheduled', previousMode = mode) { return this.invoke('restart_elevated_for_auto_start', { enabled, mode, previousMode }) },
   async isProcessElevated() { return this.invoke('is_process_elevated', {}) },
   async isAutoStartLaunch() { return this.invoke('is_autostart_launch', {}) },
+  async setUriSchemeEnabled(enabled) { return this.invoke('set_uri_scheme_enabled', { enabled }) },
+  async isUriSchemeEnabled() { return this.invoke('is_uri_scheme_enabled', {}) },
   async systemAccent() { return this.invoke('system_accent', {}) },
   async saveTextFile(content, defaultName, extension = 'json') { return this.invoke('save_text_file', { content, defaultName, extension }) },
   async openTextFile(extension = 'json') { return this.invoke('open_text_file', { extension }) },
