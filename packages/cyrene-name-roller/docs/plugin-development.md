@@ -47,7 +47,7 @@ The plugin ID is the permanent identity for installation, updates and storage. U
 ## Worker lifecycle
 
 ```js
-import { definePlugin, PluginEvents } from '@cyrene2008/cyrene-name-roller/plugin-sdk'
+import { definePlugin, PluginEvents } from '@starcyrene/cyrene-name-roller/plugin-sdk'
 
 definePlugin({
   async activate(context) {
@@ -98,7 +98,7 @@ Audio files are limited to 16 MB each. The plugin namespace has a 96 MB serializ
 API 1.2 is not designed as an ever-growing list of feature-specific RPC names. Plugins receive a host descriptor and compose a small set of primitives:
 
 ```js
-import { describeHost, queryResource, executeTransaction } from '@cyrene2008/cyrene-name-roller/plugin-sdk'
+import { describeHost, queryResource, executeTransaction } from '@starcyrene/cyrene-name-roller/plugin-sdk'
 
 const host = await describeHost(context)
 const names = await queryResource(context, 'names', { listId: 'class-a' })
@@ -116,7 +116,7 @@ const receipt = await executeTransaction(context, 'draw', {
 Commands are a generic product contribution, not a list of privileged host actions. They let the host place a plugin-defined action in a command palette, page header or context menu while the implementation remains in the plugin Worker:
 
 ```js
-import { definePlugin } from '@cyrene2008/cyrene-name-roller/plugin-sdk'
+import { definePlugin } from '@starcyrene/cyrene-name-roller/plugin-sdk'
 
 definePlugin({
   async onCommand(commandId, args) {
@@ -173,7 +173,7 @@ Declare capabilities explicitly in `manifest.json`:
 Required capabilities unavailable on the current platform prevent activation. Optional capabilities are shown to the user during installation and return a structured unsupported result. A plugin should either show a Web-specific UI or skip that operation:
 
 ```js
-import { definePlugin, getPlatform, requestCapability } from '@cyrene2008/cyrene-name-roller/plugin-sdk'
+import { definePlugin, getPlatform, requestCapability } from '@starcyrene/cyrene-name-roller/plugin-sdk'
 
 definePlugin({
   async activate(context) {
@@ -230,7 +230,7 @@ snapshot and replays subscribed events after a visual surface activates.
 Plugins can build entirely new draw experiences, but must ask the host to commit the result:
 
 ```js
-import { definePlugin, executeDraw } from '@cyrene2008/cyrene-name-roller/plugin-sdk'
+import { definePlugin, executeDraw } from '@starcyrene/cyrene-name-roller/plugin-sdk'
 
 definePlugin({
   async activate(context) {
@@ -348,7 +348,7 @@ Visual surfaces are independent Workers drawing only behind core content:
 ```
 
 ```js
-import { defineVisualSurface } from '@cyrene2008/cyrene-name-roller/plugin-sdk'
+import { defineVisualSurface } from '@starcyrene/cyrene-name-roller/plugin-sdk'
 
 defineVisualSurface({
   activate(context) {
@@ -415,7 +415,7 @@ The host installs dependencies first, detects cycles, validates version ranges a
 Use the SDK helper instead of constructing the RPC name manually:
 
 ```js
-import { readDependencyStorage } from '@cyrene2008/cyrene-name-roller/plugin-sdk'
+import { readDependencyStorage } from '@starcyrene/cyrene-name-roller/plugin-sdk'
 
 const sharedSettings = await readDependencyStorage(context, 'cn.example.base', 'settings')
 ```

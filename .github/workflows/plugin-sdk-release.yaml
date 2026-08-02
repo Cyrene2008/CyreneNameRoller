@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       publish_package:
-        description: Publish @cyrene2008/cyrene-name-roller to GitHub Packages
+        description: Publish @starcyrene/cyrene-name-roller to GitHub Packages
         required: true
         type: boolean
         default: true
@@ -26,35 +26,19 @@ jobs:
           node-version: 22
           cache: npm
           registry-url: https://npm.pkg.github.com
-          scope: '@cyrene2008'
+          scope: '@starcyrene'
       - run: npm ci
       - run: npm test
       - run: npm run build
       - run: npm run plugin:sdk:pack
       - name: Publish SDK to GitHub Packages
-        id: publish-sdk
         if: >-
           (github.event_name == 'workflow_dispatch' && inputs.publish_package) ||
           (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/plugin-sdk-v'))
         working-directory: packages/cyrene-name-roller
         env:
           NODE_AUTH_TOKEN: ${{ github.token }}
-        run: |
-          set +e
-          npm publish --registry=https://npm.pkg.github.com --access public --provenance=false
-          status=$?
-          if [ "$status" -ne 0 ]; then
-            echo "publish_failed=true" >> "$GITHUB_OUTPUT"
-            echo "GitHub Packages publication was not accepted (exit $status)."
-            echo "The package will remain available as a workflow artifact; configure a token with package write access before retrying."
-            exit 0
-          fi
-          echo "publish_failed=false" >> "$GITHUB_OUTPUT"
-      - name: Report GitHub Packages publication status
-        if: steps.publish-sdk.outputs.publish_failed == 'true'
-        run: |
-          echo "GitHub Packages publication was rejected by the repository/package installation permissions."
-          echo "The SDK archive and workflow artifact are still produced; use a publisher PAT or restore package ownership to publish npm metadata."
+        run: npm publish --registry=https://npm.pkg.github.com --access public --provenance=false
       - name: Build example sound plugin
         env:
           CNRP_PUBLISHER_PRIVATE_KEY: ${{ secrets.CNRP_PUBLISHER_PRIVATE_KEY }}
@@ -69,6 +53,7 @@ jobs:
           fi
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: cyrene-name-roller-plugin-sdk
           path: build-output/plugin-sdk/*

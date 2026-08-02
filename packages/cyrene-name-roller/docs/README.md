@@ -1,9 +1,9 @@
 # CyreneNameRoller Plugin SDK
 
-The official developer package is `@cyrene2008/cyrene-name-roller`. Import the public SDK through:
+The official developer package is `@starcyrene/cyrene-name-roller`. Import the public SDK through:
 
 ```js
-import { definePlugin, PluginEvents } from '@cyrene2008/cyrene-name-roller/plugin-sdk'
+import { definePlugin, PluginEvents } from '@starcyrene/cyrene-name-roller/plugin-sdk'
 ```
 
 Create and package a plugin:

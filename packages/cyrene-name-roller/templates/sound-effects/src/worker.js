@@ -1,4 +1,4 @@
-import { definePlugin, PluginEvents } from '@cyrene2008/cyrene-name-roller/plugin-sdk'
+import { definePlugin, PluginEvents } from '@starcyrene/cyrene-name-roller/plugin-sdk'
 
 const defaults = { enabled: true, volume: 0.7, playbackMode: 'once', roller: null, card: null, lottery: null }
 const summaryEvents = { [PluginEvents.ROLLER_RESULT]: 'roller', [PluginEvents.CARD_RESULT]: 'card', [PluginEvents.LOTTERY_RESULT]: 'lottery', [PluginEvents.LOTTERY_ASSIGN_RESULT]: 'lottery' }

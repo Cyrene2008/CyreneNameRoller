@@ -1,4 +1,4 @@
-import { definePlugin, PluginEvents } from '@cyrene2008/cyrene-name-roller/plugin-sdk'
+import { definePlugin, PluginEvents } from '@starcyrene/cyrene-name-roller/plugin-sdk'
 
 definePlugin({
   async activate(context) {
