@@ -18,7 +18,6 @@ function clone(value) {
 
 function animationEnabled() {
   if (typeof document !== 'undefined' && document.querySelector('.app-layout')?.classList.contains('perf-no-anim')) return false
-  if (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches) return false
   return true
 }
 
@@ -36,6 +35,16 @@ function animationDurationMs(definition) {
 
 function animationTimeoutMs(definition) {
   return Math.min(MAX_PLUGIN_ANIMATION_ACTIVE_MS, animationDurationMs(definition) + 500)
+}
+
+function scaledDefinition(definition, scale) {
+  const normalizedScale = Math.min(2, Math.max(0.5, Number(scale) || 1))
+  if (normalizedScale === 1) return definition
+  const result = clone(definition)
+  if (result?.options && Number.isFinite(Number(result.options.duration))) {
+    result.options.duration = Math.max(1, Math.round(Number(result.options.duration) * normalizedScale))
+  }
+  return result
 }
 
 function createAnimationRunner(targetElement, definition) {
@@ -91,6 +100,17 @@ export class PluginAnimationRegistry {
     this.surfaces = new Map()
     this.running = new Map()
     this.elementAnimations = new WeakMap()
+    this.durationScales = new Map()
+  }
+
+  setDurationScale(pluginId, value) {
+    const normalized = Math.min(2, Math.max(0.5, Number(value) || 1))
+    this.durationScales.set(String(pluginId), normalized)
+    return normalized
+  }
+
+  durationScale(pluginId) {
+    return this.durationScales.get(String(pluginId)) ?? 1
   }
 
   registerPlugin(plugin, selections = {}) {
@@ -185,7 +205,8 @@ export class PluginAnimationRegistry {
     const resolved = this.resolve(target, selections, selection)
     const targetElement = element || this.surfaces.get(target)
     if (!resolved || !(targetElement instanceof Element)) return null
-    const definition = resolved.preset.variants?.[variant] || resolved.preset.animation
+    const rawDefinition = resolved.preset.variants?.[variant] || resolved.preset.animation
+    const definition = scaledDefinition(rawDefinition, this.durationScale(resolved.pack.pluginId))
     if (!definition) return null
     let active
     try {

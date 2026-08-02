@@ -496,36 +496,16 @@ let activeRouteGhost = null
 let navigationSequence = 0
 const MAX_PAGE_TRANSITION_MS = 5200
 
-const defaultGsapPageAnimations = {
-  'forward.enter': {
-    from: { opacity: 0, x: 46, scale: 0.965, filter: 'blur(5px)' },
-    to: { opacity: 1, x: 0, scale: 1, filter: 'blur(0px)', duration: 0.42, ease: 'power3.out' }
-  },
-  'forward.leave': {
-    from: { opacity: 1, x: 0, scale: 1, filter: 'blur(0px)' },
-    to: { opacity: 0, x: -28, scale: 0.985, filter: 'blur(2px)', duration: 0.28, ease: 'power2.in' }
-  },
-  'back.enter': {
-    from: { opacity: 0, x: -46, scale: 0.965, filter: 'blur(5px)' },
-    to: { opacity: 1, x: 0, scale: 1, filter: 'blur(0px)', duration: 0.42, ease: 'power3.out' }
-  },
-  'back.leave': {
-    from: { opacity: 1, x: 0, scale: 1, filter: 'blur(0px)' },
-    to: { opacity: 0, x: 28, scale: 0.985, filter: 'blur(2px)', duration: 0.28, ease: 'power2.in' }
-  }
-}
-
 function pageVariant(phase, direction) { return direction + '.' + phase }
 function pageAnimationsEnabled() {
-  return settingsStore.settings.perfAnimations !== false && !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+  // The application owns this switch. Do not silently override it with the
+  // browser/Windows reduced-motion preference; users can disable motion here.
+  return settingsStore.settings.perfAnimations !== false
 }
 function isUsablePageTransitionRun(run) {
   if (!run || typeof run !== 'object') return false
   const duration = Number(run.totalDurationMs)
   if (!Number.isFinite(duration) || duration <= 0 || !run.finished) return false
-  const animation = run.animation
-  if (animation?.playState === 'idle') return false
-  if (typeof animation?.isActive === 'function' && !animation.isActive()) return false
   return true
 }
 function pageTransitionDeadline(run, phase) {
@@ -533,43 +513,68 @@ function pageTransitionDeadline(run, phase) {
   if (!Number.isFinite(duration) || duration <= 0) duration = phase === 'leave' ? 360 : 520
   return Math.min(MAX_PAGE_TRANSITION_MS, Math.max(240, Math.ceil(duration) + 300))
 }
-function runDefaultGsapPageTransition(element, variant) {
-  const definition = defaultGsapPageAnimations[variant] || defaultGsapPageAnimations['forward.enter']
+function runDefaultGsapPageTransition(stage, ghost, direction) {
   let settled = false
   let settleRun
   const finished = new Promise(resolve => { settleRun = resolve })
   const settle = () => {
     if (settled) return
     settled = true
-    try { gsap.set(element, { clearProps: 'transform,filter,opacity' }) } catch {}
+    try { gsap.set(stage, { clearProps: 'transform,clipPath,opacity,filter' }) } catch {}
+    try { if (ghost) gsap.set(ghost, { clearProps: 'transform,clipPath,opacity,filter' }) } catch {}
     settleRun()
   }
-  const tween = gsap.fromTo(element, definition.from, {
-    ...definition.to,
-    overwrite: 'auto',
+  const sign = direction === 'back' ? -1 : 1
+  const timeline = gsap.timeline({
+    defaults: { overwrite: 'auto' },
     onComplete: settle,
     onInterrupt: settle
   })
+  gsap.set(stage, {
+    x: sign * 34,
+    scale: 0.985,
+    opacity: 1,
+    transformOrigin: '50% 50%'
+  })
+  if (ghost) {
+    const clipPath = sign > 0 ? 'inset(0 100% 0 0)' : 'inset(0 0 0 100%)'
+    gsap.set(ghost, { x: 0, scale: 1, opacity: 1, clipPath: 'inset(0 0 0 0)' })
+    timeline.to(ghost, {
+      x: -sign * 18,
+      clipPath,
+      duration: 0.42,
+      ease: 'power3.inOut'
+    }, 0)
+    // The ghost is opaque and sits above the new stage. Reveal the new page
+    // with a single moving edge instead of cross-fading two readable pages.
+    timeline.to(stage, {
+      x: 0,
+      scale: 1,
+      duration: 0.58,
+      ease: 'expo.out'
+    }, 0.04)
+  } else {
+    gsap.set(stage, { opacity: 0, x: sign * 36, scale: 0.98 })
+    timeline.to(stage, {
+      opacity: 1,
+      x: 0,
+      scale: 1,
+      duration: 0.52,
+      ease: 'expo.out'
+    }, 0)
+  }
   return {
-    animation: tween,
-    totalDurationMs: Math.ceil(tween.totalDuration() * 1000),
+    animation: timeline,
+    totalDurationMs: Math.ceil(timeline.totalDuration() * 1000),
     finished,
-    cancel() { try { tween.kill() } finally { settle() } }
+    cancel() { try { timeline.kill() } finally { settle() } }
   }
 }
 function startPageVisual(element, phase, direction) {
   if (!element || !pageAnimationsEnabled()) return null
   const variant = pageVariant(phase, direction)
   try {
-    let run = pluginsStore.startAnimation('page.transition', element, { variant })
-    if (!isUsablePageTransitionRun(run)) {
-      try { run?.cancel?.() } catch {}
-      run = runDefaultGsapPageTransition(element, variant)
-    }
-    if (phase === 'enter') {
-      try { pluginsStore.startAnimation('global.transition', null, { variant: 'page' }) } catch {}
-    }
-    return run
+    return pluginsStore.startAnimation('page.transition', element, { variant })
   } catch (error) {
     console.warn('[navigation] GSAP page transition failed', error)
     return null
@@ -615,34 +620,68 @@ function createRouteGhost(direction) {
   ghost.classList.add('route-page-ghost')
   ghost.setAttribute('aria-hidden', 'true')
   ghost.setAttribute('inert', '')
+  ghost.style.background = 'var(--bg-base)'
   for (const node of ghost.querySelectorAll('[id]')) node.removeAttribute('id')
   container.appendChild(ghost)
-  const run = startPageVisual(ghost, 'leave', direction)
-  if (!run) {
-    ghost.remove()
-    return null
-  }
-  const record = { element: ghost, cancel: null }
-  record.cancel = settleVisualRun(run, 'leave', () => {
+  const record = { element: ghost, direction, cancel: null }
+  record.cancel = () => {
     ghost.remove()
     if (activeRouteGhost === record) activeRouteGhost = null
-  })
+  }
   activeRouteGhost = record
   return record
 }
 
-function startRouteEnter(cycle) {
+function startRouteTransition(cycle) {
   activeEnterRun?.cancel?.()
   const element = routeStageRef.value
   if (!(element instanceof Element) || cycle !== navigationCycle) return
-  const run = startPageVisual(element, 'enter', cycle.direction)
-  if (!run) return
+  const ghost = cycle.ghost
+  if (!pageAnimationsEnabled()) {
+    ghost?.cancel?.()
+    return
+  }
+
+  // A selected page-transition preset is the complete transition. The host
+  // must not add its own tween or a global overlay on top of it.
+  if (pluginsStore.hasAnimation('page.transition')) {
+    const enter = startPageVisual(element, 'enter', cycle.direction)
+    const leave = ghost ? startPageVisual(ghost.element, 'leave', cycle.direction) : null
+    if (isUsablePageTransitionRun(enter) && (!ghost || isUsablePageTransitionRun(leave))) {
+      if (ghost) {
+        ghost.cancel = settleVisualRun(leave, 'leave', () => {
+          ghost.element.remove()
+          if (activeRouteGhost === ghost) activeRouteGhost = null
+        })
+      }
+      const record = { run: enter, cancel: null }
+      record.cancel = settleVisualRun(enter, 'enter', () => {
+        if (activeEnterRun === record) activeEnterRun = null
+      })
+      activeEnterRun = record
+      return
+    }
+    try { enter?.cancel?.() } catch {}
+    try { leave?.cancel?.() } catch {}
+  }
+
+  const run = runDefaultGsapPageTransition(element, ghost?.element, cycle.direction)
+  if (ghost) {
+    ghost.cancel = settleVisualRun(run, 'leave', () => {
+      ghost.element.remove()
+      if (activeRouteGhost === ghost) activeRouteGhost = null
+    })
+  }
   const record = { run, cancel: null }
   record.cancel = settleVisualRun(run, 'enter', () => {
     if (activeEnterRun === record) activeEnterRun = null
   })
   activeEnterRun = record
 }
+
+// Keep the route hook name stable for diagnostics and existing regression
+// checks; page animations still never own Vue's route lifecycle.
+function startRouteEnter(cycle) { startRouteTransition(cycle) }
 
 function routeAnimationOrder(route) {
   if (route.name === 'PluginPage') {
@@ -846,6 +885,7 @@ watch(() => settingsStore.settings.fontFamily, (val) => {
   isolation: isolate;
   backface-visibility: hidden;
   transform-style: preserve-3d;
+  will-change: transform, clip-path;
 }
 
 .route-page-ghost {
@@ -860,6 +900,8 @@ watch(() => settingsStore.settings.fontFamily, (val) => {
   contain: paint;
   backface-visibility: hidden;
   transform-style: preserve-3d;
+  will-change: transform, clip-path;
+  background: var(--bg-base);
 }
 
 .version-badge {
