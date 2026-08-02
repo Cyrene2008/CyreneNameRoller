@@ -527,6 +527,9 @@ async function bundleWorker(sourcePath) {
     sourcemap: false,
     legalComments: 'none',
     alias: {
+      '@starcyrene/cyrene-name-roller/plugin-sdk': sdkPath,
+      '@starcyrene/cyrene-name-roller': sdkPath,
+      // Keep plugins written before the organization transfer buildable.
       '@cyrene2008/cyrene-name-roller/plugin-sdk': sdkPath,
       '@cyrene2008/cyrene-name-roller': sdkPath
     }

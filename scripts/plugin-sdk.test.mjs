@@ -120,7 +120,7 @@ test('SDK creates, validates and packs a CNRP package accepted by the applicatio
   assert.equal(parsed.publisherVerified, false)
   const worker = parser.decodePluginFile(parsed, parsed.manifest.entry)
   assert.ok(worker.length > 200)
-  assert.doesNotMatch(worker, /from\s+['"]@cyrene2008\/cyrene-name-roller/)
+  assert.doesNotMatch(worker, /from\s+['"]@(cyrene2008|starcyrene)\/cyrene-name-roller/)
   assert.doesNotMatch(worker, /Result received/)
   const context = {
     self: null,
@@ -376,7 +376,7 @@ test('SDK bundles visual surface workers and preserves top-level Dock page metad
   }]
   await fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2))
   await fs.writeFile(path.join(source, 'src/visual.js'), `
-    import { defineVisualSurface } from '@cyrene2008/cyrene-name-roller/plugin-sdk'
+    import { defineVisualSurface } from '@starcyrene/cyrene-name-roller/plugin-sdk'
     defineVisualSurface({ activate() {}, onResize() {}, onEvent() {}, deactivate() {} })
   `)
 
@@ -389,7 +389,7 @@ test('SDK bundles visual surface workers and preserves top-level Dock page metad
   assert.equal(parsed.manifest.contributes.pages[0].icon, 'sparkle-24-regular')
   assert.equal(parsed.manifest.contributes.visualSurfaces[0].placement, 'background')
   const worker = parser.decodePluginFile(parsed, 'src/visual.js')
-  assert.doesNotMatch(worker, /from\s+['"]@cyrene2008\/cyrene-name-roller/)
+  assert.doesNotMatch(worker, /from\s+['"]@(cyrene2008|starcyrene)\/cyrene-name-roller/)
   const context = { self: null, globalThis: null }
   context.self = context
   context.globalThis = context

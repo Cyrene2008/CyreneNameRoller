@@ -1,5 +1,5 @@
 {
-  "name": "@cyrene2008/cyrene-name-roller",
+  "name": "@starcyrene/cyrene-name-roller",
   "version": "1.2.0",
   "description": "CyreneNameRoller plugin SDK and CNRP package tool",
   "type": "module",

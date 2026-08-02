@@ -1,17 +1,17 @@
-# @cyrene2008/cyrene-name-roller
+# @starcyrene/cyrene-name-roller
 
 CyreneNameRoller plugin SDK and `.cnrp` package tool.
 
 ## Install
 
 ```bash
-npm install --save-dev @cyrene2008/cyrene-name-roller
+npm install --save-dev @starcyrene/cyrene-name-roller
 ```
 
 Use the SDK through the documented subpath:
 
 ```js
-import { definePlugin, PluginEvents } from '@cyrene2008/cyrene-name-roller/plugin-sdk'
+import { definePlugin, PluginEvents } from '@starcyrene/cyrene-name-roller/plugin-sdk'
 ```
 
 ## CLI
