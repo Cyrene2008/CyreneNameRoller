@@ -57,11 +57,11 @@
         <p>{{ lang === 'en' ? `Install ${confirmManifest.name} v${confirmManifest.version}?` : `确定安装「${confirmManifest.name}」v${confirmManifest.version}？` }}</p>
         <div class="confirm-summary">
           <div><span>{{ lang === 'en' ? 'Platform' : '运行平台' }}</span><strong>{{ plugins.platform.runtime }} / {{ plugins.platform.os }}</strong></div>
-          <div><span>{{ lang === 'en' ? 'Compatibility' : '兼容性' }}</span><strong :class="{ danger: !confirmCompatibility.compatible }">{{ confirmCompatibility.compatible ? (lang === 'en' ? 'Compatible' : '兼容') : confirmCompatibility.reason }}</strong></div>
+          <div><span>{{ lang === 'en' ? 'Compatibility' : '兼容性' }}</span><strong :class="{ danger: !confirmCompatibility.compatible, limited: confirmCompatibility.degraded }">{{ confirmCompatibility.compatible ? (confirmCompatibility.degraded ? (lang === 'en' ? 'Compatibility mode' : '兼容性模式') : (lang === 'en' ? 'Compatible' : '兼容')) : confirmCompatibility.reason }}</strong></div>
         </div>
         <div v-if="confirmManifest.permissions?.length" class="confirm-list"><h3>{{ lang === 'en' ? 'Permissions' : '所需权限' }}</h3><ul><li v-for="permission in confirmManifest.permissions" :key="permission"><span><strong>{{ permissionInfo(permission).label }}</strong><small>{{ permission }}</small></span><em :class="`risk-${permissionInfo(permission).risk}`">{{ permissionInfo(permission).riskLabel }}</em></li></ul></div>
         <div v-if="confirmManifest.dependencies?.length" class="confirm-list"><h3>{{ lang === 'en' ? 'Dependencies' : '依赖插件' }}</h3><ul><li v-for="dependency in confirmManifest.dependencies" :key="dependency.id">{{ dependency.id }} {{ dependency.range || dependency.version || '*' }}</li></ul></div>
-        <p v-if="!confirmCompatibility.compatible" class="confirm-warning">{{ confirmCompatibility.reason }}</p>
+        <p v-if="!confirmCompatibility.compatible || confirmCompatibility.degraded" class="confirm-warning" :class="{ limited: confirmCompatibility.degraded }">{{ confirmCompatibility.reason }}</p>
       </div>
       <div class="confirm-body" v-else-if="confirmPlugin">
         <p>{{ lang === 'en' ? `Uninstall ${confirmPlugin.manifest.name}? Its settings and plugin data will be removed.` : `确定卸载「${confirmPlugin.manifest.name}」？插件设置和插件数据将一并移除。` }}</p>
@@ -262,6 +262,7 @@ onMounted(async () => { await plugins.initialize(); plugins.setBannerHandler(sho
 .confirm-summary span { color: var(--text-muted); font-size: 11px; }
 .confirm-summary strong { color: var(--text-primary); overflow-wrap: anywhere; }
 .confirm-summary strong.danger, .confirm-warning { color: var(--danger); }
+.confirm-summary strong.limited { color: var(--warning); }
 .confirm-list { padding-top: 12px; border-top: 1px solid var(--border-subtle); }
 .confirm-list h3 { margin: 0 0 6px; color: var(--text-primary); font-size: 13px; }
 .confirm-list ul { margin: 0 0 12px; padding: 0; color: var(--text-secondary); font-size: 12px; list-style: none; }
@@ -273,5 +274,6 @@ onMounted(async () => { await plugins.initialize(); plugins.setBannerHandler(sho
 .confirm-list li .risk-elevated { color: var(--warning); background: color-mix(in srgb, var(--warning) 11%, transparent); }
 .confirm-list li .risk-high { color: var(--danger); background: color-mix(in srgb, var(--danger) 11%, transparent); }
 .confirm-warning { padding: 9px 11px; border: 1px solid color-mix(in srgb, var(--danger) 35%, var(--border-default)); border-radius: var(--radius-sm); background: color-mix(in srgb, var(--danger) 7%, var(--bg-card)); }
+.confirm-warning.limited { color: var(--warning); border-color: color-mix(in srgb, var(--warning) 35%, var(--border-default)); background: color-mix(in srgb, var(--warning) 7%, var(--bg-card)); }
 @media (max-width: 760px) { .page-header { flex-direction: column; } .header-actions { justify-content: flex-start; } .plugins-view { padding: 20px 14px; } }
 </style>

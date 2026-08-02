@@ -39,6 +39,8 @@ Use `cnrp create <directory>` for the basic template, or `cnrp create <directory
 
 The plugin ID is the permanent identity for installation, updates and storage. Use a lower-case reverse-domain identifier. `engine` refers to the plugin API version, not the application `26.x` version.
 
+`engine.min` is the hard requirement: when it is newer than the host API, the plugin cannot be loaded. `engine.max` describes the newest API version the developer has verified. A newer host will still load a plugin whose `engine.max` is older, but will show a compatibility warning because some behavior may have changed. This lets the loader remain backward compatible without pretending every old plugin has been fully verified on every future API.
+
 ## Worker lifecycle
 
 ```js
