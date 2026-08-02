@@ -21,6 +21,8 @@ export const useRecordsStore = defineStore('records', () => {
               listId: record.listId,
               groupId: record.groupId || null,
               source: record.source || 'roller',
+              operationId: record.operationId || '',
+              pluginId: record.pluginId || '',
               time: record.time || Date.now()
             }
           }
@@ -32,6 +34,8 @@ export const useRecordsStore = defineStore('records', () => {
             listId: list?.id || record.listId || null,
             groupId: record.groupId || null,
             source: record.source || 'roller',
+            operationId: record.operationId || '',
+            pluginId: record.pluginId || '',
             time: record.time || Date.now()
           }
         })
@@ -47,18 +51,36 @@ export const useRecordsStore = defineStore('records', () => {
     await dataBridge.save('records', records.value)
   }
 
-  function addRecord({ personId, listId, source, groupId = null }) {
-    records.value.unshift({
-      personId,
-      listId,
-      groupId,
-      source,
-      time: Date.now()
-    })
+  function appendRecords(items = [], { persist = true } = {}) {
+    const now = Date.now()
+    const normalized = items.map((record, index) => ({
+      personId: record.personId || null,
+      listId: record.listId || null,
+      groupId: record.groupId || null,
+      source: record.source || 'roller',
+      operationId: record.operationId || '',
+      pluginId: record.pluginId || '',
+      time: record.time || now + index
+    }))
+    if (!normalized.length) return Promise.resolve()
+    records.value.unshift(...normalized)
     if (records.value.length > 500) {
       records.value = records.value.slice(0, 500)
     }
-    save()
+    return persist ? save() : Promise.resolve()
+  }
+
+  function snapshotState() {
+    return records.value.map(record => ({ ...record }))
+  }
+
+  function restoreState(snapshot, { persist = true } = {}) {
+    records.value = Array.isArray(snapshot) ? snapshot.map(record => ({ ...record })) : []
+    return persist ? save() : Promise.resolve()
+  }
+
+  function addRecord(record) {
+    return appendRecords([record])
   }
 
   function clearAll() {
@@ -72,6 +94,9 @@ export const useRecordsStore = defineStore('records', () => {
     initialize,
     save,
     addRecord,
+    appendRecords,
+    snapshotState,
+    restoreState,
     clearAll
   }
 })

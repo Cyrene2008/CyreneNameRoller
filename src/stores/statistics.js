@@ -78,7 +78,7 @@ export const useStatisticsStore = defineStore('statistics', () => {
     return incrementCounts([person])
   }
 
-  function incrementCounts(people) {
+  function incrementCounts(people, { persist = true } = {}) {
     let incremented = 0
     for (const person of people || []) {
       const key = personKey(person)
@@ -89,7 +89,20 @@ export const useStatisticsStore = defineStore('statistics', () => {
     }
     if (incremented === 0) return Promise.resolve()
     totalCount.value += incremented
-    return save()
+    return persist ? save() : Promise.resolve()
+  }
+
+  function snapshotState() {
+    return {
+      counts: { ...counts.value },
+      totalCount: totalCount.value
+    }
+  }
+
+  function restoreState(snapshot, { persist = true } = {}) {
+    counts.value = { ...(snapshot?.counts || {}) }
+    totalCount.value = Math.max(0, Number(snapshot?.totalCount) || 0)
+    return persist ? save() : Promise.resolve()
   }
 
   function getCount(person) {
@@ -152,6 +165,8 @@ export const useStatisticsStore = defineStore('statistics', () => {
     save,
     incrementCount,
     incrementCounts,
+    snapshotState,
+    restoreState,
     getCount,
     initializePersonCount,
     clearAll,

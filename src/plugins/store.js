@@ -4,7 +4,7 @@ import { dataBridge } from '../utils/dataBridge'
 import { useNamesStore } from '../stores/names'
 import { useRecordsStore } from '../stores/records'
 import { useStatisticsStore } from '../stores/statistics'
-import { ALGORITHM_NAME, ALGORITHM_VERSION, DEFAULT_CYRENE_BALANCE_SETTINGS, TARGET_GAP, normalizeCyreneBalanceSettings } from '../utils/cyrene-balance'
+import { ALGORITHM_NAME, ALGORITHM_VERSION, DEFAULT_CYRENE_BALANCE_SETTINGS, TARGET_GAP, normalizeCyreneBalanceSettings, pickCyreneBatch, secureRandom } from '../utils/cyrene-balance'
 import { emitPluginEvent } from './eventBus'
 import {
   parsePluginPackage,
@@ -16,8 +16,10 @@ import {
   pluginSourceCandidates
 } from './constants'
 import { PluginRuntime } from './runtime'
+import { PluginAnimationRegistry } from './animationRegistry'
 import { PluginPlatformBridge } from './platform'
 import { repositorySlug, resolveCatalogRelease } from './catalog'
+import { commitCoreDrawTransaction, createCoreDrawQueue, validateCoreDrawArgs } from './coreDraw'
 
 const STATE_KEY = 'pluginState'
 const PLUGIN_DATA_KEY = 'pluginData'
@@ -64,7 +66,10 @@ export const usePluginsStore = defineStore('plugins', () => {
   const recovering = ref(false)
   const lastError = ref('')
   const pagesRevision = ref(0)
+  const animationSelections = ref({})
+  const animationRegistry = new PluginAnimationRegistry()
   const platformBridge = new PluginPlatformBridge()
+  const queueCoreDraw = createCoreDrawQueue()
 
   const runtime = new PluginRuntime({
     getPlugin: pluginId => installed.value[pluginId],
@@ -91,6 +96,7 @@ export const usePluginsStore = defineStore('plugins', () => {
       }
       return null
     },
+    executeCoreDraw,
     selectFile,
     playAudio,
     platformBridge,
@@ -102,8 +108,87 @@ export const usePluginsStore = defineStore('plugins', () => {
     pagesRevision.value
     return runtime.getContributedPages()
   })
+  const contributedVisualSurfaces = computed(() => {
+    pagesRevision.value
+    return runtime.getContributedVisualSurfaces()
+  })
 
   function refreshPages() { pagesRevision.value += 1 }
+
+  function executeCoreDraw(plugin, rawArgs = {}) {
+    return queueCoreDraw(async () => {
+      validateCoreDrawArgs(rawArgs)
+      const namesStore = useNamesStore()
+      const recordsStore = useRecordsStore()
+      const statisticsStore = useStatisticsStore()
+      await Promise.all([namesStore.initialize(), recordsStore.initialize(), statisticsStore.initialize()])
+
+      const listId = String(rawArgs.listId || namesStore.currentListId || '')
+      const list = namesStore.nameLists[listId]
+      if (!list) throw new Error('抽取名单不存在')
+      const target = rawArgs.target === 'groups' ? 'groups' : 'people'
+      const requestedCount = Math.max(1, Math.min(100, Math.floor(Number(rawArgs.count) || 1)))
+      const allowDuplicates = rawArgs.allowDuplicates === true
+      const gender = ['male', 'female'].includes(rawArgs.gender) ? rawArgs.gender : 'all'
+      const operationId = crypto.randomUUID?.() || `plugin-draw-${Date.now()}-${Math.random().toString(36).slice(2)}`
+      const committedAt = Date.now()
+      let picks = []
+
+      if (target === 'groups') {
+        const groups = (list.groups || []).map(group => ({ id: group.id, cn: group.name, en: group.enName || '', isGroup: true }))
+        if ((list.names || []).some(person => !person.groupId)) groups.push({ id: '__unassigned__', cn: '未分组', en: 'Unassigned', isGroup: true })
+        if (!groups.length) throw new Error('所选名单没有可抽取小组')
+        const count = allowDuplicates ? requestedCount : Math.min(requestedCount, groups.length)
+        const available = [...groups]
+        for (let index = 0; index < count; index += 1) {
+          const pool = allowDuplicates ? groups : available
+          const selectedIndex = Math.min(pool.length - 1, Math.floor(secureRandom() * pool.length))
+          picks.push(pool[selectedIndex])
+          if (!allowDuplicates) available.splice(selectedIndex, 1)
+        }
+      } else {
+        const people = (list.names || []).filter(person =>
+          person.cn && person.cn !== '再来一次' && (gender === 'all' || person.gender === gender)
+        )
+        if (!people.length) throw new Error('所选名单没有符合条件的人员')
+        const count = allowDuplicates ? requestedCount : Math.min(requestedCount, people.length)
+        const balance = normalizeCyreneBalanceSettings(await dataBridge.load('balance'))
+        picks = pickCyreneBatch(people, people.filter(person => person.isWhiteList), statisticsStore.counts, balance, count, allowDuplicates)
+      }
+
+      const source = `plugin:${plugin.manifest.id}`
+      const records = picks.map(pick => ({
+        personId: pick.isGroup ? null : (pick.id || null),
+        listId,
+        groupId: pick.isGroup ? pick.id : null,
+        source,
+        pluginId: plugin.manifest.id,
+        operationId,
+        time: committedAt
+      }))
+      await commitCoreDrawTransaction({
+        statisticsStore,
+        recordsStore,
+        picks,
+        records,
+        countStatistics: target === 'people'
+      })
+      const results = picks.map(pick => ({
+        id: pick.id || '', name: pick.cn || '', englishName: pick.en || '',
+        isGroup: !!pick.isGroup, isWhiteList: !!pick.isWhiteList
+      }))
+      const receipt = {
+        operationId, pluginId: plugin.manifest.id, listId, target, count: results.length,
+        allowDuplicates, gender, algorithm: target === 'people' ? ALGORITHM_NAME : 'host-random/groups',
+        algorithmVersion: target === 'people' ? ALGORITHM_VERSION : '1', committedAt, results
+      }
+      for (let index = 0; index < results.length; index += 1) {
+        await runtime.dispatch('draw:item-result', { ...receipt, index, result: results[index], results: undefined })
+      }
+      await runtime.dispatch('draw:result', receipt)
+      return clone(receipt)
+    })
+  }
   function syncSessionMarker() {
     if (Object.values(installed.value).some(plugin => plugin.enabled)) localStorage.setItem(SESSION_MARKER_KEY, '1')
     else localStorage.removeItem(SESSION_MARKER_KEY)
@@ -114,6 +199,7 @@ export const usePluginsStore = defineStore('plugins', () => {
     const saved = await dataBridge.load(STATE_KEY)
     if (saved && typeof saved === 'object') {
       installed.value = saved.installed || {}
+      animationSelections.value = saved.animationSelections && typeof saved.animationSelections === 'object' ? saved.animationSelections : {}
       source.value = PLUGIN_DOWNLOAD_SOURCES.some(item => item.value === saved.source) ? saved.source : 'cyrene'
       const crashedSession = localStorage.getItem(SESSION_MARKER_KEY) === '1'
       if (saved.pendingStartup || crashedSession) {
@@ -141,9 +227,10 @@ export const usePluginsStore = defineStore('plugins', () => {
     const current = await dataBridge.load(STATE_KEY) || {}
     await dataBridge.save(STATE_KEY, {
       ...current,
-      installed: installed.value,
-      source: source.value,
-      pendingStartup: pendingStartup === undefined ? !!current.pendingStartup : !!pendingStartup
+        installed: installed.value,
+        source: source.value,
+        animationSelections: animationSelections.value,
+        pendingStartup: pendingStartup === undefined ? !!current.pendingStartup : !!pendingStartup
     })
   }
 
@@ -222,6 +309,7 @@ export const usePluginsStore = defineStore('plugins', () => {
     try {
       for (const plugin of activationOrder(plugins)) {
         await runtime.activate(plugin)
+        animationRegistry.registerPlugin(plugin, animationSelections.value)
         activated.push(plugin.manifest.id)
       }
       refreshPages()
@@ -230,7 +318,10 @@ export const usePluginsStore = defineStore('plugins', () => {
       lastError.value = ''
     } catch (error) {
       lastError.value = error.message || String(error)
-      for (const pluginId of activated.reverse()) await runtime.deactivate(pluginId)
+      for (const pluginId of activated.reverse()) {
+        animationRegistry.unregisterPlugin(pluginId)
+        await runtime.deactivate(pluginId)
+      }
       for (const plugin of plugins) {
         plugin.enabled = false
         plugin.runtimeError = lastError.value
@@ -259,7 +350,10 @@ export const usePluginsStore = defineStore('plugins', () => {
     if (existing && existing.manifest.version === parsed.manifest.version && existing.packageHash === parsed.packageHash) return existing
 
     const wasEnabled = !!existing?.enabled
-    if (existing) await runtime.deactivate(pluginId)
+    if (existing) {
+      animationRegistry.unregisterPlugin(pluginId)
+      await runtime.deactivate(pluginId)
+    }
     const candidate = {
       ...parsed,
       enabled: !!enable,
@@ -284,6 +378,7 @@ export const usePluginsStore = defineStore('plugins', () => {
         assertPlatformCompatibility(candidate)
         assertDependencies(candidate)
         await runtime.activate(candidate)
+        animationRegistry.registerPlugin(candidate, animationSelections.value)
       }
       refreshPages()
       syncSessionMarker()
@@ -292,10 +387,11 @@ export const usePluginsStore = defineStore('plugins', () => {
       return candidate
     } catch (error) {
       await runtime.deactivate(pluginId)
+      animationRegistry.unregisterPlugin(pluginId)
       if (existing) {
         installed.value[pluginId] = existing
         existing.enabled = wasEnabled
-        if (wasEnabled) await runtime.activate(existing).catch(() => { existing.enabled = false })
+        if (wasEnabled) await runtime.activate(existing).then(() => animationRegistry.registerPlugin(existing, animationSelections.value)).catch(() => { existing.enabled = false })
       } else {
         delete installed.value[pluginId]
       }
@@ -314,6 +410,8 @@ export const usePluginsStore = defineStore('plugins', () => {
     const dependents = enabledDependents(pluginId)
     if (dependents.length) throw new Error(`请先禁用依赖此插件的项目：${dependents.map(item => item.manifest.name).join('、')}`)
     await runtime.deactivate(pluginId)
+    animationRegistry.unregisterPlugin(pluginId)
+    animationRegistry.removeSelectionsForPlugin(pluginId, animationSelections.value)
     platformBridge.forgetPlugin(pluginId)
     delete installed.value[pluginId]
     await removePluginData(pluginId)
@@ -329,6 +427,7 @@ export const usePluginsStore = defineStore('plugins', () => {
       const dependents = enabledDependents(pluginId)
       if (dependents.length) throw new Error(`请先禁用：${dependents.map(item => item.manifest.name).join('、')}`)
       await runtime.deactivate(pluginId)
+      animationRegistry.unregisterPlugin(pluginId)
       plugin.enabled = false
       refreshPages()
       syncSessionMarker()
@@ -343,6 +442,7 @@ export const usePluginsStore = defineStore('plugins', () => {
       plugin.recoveryDisabled = false
       localStorage.setItem(SESSION_MARKER_KEY, '1')
       await runtime.activate(plugin)
+      animationRegistry.registerPlugin(plugin, animationSelections.value)
       recovering.value = false
       refreshPages()
       syncSessionMarker()
@@ -351,6 +451,7 @@ export const usePluginsStore = defineStore('plugins', () => {
       plugin.enabled = false
       plugin.runtimeError = error.message || String(error)
       await runtime.deactivate(pluginId)
+      animationRegistry.unregisterPlugin(pluginId)
       refreshPages()
       syncSessionMarker()
       await saveState(false)
@@ -501,8 +602,38 @@ export const usePluginsStore = defineStore('plugins', () => {
     return runtime.handleRpc(pluginId, method, args)
   }
 
+  function animationOptions(target, options = {}) {
+    return animationRegistry.optionsFor(target, options)
+  }
+
+  function animationSelectionValue(target) {
+    return animationSelections.value[target] || ''
+  }
+
+  async function setAnimationSelection(target, value) {
+    const normalized = String(value || '')
+    if (normalized && !animationRegistry.resolve(target, animationSelections.value, normalized)) throw new Error('所选插件动画不存在或尚未启用')
+    animationSelections.value = { ...animationSelections.value, [target]: normalized }
+    await saveState(false)
+    return true
+  }
+
+  function hasAnimation(target) {
+    return animationRegistry.has(target, animationSelections.value)
+  }
+
+  function startAnimation(target, element = null, options = {}) {
+    return animationRegistry.start(target, element, animationSelections.value, options)
+  }
+
+  function registerAnimationSurface(target, element) { animationRegistry.registerSurface(target, element) }
+  function unregisterAnimationSurface(target, element) { animationRegistry.unregisterSurface(target, element) }
+
   function mountPageFrame(frame, pluginId, pageId) { runtime.mountFrame(frame, pluginId, pageId) }
   function unmountPageFrame(pluginId, pageId) { runtime.unmountFrame(pluginId, pageId) }
+  function mountVisualSurface(canvas, pluginId, surfaceId, viewport) { return runtime.mountVisualSurface(canvas, pluginId, surfaceId, viewport) }
+  function resizeVisualSurface(pluginId, surfaceId, viewport) { runtime.resizeVisualSurface(pluginId, surfaceId, viewport) }
+  function unmountVisualSurface(pluginId, surfaceId) { runtime.unmountVisualSurface(pluginId, surfaceId) }
 
   async function dispatchEvent(event, payload) {
     emitPluginEvent(event, payload)
@@ -528,6 +659,7 @@ export const usePluginsStore = defineStore('plugins', () => {
     plugin.runtimeError = error.message || String(error)
     lastError.value = `${plugin.manifest.name} 已因运行异常被禁用：${plugin.runtimeError}`
     await runtime.deactivate(pluginId)
+    animationRegistry.unregisterPlugin(pluginId)
     refreshPages()
     syncSessionMarker()
     await saveState(false)
@@ -539,10 +671,12 @@ export const usePluginsStore = defineStore('plugins', () => {
   }
 
   return {
-    installed, list, source, initialized, recovering, lastError, enabledPlugins, contributedPages,
+    installed, list, source, initialized, recovering, lastError, enabledPlugins, contributedPages, contributedVisualSurfaces, animationSelections,
     initialize, setBannerHandler, saveState, activateEnabled, inspectPackage, installPackage, uninstall, setEnabled,
     setSource, fetchList, downloadPlugin, loadCatalogDetails, pageById, pluginById, pluginAssetUrl,
-    pluginPageSource, requestPlugin, mountPageFrame, unmountPageFrame, dispatchEvent, handlePluginMessage, markCleanShutdown,
+    pluginPageSource, requestPlugin, mountPageFrame, unmountPageFrame, mountVisualSurface, resizeVisualSurface, unmountVisualSurface,
+    animationOptions, animationSelectionValue, setAnimationSelection, hasAnimation, startAnimation, registerAnimationSurface, unregisterAnimationSurface,
+    dispatchEvent, handlePluginMessage, markCleanShutdown,
     compatibilityFor, platform: platformBridge.info(), platformCapabilities: platformBridge.capabilities()
   }
 })
