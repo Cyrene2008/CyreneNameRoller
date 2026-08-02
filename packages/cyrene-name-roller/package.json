@@ -1,6 +1,6 @@
 {
   "name": "@cyrene2008/cyrene-name-roller",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "CyreneNameRoller plugin SDK and CNRP package tool",
   "type": "module",
   "main": "./src/plugin-sdk.mjs",
