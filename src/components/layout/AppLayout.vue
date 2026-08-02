@@ -517,7 +517,16 @@ const defaultGsapPageAnimations = {
 
 function pageVariant(phase, direction) { return direction + '.' + phase }
 function pageAnimationsEnabled() {
-  return settingsStore.settings.perfAnimations && !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+  return settingsStore.settings.perfAnimations !== false && !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+}
+function isUsablePageTransitionRun(run) {
+  if (!run || typeof run !== 'object') return false
+  const duration = Number(run.totalDurationMs)
+  if (!Number.isFinite(duration) || duration <= 0 || !run.finished) return false
+  const animation = run.animation
+  if (animation?.playState === 'idle') return false
+  if (typeof animation?.isActive === 'function' && !animation.isActive()) return false
+  return true
 }
 function pageTransitionDeadline(run, phase) {
   let duration = Number(run?.totalDurationMs || 0)
@@ -553,7 +562,10 @@ function startPageVisual(element, phase, direction) {
   const variant = pageVariant(phase, direction)
   try {
     let run = pluginsStore.startAnimation('page.transition', element, { variant })
-    if (!run) run = runDefaultGsapPageTransition(element, variant)
+    if (!isUsablePageTransitionRun(run)) {
+      try { run?.cancel?.() } catch {}
+      run = runDefaultGsapPageTransition(element, variant)
+    }
     if (phase === 'enter') {
       try { pluginsStore.startAnimation('global.transition', null, { variant: 'page' }) } catch {}
     }
@@ -667,7 +679,7 @@ const removeAfterRouteHook = router.afterEach((to, from, failure) => {
     // GSAP/WAAPI. Starting in the same microtask can capture a zero-sized
     // stage during async route resolution, which makes the transition appear
     // to be a hard cut.
-    if (cycle) requestAnimationFrame(() => startRouteEnter(cycle))
+    if (cycle) requestAnimationFrame(() => requestAnimationFrame(() => startRouteEnter(cycle)))
     if (!to.path.startsWith(from.path + '/')) {
       const content = document.querySelector('.app-content')
       if (content) content.scrollTop = 0
@@ -832,6 +844,8 @@ watch(() => settingsStore.settings.fontFamily, (val) => {
   height: 100%;
   min-height: 100%;
   isolation: isolate;
+  backface-visibility: hidden;
+  transform-style: preserve-3d;
 }
 
 .route-page-ghost {
@@ -844,6 +858,8 @@ watch(() => settingsStore.settings.fontFamily, (val) => {
   pointer-events: none;
   user-select: none;
   contain: paint;
+  backface-visibility: hidden;
+  transform-style: preserve-3d;
 }
 
 .version-badge {

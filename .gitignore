@@ -24,6 +24,7 @@ public/up.json
 src-tauri/target
 src-tauri/gen
 target/
+tmp/
 /docs/
 plugin-dev/
 *.cnrp
