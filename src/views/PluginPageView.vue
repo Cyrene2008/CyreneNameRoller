@@ -174,12 +174,16 @@ async function invokeCommand(command) {
 }
 async function updateValue(control, value) {
   values[control.path] = value
-  try { await saveValues() } catch (error) { notify(error.message || String(error), 'warning') }
+  try {
+    await saveValues()
+    if (control.path === 'durationScale') await plugins.setAnimationDurationScale(route.params.pluginId, value)
+  } catch (error) { notify(error.message || String(error), 'warning') }
 }
 function previewRange(control, event) { values[control.path] = Number(event.target.value) }
 async function commitRange(control, event) { await updateValue(control, Number(event.target.value)) }
 function rangeLabel(control) {
   const value = Number(valueAt(control.path))
+  if (control.path === 'durationScale') return `${Math.round(value * 100)}%`
   return control.min === 0 && control.max === 1 ? `${Math.round(value * 100)}%` : String(value)
 }
 async function chooseAudio(control) {
@@ -226,7 +230,11 @@ function previewAnimation(control) {
   const selection = animationValue(control)
   const variant = control.target === 'page.transition' ? 'forward.enter' : 'main'
   const run = plugins.startAnimation(control.target, element, { selection, variant })
-  if (!run && element?.animate) {
+  if (run || selection) {
+    if (!run && selection) notify(lang.value === 'en' ? 'The selected animation could not be previewed.' : '所选动画暂时无法预览。', 'warning')
+    return
+  }
+  if (element?.animate) {
     element.animate([
       { opacity: .45, transform: 'scale(.72) rotate(-10deg)', filter: 'blur(4px)' },
       { opacity: 1, transform: 'scale(1.14) rotate(4deg)', filter: 'none', offset: .65 },
@@ -258,6 +266,8 @@ async function mountPluginPage() {
       const saved = await plugins.requestPlugin(pluginId, 'storage.read', { key: currentPage.native.settingsKey })
       if (generation !== mountGeneration) return
       Object.assign(values, defaults, saved || {})
+      const durationControl = currentPage.native.controls.find(control => control.path === 'durationScale')
+      if (durationControl) await plugins.setAnimationDurationScale(pluginId, Number(values.durationScale ?? durationControl.default ?? 1))
       loading.value = false
       return
     }

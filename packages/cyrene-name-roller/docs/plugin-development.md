@@ -217,10 +217,12 @@ Lifecycle events require `events:lifecycle`:
 Event payloads are cloned snapshots. Mutating them never changes application state.
 
 `app:theme-changed` is also the visual-performance contract. Its payload contains
-`theme`, `dark`, `accent`, `perfAnimations` and `reducedMotion`. Canvas/WebGL
-surfaces must stop continuous render loops and clear non-essential effects when
-`perfAnimations` is false or `reducedMotion` is true, then resume with at most one
-loop when the preference is restored. The host caches the latest lifecycle
+`theme`, `dark`, `accent`, `perfAnimations` and `reducedMotion`. The application
+settings switch `perfAnimations` is authoritative: when it is false, Canvas/WebGL
+surfaces must stop continuous render loops and clear non-essential effects, then
+resume with at most one loop when it is restored. `reducedMotion` describes the
+browser/Windows preference for diagnostics and adaptive styling; it does not
+silently disable host GSAP/WAAPI animations. The host caches the latest lifecycle
 snapshot and replays subscribed events after a visual surface activates.
 
 ## Host-mediated CAF draws
@@ -322,7 +324,7 @@ Targets are `page.transition`, `roller.finish`, `card.deal`, `card.flip`, `lotte
 }
 ```
 
-The host owns the GSAP runtime, cancellation, reduced-motion behavior and cleanup. Plugins declare bounded visual values; they do not receive callbacks, selectors, network-backed CSS, result-writing access or unrestricted host DOM access. Animation packs cannot replace or modify the host-selected result, result text or result data.
+The host owns the GSAP runtime, cancellation, the application animation switch and cleanup. Plugins declare bounded visual values; they do not receive callbacks, selectors, network-backed CSS, result-writing access or unrestricted host DOM access. Animation packs cannot replace or modify the host-selected result, result text or result data.
 
 ## Canvas and WebGL visual surfaces
 
@@ -364,7 +366,7 @@ defineVisualSurface({
 })
 ```
 
-The host transfers an `OffscreenCanvas` where supported and calls visual lifecycle methods in this order: `activate(context)`, initial `onResize(viewport)`, then subscribed lifecycle-event replay. Canvas 2D and WebGL are available through the browser implementation. The host GSAP runner animates registered host targets; it is not injected into the isolated visual Worker. Use a bounded Worker render loop for particles and multi-layer effects, stop it in `deactivate`, obey `perfAnimations` and `reducedMotion`, and degrade gracefully when OffscreenCanvas/WebGL is unavailable.
+The host transfers an `OffscreenCanvas` where supported and calls visual lifecycle methods in this order: `activate(context)`, initial `onResize(viewport)`, then subscribed lifecycle-event replay. Canvas 2D and WebGL are available through the browser implementation. The host GSAP runner animates registered host targets; it is not injected into the isolated visual Worker. Use a bounded Worker render loop for particles and multi-layer effects, stop it in `deactivate`, obey the host `perfAnimations` switch, and degrade gracefully when OffscreenCanvas/WebGL is unavailable.
 
 ## Semantic appearance packs
 

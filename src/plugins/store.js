@@ -68,6 +68,7 @@ export const usePluginsStore = defineStore('plugins', () => {
   const lastError = ref('')
   const pagesRevision = ref(0)
   const animationSelections = ref({})
+  const animationDurationScales = ref({})
   const animationRegistry = new PluginAnimationRegistry()
   const platformBridge = new PluginPlatformBridge()
   const queueCoreDraw = createCoreDrawQueue()
@@ -213,6 +214,7 @@ export const usePluginsStore = defineStore('plugins', () => {
     if (saved && typeof saved === 'object') {
       installed.value = saved.installed || {}
       animationSelections.value = saved.animationSelections && typeof saved.animationSelections === 'object' ? saved.animationSelections : {}
+      animationDurationScales.value = saved.animationDurationScales && typeof saved.animationDurationScales === 'object' ? saved.animationDurationScales : {}
       source.value = PLUGIN_DOWNLOAD_SOURCES.some(item => item.value === saved.source) ? saved.source : 'cyrene'
       const crashedSession = localStorage.getItem(SESSION_MARKER_KEY) === '1'
       if (saved.pendingStartup || crashedSession) {
@@ -243,6 +245,7 @@ export const usePluginsStore = defineStore('plugins', () => {
         installed: installed.value,
         source: source.value,
         animationSelections: animationSelections.value,
+        animationDurationScales: animationDurationScales.value,
         pendingStartup: pendingStartup === undefined ? !!current.pendingStartup : !!pendingStartup
     })
   }
@@ -323,6 +326,7 @@ export const usePluginsStore = defineStore('plugins', () => {
       for (const plugin of activationOrder(plugins)) {
         await runtime.activate(plugin)
         animationRegistry.registerPlugin(plugin, animationSelections.value)
+        animationRegistry.setDurationScale(plugin.manifest.id, animationDurationScales.value[plugin.manifest.id] ?? 1)
         activated.push(plugin.manifest.id)
       }
       refreshPages()
@@ -392,6 +396,7 @@ export const usePluginsStore = defineStore('plugins', () => {
         assertDependencies(candidate)
         await runtime.activate(candidate)
         animationRegistry.registerPlugin(candidate, animationSelections.value)
+        animationRegistry.setDurationScale(pluginId, animationDurationScales.value[pluginId] ?? 1)
       }
       refreshPages()
       syncSessionMarker()
@@ -404,7 +409,10 @@ export const usePluginsStore = defineStore('plugins', () => {
       if (existing) {
         installed.value[pluginId] = existing
         existing.enabled = wasEnabled
-        if (wasEnabled) await runtime.activate(existing).then(() => animationRegistry.registerPlugin(existing, animationSelections.value)).catch(() => { existing.enabled = false })
+        if (wasEnabled) await runtime.activate(existing).then(() => {
+          animationRegistry.registerPlugin(existing, animationSelections.value)
+          animationRegistry.setDurationScale(pluginId, animationDurationScales.value[pluginId] ?? 1)
+        }).catch(() => { existing.enabled = false })
       } else {
         delete installed.value[pluginId]
       }
@@ -456,6 +464,7 @@ export const usePluginsStore = defineStore('plugins', () => {
       localStorage.setItem(SESSION_MARKER_KEY, '1')
       await runtime.activate(plugin)
       animationRegistry.registerPlugin(plugin, animationSelections.value)
+      animationRegistry.setDurationScale(pluginId, animationDurationScales.value[pluginId] ?? 1)
       recovering.value = false
       refreshPages()
       syncSessionMarker()
@@ -662,6 +671,19 @@ export const usePluginsStore = defineStore('plugins', () => {
     return animationRegistry.has(target, animationSelections.value)
   }
 
+  function animationDurationScale(pluginId) {
+    return animationDurationScales.value[String(pluginId)] ?? 1
+  }
+
+  async function setAnimationDurationScale(pluginId, value) {
+    const id = String(pluginId || '')
+    if (!id) return 1
+    const normalized = animationRegistry.setDurationScale(id, value)
+    animationDurationScales.value = { ...animationDurationScales.value, [id]: normalized }
+    await saveState(false)
+    return normalized
+  }
+
   function startAnimation(target, element = null, options = {}) {
     return animationRegistry.start(target, element, animationSelections.value, options)
   }
@@ -711,11 +733,11 @@ export const usePluginsStore = defineStore('plugins', () => {
   }
 
   return {
-    installed, list, source, initialized, recovering, lastError, enabledPlugins, contributedPages, contributedCommands, contributedVisualSurfaces, contributedAppearancePacks, animationSelections,
+    installed, list, source, initialized, recovering, lastError, enabledPlugins, contributedPages, contributedCommands, contributedVisualSurfaces, contributedAppearancePacks, animationSelections, animationDurationScales,
     initialize, setBannerHandler, saveState, activateEnabled, inspectPackage, installPackage, uninstall, setEnabled,
     setSource, fetchList, downloadPlugin, loadCatalogDetails, pageById, appearanceByValue, appearanceOptions, resolveAppearance, pluginById, pluginAssetUrl,
     pluginPageSource, requestPlugin, invokePluginCommand, mountPageFrame, unmountPageFrame, mountVisualSurface, resizeVisualSurface, unmountVisualSurface,
-    animationOptions, animationSelectionValue, setAnimationSelection, hasAnimation, startAnimation, registerAnimationSurface, unregisterAnimationSurface,
+    animationOptions, animationSelectionValue, setAnimationSelection, hasAnimation, startAnimation, animationDurationScale, setAnimationDurationScale, registerAnimationSurface, unregisterAnimationSurface,
     dispatchEvent, handlePluginMessage, markCleanShutdown,
     compatibilityFor, platform: platformBridge.info(), platformCapabilities: platformBridge.capabilities()
   }

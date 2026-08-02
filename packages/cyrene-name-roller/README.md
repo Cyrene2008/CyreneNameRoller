@@ -46,7 +46,8 @@ Commands are intentionally product actions, not privileged mutations. A command 
 Rich plugin pages receive the active semantic tokens and a small Fluent base stylesheet, so a sandboxed page can look native without gaining access to the host DOM or protected stores.
 
 Visual surfaces receive `perfAnimations` and `reducedMotion` in the theme lifecycle
-snapshot and must suspend non-essential continuous rendering when either setting
-disables motion.
+snapshot. The host's own `perfAnimations` switch is the authoritative animation
+gate; the browser/Windows reduced-motion preference is informational and does not
+silently disable host GSAP/WAAPI animations.
 
 The design principle is **product freedom, core-hosted state transitions**. Plugins can create arbitrary pages and workflows from composable resources, events, storage, system bridges, animation and visual surfaces; they may initiate new host-owned transactions, but cannot select draw results, rewrite existing records, change statistics or alter CAF parameters.
