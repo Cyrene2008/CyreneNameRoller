@@ -18,6 +18,7 @@ build-output
 *.yml
 *.pak
 .git-rewrite
+.codex/
 public/names.json
 public/up.json
 src-tauri/target
