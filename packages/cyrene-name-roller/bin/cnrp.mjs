@@ -11,7 +11,7 @@ import JavaScriptObfuscator from 'javascript-obfuscator'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const packageRoot = path.resolve(__dirname, '..')
 const MAGIC = Buffer.from('CNRP1\n', 'utf8')
-const API_VERSION = '1.0.0'
+const API_VERSION = '1.1.0'
 const MAX_FILE_COUNT = 256
 const MAX_PACKAGE_SIZE = 32 * 1024 * 1024
 const ID_PATTERN = /^[a-z0-9]+(?:[._-][a-z0-9]+)+$/
@@ -19,6 +19,16 @@ const PLATFORM_IDS = new Set(['web', 'tauri', 'windows', 'macos', 'linux', 'andr
 const PLATFORM_CAPABILITIES = new Set([
   'notifications:show', 'audio:select', 'audio:play', 'system:open-url', 'system:select-file',
   'system:select-directory', 'system:clipboard-read', 'system:clipboard-write', 'system:reveal-file', 'system:execute'
+])
+const CONTRIBUTION_ID_PATTERN = /^[a-z][a-z0-9._-]{0,63}$/
+const SETTING_PATH_PATTERN = /^[a-z][a-z0-9._-]{0,63}$/i
+const ANIMATION_TARGETS = new Set(['page.transition', 'roller.finish', 'card.deal', 'card.flip', 'lottery.finish', 'global.transition'])
+const ANIMATION_FRAME_PROPERTIES = new Set(['opacity', 'transform', 'filter', 'clipPath', 'borderRadius', 'boxShadow', 'textShadow', 'color', 'background', 'backgroundColor', 'letterSpacing', 'offset', 'easing', 'composite'])
+const ANIMATION_DIRECTIONS = new Set(['normal', 'reverse', 'alternate', 'alternate-reverse'])
+const VISUAL_SURFACE_EVENTS = new Set([
+  'app:ready', 'app:route-changed', 'app:theme-changed', 'app:resize', 'plugin:storage-changed',
+  'draw:item-result', 'draw:result', 'roller:start', 'roller:item-result', 'roller:result',
+  'card:item-result', 'card:result', 'lottery:item-result', 'lottery:result', 'lottery:assign-result'
 ])
 
 const textEncoder = new TextEncoder()
@@ -63,7 +73,7 @@ function compareVersions(left, right) {
 
 function normalizePath(value) {
   const normalized = String(value || '').replaceAll('\\', '/')
-  if (!normalized || normalized.startsWith('/') || normalized.includes('../') || normalized.includes('/..')) {
+  if (!normalized || normalized.includes('\0') || normalized.startsWith('/') || normalized.includes('../') || normalized.includes('/..')) {
     fail(`unsafe plugin path: ${value}`)
   }
   return normalized
@@ -126,6 +136,130 @@ function normalizeSystemOperations(value, permissions) {
   })
 }
 
+function normalizeAnimationOptions(value, label) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) fail(`${label}.options must be an object`)
+  const duration = Number(value.duration)
+  const delay = Number(value.delay || 0)
+  const iterations = Number(value.iterations || 1)
+  const easing = String(value.easing || 'ease')
+  const direction = String(value.direction || 'normal')
+  if (!Number.isFinite(duration) || duration < 80 || duration > 5000) fail(`${label}.options.duration must be 80-5000ms`)
+  if (!Number.isFinite(delay) || delay < 0 || delay > 1500) fail(`${label}.options.delay must be 0-1500ms`)
+  if (!Number.isFinite(iterations) || iterations < 1 || iterations > 3) fail(`${label}.options.iterations must be 1-3`)
+  if (!/^[a-z0-9().,%\s+\-*/]+$/i.test(easing) || easing.length > 160) fail(`${label}.options.easing is invalid`)
+  if (!ANIMATION_DIRECTIONS.has(direction)) fail(`${label}.options.direction is invalid`)
+  return { duration, delay, iterations, easing, direction, fill: 'both' }
+}
+
+function normalizeAnimationDefinition(value, label) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) fail(`${label} must be an object`)
+  if (!Array.isArray(value.keyframes) || value.keyframes.length < 2 || value.keyframes.length > 32) fail(`${label}.keyframes must contain 2-32 frames`)
+  let previousOffset = -1
+  const keyframes = value.keyframes.map((frame, index) => {
+    if (!frame || typeof frame !== 'object' || Array.isArray(frame)) fail(`${label}.keyframes[${index}] is invalid`)
+    const normalized = {}
+    for (const [property, raw] of Object.entries(frame)) {
+      if (!ANIMATION_FRAME_PROPERTIES.has(property)) fail(`${label}.keyframes[${index}] disallows property ${property}`)
+      if (property === 'offset') {
+        const offset = Number(raw)
+        if (!Number.isFinite(offset) || offset < 0 || offset > 1 || offset < previousOffset) fail(`${label}.keyframes[${index}].offset is invalid`)
+        previousOffset = offset
+        normalized.offset = offset
+      } else if (property === 'composite') {
+        if (!['replace', 'add', 'accumulate'].includes(raw)) fail(`${label}.keyframes[${index}].composite is invalid`)
+        normalized.composite = raw
+      } else {
+        const serialized = String(raw)
+        if ((typeof raw !== 'string' && typeof raw !== 'number') || serialized.length > 600 || /[{};<>\\]/.test(serialized) || /url\s*\(/i.test(serialized)) {
+          fail(`${label}.keyframes[${index}].${property} is invalid`)
+        }
+        normalized[property] = raw
+      }
+    }
+    if (!Object.keys(normalized).some(property => !['offset', 'easing', 'composite'].includes(property))) fail(`${label}.keyframes[${index}] has no animatable property`)
+    return normalized
+  })
+  return { keyframes, options: normalizeAnimationOptions(value.options || {}, label) }
+}
+
+function normalizeAnimationPack(value, declaration) {
+  const label = `animation pack ${declaration.id}`
+  if (!value || typeof value !== 'object' || Array.isArray(value) || value.schemaVersion !== 1) fail(`${label} schemaVersion must be 1`)
+  if (!Array.isArray(value.presets) || !value.presets.length || value.presets.length > 128) fail(`${label}.presets must contain 1-128 items`)
+  const ids = new Set()
+  const defaults = new Set()
+  const presets = value.presets.map((preset, index) => {
+    if (!preset || typeof preset !== 'object' || !CONTRIBUTION_ID_PATTERN.test(preset.id || '') || ids.has(preset.id)) fail(`${label}.presets[${index}] has an invalid or duplicate id`)
+    ids.add(preset.id)
+    if (!ANIMATION_TARGETS.has(preset.target)) fail(`${label}.presets[${index}] has unknown target ${preset.target}`)
+    if (!preset.label || String(preset.label).length > 120) fail(`${label}.presets[${index}] needs label`)
+    const variants = {}
+    for (const [variant, definition] of Object.entries(preset.variants || {})) {
+      if (!CONTRIBUTION_ID_PATTERN.test(variant)) fail(`${label}.${preset.id} has invalid variant ${variant}`)
+      variants[variant] = normalizeAnimationDefinition(definition, `${label}.${preset.id}.${variant}`)
+    }
+    const animation = preset.animation ? normalizeAnimationDefinition(preset.animation, `${label}.${preset.id}.animation`) : null
+    if (!animation && !Object.keys(variants).length) fail(`${label}.${preset.id} needs animation or variants`)
+    if (preset.default && defaults.has(preset.target)) fail(`${label} has multiple defaults for ${preset.target}`)
+    if (preset.default) defaults.add(preset.target)
+    return { ...structuredClone(preset), animation, variants }
+  })
+  return { ...structuredClone(value), presets }
+}
+
+function normalizeAnimationPacks(value, permissions) {
+  if (value === undefined) return []
+  if (!permissions.includes('ui:animations')) fail('animationPacks requires ui:animations permission')
+  if (!Array.isArray(value) || value.length > 16) fail('animationPacks must be an array with at most 16 items')
+  const ids = new Set()
+  return value.map((pack, index) => {
+    if (!pack || typeof pack !== 'object' || !CONTRIBUTION_ID_PATTERN.test(pack.id || '') || ids.has(pack.id)) fail(`animationPacks[${index}] has an invalid or duplicate id`)
+    ids.add(pack.id)
+    if (!pack.title || String(pack.title).length > 120) fail(`animationPacks[${index}] needs a title of at most 120 characters`)
+    return {
+      id: String(pack.id), title: String(pack.title), description: String(pack.description || '').slice(0, 300),
+      source: normalizePath(pack.source)
+    }
+  })
+}
+
+function normalizeVisualSurfaces(value, permissions) {
+  if (value === undefined) return []
+  if (!permissions.includes('ui:visual-surfaces')) fail('visualSurfaces requires ui:visual-surfaces permission')
+  if (!Array.isArray(value) || value.length > 8) fail('visualSurfaces must be an array with at most 8 items')
+  const ids = new Set()
+  return value.map((surface, index) => {
+    if (!surface || typeof surface !== 'object' || !CONTRIBUTION_ID_PATTERN.test(surface.id || '') || ids.has(surface.id)) fail(`visualSurfaces[${index}] has an invalid or duplicate id`)
+    ids.add(surface.id)
+    const entry = surface.entry ? normalizePath(surface.entry) : ''
+    const platformEntries = normalizePlatformEntries(surface.platformEntries, `visualSurfaces[${index}].platformEntries`)
+    if (!entry && !Object.keys(platformEntries).length) fail(`visualSurfaces[${index}] needs entry`)
+    if (surface.placement && surface.placement !== 'background') fail(`visualSurfaces[${index}].placement must be background`)
+    const events = [...new Set(Array.isArray(surface.events) ? surface.events.map(String) : [])]
+    const unknownEvent = events.find(event => !VISUAL_SURFACE_EVENTS.has(event))
+    if (unknownEvent) fail(`visualSurfaces[${index}] contains unknown event ${unknownEvent}`)
+    return {
+      id: String(surface.id), title: String(surface.title || surface.id), entry, platformEntries,
+      placement: 'background', events, defaultEnabled: surface.defaultEnabled !== false
+    }
+  })
+}
+
+function normalizeDependencies(value, pluginId) {
+  if (value === undefined) return []
+  if (!Array.isArray(value)) fail('dependencies must be an array')
+  const ids = new Set()
+  return value.map((dependency, index) => {
+    if (!dependency || typeof dependency !== 'object' || Array.isArray(dependency)) fail(`dependencies[${index}] is invalid`)
+    const id = String(dependency.id || '')
+    if (!ID_PATTERN.test(id) || id === pluginId || ids.has(id)) fail(`dependencies[${index}] has an invalid or duplicate id`)
+    ids.add(id)
+    const range = String(dependency.range || dependency.version || '*')
+    if (!range || range.length > 80 || /[{};<>]/.test(range)) fail(`dependencies[${index}].range is invalid`)
+    return { id, range, dataAccess: dependency.dataAccess === true }
+  })
+}
+
 function normalizeNativePage(value, label) {
   if (value === undefined || value === null) return null
   if (!value || typeof value !== 'object' || Array.isArray(value)) fail(`${label} must be an object`)
@@ -133,16 +267,62 @@ function normalizeNativePage(value, label) {
   if (!Array.isArray(value.controls) || value.controls.length > 64) fail(`${label}.controls must be an array with at most 64 items`)
   const ids = new Set()
   const controls = value.controls.map((control, index) => {
-    if (!control || typeof control !== 'object' || !/^[a-z][a-z0-9._-]{0,63}$/i.test(control.id || '') || ids.has(control.id)) fail(`${label}.controls[${index}] has an invalid or duplicate id`)
+    if (!control || typeof control !== 'object' || !CONTRIBUTION_ID_PATTERN.test(control.id || '') || ids.has(control.id)) fail(`${label}.controls[${index}] has an invalid or duplicate id`)
     ids.add(control.id)
     const type = String(control.type || '')
-    if (!['toggle', 'range', 'select', 'audio'].includes(type)) fail(`${label}.controls[${index}] has an unsupported type`)
-    if (!control.label || !/^[a-z][a-z0-9._-]{0,63}$/i.test(control.path || '')) fail(`${label}.controls[${index}] needs label and path`)
+    if (!['toggle', 'range', 'select', 'audio', 'animation-select'].includes(type)) fail(`${label}.controls[${index}] has an unsupported type`)
+    if (!control.label || String(control.label).length > 120 || (type !== 'animation-select' && !SETTING_PATH_PATTERN.test(control.path || ''))) fail(`${label}.controls[${index}] needs a valid label and path`)
+    if (type === 'animation-select' && !ANIMATION_TARGETS.has(control.target)) fail(`${label}.controls[${index}] has an invalid animation target`)
+    if (type === 'animation-select' && control.packId && !CONTRIBUTION_ID_PATTERN.test(control.packId)) fail(`${label}.controls[${index}] has an invalid animation pack id`)
     if (type === 'select' && (!Array.isArray(control.options) || !control.options.length || control.options.length > 32)) fail(`${label}.controls[${index}] needs options`)
     if (type === 'range' && (!Number.isFinite(Number(control.min)) || !Number.isFinite(Number(control.max)) || Number(control.min) >= Number(control.max))) fail(`${label}.controls[${index}] has an invalid range`)
-    return structuredClone(control)
+    return {
+      id: String(control.id), type, label: String(control.label), description: String(control.description || ''),
+      path: type === 'animation-select' ? '' : String(control.path),
+      target: type === 'animation-select' ? control.target : undefined,
+      packId: type === 'animation-select' ? String(control.packId || '') : undefined,
+      accept: type === 'audio' ? String(control.accept || 'audio/*') : undefined,
+      min: type === 'range' ? Number(control.min) : undefined,
+      max: type === 'range' ? Number(control.max) : undefined,
+      step: type === 'range' ? Number(control.step || 0.01) : undefined,
+      options: type === 'select' ? control.options.map(option => ({ value: String(option.value), label: option.label })) : undefined,
+      default: control.default
+    }
   })
-  return { type: 'settings', settingsKey: String(value.settingsKey || 'settings'), controls }
+  const settingsKey = String(value.settingsKey || 'settings')
+  if (!SETTING_PATH_PATTERN.test(settingsKey)) fail(`${label}.settingsKey is invalid`)
+  return { type: 'settings', settingsKey, controls }
+}
+
+function normalizePages(value) {
+  if (value === undefined) return []
+  if (!Array.isArray(value) || value.length > 32) fail('pages must be an array with at most 32 items')
+  const ids = new Set()
+  return value.map((rawPage, index) => {
+    if (!rawPage || typeof rawPage !== 'object' || Array.isArray(rawPage)) fail(`pages[${index}] is invalid`)
+    const id = String(rawPage.id || '')
+    if (!CONTRIBUTION_ID_PATTERN.test(id) || ids.has(id)) fail(`pages[${index}] has an invalid or duplicate id`)
+    ids.add(id)
+    const title = String(rawPage.title || '').trim()
+    if (!title || title.length > 120) fail(`pages[${index}] needs a title of at most 120 characters`)
+    if (rawPage.location !== undefined && !['plugins', 'dock'].includes(rawPage.location)) fail(`pages[${index}].location is invalid`)
+    const platformEntries = normalizePlatformEntries(rawPage.platformEntries, `pages[${index}].platformEntries`)
+    const entry = rawPage.entry ? normalizePath(rawPage.entry) : ''
+    const native = normalizeNativePage(rawPage.native, `pages[${index}].native`)
+    if (!entry && !Object.keys(platformEntries).length && !native) fail(`pages[${index}] needs an entry or native schema`)
+    const order = rawPage.order === undefined ? 500 : Number(rawPage.order)
+    if (!Number.isInteger(order) || order < 0 || order > 999) fail(`pages[${index}].order must be an integer from 0 to 999`)
+    const icon = String(rawPage.icon || 'apps-24-regular')
+    if (!/^[a-z0-9][a-z0-9:_-]{0,99}$/i.test(icon)) fail(`pages[${index}].icon is invalid`)
+    const titleEn = String(rawPage.titleEn || '').trim()
+    if (titleEn.length > 120) fail(`pages[${index}].titleEn is too long`)
+    return {
+      id, title, titleEn, icon, entry, platformEntries, native,
+      location: rawPage.location === 'dock' ? 'dock' : 'plugins',
+      order,
+      description: String(rawPage.description || '').slice(0, 300)
+    }
+  })
 }
 
 function normalizeManifest(raw) {
@@ -154,7 +334,7 @@ function normalizeManifest(raw) {
   if (!manifest.engine || compareVersions(API_VERSION, manifest.engine.min || '0') < 0) fail(`plugin requires API ${manifest.engine?.min || 'unknown'}`)
   if (manifest.engine.max && compareVersions(API_VERSION, manifest.engine.max) > 0) fail(`plugin supports API ${manifest.engine.max} or lower`)
   manifest.permissions = [...new Set(manifest.permissions || [])]
-  const permissions = new Set(['storage:read', 'storage:write', 'events:draw', 'notifications:show', 'audio:select', 'audio:play', 'names:read', 'records:read', 'statistics:read', 'balance:read'])
+  const permissions = new Set(['storage:read', 'storage:write', 'events:draw', 'events:lifecycle', 'draw:execute', 'ui:animations', 'ui:visual-surfaces', 'notifications:show', 'audio:select', 'audio:play', 'names:read', 'records:read', 'statistics:read', 'balance:read'])
   for (const permission of ['system:open-url', 'system:select-file', 'system:select-directory', 'system:clipboard-read', 'system:clipboard-write', 'system:reveal-file', 'system:execute']) permissions.add(permission)
   const unknown = manifest.permissions.find(permission => !permissions.has(permission))
   if (unknown) fail(`unknown permission: ${unknown}`)
@@ -162,17 +342,21 @@ function normalizeManifest(raw) {
   manifest.platformEntries = normalizePlatformEntries(manifest.platformEntries, 'platformEntries')
   manifest.capabilities = normalizeCapabilities(manifest.capabilities, manifest.permissions)
   manifest.systemOperations = normalizeSystemOperations(manifest.systemOperations, manifest.permissions)
-  manifest.dependencies = Array.isArray(manifest.dependencies) ? manifest.dependencies : []
+  manifest.dependencies = normalizeDependencies(manifest.dependencies, manifest.id)
   manifest.contributes = manifest.contributes && typeof manifest.contributes === 'object' ? manifest.contributes : {}
+  manifest.contributes.pages = normalizePages(manifest.contributes.pages)
+  manifest.contributes.animationPacks = normalizeAnimationPacks(manifest.contributes.animationPacks, manifest.permissions)
+  manifest.contributes.visualSurfaces = normalizeVisualSurfaces(manifest.contributes.visualSurfaces, manifest.permissions)
+  // Keep optional contribution keys absent when unused. The host validates a present
+  // array as an explicit contribution and therefore expects its matching permission.
+  if (!manifest.contributes.animationPacks.length) delete manifest.contributes.animationPacks
+  if (!manifest.contributes.visualSurfaces.length) delete manifest.contributes.visualSurfaces
   if (manifest.entry) manifest.entry = normalizePath(manifest.entry)
+  if (!manifest.entry && !Object.keys(manifest.platformEntries).length && !(manifest.contributes.pages || []).length && !(manifest.contributes.visualSurfaces || []).length) {
+    fail('plugin needs at least one Worker, page or visual surface entry')
+  }
   if (manifest.icon) manifest.icon = normalizePath(manifest.icon)
   if (manifest.readme) manifest.readme = normalizePath(manifest.readme)
-  for (const page of manifest.contributes.pages || []) {
-    if (!page.id || !page.title || (!page.entry && !page.platformEntries && !page.native)) fail('each contributed page needs id, title and an entry or native schema')
-    if (page.entry) page.entry = normalizePath(page.entry)
-    page.platformEntries = normalizePlatformEntries(page.platformEntries, `page ${page.id}.platformEntries`)
-    page.native = normalizeNativePage(page.native, `page ${page.id}.native`)
-  }
   return manifest
 }
 
@@ -237,12 +421,21 @@ async function validateDirectory(directory) {
     ...Object.values(manifest.platformEntries || {}),
     manifest.icon,
     manifest.readme,
-    ...(manifest.contributes.pages || []).flatMap(page => [page.entry, ...Object.values(page.platformEntries || {})])
+    ...(manifest.contributes.pages || []).flatMap(page => [page.entry, ...Object.values(page.platformEntries || {})]),
+    ...(manifest.contributes.animationPacks || []).map(pack => pack.source),
+    ...(manifest.contributes.visualSurfaces || []).flatMap(surface => [surface.entry, ...Object.values(surface.platformEntries || {})])
   ].filter(Boolean)
   for (const required of requiredFiles) {
     if (!files.has(required)) fail(`manifest references missing file: ${required}`)
   }
-  return { manifest, files: [...files].filter(file => file !== 'manifest.json') }
+  const animationPacks = []
+  for (const declaration of manifest.contributes.animationPacks || []) {
+    let raw
+    try { raw = JSON.parse(await fs.readFile(path.join(directory, declaration.source), 'utf8')) }
+    catch (error) { fail(`cannot parse animation pack ${declaration.id}: ${error.message || error}`) }
+    animationPacks.push(normalizeAnimationPack(raw, declaration))
+  }
+  return { manifest, animationPacks, files: [...files].filter(file => file !== 'manifest.json') }
 }
 
 async function encryptEnvelope(zipBytes, manifest, options = {}) {
@@ -287,7 +480,11 @@ async function encryptEnvelope(zipBytes, manifest, options = {}) {
 
 async function packDirectory(directory, outFile, options = {}) {
   const { manifest, files } = await validateDirectory(directory)
-  const workerEntries = new Set([manifest.entry, ...Object.values(manifest.platformEntries || {})].filter(Boolean))
+  const workerEntries = new Set([
+    manifest.entry,
+    ...Object.values(manifest.platformEntries || {}),
+    ...(manifest.contributes.visualSurfaces || []).flatMap(surface => [surface.entry, ...Object.values(surface.platformEntries || {})])
+  ].filter(Boolean))
   const bundledWorkers = new Map()
   for (const entry of workerEntries) bundledWorkers.set(entry, Buffer.from(await bundleWorker(path.resolve(directory, entry)), 'utf8'))
   const finalFiles = await collectFiles(directory)

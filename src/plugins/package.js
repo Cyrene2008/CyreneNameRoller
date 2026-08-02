@@ -1,6 +1,8 @@
 import JSZip from 'jszip'
 import {
+  PLUGIN_ANIMATION_TARGETS,
   PLUGIN_API_VERSION,
+  PLUGIN_LIFECYCLE_EVENTS,
   PLUGIN_PERMISSIONS,
   PLUGIN_PLATFORM_CAPABILITIES,
   PLUGIN_PLATFORM_IDS
@@ -9,6 +11,25 @@ import {
 const MAX_PLUGIN_SIZE = 32 * 1024 * 1024
 const MAX_FILE_COUNT = 256
 const ID_PATTERN = /^[a-z0-9]+(?:[._-][a-z0-9]+)+$/
+const CONTRIBUTION_ID_PATTERN = /^[a-z][a-z0-9._-]{0,63}$/
+const SETTING_PATH_PATTERN = /^[a-z][a-z0-9._-]{0,63}$/i
+const MAX_ANIMATION_DURATION_MS = 5000
+const MAX_ANIMATION_DELAY_MS = 1500
+const MAX_ANIMATION_ITERATIONS = 3
+const ANIMATION_TIMEOUT_GRACE_MS = 500
+export const MAX_PLUGIN_ANIMATION_ACTIVE_MS = MAX_ANIMATION_DELAY_MS + (MAX_ANIMATION_DURATION_MS * MAX_ANIMATION_ITERATIONS) + ANIMATION_TIMEOUT_GRACE_MS
+const ANIMATION_FRAME_PROPERTIES = new Set([
+  'opacity', 'transform', 'filter', 'clipPath', 'borderRadius', 'boxShadow', 'textShadow',
+  'color', 'background', 'backgroundColor', 'letterSpacing', 'offset', 'easing', 'composite'
+])
+const ANIMATION_DIRECTIONS = new Set(['normal', 'reverse', 'alternate', 'alternate-reverse'])
+const VISUAL_SURFACE_EVENTS = new Set([
+  ...PLUGIN_LIFECYCLE_EVENTS,
+  'draw:item-result', 'draw:result',
+  'roller:start', 'roller:item-result', 'roller:result',
+  'card:item-result', 'card:result',
+  'lottery:item-result', 'lottery:result', 'lottery:assign-result'
+])
 export const CNRP_MAGIC = 'CNRP1\n'
 
 export function comparePluginVersions(left, right) {
@@ -121,6 +142,150 @@ function normalizeSystemOperations(value, permissions) {
   })
 }
 
+function normalizeAnimationOptions(value, label) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error(`${label}.options 无效`)
+  const duration = Number(value.duration)
+  const delay = Number(value.delay || 0)
+  const iterations = Number(value.iterations || 1)
+  const easing = String(value.easing || 'ease')
+  const direction = String(value.direction || 'normal')
+  if (!Number.isFinite(duration) || duration < 80 || duration > MAX_ANIMATION_DURATION_MS) throw new Error(`${label}.options.duration 必须在 80-${MAX_ANIMATION_DURATION_MS}ms`)
+  if (!Number.isFinite(delay) || delay < 0 || delay > MAX_ANIMATION_DELAY_MS) throw new Error(`${label}.options.delay 必须在 0-${MAX_ANIMATION_DELAY_MS}ms`)
+  if (!Number.isFinite(iterations) || iterations < 1 || iterations > MAX_ANIMATION_ITERATIONS) throw new Error(`${label}.options.iterations 必须在 1-${MAX_ANIMATION_ITERATIONS}`)
+  if (!/^[a-z0-9().,%\s+\-*/]+$/i.test(easing) || easing.length > 160) throw new Error(`${label}.options.easing 无效`)
+  if (!ANIMATION_DIRECTIONS.has(direction)) throw new Error(`${label}.options.direction 无效`)
+  return { duration, delay, iterations, easing, direction, fill: 'both' }
+}
+
+function normalizeAnimationKeyframes(value, label) {
+  if (!Array.isArray(value) || value.length < 2 || value.length > 32) throw new Error(`${label}.keyframes 必须包含 2-32 帧`)
+  let previousOffset = -1
+  return value.map((frame, index) => {
+    if (!frame || typeof frame !== 'object' || Array.isArray(frame)) throw new Error(`${label}.keyframes[${index}] 无效`)
+    const normalized = {}
+    for (const [property, raw] of Object.entries(frame)) {
+      if (!ANIMATION_FRAME_PROPERTIES.has(property)) throw new Error(`${label}.keyframes[${index}] 不允许属性 ${property}`)
+      if (property === 'offset') {
+        const offset = Number(raw)
+        if (!Number.isFinite(offset) || offset < 0 || offset > 1 || offset < previousOffset) throw new Error(`${label}.keyframes[${index}].offset 无效`)
+        previousOffset = offset
+        normalized.offset = offset
+        continue
+      }
+      if (property === 'composite') {
+        if (!['replace', 'add', 'accumulate'].includes(raw)) throw new Error(`${label}.keyframes[${index}].composite 无效`)
+        normalized.composite = raw
+        continue
+      }
+      if (typeof raw !== 'string' && typeof raw !== 'number') throw new Error(`${label}.keyframes[${index}].${property} 无效`)
+      const serialized = String(raw)
+      if (serialized.length > 600 || /[{};<>\\]/.test(serialized) || /url\s*\(/i.test(serialized)) {
+        throw new Error(`${label}.keyframes[${index}].${property} 过长或包含不安全内容`)
+      }
+      normalized[property] = raw
+    }
+    if (!Object.keys(normalized).some(property => !['offset', 'easing', 'composite'].includes(property))) {
+      throw new Error(`${label}.keyframes[${index}] 没有可动画属性`)
+    }
+    return normalized
+  })
+}
+
+function normalizeAnimationDefinition(value, label) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error(`${label} 无效`)
+  return {
+    keyframes: normalizeAnimationKeyframes(value.keyframes, label),
+    options: normalizeAnimationOptions(value.options || {}, label)
+  }
+}
+
+export function normalizeAnimationPack(value, declaration = {}) {
+  const label = `动画包 ${declaration.id || 'unknown'}`
+  if (!value || typeof value !== 'object' || Array.isArray(value) || value.schemaVersion !== 1) throw new Error(`${label} schemaVersion 必须为 1`)
+  if (!Array.isArray(value.presets) || !value.presets.length || value.presets.length > 128) throw new Error(`${label}.presets 必须包含 1-128 项`)
+  const ids = new Set()
+  const defaults = new Set()
+  const presets = value.presets.map((preset, index) => {
+    if (!preset || typeof preset !== 'object' || !CONTRIBUTION_ID_PATTERN.test(preset.id || '') || ids.has(preset.id)) {
+      throw new Error(`${label}.presets[${index}] ID 无效或重复`)
+    }
+    ids.add(preset.id)
+    if (!PLUGIN_ANIMATION_TARGETS.has(preset.target)) throw new Error(`${label}.presets[${index}] target 无效：${preset.target}`)
+    if (!preset.label || String(preset.label).length > 120) throw new Error(`${label}.presets[${index}] 缺少 label`)
+    const variants = {}
+    for (const [variant, definition] of Object.entries(preset.variants || {})) {
+      if (!CONTRIBUTION_ID_PATTERN.test(variant)) throw new Error(`${label}.presets[${index}] variant 无效：${variant}`)
+      variants[variant] = normalizeAnimationDefinition(definition, `${label}.${preset.id}.${variant}`)
+    }
+    const animation = preset.animation ? normalizeAnimationDefinition(preset.animation, `${label}.${preset.id}.animation`) : null
+    if (!animation && !Object.keys(variants).length) throw new Error(`${label}.presets[${index}] 缺少 animation 或 variants`)
+    const isDefault = !!preset.default
+    if (isDefault && defaults.has(preset.target)) throw new Error(`${label} 中 ${preset.target} 只能有一个默认动画`)
+    if (isDefault) defaults.add(preset.target)
+    return {
+      id: String(preset.id), target: preset.target, label: String(preset.label),
+      description: String(preset.description || '').slice(0, 300), tags: Array.isArray(preset.tags) ? preset.tags.map(String).slice(0, 12) : [],
+      default: isDefault, animation, variants
+    }
+  })
+  return {
+    id: String(declaration.id || value.id || ''),
+    title: String(declaration.title || value.title || declaration.id || ''),
+    description: String(declaration.description || value.description || '').slice(0, 500),
+    source: String(declaration.source || ''), schemaVersion: 1, presets
+  }
+}
+
+function normalizeAnimationPacks(value, permissions) {
+  if (value === undefined) return []
+  if (!permissions.includes('ui:animations')) throw new Error('animationPacks 需要 ui:animations 权限')
+  if (!Array.isArray(value) || value.length > 16) throw new Error('animationPacks 必须是最多 16 项的数组')
+  const ids = new Set()
+  return value.map((pack, index) => {
+    if (!pack || typeof pack !== 'object' || !CONTRIBUTION_ID_PATTERN.test(pack.id || '') || ids.has(pack.id)) throw new Error(`animationPacks[${index}] ID 无效或重复`)
+    ids.add(pack.id)
+    if (!pack.title || String(pack.title).length > 120) throw new Error(`animationPacks[${index}] 缺少 title`)
+    return { id: String(pack.id), title: String(pack.title), description: String(pack.description || '').slice(0, 300), source: validatePath(pack.source) }
+  })
+}
+
+function normalizeVisualSurfaces(value, permissions) {
+  if (value === undefined) return []
+  if (!permissions.includes('ui:visual-surfaces')) throw new Error('visualSurfaces 需要 ui:visual-surfaces 权限')
+  if (!Array.isArray(value) || value.length > 8) throw new Error('visualSurfaces 必须是最多 8 项的数组')
+  const ids = new Set()
+  return value.map((surface, index) => {
+    if (!surface || typeof surface !== 'object' || !CONTRIBUTION_ID_PATTERN.test(surface.id || '') || ids.has(surface.id)) throw new Error(`visualSurfaces[${index}] ID 无效或重复`)
+    ids.add(surface.id)
+    const platformEntries = normalizePlatformEntries(surface.platformEntries, `visualSurfaces[${index}].platformEntries`)
+    const entry = surface.entry ? validatePath(surface.entry) : ''
+    if (!entry && !Object.keys(platformEntries).length) throw new Error(`visualSurfaces[${index}] 缺少 entry`)
+    if (surface.placement && surface.placement !== 'background') throw new Error(`visualSurfaces[${index}].placement 仅支持 background`)
+    const events = [...new Set(Array.isArray(surface.events) ? surface.events.map(String) : [])]
+    const unknownEvent = events.find(event => !VISUAL_SURFACE_EVENTS.has(event))
+    if (unknownEvent) throw new Error(`visualSurfaces[${index}] 包含未知事件：${unknownEvent}`)
+    return {
+      id: String(surface.id), title: String(surface.title || surface.id), entry, platformEntries,
+      placement: 'background', events, defaultEnabled: surface.defaultEnabled !== false
+    }
+  })
+}
+
+function normalizeDependencies(value, pluginId) {
+  if (value === undefined) return []
+  if (!Array.isArray(value)) throw new Error('dependencies 必须是数组')
+  const ids = new Set()
+  return value.map((dependency, index) => {
+    if (!dependency || typeof dependency !== 'object' || Array.isArray(dependency)) throw new Error(`dependencies[${index}] 无效`)
+    const id = String(dependency.id || '')
+    if (!ID_PATTERN.test(id) || id === pluginId || ids.has(id)) throw new Error(`dependencies[${index}] ID 无效或重复`)
+    ids.add(id)
+    const range = String(dependency.range || dependency.version || '*')
+    if (!range || range.length > 80 || /[{};<>]/.test(range)) throw new Error(`dependencies[${index}].range 无效`)
+    return { id, range, dataAccess: dependency.dataAccess === true }
+  })
+}
+
 function normalizeNativePage(value, label) {
   if (value === undefined || value === null) return null
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error(`${label} 无效`)
@@ -128,14 +293,16 @@ function normalizeNativePage(value, label) {
   if (!Array.isArray(value.controls) || value.controls.length > 64) throw new Error(`${label}.controls 无效`)
   const ids = new Set()
   const controls = value.controls.map((control, index) => {
-    if (!control || typeof control !== 'object' || !/^[a-z][a-z0-9._-]{0,63}$/i.test(control.id || '') || ids.has(control.id)) {
+    if (!control || typeof control !== 'object' || !CONTRIBUTION_ID_PATTERN.test(control.id || '') || ids.has(control.id)) {
       throw new Error(`${label}.controls[${index}] 的 ID 无效或重复`)
     }
     ids.add(control.id)
     const type = String(control.type || '')
-    if (!['toggle', 'range', 'select', 'audio'].includes(type)) throw new Error(`${label}.controls[${index}] 类型不受支持`)
+    if (!['toggle', 'range', 'select', 'audio', 'animation-select'].includes(type)) throw new Error(`${label}.controls[${index}] 类型不受支持`)
     if (!control.label || String(control.label).length > 120) throw new Error(`${label}.controls[${index}] 缺少 label`)
-    if (!/^[a-z][a-z0-9._-]{0,63}$/i.test(control.path || '')) throw new Error(`${label}.controls[${index}] path 无效`)
+    if (type !== 'animation-select' && !SETTING_PATH_PATTERN.test(control.path || '')) throw new Error(`${label}.controls[${index}] path 无效`)
+    if (type === 'animation-select' && !PLUGIN_ANIMATION_TARGETS.has(control.target)) throw new Error(`${label}.controls[${index}] target 无效`)
+    if (type === 'animation-select' && control.packId && !CONTRIBUTION_ID_PATTERN.test(control.packId)) throw new Error(`${label}.controls[${index}] packId 无效`)
     if (type === 'select' && (!Array.isArray(control.options) || !control.options.length || control.options.length > 32)) {
       throw new Error(`${label}.controls[${index}] options 无效`)
     }
@@ -145,7 +312,9 @@ function normalizeNativePage(value, label) {
       if (!Number.isFinite(min) || !Number.isFinite(max) || min >= max) throw new Error(`${label}.controls[${index}] 范围无效`)
     }
     return {
-      id: String(control.id), type, label: control.label, description: control.description || '', path: String(control.path),
+      id: String(control.id), type, label: control.label, description: control.description || '', path: type === 'animation-select' ? '' : String(control.path),
+      target: type === 'animation-select' ? control.target : undefined,
+      packId: type === 'animation-select' ? String(control.packId || '') : undefined,
       accept: type === 'audio' ? String(control.accept || 'audio/*') : undefined,
       min: type === 'range' ? Number(control.min) : undefined,
       max: type === 'range' ? Number(control.max) : undefined,
@@ -154,7 +323,40 @@ function normalizeNativePage(value, label) {
       default: control.default
     }
   })
-  return { type: 'settings', settingsKey: String(value.settingsKey || 'settings'), controls }
+  const settingsKey = String(value.settingsKey || 'settings')
+  if (!SETTING_PATH_PATTERN.test(settingsKey)) throw new Error(`${label}.settingsKey 无效`)
+  return { type: 'settings', settingsKey, controls }
+}
+
+function normalizePages(value) {
+  if (value === undefined) return []
+  if (!Array.isArray(value) || value.length > 32) throw new Error('pages 必须是最多 32 项的数组')
+  const ids = new Set()
+  return value.map((rawPage, index) => {
+    if (!rawPage || typeof rawPage !== 'object' || Array.isArray(rawPage)) throw new Error(`pages[${index}] 无效`)
+    const id = String(rawPage.id || '')
+    if (!CONTRIBUTION_ID_PATTERN.test(id) || ids.has(id)) throw new Error(`pages[${index}] ID 无效或重复`)
+    ids.add(id)
+    const title = String(rawPage.title || '').trim()
+    if (!title || title.length > 120) throw new Error(`pages[${index}] 缺少 title 或过长`)
+    if (rawPage.location !== undefined && !['plugins', 'dock'].includes(rawPage.location)) throw new Error(`pages[${index}].location 无效`)
+    const platformEntries = normalizePlatformEntries(rawPage.platformEntries, `pages[${index}].platformEntries`)
+    const entry = rawPage.entry ? validatePath(rawPage.entry) : ''
+    const native = normalizeNativePage(rawPage.native, `pages[${index}].native`)
+    if (!entry && !Object.keys(platformEntries).length && !native) throw new Error(`pages[${index}] 缺少可用的页面入口`)
+    const order = rawPage.order === undefined ? 500 : Number(rawPage.order)
+    if (!Number.isInteger(order) || order < 0 || order > 999) throw new Error(`pages[${index}].order 必须是 0-999 的整数`)
+    const icon = String(rawPage.icon || 'apps-24-regular')
+    if (!/^[a-z0-9][a-z0-9:_-]{0,99}$/i.test(icon)) throw new Error(`pages[${index}].icon 无效`)
+    const titleEn = String(rawPage.titleEn || '').trim()
+    if (titleEn.length > 120) throw new Error(`pages[${index}].titleEn 过长`)
+    return {
+      id, title, titleEn, icon, entry, platformEntries, native,
+      location: rawPage.location === 'dock' ? 'dock' : 'plugins',
+      order,
+      description: String(rawPage.description || '').slice(0, 300)
+    }
+  })
 }
 
 export function normalizePluginManifest(raw) {
@@ -173,25 +375,17 @@ export function normalizePluginManifest(raw) {
   const unknownPermission = manifest.permissions.find(permission => !PLUGIN_PERMISSIONS.has(permission))
   if (unknownPermission) throw new Error(`未知插件权限：${unknownPermission}`)
   manifest.contributes = manifest.contributes && typeof manifest.contributes === 'object' ? manifest.contributes : {}
+  manifest.contributes.pages = normalizePages(manifest.contributes.pages)
+  manifest.contributes.animationPacks = normalizeAnimationPacks(manifest.contributes.animationPacks, manifest.permissions)
+  manifest.contributes.visualSurfaces = normalizeVisualSurfaces(manifest.contributes.visualSurfaces, manifest.permissions)
   manifest.supportedPlatforms = normalizePlatforms(manifest.supportedPlatforms, 'supportedPlatforms')
   manifest.platformEntries = normalizePlatformEntries(manifest.platformEntries, 'platformEntries')
   manifest.capabilities = normalizeCapabilities(manifest.capabilities, manifest.permissions)
   manifest.systemOperations = normalizeSystemOperations(manifest.systemOperations, manifest.permissions)
-  manifest.dependencies = Array.isArray(manifest.dependencies) ? manifest.dependencies : []
-  for (const dependency of manifest.dependencies) {
-    if (!dependency || !ID_PATTERN.test(dependency.id || '') || dependency.id === manifest.id) {
-      throw new Error(`插件依赖声明无效：${dependency?.id || '未知'}`)
-    }
-  }
+  manifest.dependencies = normalizeDependencies(manifest.dependencies, manifest.id)
   if (manifest.entry) manifest.entry = validatePath(manifest.entry)
-  if (!manifest.entry && !Object.keys(manifest.platformEntries).length && !(manifest.contributes.pages || []).length) {
-    throw new Error('插件至少需要一个 Worker 或页面入口')
-  }
-  for (const page of manifest.contributes.pages || []) {
-    if (!page.id || !page.title || (!page.entry && !page.platformEntries && !page.native)) throw new Error('插件页面声明不完整')
-    if (page.entry) page.entry = validatePath(page.entry)
-    page.platformEntries = normalizePlatformEntries(page.platformEntries, `页面 ${page.id}.platformEntries`)
-    page.native = normalizeNativePage(page.native, `页面 ${page.id}.native`)
+  if (!manifest.entry && !Object.keys(manifest.platformEntries).length && !(manifest.contributes.pages || []).length && !manifest.contributes.visualSurfaces.length) {
+    throw new Error('插件至少需要一个 Worker、页面或视觉层入口')
   }
   if (manifest.icon) manifest.icon = validatePath(manifest.icon)
   if (manifest.readme) manifest.readme = validatePath(manifest.readme)
@@ -303,7 +497,9 @@ export async function parsePluginPackage(input, { expectedPublisherKey = '' } = 
     ...Object.values(manifest.platformEntries || {}),
     manifest.icon,
     manifest.readme,
-    ...(manifest.contributes.pages || []).flatMap(page => [page.entry, ...Object.values(page.platformEntries || {})])
+    ...(manifest.contributes.pages || []).flatMap(page => [page.entry, ...Object.values(page.platformEntries || {})]),
+    ...(manifest.contributes.animationPacks || []).map(pack => pack.source),
+    ...(manifest.contributes.visualSurfaces || []).flatMap(surface => [surface.entry, ...Object.values(surface.platformEntries || {})])
   ].filter(Boolean)
   for (const name of requiredFiles) if (!files[name]) throw new Error(`插件清单引用的文件不存在：${name}`)
 
@@ -318,9 +514,19 @@ export async function parsePluginPackage(input, { expectedPublisherKey = '' } = 
     if (actual !== String(expected).toLowerCase()) throw new Error(`插件文件完整性校验失败：${name}`)
   }
   const packageHash = await sha256Hex(packageBytes)
+  const animationPacks = (manifest.contributes.animationPacks || []).map(declaration => {
+    let raw
+    try {
+      raw = JSON.parse(decodePluginFile({ files }, declaration.source))
+    } catch (error) {
+      throw new Error(`动画包 ${declaration.id} 无法解析：${error.message || error}`)
+    }
+    return normalizeAnimationPack(raw, declaration)
+  })
   return {
     manifest,
     files,
+    animationPacks,
     packageHash,
     packageSignature: envelope.signature || '',
     publisherKey: publisher.publisherKey,

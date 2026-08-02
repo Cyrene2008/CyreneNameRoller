@@ -13,6 +13,7 @@
       <div
         v-for="(display, i) in nameDisplays"
         :key="i"
+        :ref="element => setNameDisplayRef(element, i)"
         class="name-display"
         :class="{ rainbow: settings.nameColorMode === 'gradient', final: display.animating, [`final-${settings.finishAnimation || 'spotlight'}`]: display.animating }"
         :style="getNameStyle(display, i)"
@@ -292,7 +293,17 @@ function switchToSingleFromCount() {
   nextTick(computeNameLayout)
 }
 
-function emphasize(index) { nameDisplays[index].animating = true; setTimeout(() => { nameDisplays[index].animating = false }, 900) }
+const nameDisplayRefs = []
+function setNameDisplayRef(element, index) { nameDisplayRefs[index] = element || null }
+function emphasize(index) {
+  const run = pluginsStore.startAnimation('roller.finish', nameDisplayRefs[index])
+  if (run) {
+    nameDisplays[index].animating = false
+    return
+  }
+  nameDisplays[index].animating = true
+  setTimeout(() => { nameDisplays[index].animating = false }, 900)
+}
 
 function getDisplayName(person) {
   return settings.value.englishMode && person.en ? person.en : person.cn
@@ -501,6 +512,7 @@ function finishRoll() {
   const useStepStop = settings.value.multiMode && settings.value.multiStepStop
   const stagger = useStepStop ? Math.round((settings.value.stepStopInterval || 0.15) * 1000) : 0
   revealed.value = new Array(count).fill(false)
+  pluginsStore.startAnimation('global.transition', null, { variant: 'roller' })
   for (let i = 0; i < count; i++) {
     const tid = setTimeout(() => {
       revealed.value[i] = true

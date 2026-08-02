@@ -76,14 +76,15 @@ export function getManifestCompatibility(manifest, platform = getCurrentPlatform
   }
   const hasWorker = !!resolvePlatformEntry(manifest, platform)
   const hasPage = (manifest?.contributes?.pages || []).some(page => !!page.native || !!resolvePlatformEntry(page, platform))
-  if (!hasWorker && !hasPage) {
+  const hasVisualSurface = (manifest?.contributes?.visualSurfaces || []).some(surface => !!resolvePlatformEntry(surface, platform))
+  if (!hasWorker && !hasPage && !hasVisualSurface) {
     return {
       compatible: false,
       degraded: false,
       platform,
       missing: [],
       unavailableOptional: [],
-      reason: `插件没有适用于当前平台的 Worker 或页面入口（${platform.runtime}/${platform.os}）`
+      reason: `插件没有适用于当前平台的 Worker、页面或视觉层入口（${platform.runtime}/${platform.os}）`
     }
   }
   const missing = []

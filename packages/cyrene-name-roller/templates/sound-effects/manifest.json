@@ -5,7 +5,7 @@
   "version": "1.1.0",
   "author": "Cyrene2008",
   "description": "为随机点名、翻牌点名和抽奖添加可选音效。",
-  "engine": { "min": "1.0.0", "max": "1.0.0" },
+  "engine": { "min": "1.1.0", "max": "1.1.0" },
   "entry": "src/worker.js",
   "readme": "README.md",
   "permissions": ["storage:read", "storage:write", "events:draw", "audio:select", "audio:play", "notifications:show"],

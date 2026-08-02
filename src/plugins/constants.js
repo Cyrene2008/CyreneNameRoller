@@ -1,4 +1,4 @@
-export const PLUGIN_API_VERSION = '1.0.0'
+export const PLUGIN_API_VERSION = '1.1.0'
 export const PLUGIN_LIST_REPOSITORY = 'Cyrene2008/CyreneNameRoller'
 export const PLUGIN_LIST_PATH = 'plugins/list.json'
 
@@ -19,6 +19,10 @@ export const PLUGIN_PERMISSIONS = new Set([
   'records:read',
   'statistics:read',
   'balance:read',
+  'events:lifecycle',
+  'draw:execute',
+  'ui:animations',
+  'ui:visual-surfaces',
   'system:open-url',
   'system:select-file',
   'system:select-directory',
@@ -26,6 +30,23 @@ export const PLUGIN_PERMISSIONS = new Set([
   'system:clipboard-write',
   'system:reveal-file',
   'system:execute'
+])
+
+export const PLUGIN_ANIMATION_TARGETS = new Set([
+  'page.transition',
+  'roller.finish',
+  'card.deal',
+  'card.flip',
+  'lottery.finish',
+  'global.transition'
+])
+
+export const PLUGIN_LIFECYCLE_EVENTS = new Set([
+  'app:ready',
+  'app:route-changed',
+  'app:theme-changed',
+  'app:resize',
+  'plugin:storage-changed'
 ])
 
 export const PLUGIN_PLATFORM_CAPABILITIES = new Set([

@@ -64,6 +64,21 @@
                 @update:model-value="updateValue(control, $event)"
               />
 
+              <div v-else-if="control.type === 'animation-select'" class="animation-actions">
+                <div :ref="element => setAnimationPreviewRef(control.id, element)" class="animation-preview" aria-hidden="true">
+                  <FluentIcon icon="sparkle-20-filled" :width="18" />
+                </div>
+                <FluentSelect
+                  :model-value="animationValue(control)"
+                  :options="animationOptions(control)"
+                  width="250px"
+                  @update:model-value="updateAnimation(control, $event)"
+                />
+                <FluentButton variant="subtle" size="sm" @click="previewAnimation(control)">
+                  <FluentIcon icon="play-16-regular" :width="14" />{{ lang === 'en' ? 'Preview' : '预览' }}
+                </FluentButton>
+              </div>
+
               <div v-else-if="control.type === 'audio'" class="audio-actions">
                 <FluentButton v-if="valueAt(control.path)?.dataUrl" variant="subtle" size="sm" @click="previewAudio(control)">
                   <FluentIcon icon="play-16-regular" :width="14" />{{ lang === 'en' ? 'Preview' : '试听' }}
@@ -77,7 +92,7 @@
               </div>
             </div>
           </div>
-          <div class="storage-note"><FluentIcon icon="lock-closed-16-regular" :width="14" />{{ lang === 'en' ? 'Audio and settings are stored only in this browser or app.' : '音频与设置仅保存在当前浏览器或客户端的插件数据中。' }}</div>
+          <div class="storage-note"><FluentIcon icon="lock-closed-16-regular" :width="14" />{{ lang === 'en' ? 'Plugin settings stay on this device. Core draw results remain controlled by the application.' : '插件设置仅保存在当前设备；核心抽取结果始终由程序管理。' }}</div>
         </section>
       </div>
 
@@ -112,15 +127,17 @@ const source = ref('')
 const loading = ref(true)
 const pageError = ref('')
 const values = reactive({})
+const animationPreviewRefs = new Map()
 const plugin = computed(() => plugins.pluginById(route.params.pluginId))
 const page = computed(() => plugins.pageById(route.params.pluginId, route.params.pageId))
 
 function valueAt(path) { return values[path] }
 function defaultsFor(nativePage) {
-  return Object.fromEntries((nativePage?.controls || []).map(control => [control.path, control.default ?? (control.type === 'toggle' ? false : '')]))
+  return Object.fromEntries((nativePage?.controls || []).filter(control => control.type !== 'animation-select').map(control => [control.path, control.default ?? (control.type === 'toggle' ? false : '')]))
 }
 async function saveValues() {
-  await plugins.requestPlugin(route.params.pluginId, 'storage.write', { key: page.value.native.settingsKey, value: { ...values } })
+  const stored = Object.fromEntries(page.value.native.controls.filter(control => control.type !== 'animation-select').map(control => [control.path, values[control.path]]))
+  await plugins.requestPlugin(route.params.pluginId, 'storage.write', { key: page.value.native.settingsKey, value: stored })
 }
 function notify(message, type = 'info') {
   showBanner?.({
@@ -162,6 +179,37 @@ async function previewAudio(control) {
   } catch (error) { notify(error.message || String(error), 'warning') }
 }
 async function clearAudio(control) { await updateValue(control, null) }
+function setAnimationPreviewRef(id, element) {
+  if (element) animationPreviewRefs.set(id, element)
+  else animationPreviewRefs.delete(id)
+}
+function animationValue(control) { return plugins.animationSelectionValue(control.target) }
+function animationOptions(control) {
+  return plugins.animationOptions(control.target, {
+    pluginId: route.params.pluginId,
+    packId: control.packId,
+    language: lang.value
+  })
+}
+async function updateAnimation(control, value) {
+  try {
+    await plugins.setAnimationSelection(control.target, value)
+    previewAnimation(control)
+  } catch (error) { notify(error.message || String(error), 'warning') }
+}
+function previewAnimation(control) {
+  const element = animationPreviewRefs.get(control.id)
+  const selection = animationValue(control)
+  const variant = control.target === 'page.transition' ? 'forward.enter' : 'main'
+  const run = plugins.startAnimation(control.target, element, { selection, variant })
+  if (!run && element?.animate) {
+    element.animate([
+      { opacity: .45, transform: 'scale(.72) rotate(-10deg)', filter: 'blur(4px)' },
+      { opacity: 1, transform: 'scale(1.14) rotate(4deg)', filter: 'none', offset: .65 },
+      { opacity: 1, transform: 'scale(1) rotate(0)', filter: 'none' }
+    ], { duration: 560, easing: 'cubic-bezier(.16,1,.3,1)' })
+  }
+}
 
 async function mountPluginPage() {
   await nextTick()
@@ -214,10 +262,12 @@ onBeforeUnmount(() => plugins.unmountPageFrame(route.params.pluginId, route.para
 .range-control input { flex: 1; accent-color: var(--accent); cursor: pointer; }
 .range-control output { width: 42px; color: var(--text-primary); text-align: right; font-size: 13px; font-variant-numeric: tabular-nums; }
 .audio-actions { display: flex; align-items: center; justify-content: flex-end; gap: 6px; flex-shrink: 0; }
+.animation-actions { min-width: 420px; display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-shrink: 0; }
+.animation-preview { width: 36px; height: 36px; display: grid; place-items: center; flex: 0 0 auto; color: var(--accent); border: 1px solid var(--border-default); border-radius: var(--radius-md); background: radial-gradient(circle at 35% 28%, var(--accent-50), var(--bg-card-solid) 70%); box-shadow: var(--shadow-2); }
 .storage-note { display: flex; align-items: center; gap: 7px; padding: 12px 24px; color: var(--text-muted); background: var(--bg-hover); border-top: 1px solid var(--border-subtle); font-size: 11px; }
 .plugin-frame-shell { flex: 1; min-height: 420px; display: flex; border: 1px solid var(--border-default); border-radius: var(--radius-lg); background: var(--bg-card-solid); overflow: hidden; }
 .plugin-frame { flex: 1; width: 100%; min-height: 0; border: 0; background: var(--bg-card-solid); }
 .page-status, .empty-state { flex: 1; min-height: 240px; display: flex; align-items: center; justify-content: center; gap: 9px; color: var(--text-muted); }
 .page-status.error { color: var(--danger); }
-@media (max-width: 760px) { .plugin-page-view { padding: 20px 14px; } .plugin-page-header { align-items: flex-start; } .setting-row { align-items: flex-start; flex-direction: column; gap: 12px; padding: 16px 0; } .range-control { width: 100%; min-width: 0; } .audio-actions { width: 100%; justify-content: flex-start; flex-wrap: wrap; } }
+@media (max-width: 760px) { .plugin-page-view { padding: 20px 14px; } .plugin-page-header { align-items: flex-start; } .setting-row { align-items: flex-start; flex-direction: column; gap: 12px; padding: 16px 0; } .range-control { width: 100%; min-width: 0; } .audio-actions, .animation-actions { width: 100%; min-width: 0; justify-content: flex-start; flex-wrap: wrap; } }
 </style>

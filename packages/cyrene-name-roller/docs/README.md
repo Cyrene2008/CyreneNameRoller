@@ -14,8 +14,10 @@ npx cnrp validate ./my-plugin
 npx cnrp pack ./my-plugin --out ./dist/my-plugin.cnrp
 ```
 
-`.cnrp` means Cyrene NameRoller Plugin File. The application installs it from the independent Plugin Dock page or by drag and drop. Plugin pages remain under the Plugin section and are never injected into Settings.
+`.cnrp` means Cyrene NameRoller Plugin File. The application installs it from the independent Plugin Dock page or by drag and drop. A page normally appears under the Plugin section; API 1.1 plugins may explicitly contribute a top-level Dock page with `location: "dock"`. Plugin pages are never injected into Settings.
 
 See [Development Guide](./plugin-development.md) for the manifest, permissions, events, UI sandbox, dependencies, signatures and publication format.
 
 The guide also defines the cross-platform bridge for browser and Tauri plugins. Optional native capabilities return structured unsupported results on Web, while required capabilities prevent activation until the user moves to a compatible host.
+
+API 1.1 additionally documents host-mediated CAF draws, animation packs and isolated Canvas/WebGL visual surfaces. These extension points provide large-feature freedom while keeping draw results, existing records, statistics and fairness parameters under host control.
