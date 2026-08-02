@@ -866,7 +866,9 @@ test('animation registry cancels active animations and falls back after plugin r
   }
   globalThis.Element = FakeElement
   globalThis.document = { querySelector: () => null }
-  globalThis.matchMedia = () => ({ matches: false })
+  // The host animation switch is authoritative; the OS/browser preference
+  // must not silently suppress a registered GSAP/WAAPI animation.
+  globalThis.matchMedia = () => ({ matches: true })
 
   const registry = new PluginAnimationRegistry()
   const selections = {}
@@ -881,13 +883,14 @@ test('animation registry cancels active animations and falls back after plugin r
     }]
   }, selections)
   assert.equal(registry.has('roller.finish', selections), true)
+  registry.setDurationScale('cn.example.motion', 1.5)
   const handle = registry.start('roller.finish', new FakeElement(), selections)
   assert.ok(handle)
+  assert.equal(handle.totalDurationMs, 450)
   registry.unregisterPlugin('cn.example.motion')
   assert.equal(cancelled, 1)
   assert.equal(registry.has('roller.finish', selections), false)
 
-  globalThis.matchMedia = () => ({ matches: true })
   assert.equal(registry.start('roller.finish', new FakeElement(), selections), null)
 })
 
