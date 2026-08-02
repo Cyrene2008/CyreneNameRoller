@@ -1,8 +1,7 @@
-const CACHE_NAME = 'cyrene-v26'
+const CACHE_NAME = 'cyrene-v26.1.0-shell-2'
 const ASSETS = [
   '/',
   '/index.html',
-  '/names.json',
   '/updatelogs/up.json',
   '/cyrene.png',
   '/cyrene256.png',
@@ -28,16 +27,19 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return
-
-  event.respondWith(
-    fetch(event.request)
-      .then((response) => {
-        const clone = response.clone()
-        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone))
-        return response
-      })
-      .catch(() => caches.match(event.request))
-  )
+  const isNavigation = event.request.mode === 'navigate'
+  event.respondWith(fetch(event.request).then((response) => {
+    if (response.ok && (!isNavigation || response.type === 'basic')) {
+      const clone = response.clone()
+      event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone)))
+    }
+    return response
+  }).catch(async () => {
+    const cached = await caches.match(event.request)
+    if (cached) return cached
+    if (isNavigation) return caches.match('/index.html')
+    return Response.error()
+  }))
 })
 
 self.addEventListener('message', (event) => {

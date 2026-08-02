@@ -50,11 +50,11 @@ defineExpose({ add, remove })
 <style scoped>
 .fluent-toast-container {
   position: fixed;
-  bottom: 24px;
+  top: 24px;
   right: 24px;
   z-index: 99999;
   display: flex;
-  flex-direction: column-reverse;
+  flex-direction: column;
   gap: 8px;
   pointer-events: none;
 }

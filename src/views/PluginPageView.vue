@@ -128,6 +128,8 @@ const loading = ref(true)
 const pageError = ref('')
 const values = reactive({})
 const animationPreviewRefs = new Map()
+let mountGeneration = 0
+let mountedFrameKey = null
 const plugin = computed(() => plugins.pluginById(route.params.pluginId))
 const page = computed(() => plugins.pageById(route.params.pluginId, route.params.pageId))
 
@@ -212,31 +214,54 @@ function previewAnimation(control) {
 }
 
 async function mountPluginPage() {
+  const generation = ++mountGeneration
+  const pluginId = String(route.params.pluginId || '')
+  const pageId = String(route.params.pageId || '')
+  const currentPlugin = plugins.pluginById(pluginId)
+  const currentPage = plugins.pageById(pluginId, pageId)
   await nextTick()
-  plugins.unmountPageFrame(route.params.pluginId, route.params.pageId)
+  if (generation !== mountGeneration) return
+  if (mountedFrameKey) {
+    plugins.unmountPageFrame(mountedFrameKey.pluginId, mountedFrameKey.pageId)
+    mountedFrameKey = null
+  }
   loading.value = true
   pageError.value = ''
   source.value = ''
   Object.keys(values).forEach(key => delete values[key])
-  if (!page.value || !plugin.value) { loading.value = false; return }
+  if (!currentPage || !currentPlugin) { loading.value = false; return }
   try {
-    if (page.value.native?.type === 'settings') {
-      const defaults = defaultsFor(page.value.native)
-      const saved = await plugins.requestPlugin(route.params.pluginId, 'storage.read', { key: page.value.native.settingsKey })
+    if (currentPage.native?.type === 'settings') {
+      const defaults = defaultsFor(currentPage.native)
+      const saved = await plugins.requestPlugin(pluginId, 'storage.read', { key: currentPage.native.settingsKey })
+      if (generation !== mountGeneration) return
       Object.assign(values, defaults, saved || {})
       loading.value = false
       return
     }
     if (!frameRef.value) throw new Error(lang.value === 'en' ? 'Plugin frame is unavailable.' : '插件页面容器不可用。')
-    plugins.mountPageFrame(frameRef.value, route.params.pluginId, route.params.pageId)
-    source.value = plugins.pluginPageSource(route.params.pluginId, route.params.pageId)
+    plugins.mountPageFrame(frameRef.value, pluginId, pageId)
+    mountedFrameKey = { pluginId, pageId }
+    source.value = plugins.pluginPageSource(pluginId, pageId)
     if (!source.value) throw new Error(lang.value === 'en' ? 'The plugin page has no compatible entry.' : '插件页面没有适用于当前平台的入口。')
-  } catch (error) { plugins.unmountPageFrame(route.params.pluginId, route.params.pageId); loading.value = false; pageError.value = error.message || String(error) }
+  } catch (error) {
+    if (mountedFrameKey?.pluginId === pluginId && mountedFrameKey?.pageId === pageId) {
+      plugins.unmountPageFrame(pluginId, pageId)
+      mountedFrameKey = null
+    }
+    if (generation !== mountGeneration) return
+    loading.value = false
+    pageError.value = error.message || String(error)
+  }
 }
 function onFrameLoad() { loading.value = false }
-watch([plugin, page], mountPluginPage, { flush: 'post' })
+watch(() => [route.params.pluginId, route.params.pageId], mountPluginPage, { flush: 'post' })
 onMounted(async () => { await plugins.initialize(); await mountPluginPage() })
-onBeforeUnmount(() => plugins.unmountPageFrame(route.params.pluginId, route.params.pageId))
+onBeforeUnmount(() => {
+  mountGeneration += 1
+  if (mountedFrameKey) plugins.unmountPageFrame(mountedFrameKey.pluginId, mountedFrameKey.pageId)
+  mountedFrameKey = null
+})
 </script>
 
 <style scoped>

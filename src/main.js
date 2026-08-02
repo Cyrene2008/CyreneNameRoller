@@ -10,6 +10,17 @@ import './assets/global.css'
 import fluentIcons from 'virtual:fluent-icons'
 addCollection(fluentIcons)
 
+if (typeof window !== 'undefined') {
+  window.addEventListener('vite:preloadError', event => {
+    event.preventDefault()
+    const reloadKey = 'cyrene:stale-chunk-reload'
+    const lastReload = Number(sessionStorage.getItem(reloadKey) || 0)
+    if (Date.now() - lastReload < 30000) return
+    sessionStorage.setItem(reloadKey, String(Date.now()))
+    window.location.reload()
+  })
+}
+
 async function bootstrap() {
   const pinia = createPinia()
   const settingsStore = useSettingsStore(pinia)

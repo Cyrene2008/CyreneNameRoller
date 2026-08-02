@@ -518,20 +518,37 @@ function pageVariant(phase, direction) {
 
 function runPageTransition(element, phase, direction, cycle, done) {
   if (!settingsStore.settings.perfAnimations || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return done()
-  const variant = pageVariant(phase, direction)
-  let run = pluginsStore.startAnimation('page.transition', element, { variant })
-  if (!run) {
-    const fallback = defaultPageAnimations[variant]
-    const animation = element.animate(fallback.keyframes, fallback.options)
-    run = { animation, finished: animation.finished.catch(() => undefined), cancel: () => animation.cancel() }
-  }
-  const entry = { run, phase, direction, cycle }
-  pageTransitionRuns.set(element, entry)
-  if (phase === 'enter') pluginsStore.startAnimation('global.transition', null, { variant: 'page' })
-  run.finished.finally(() => {
-    if (pageTransitionRuns.get(element) === entry) pageTransitionRuns.delete(element)
+  let completed = false
+  let watchdog = null
+  let entry = null
+  const complete = (cancel = false) => {
+    if (completed) return
+    completed = true
+    if (watchdog) clearTimeout(watchdog)
+    if (cancel) {
+      try { entry?.run?.cancel?.() } catch {}
+    }
+    if (entry && pageTransitionRuns.get(element) === entry) pageTransitionRuns.delete(element)
     done()
-  })
+  }
+  try {
+    const variant = pageVariant(phase, direction)
+    let run = pluginsStore.startAnimation('page.transition', element, { variant })
+    if (!run) {
+      const fallback = defaultPageAnimations[variant]
+      const animation = element.animate(fallback.keyframes, fallback.options)
+      run = { animation, finished: animation.finished, cancel: () => animation.cancel() }
+    }
+    entry = { run, phase, direction, cycle }
+    pageTransitionRuns.set(element, entry)
+    watchdog = setTimeout(() => complete(true), 8000)
+    if (phase === 'enter') {
+      try { pluginsStore.startAnimation('global.transition', null, { variant: 'page' }) } catch {}
+    }
+    Promise.resolve(run?.finished).then(() => complete(), () => complete(true))
+  } catch {
+    complete(true)
+  }
 }
 
 function onPageEnter(element, done) {
