@@ -1,4 +1,4 @@
-export declare const PLUGIN_API_VERSION: '1.1.0'
+export declare const PLUGIN_API_VERSION: '1.2.0'
 export declare const PluginEvents: {
   readonly APP_READY: 'app:ready'
   readonly APP_ROUTE_CHANGED: 'app:route-changed'
@@ -31,6 +31,7 @@ export declare const PluginPermissions: {
   readonly DRAW_EXECUTE: 'draw:execute'
   readonly UI_ANIMATIONS: 'ui:animations'
   readonly UI_VISUAL_SURFACES: 'ui:visual-surfaces'
+  readonly UI_APPEARANCE: 'ui:appearance'
   readonly SYSTEM_OPEN_URL: 'system:open-url'
   readonly SYSTEM_SELECT_FILE: 'system:select-file'
   readonly SYSTEM_SELECT_DIRECTORY: 'system:select-directory'
@@ -52,6 +53,12 @@ export declare const AnimationTargets: {
 export declare const PluginPageLocations: {
   readonly PLUGINS: 'plugins'
   readonly DOCK: 'dock'
+}
+
+export declare const PluginCommandLocations: {
+  readonly COMMAND_PALETTE: 'command-palette'
+  readonly PAGE_HEADER: 'page-header'
+  readonly CONTEXT_MENU: 'context-menu'
 }
 
 export declare const PluginPlatforms: {
@@ -103,17 +110,51 @@ export interface CapabilityResult<T = unknown> {
   cancelled?: boolean
 }
 
+export interface HostExtensionCapability {
+  id: string
+  permission: PluginPermission
+  available: boolean
+  description: string
+  access?: 'read-only'
+  mode?: 'host-owned'
+  appendOnly?: boolean
+}
+
+export interface HostExtensionDescriptor {
+  schemaVersion: 1
+  apiVersion: string
+  model: 'product-freedom-core-hosted'
+  resources: HostExtensionCapability[]
+  transactions: HostExtensionCapability[]
+  contributions: string[]
+  extensionPoints: {
+    pages: { ownership: 'plugin'; surface: 'isolated-document'; locations: Array<'plugins' | 'dock'> }
+    commands: { ownership: 'plugin'; invocation: 'host-brokered'; locations: Array<'command-palette' | 'page-header' | 'context-menu'> }
+    animationPacks: { ownership: 'host'; execution: Array<'gsap' | 'waapi'>; input: 'declarative' }
+    visualSurfaces: { ownership: 'plugin'; surface: 'offscreen-canvas'; placement: Array<'background'> }
+    appearancePacks: { ownership: 'host'; input: 'semantic-tokens'; modes: Array<'light' | 'dark'> }
+  }
+  guarantees: {
+    existingRecordsImmutable: true
+    statisticsImmutable: true
+    balanceParametersImmutable: true
+    resultSelectionHostOwned: true
+  }
+}
+
 export interface PluginContext {
   plugin: { id: string; version: string }
   permissions: readonly PluginPermission[]
   platform: PluginPlatform
   capabilities: Record<string, CapabilityStatus>
+  host: HostExtensionDescriptor
   request(method: string, args?: Record<string, unknown>): Promise<any>
 }
 
 export interface PluginModule {
   activate(context: PluginContext): void | Promise<void>
   onEvent?(event: string, payload: unknown): void | Promise<void>
+  onCommand?(commandId: string, args: unknown): unknown | Promise<unknown>
   deactivate?(): void | Promise<void>
 }
 
@@ -133,7 +174,7 @@ export type PluginAnimationKeyframe =
     composite?: 'replace' | 'add' | 'accumulate'
   }
 
-export interface PluginAnimationDefinition {
+export interface PluginWaapiAnimationDefinition {
   keyframes: PluginAnimationKeyframe[]
   options: {
     duration: number
@@ -143,6 +184,31 @@ export interface PluginAnimationDefinition {
     direction?: 'normal' | 'reverse' | 'alternate' | 'alternate-reverse'
   }
 }
+
+export type PluginGsapProperty =
+  | 'opacity' | 'autoAlpha' | 'x' | 'y' | 'xPercent' | 'yPercent'
+  | 'scale' | 'scaleX' | 'scaleY' | 'rotation' | 'rotate'
+  | 'rotationX' | 'rotationY' | 'rotateX' | 'rotateY' | 'skewX' | 'skewY'
+  | 'filter' | 'clipPath' | 'borderRadius' | 'boxShadow' | 'textShadow'
+  | 'color' | 'background' | 'backgroundColor' | 'letterSpacing' | 'transformOrigin'
+
+export type PluginGsapVars = Partial<Record<PluginGsapProperty, string | number | boolean>>
+
+export interface PluginGsapAnimationDefinition {
+  gsap: {
+    from: PluginGsapVars
+    to: PluginGsapVars
+    options: {
+      duration: number
+      delay?: number
+      ease?: string
+      repeat?: number
+      yoyo?: boolean
+    }
+  }
+}
+
+export type PluginAnimationDefinition = PluginWaapiAnimationDefinition | PluginGsapAnimationDefinition
 
 export interface PluginAnimationPreset {
   id: string
@@ -167,6 +233,25 @@ export interface PluginAnimationPackContribution {
   title: string
   description?: string
   source: string
+}
+
+export type PluginAppearanceToken =
+  | '--accent' | '--accent-light' | '--accent-dark' | '--accent-hover' | '--accent-200' | '--accent-50' | '--text-on-accent'
+  | '--bg-base' | '--bg-card' | '--bg-card-solid' | '--bg-hover' | '--bg-acrylic' | '--bg-mica'
+  | '--text-primary' | '--text-secondary' | '--text-muted'
+  | '--border-default' | '--border-subtle' | '--border-strong'
+  | '--shadow-2' | '--shadow-4' | '--shadow-8' | '--shadow-16'
+
+export type PluginAppearanceTokens = Partial<Record<PluginAppearanceToken, string>>
+
+export interface PluginAppearancePackContribution {
+  id: string
+  title: string
+  titleEn?: string
+  description?: string
+  base?: 'peach' | 'fluent'
+  light?: PluginAppearanceTokens
+  dark?: PluginAppearanceTokens
 }
 
 export interface PluginNativeControlBase {
@@ -232,6 +317,18 @@ export interface PluginPageContribution {
   native?: PluginNativeSettingsPage
 }
 
+export type PluginCommandLocation = 'command-palette' | 'page-header' | 'context-menu'
+
+export interface PluginCommandContribution {
+  id: string
+  title: string
+  titleEn?: string
+  description?: string
+  icon?: string
+  locations?: PluginCommandLocation[]
+  order?: number
+}
+
 export interface PluginVisualSurfaceContribution {
   id: string
   title?: string
@@ -282,8 +379,10 @@ export interface PluginManifest {
   shareData?: boolean
   contributes?: {
     pages?: PluginPageContribution[]
+    commands?: PluginCommandContribution[]
     animationPacks?: PluginAnimationPackContribution[]
     visualSurfaces?: PluginVisualSurfaceContribution[]
+    appearancePacks?: PluginAppearancePackContribution[]
   }
 }
 
@@ -362,6 +461,9 @@ export declare function defineVisualSurface<T extends VisualSurfaceModule>(surfa
 export declare function createRequest(context: PluginContext): PluginContext['request']
 export declare function getPlatform(context: PluginContext): Promise<PluginPlatform>
 export declare function getCapabilities(context: PluginContext): Promise<Record<string, CapabilityStatus>>
+export declare function describeHost(context: PluginContext): Promise<HostExtensionDescriptor>
+export declare function queryResource<T = unknown>(context: PluginContext, resource: string, query?: Record<string, unknown>): Promise<T>
+export declare function executeTransaction<T = unknown>(context: PluginContext, transaction: string, input?: Record<string, unknown>): Promise<T>
 export declare function isCapabilityAvailable(context: PluginContext, capability: string): Promise<boolean>
 export declare function requestCapability<T = unknown>(context: PluginContext, method: string, args?: Record<string, unknown>, options?: { ignoreUnsupported?: boolean }): Promise<CapabilityResult<T>>
 export declare function executeDraw(context: PluginContext, options?: DrawRequest): Promise<DrawReceipt>

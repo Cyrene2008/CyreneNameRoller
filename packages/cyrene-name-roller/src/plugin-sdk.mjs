@@ -2,7 +2,7 @@
  * Public SDK for CyreneNameRoller plugins.
  * The host injects the request function into activate(context).
  */
-export const PLUGIN_API_VERSION = '1.1.0'
+export const PLUGIN_API_VERSION = '1.2.0'
 
 export const PluginEvents = Object.freeze({
   APP_READY: 'app:ready',
@@ -37,6 +37,7 @@ export const PluginPermissions = Object.freeze({
   DRAW_EXECUTE: 'draw:execute',
   UI_ANIMATIONS: 'ui:animations',
   UI_VISUAL_SURFACES: 'ui:visual-surfaces',
+  UI_APPEARANCE: 'ui:appearance',
   SYSTEM_OPEN_URL: 'system:open-url',
   SYSTEM_SELECT_FILE: 'system:select-file',
   SYSTEM_SELECT_DIRECTORY: 'system:select-directory',
@@ -58,6 +59,12 @@ export const AnimationTargets = Object.freeze({
 export const PluginPageLocations = Object.freeze({
   PLUGINS: 'plugins',
   DOCK: 'dock'
+})
+
+export const PluginCommandLocations = Object.freeze({
+  COMMAND_PALETTE: 'command-palette',
+  PAGE_HEADER: 'page-header',
+  CONTEXT_MENU: 'context-menu'
 })
 
 export const PluginPlatforms = Object.freeze({
@@ -115,6 +122,19 @@ export async function getCapabilities(context) {
   return createRequest(context)('runtime.capabilities')
 }
 
+export async function describeHost(context) {
+  if (context?.host?.schemaVersion) return context.host
+  return createRequest(context)('host.describe')
+}
+
+export async function queryResource(context, resource, query = {}) {
+  return createRequest(context)('resources.query', { resource, query })
+}
+
+export async function executeTransaction(context, transaction, input = {}) {
+  return createRequest(context)('transactions.execute', { transaction, input })
+}
+
 export async function isCapabilityAvailable(context, capability) {
   const capabilities = await getCapabilities(context)
   return capabilities?.[capability]?.available === true
@@ -131,7 +151,7 @@ export async function requestCapability(context, method, args = {}, options = {}
 }
 
 export function executeDraw(context, options = {}) {
-  return createRequest(context)('draw.execute', options)
+  return executeTransaction(context, 'draw', options)
 }
 
 export function readDependencyStorage(context, pluginId, key) {

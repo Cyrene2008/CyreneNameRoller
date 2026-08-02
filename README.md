@@ -82,7 +82,7 @@
 ## 快速开始
 
 ```bash
-git clone https://github.com/Cyrene2008/CyreneNameRoller.git
+git clone https://github.com/StarCyrene/CyreneNameRoller.git
 cd CyreneNameRoller
 npm install
 npm run dev

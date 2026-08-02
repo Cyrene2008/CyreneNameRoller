@@ -47,7 +47,7 @@ A random name picker desktop app built with Vue 3 + Tauri, featuring Windows 11 
 ## Quick Start
 
 ```bash
-git clone https://github.com/Cyrene2008/CyreneNameRoller.git
+git clone https://github.com/StarCyrene/CyreneNameRoller.git
 cd CyreneNameRoller
 npm install
 npm run dev

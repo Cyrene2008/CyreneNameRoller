@@ -1,5 +1,6 @@
 import { decodePluginFile } from './package'
 import { resolvePlatformEntry } from './platform'
+import { PLUGIN_API_VERSION } from './constants'
 
 function dataUrlFromBase64(base64, mime = 'application/octet-stream') {
   return `data:${mime};base64,${base64}`
@@ -37,7 +38,17 @@ function canReceiveEvent(plugin, event) {
 }
 
 const RUNTIME_DEACTIVATE_GRACE_MS = 250
+const RUNTIME_COMMAND_TIMEOUT_MS = 15000
 const RUNTIME_CONTRIBUTION_ID_PATTERN = /^[a-z][a-z0-9._-]{0,63}$/
+const HOST_RESOURCES = Object.freeze({
+  names: { permission: 'names:read', access: 'read-only', description: 'Lists, people and groups snapshot' },
+  records: { permission: 'records:read', access: 'read-only', description: 'Immutable draw history snapshot' },
+  statistics: { permission: 'statistics:read', access: 'read-only', description: 'Draw count and total snapshot' },
+  balance: { permission: 'balance:read', access: 'read-only', description: 'CAF status and public parameters snapshot' }
+})
+const HOST_TRANSACTIONS = Object.freeze({
+  draw: { permission: 'draw:execute', mode: 'host-owned', appendOnly: true, description: 'CAF draw with atomic statistics and history append' }
+})
 
 function visualCancellationError() {
   const error = new Error('插件视觉层激活已取消')
@@ -64,10 +75,37 @@ export class PluginRuntime {
     this.workers = new Map()
     this.frames = new Map()
     this.pages = new Map()
+    this.commands = new Map()
     this.visualSurfaces = new Map()
     this.visualRuntimes = new Map()
     this.deactivatingPlugins = new Set()
     this.lifecycleSnapshots = new Map()
+  }
+
+  describeHost(plugin) {
+    const granted = new Set(plugin?.manifest?.permissions || [])
+    const describe = ([id, definition]) => ({ id, ...definition, available: granted.has(definition.permission) })
+    return {
+      schemaVersion: 1,
+      apiVersion: PLUGIN_API_VERSION,
+      model: 'product-freedom-core-hosted',
+      resources: Object.entries(HOST_RESOURCES).map(describe),
+      transactions: Object.entries(HOST_TRANSACTIONS).map(describe),
+      contributions: ['pages', 'commands', 'animationPacks', 'visualSurfaces', 'appearancePacks'],
+      extensionPoints: {
+        pages: { ownership: 'plugin', surface: 'isolated-document', locations: ['plugins', 'dock'] },
+        commands: { ownership: 'plugin', invocation: 'host-brokered', locations: ['command-palette', 'page-header', 'context-menu'] },
+        animationPacks: { ownership: 'host', execution: ['gsap', 'waapi'], input: 'declarative' },
+        visualSurfaces: { ownership: 'plugin', surface: 'offscreen-canvas', placement: ['background'] },
+        appearancePacks: { ownership: 'host', input: 'semantic-tokens', modes: ['light', 'dark'] }
+      },
+      guarantees: {
+        existingRecordsImmutable: true,
+        statisticsImmutable: true,
+        balanceParametersImmutable: true,
+        resultSelectionHostOwned: true
+      }
+    }
   }
 
   registerPages(plugin) {
@@ -95,6 +133,27 @@ export class PluginRuntime {
 
   getContributedPages() {
     return [...this.pages.values()]
+  }
+
+  registerCommands(plugin) {
+    const ids = new Set()
+    const commands = []
+    for (const command of plugin.manifest.contributes?.commands || []) {
+      if (!RUNTIME_CONTRIBUTION_ID_PATTERN.test(command.id || '') || ids.has(command.id)) {
+        throw new Error(`插件命令 ID 无效或重复：${command.id || '空'}`)
+      }
+      ids.add(command.id)
+      commands.push([`${plugin.manifest.id}:${command.id}`, { pluginId: plugin.manifest.id, ...command }])
+    }
+    for (const [key, command] of commands) this.commands.set(key, command)
+  }
+
+  unregisterCommands(pluginId) {
+    for (const [key, command] of this.commands) if (command.pluginId === pluginId) this.commands.delete(key)
+  }
+
+  getContributedCommands() {
+    return [...this.commands.values()]
   }
 
   registerVisualSurfaces(plugin) {
@@ -153,9 +212,10 @@ export class PluginRuntime {
         this.registerVisualSurfaces(plugin)
         return
       } catch (error) {
-        this.unregisterPages(plugin.manifest.id)
-        this.unregisterVisualSurfaces(plugin.manifest.id)
-        throw error
+      this.unregisterPages(plugin.manifest.id)
+      this.unregisterCommands(plugin.manifest.id)
+      this.unregisterVisualSurfaces(plugin.manifest.id)
+      throw error
       }
     }
     const source = decodePluginFile(plugin, entry)
@@ -188,6 +248,14 @@ export class PluginRuntime {
             self.postMessage({ type: 'activated' });
           } else if (message.type === 'event' && pluginModule?.onEvent) {
             await pluginModule.onEvent(message.event, freezePayload(message.payload));
+          } else if (message.type === 'command') {
+            if (typeof pluginModule?.onCommand !== 'function') throw new Error('插件未实现 onCommand()');
+            try {
+              const result = await pluginModule.onCommand(message.commandId, freezePayload(message.args || {}));
+              self.postMessage({ type: 'command-result', id: message.id, result });
+            } catch (error) {
+              self.postMessage({ type: 'command-result', id: message.id, error: String(error?.message || error) });
+            }
           } else if (message.type === 'deactivate') {
             await pluginModule?.deactivate?.();
             self.postMessage({ type: 'deactivated' });
@@ -222,6 +290,13 @@ export class PluginRuntime {
         }
       } else if (message.type === 'activated') activatedResolve()
       else if (message.type === 'deactivated') deactivatedResolve()
+      else if (message.type === 'command-result') {
+        const task = commandRequests.get(message.id)
+        if (!task) return
+        commandRequests.delete(message.id)
+        clearTimeout(task.timeout)
+        message.error ? task.reject(new Error(message.error)) : task.resolve(transferableValue(message.result))
+      }
       else if (message.type === 'host-error') {
         const error = new Error(message.error || '插件 Worker 执行失败')
         if (activationComplete) this.onFault?.(plugin.manifest.id, error)
@@ -238,20 +313,24 @@ export class PluginRuntime {
       permissions: transferableValue(plugin.manifest.permissions || []),
       platform: transferableValue(this.platformBridge.info()),
       capabilities: transferableValue(this.platformBridge.capabilities()),
+      host: transferableValue(this.describeHost(plugin)),
       request: true
     }
-    this.workers.set(plugin.manifest.id, { worker, workerUrl, deactivated })
+    const commandRequests = new Map()
+    this.workers.set(plugin.manifest.id, { worker, workerUrl, deactivated, commandRequests })
     worker.postMessage({ type: 'activate', context })
     try {
       await activated
       activationComplete = true
       this.registerPages(plugin)
+      this.registerCommands(plugin)
       this.registerVisualSurfaces(plugin)
     } catch (error) {
       worker.terminate()
       URL.revokeObjectURL(workerUrl)
       this.workers.delete(plugin.manifest.id)
       this.unregisterPages(plugin.manifest.id)
+      this.unregisterCommands(plugin.manifest.id)
       this.unregisterVisualSurfaces(plugin.manifest.id)
       throw error
     } finally {
@@ -264,6 +343,11 @@ export class PluginRuntime {
     try {
       const runtime = this.workers.get(pluginId)
       if (runtime) {
+        for (const task of runtime.commandRequests?.values() || []) {
+          clearTimeout(task.timeout)
+          task.reject(new Error('插件已停止，命令已取消'))
+        }
+        runtime.commandRequests?.clear()
         try { runtime.worker.postMessage({ type: 'deactivate' }) } catch {}
         await Promise.race([runtime.deactivated, wait(RUNTIME_DEACTIVATE_GRACE_MS)])
         runtime.worker.terminate()
@@ -271,6 +355,7 @@ export class PluginRuntime {
         this.workers.delete(pluginId)
       }
       this.unregisterPages(pluginId)
+      this.unregisterCommands(pluginId)
       this.unregisterFrames(pluginId)
       await Promise.all([...this.visualRuntimes.keys()]
         .filter(key => key.startsWith(`${pluginId}:`))
@@ -303,6 +388,30 @@ export class PluginRuntime {
       if (!canReceiveEvent(plugin, event) || (surface?.events?.length && !surface.events.includes(event))) continue
       try { runtime.worker.postMessage({ type: 'event', event, payload: transferredPayload }) } catch {}
     }
+  }
+
+  invokeCommand(pluginId, commandId, args = {}) {
+    const plugin = this.getPlugin(pluginId)
+    if (!plugin || plugin.enabled === false || this.deactivatingPlugins.has(pluginId)) throw new Error('插件不存在或已禁用')
+    const command = this.commands.get(`${pluginId}:${commandId}`)
+    if (!command) throw new Error('插件命令不存在或尚未启用')
+    const runtime = this.workers.get(pluginId)
+    if (!runtime) throw new Error('插件命令需要可用的 Worker 入口')
+    const id = globalThis.crypto?.randomUUID?.() || `command-${Date.now()}-${Math.random()}`
+    return new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        runtime.commandRequests.delete(id)
+        reject(new Error(`插件命令执行超时：${command.title}`))
+      }, RUNTIME_COMMAND_TIMEOUT_MS)
+      runtime.commandRequests.set(id, { resolve, reject, timeout })
+      try {
+        runtime.worker.postMessage({ type: 'command', id, commandId, args: transferableValue(args) })
+      } catch (error) {
+        clearTimeout(timeout)
+        runtime.commandRequests.delete(id)
+        reject(error)
+      }
+    })
   }
 
   replayLifecycleEventsToVisualRuntime(key, runtime) {
@@ -549,6 +658,10 @@ export class PluginRuntime {
     const plugin = this.getPlugin(pluginId)
     if (!plugin) throw new Error('插件不存在')
     if (plugin.enabled === false || this.deactivatingPlugins.has(pluginId)) throw new Error('插件已禁用')
+    const resource = method === 'resources.query' ? HOST_RESOURCES[String(args.resource || '')] : null
+    const transaction = method === 'transactions.execute' ? HOST_TRANSACTIONS[String(args.transaction || args.id || '')] : null
+    if (method === 'resources.query' && !resource) throw new Error(`未知宿主资源：${String(args.resource || '')}`)
+    if (method === 'transactions.execute' && !transaction) throw new Error(`未知宿主事务：${String(args.transaction || args.id || '')}`)
     const permissionFor = method => ({
       'storage.read': 'storage:read', 'storage.write': 'storage:write',
       'names.read': 'names:read', 'records.read': 'records:read', 'statistics.read': 'statistics:read', 'balance.read': 'balance:read',
@@ -559,12 +672,13 @@ export class PluginRuntime {
       'system.select-directory': 'system:select-directory',
       'system.clipboard-read': 'system:clipboard-read', 'system.clipboard-write': 'system:clipboard-write',
       'system.reveal-file': 'system:reveal-file', 'system.execute': 'system:execute'
-    }[method])
+    }[method] || resource?.permission || transaction?.permission)
     const permission = permissionFor(method)
     if (permission && !plugin.manifest.permissions.includes(permission)) throw new Error(`插件未获授权：${permission}`)
     switch (method) {
       case 'runtime.platform': return this.platformBridge.info()
       case 'runtime.capabilities': return this.platformBridge.capabilities()
+      case 'host.describe': return this.describeHost(plugin)
       case 'storage.read': return this.loadPluginData(pluginId, storageKey(args.key))
       case 'storage.write': {
         const key = storageKey(args.key)
@@ -577,6 +691,12 @@ export class PluginRuntime {
       case 'statistics.read': return this.getCoreSnapshot('statistics')
       case 'balance.read': return this.getCoreSnapshot('balance')
       case 'draw.execute': return this.executeCoreDraw?.(plugin, transferableValue(args))
+      case 'resources.query': return this.getCoreSnapshot(String(args.resource), transferableValue(args.query || {}))
+      case 'transactions.execute': {
+        const transactionId = String(args.transaction || args.id || '')
+        if (transactionId === 'draw') return this.executeCoreDraw?.(plugin, transferableValue(args.input || args.payload || {}))
+        throw new Error(`宿主事务尚未实现：${transactionId}`)
+      }
       case 'notifications.show': return this.showBanner?.({ message: String(args.message || '').slice(0, 1000), type: ['info', 'success', 'warning'].includes(args.type) ? args.type : 'info', duration: Math.max(0, Math.min(30000, Number(args.duration) || 5000)), icon: args.icon || 'info-16-regular' })
       case 'audio.select': return this.selectFile?.('audio/*,.mp3,.m4a,.wav,.flac,.ogg')
       case 'audio.play': {
@@ -615,18 +735,46 @@ export class PluginRuntime {
     const csp = `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' data:; style-src 'unsafe-inline' data:; img-src data:; media-src data:; font-src data:; connect-src 'none'; form-action 'none'; base-uri 'none'; object-src 'none'">`
     const platform = this.platformBridge.info()
     const capabilities = this.platformBridge.capabilities()
+    const host = this.describeHost(plugin)
+    const initialTheme = this.lifecycleSnapshots.get('app:theme-changed') || {}
+    const fluentBase = `<style id="cyrene-plugin-fluent-base">
+      :root { color-scheme: light dark; --accent:#ea5ec1; --bg-base:#fff7fc; --bg-card-solid:#fff; --bg-hover:#f8eaf3; --text-primary:#2a1723; --text-secondary:#654356; --text-muted:#8a6d7d; --border-default:rgba(234,94,193,.18); --radius:8px; --radius-lg:12px; --font-ui:'Segoe UI Variable','Segoe UI',system-ui,sans-serif; }
+      * { box-sizing:border-box; }
+      html, body { min-height:100%; margin:0; background:var(--bg-base); color:var(--text-primary); font-family:var(--font-ui); }
+      body { padding:24px; }
+      button, input, select, textarea { font:inherit; color:inherit; }
+      button, input, select, textarea, .cyrene-fluent-card { border:1px solid var(--border-default); border-radius:var(--radius); background:var(--bg-card-solid); }
+      button { min-height:32px; padding:6px 14px; cursor:pointer; }
+      button:hover { background:var(--bg-hover); }
+      button[data-primary] { color:var(--text-on-accent,#fff); background:var(--accent); border-color:transparent; }
+      .cyrene-fluent-page { width:min(1100px,100%); margin:0 auto; display:grid; gap:16px; }
+      .cyrene-fluent-card { padding:18px; box-shadow:var(--shadow-4,0 2px 10px rgba(0,0,0,.08)); }
+      .cyrene-fluent-row { display:flex; align-items:center; justify-content:space-between; gap:16px; }
+      .cyrene-muted { color:var(--text-muted); }
+    </style>`
     const bootstrap = `<script>
       (() => {
         const pluginId = ${JSON.stringify(plugin.manifest.id)};
         const platform = Object.freeze(${JSON.stringify(platform)});
         const capabilities = Object.freeze(${JSON.stringify(capabilities)});
+        const host = Object.freeze(${JSON.stringify(host)});
+        const initialTheme = ${JSON.stringify(initialTheme)};
         const pending = new Map();
+        const applyTheme = payload => {
+          const theme = payload && typeof payload === 'object' ? payload : {};
+          document.documentElement.classList.toggle('dark', theme.dark === true);
+          document.documentElement.style.colorScheme = theme.dark ? 'dark' : 'light';
+          for (const [token, value] of Object.entries(theme.tokens || {})) {
+            if (/^--[a-z0-9-]+$/i.test(token)) document.documentElement.style.setProperty(token, String(value));
+          }
+        };
         const request = (method, args = {}) => new Promise((resolve, reject) => {
           const id = (crypto.randomUUID && crypto.randomUUID()) || ('rpc-' + Date.now() + '-' + Math.random());
           pending.set(id, { resolve, reject });
           parent.postMessage({ type: 'rpc-request', pluginId, id, method, args }, '*');
         });
-        window.CyrenePlugin = Object.freeze({ pluginId, platform, capabilities, request });
+        window.CyrenePlugin = Object.freeze({ pluginId, platform, capabilities, host, request });
+        applyTheme(initialTheme);
         addEventListener('message', event => {
           const message = event.data || {};
           if (message.type === 'rpc-response') {
@@ -635,14 +783,15 @@ export class PluginRuntime {
             pending.delete(message.id);
             message.error ? task.reject(new Error(message.error)) : task.resolve(message.result);
           } else if (message.type === 'event') {
+            if (message.event === 'app:theme-changed') applyTheme(message.payload);
             dispatchEvent(new CustomEvent('cyrene-plugin-event', { detail: message }));
           }
         });
       })();
     <\/script>`
     return /<head(?:\s[^>]*)?>/i.test(html)
-      ? html.replace(/<head(\s[^>]*)?>/i, match => `${match}${csp}${bootstrap}`)
-      : `${csp}${bootstrap}${html}`
+      ? html.replace(/<head(\s[^>]*)?>/i, match => `${match}${csp}${fluentBase}${bootstrap}`)
+      : `${csp}${fluentBase}${bootstrap}${html}`
   }
 
   mountFrame(frame, pluginId, pageId) {

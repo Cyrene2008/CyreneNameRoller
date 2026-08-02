@@ -77,7 +77,7 @@ import FluentSelect from '../components/FluentSelect.vue'
 const settingsStore = useSettingsStore()
 const lang = computed(() => settingsStore.settings.language)
 
-const GITHUB_REPO = 'Cyrene2008/CyreneNameRoller'
+const GITHUB_REPO = 'StarCyrene/CyreneNameRoller'
 const GITHUB_API = 'https://api.github.com/repos/'
 
 const loading = ref(true)

@@ -113,6 +113,7 @@ const permissionDescriptions = {
   'draw:execute': { zh: '通过宿主 CAF 公平事务追加抽取结果', en: 'Run host-controlled CAF draws and append records', risk: 'elevated' },
   'ui:animations': { zh: '为宿主提供受控动画方案', en: 'Provide controlled host animations', risk: 'normal' },
   'ui:visual-surfaces': { zh: '在核心内容后方绘制 Canvas / WebGL 特效', en: 'Draw Canvas / WebGL effects behind core content', risk: 'elevated' },
+  'ui:appearance': { zh: '提供受校验的全局语义外观 Token', en: 'Provide validated global semantic appearance tokens', risk: 'normal' },
   'events:lifecycle': { zh: '接收路由、主题和窗口生命周期事件', en: 'Receive route, theme and window lifecycle events', risk: 'normal' },
   'system:execute': { zh: '执行已声明的本地系统命令', en: 'Run declared local system commands', risk: 'high' },
   'records:read': { zh: '读取不可变的抽取记录快照', en: 'Read immutable record snapshots', risk: 'normal' },

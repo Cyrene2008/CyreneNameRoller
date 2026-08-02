@@ -30,7 +30,7 @@
 
       <div class="about-section">
         <h3>{{ lang === 'en' ? 'Repository' : '仓库' }}</h3>
-        <a href="#" @click.prevent="openLink('https://github.com/Cyrene2008/CyreneNameRoller')">github.com/Cyrene2008/CyreneNameRoller</a>
+        <a href="#" @click.prevent="openLink('https://github.com/StarCyrene/CyreneNameRoller')">github.com/StarCyrene/CyreneNameRoller</a>
       </div>
 
       <div class="about-section">

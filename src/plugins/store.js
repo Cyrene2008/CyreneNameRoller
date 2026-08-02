@@ -26,6 +26,7 @@ const PLUGIN_DATA_KEY = 'pluginData'
 const SESSION_MARKER_KEY = 'cyrene-plugin-session-pending'
 const MAX_AUDIO_FILE_SIZE = 16 * 1024 * 1024
 const MAX_PLUGIN_DATA_SIZE = 96 * 1024 * 1024
+const APPEARANCE_VALUE_PREFIX = 'plugin-appearance::'
 
 function clone(value) {
   return value === undefined ? undefined : JSON.parse(JSON.stringify(value))
@@ -108,10 +109,22 @@ export const usePluginsStore = defineStore('plugins', () => {
     pagesRevision.value
     return runtime.getContributedPages()
   })
+  const contributedCommands = computed(() => {
+    pagesRevision.value
+    return runtime.getContributedCommands()
+  })
   const contributedVisualSurfaces = computed(() => {
     pagesRevision.value
     return runtime.getContributedVisualSurfaces()
   })
+  const contributedAppearancePacks = computed(() => enabledPlugins.value.flatMap(plugin =>
+    (plugin.manifest.contributes?.appearancePacks || []).map(pack => ({
+      pluginId: plugin.manifest.id,
+      pluginName: plugin.manifest.name,
+      value: `${APPEARANCE_VALUE_PREFIX}${plugin.manifest.id}::${pack.id}`,
+      ...clone(pack)
+    }))
+  ))
 
   function refreshPages() { pagesRevision.value += 1 }
 
@@ -583,6 +596,33 @@ export const usePluginsStore = defineStore('plugins', () => {
     return runtime.getContributedPages().find(page => page.pluginId === pluginId && page.id === pageId)
   }
 
+  function invokePluginCommand(pluginId, commandId, args = {}) {
+    return runtime.invokeCommand(pluginId, commandId, args)
+  }
+
+  function appearanceByValue(value) {
+    const source = String(value || '')
+    if (!source.startsWith(APPEARANCE_VALUE_PREFIX)) return null
+    return contributedAppearancePacks.value.find(pack => pack.value === source) || null
+  }
+
+  function appearanceOptions(language = 'zh') {
+    return contributedAppearancePacks.value.map(pack => ({
+      value: pack.value,
+      label: language === 'en' && pack.titleEn ? pack.titleEn : pack.title,
+      description: pack.description,
+      icon: 'fluent:paint-brush-16-regular',
+      pluginId: pack.pluginId,
+      pluginName: pack.pluginName
+    }))
+  }
+
+  function resolveAppearance(value, dark = false) {
+    const pack = appearanceByValue(value)
+    if (!pack) return null
+    return { ...pack, tokens: clone(dark ? pack.dark : pack.light) }
+  }
+
   function pluginById(pluginId) { return installed.value[pluginId] }
 
   function pluginAssetUrl(pluginOrId, path = '') {
@@ -671,10 +711,10 @@ export const usePluginsStore = defineStore('plugins', () => {
   }
 
   return {
-    installed, list, source, initialized, recovering, lastError, enabledPlugins, contributedPages, contributedVisualSurfaces, animationSelections,
+    installed, list, source, initialized, recovering, lastError, enabledPlugins, contributedPages, contributedCommands, contributedVisualSurfaces, contributedAppearancePacks, animationSelections,
     initialize, setBannerHandler, saveState, activateEnabled, inspectPackage, installPackage, uninstall, setEnabled,
-    setSource, fetchList, downloadPlugin, loadCatalogDetails, pageById, pluginById, pluginAssetUrl,
-    pluginPageSource, requestPlugin, mountPageFrame, unmountPageFrame, mountVisualSurface, resizeVisualSurface, unmountVisualSurface,
+    setSource, fetchList, downloadPlugin, loadCatalogDetails, pageById, appearanceByValue, appearanceOptions, resolveAppearance, pluginById, pluginAssetUrl,
+    pluginPageSource, requestPlugin, invokePluginCommand, mountPageFrame, unmountPageFrame, mountVisualSurface, resizeVisualSurface, unmountVisualSurface,
     animationOptions, animationSelectionValue, setAnimationSelection, hasAnimation, startAnimation, registerAnimationSurface, unregisterAnimationSurface,
     dispatchEvent, handlePluginMessage, markCleanShutdown,
     compatibilityFor, platform: platformBridge.info(), platformCapabilities: platformBridge.capabilities()

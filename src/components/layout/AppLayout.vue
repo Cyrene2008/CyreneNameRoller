@@ -1,15 +1,15 @@
 <template>
-  <div class="app-layout" :class="[settingsStore.settings.colorTheme || 'peach', { dark: settingsStore.darkMode, 'perf-no-blur': !settingsStore.settings.perfBlur, 'perf-no-shadow': !settingsStore.settings.perfShadows, 'perf-no-anim': !settingsStore.settings.perfAnimations }]" :style="themeStyle" @contextmenu.prevent>
+  <div class="app-layout" :class="[themeClass, { dark: settingsStore.darkMode, 'perf-no-blur': !settingsStore.settings.perfBlur, 'perf-no-shadow': !settingsStore.settings.perfShadows, 'perf-no-anim': !settingsStore.settings.perfAnimations }]" :style="themeStyle" @contextmenu.prevent>
     <PluginVisualLayers />
     <div ref="globalAnimationSurfaceRef" class="plugin-global-animation-surface" aria-hidden="true" />
-    <TitleBar />
-    <div class="app-body">
+    <TitleBar class="app-foreground-layer" />
+    <div class="app-body app-foreground-layer">
       <NavigationDock />
-      <main class="app-content">
+      <main ref="appContentRef" class="app-content">
         <router-view v-slot="{ Component, route }">
-          <Transition :name="transitionName" mode="out-in" :css="false" @enter="onPageEnter" @leave="onPageLeave" @enter-cancelled="cancelPageTransition" @leave-cancelled="cancelPageTransition">
+          <div ref="routeStageRef" class="route-page-stage" :data-route-path="route.path">
             <component :is="Component" :key="route.path" />
-          </Transition>
+          </div>
         </router-view>
       </main>
     </div>
@@ -111,6 +111,7 @@
 <script setup>
 import { onMounted, onBeforeUnmount, watch, provide, ref, computed, nextTick, reactive } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import { gsap } from 'gsap'
 import TitleBar from './TitleBar.vue'
 import NavigationDock from './NavigationDock.vue'
 import FluentToast from '../FluentToast.vue'
@@ -150,30 +151,42 @@ const reducedMotionQuery = typeof window !== 'undefined' && typeof window.matchM
 const reducedMotion = ref(!!reducedMotionQuery?.matches)
 let removeAccentListener
 let removeReducedMotionListener
+const selectedAppearance = computed(() => pluginsStore.resolveAppearance(settingsStore.settings.colorTheme, settingsStore.darkMode))
+const themeClass = computed(() => ['peach', 'fluent', 'custom'].includes(settingsStore.settings.colorTheme) ? settingsStore.settings.colorTheme : 'plugin-appearance')
+const resolvedThemeTokens = computed(() => {
+  const settings = settingsStore.settings
+  const appearance = selectedAppearance.value
+  if (appearance) {
+    const accent = appearance.tokens['--accent'] || appearance.light?.['--accent'] || appearance.dark?.['--accent'] || DEFAULT_ACCENT
+    return {
+      ...createThemeVariables(accent, settingsStore.darkMode, appearance.base === 'fluent'),
+      ...appearance.tokens
+    }
+  }
+  if (settings.colorTheme === 'custom') return createThemeVariables(settings.customThemeColor, settingsStore.darkMode, false)
+  if (settings.colorTheme === 'fluent') return createThemeVariables(systemAccent.value, settingsStore.darkMode, true)
+  return {}
+})
 const themeStyle = computed(() => {
   const settings = settingsStore.settings
-  const style = { fontSize: (14 * (settings.uiScale || 100) / 100) + 'px' }
-  if (settings.colorTheme === 'custom') {
-    return { ...style, ...createThemeVariables(settings.customThemeColor, settingsStore.darkMode, false) }
-  }
-  if (settings.colorTheme === 'fluent') {
-    return { ...style, ...createThemeVariables(systemAccent.value, settingsStore.darkMode, true) }
-  }
-  return style
+  return { fontSize: (14 * (settings.uiScale || 100) / 100) + 'px', ...resolvedThemeTokens.value }
 })
 const isDesktopApp = computed(() => isTauri())
 
 function pluginThemePayload() {
   const theme = settingsStore.settings.colorTheme || 'peach'
-  const accent = theme === 'custom'
-    ? normalizeHex(settingsStore.settings.customThemeColor, DEFAULT_ACCENT)
-    : theme === 'fluent'
-      ? normalizeHex(systemAccent.value, DEFAULT_ACCENT)
-      : DEFAULT_ACCENT
+  const tokens = Object.fromEntries(Object.entries(resolvedThemeTokens.value).filter(([key]) => key.startsWith('--')))
+  const accent = normalizeHex(tokens['--accent'] || (theme === 'custom' ? settingsStore.settings.customThemeColor : theme === 'fluent' ? systemAccent.value : DEFAULT_ACCENT), DEFAULT_ACCENT)
   return {
     theme,
     dark: !!settingsStore.darkMode,
     accent,
+    tokens,
+    appearance: selectedAppearance.value ? {
+      pluginId: selectedAppearance.value.pluginId,
+      id: selectedAppearance.value.id,
+      title: selectedAppearance.value.title
+    } : null,
     perfAnimations: settingsStore.settings.perfAnimations !== false,
     reducedMotion: reducedMotion.value
   }
@@ -475,100 +488,148 @@ async function setupFileDrop() {
   }
 }
 
-const transitionName = ref('page-forward')
-const pageTransitionRuns = new WeakMap()
-let pendingPageDirection = 'forward'
-let pageTransitionCycle = null
-let pageTransitionCycleId = 0
+const appContentRef = ref(null)
+const routeStageRef = ref(null)
+let navigationCycle = null
+let activeEnterRun = null
+let activeRouteGhost = null
+let navigationSequence = 0
+const MAX_PAGE_TRANSITION_MS = 5200
 
-const defaultPageAnimations = {
+const defaultGsapPageAnimations = {
   'forward.enter': {
-    keyframes: [
-      { opacity: 0, transform: 'translateX(40px) scale(.97)', filter: 'blur(4px)' },
-      { opacity: 1, transform: 'translateX(0) scale(1)', filter: 'blur(0)' }
-    ],
-    options: { duration: 400, easing: 'cubic-bezier(.22,1,.36,1)', fill: 'both' }
+    from: { opacity: 0, x: 46, scale: 0.965, filter: 'blur(5px)' },
+    to: { opacity: 1, x: 0, scale: 1, filter: 'blur(0px)', duration: 0.42, ease: 'power3.out' }
   },
   'forward.leave': {
-    keyframes: [
-      { opacity: 1, transform: 'translateX(0) scale(1)', filter: 'blur(0)' },
-      { opacity: 0, transform: 'translateX(-24px) scale(.98)', filter: 'blur(2px)' }
-    ],
-    options: { duration: 280, easing: 'cubic-bezier(.55,0,1,.45)', fill: 'both' }
+    from: { opacity: 1, x: 0, scale: 1, filter: 'blur(0px)' },
+    to: { opacity: 0, x: -28, scale: 0.985, filter: 'blur(2px)', duration: 0.28, ease: 'power2.in' }
   },
   'back.enter': {
-    keyframes: [
-      { opacity: 0, transform: 'translateX(-40px) scale(.97)', filter: 'blur(4px)' },
-      { opacity: 1, transform: 'translateX(0) scale(1)', filter: 'blur(0)' }
-    ],
-    options: { duration: 400, easing: 'cubic-bezier(.22,1,.36,1)', fill: 'both' }
+    from: { opacity: 0, x: -46, scale: 0.965, filter: 'blur(5px)' },
+    to: { opacity: 1, x: 0, scale: 1, filter: 'blur(0px)', duration: 0.42, ease: 'power3.out' }
   },
   'back.leave': {
-    keyframes: [
-      { opacity: 1, transform: 'translateX(0) scale(1)', filter: 'blur(0)' },
-      { opacity: 0, transform: 'translateX(24px) scale(.98)', filter: 'blur(2px)' }
-    ],
-    options: { duration: 280, easing: 'cubic-bezier(.55,0,1,.45)', fill: 'both' }
+    from: { opacity: 1, x: 0, scale: 1, filter: 'blur(0px)' },
+    to: { opacity: 0, x: 28, scale: 0.985, filter: 'blur(2px)', duration: 0.28, ease: 'power2.in' }
   }
 }
 
-function pageVariant(phase, direction) {
-  return `${direction}.${phase}`
+function pageVariant(phase, direction) { return direction + '.' + phase }
+function pageAnimationsEnabled() {
+  return settingsStore.settings.perfAnimations && !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
 }
-
-function runPageTransition(element, phase, direction, cycle, done) {
-  if (!settingsStore.settings.perfAnimations || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return done()
-  let completed = false
-  let watchdog = null
-  let entry = null
-  const complete = (cancel = false) => {
-    if (completed) return
-    completed = true
-    if (watchdog) clearTimeout(watchdog)
-    if (cancel) {
-      try { entry?.run?.cancel?.() } catch {}
-    }
-    if (entry && pageTransitionRuns.get(element) === entry) pageTransitionRuns.delete(element)
-    done()
+function pageTransitionDeadline(run, phase) {
+  let duration = Number(run?.totalDurationMs || 0)
+  if (!Number.isFinite(duration) || duration <= 0) duration = phase === 'leave' ? 360 : 520
+  return Math.min(MAX_PAGE_TRANSITION_MS, Math.max(240, Math.ceil(duration) + 300))
+}
+function runDefaultGsapPageTransition(element, variant) {
+  const definition = defaultGsapPageAnimations[variant] || defaultGsapPageAnimations['forward.enter']
+  let settled = false
+  let settleRun
+  const finished = new Promise(resolve => { settleRun = resolve })
+  const settle = () => {
+    if (settled) return
+    settled = true
+    try { gsap.set(element, { clearProps: 'transform,filter,opacity' }) } catch {}
+    settleRun()
   }
+  const tween = gsap.fromTo(element, definition.from, {
+    ...definition.to,
+    overwrite: 'auto',
+    onComplete: settle,
+    onInterrupt: settle
+  })
+  return {
+    animation: tween,
+    totalDurationMs: Math.ceil(tween.totalDuration() * 1000),
+    finished,
+    cancel() { try { tween.kill() } finally { settle() } }
+  }
+}
+function startPageVisual(element, phase, direction) {
+  if (!element || !pageAnimationsEnabled()) return null
+  const variant = pageVariant(phase, direction)
   try {
-    const variant = pageVariant(phase, direction)
     let run = pluginsStore.startAnimation('page.transition', element, { variant })
-    if (!run) {
-      const fallback = defaultPageAnimations[variant]
-      const animation = element.animate(fallback.keyframes, fallback.options)
-      run = { animation, finished: animation.finished, cancel: () => animation.cancel() }
-    }
-    entry = { run, phase, direction, cycle }
-    pageTransitionRuns.set(element, entry)
-    watchdog = setTimeout(() => complete(true), 8000)
+    if (!run) run = runDefaultGsapPageTransition(element, variant)
     if (phase === 'enter') {
       try { pluginsStore.startAnimation('global.transition', null, { variant: 'page' }) } catch {}
     }
-    Promise.resolve(run?.finished).then(() => complete(), () => complete(true))
-  } catch {
-    complete(true)
+    return run
+  } catch (error) {
+    console.warn('[navigation] GSAP page transition failed', error)
+    return null
   }
 }
 
-function onPageEnter(element, done) {
-  const cycle = pageTransitionCycle || { id: ++pageTransitionCycleId, direction: pendingPageDirection }
-  pageTransitionCycle = cycle
-  runPageTransition(element, 'enter', cycle.direction, cycle, () => {
-    if (pageTransitionCycle === cycle) pageTransitionCycle = null
-    done()
+function settleVisualRun(run, phase, cleanup) {
+  if (!run) {
+    cleanup?.()
+    return () => {}
+  }
+  let settled = false
+  const complete = () => {
+    if (settled) return
+    settled = true
+    clearTimeout(watchdog)
+    cleanup?.()
+  }
+  const watchdog = setTimeout(() => {
+    try { run.cancel?.() } catch {}
+    complete()
+  }, pageTransitionDeadline(run, phase))
+  Promise.resolve(run.finished).catch(() => undefined).then(complete)
+  return () => {
+    try { run.cancel?.() } catch {}
+    complete()
+  }
+}
+
+function removeRouteGhost() {
+  activeRouteGhost?.cancel?.()
+  activeRouteGhost?.element?.remove?.()
+  activeRouteGhost = null
+}
+
+function createRouteGhost(direction) {
+  removeRouteGhost()
+  const source = routeStageRef.value
+  const container = appContentRef.value
+  if (!(source instanceof Element) || !(container instanceof Element)) return null
+
+  const ghost = source.cloneNode(true)
+  ghost.classList.add('route-page-ghost')
+  ghost.setAttribute('aria-hidden', 'true')
+  ghost.setAttribute('inert', '')
+  for (const node of ghost.querySelectorAll('[id]')) node.removeAttribute('id')
+  container.appendChild(ghost)
+  const run = startPageVisual(ghost, 'leave', direction)
+  if (!run) {
+    ghost.remove()
+    return null
+  }
+  const record = { element: ghost, cancel: null }
+  record.cancel = settleVisualRun(run, 'leave', () => {
+    ghost.remove()
+    if (activeRouteGhost === record) activeRouteGhost = null
   })
+  activeRouteGhost = record
+  return record
 }
-function onPageLeave(element, done) {
-  const cycle = { id: ++pageTransitionCycleId, direction: pendingPageDirection }
-  pageTransitionCycle = cycle
-  runPageTransition(element, 'leave', cycle.direction, cycle, done)
-}
-function cancelPageTransition(element) {
-  const entry = pageTransitionRuns.get(element)
-  entry?.run?.cancel?.()
-  if (entry && pageTransitionCycle === entry.cycle) pageTransitionCycle = null
-  pageTransitionRuns.delete(element)
+
+function startRouteEnter(cycle) {
+  activeEnterRun?.cancel?.()
+  const element = routeStageRef.value
+  if (!(element instanceof Element) || cycle !== navigationCycle) return
+  const run = startPageVisual(element, 'enter', cycle.direction)
+  if (!run) return
+  const record = { run, cancel: null }
+  record.cancel = settleVisualRun(run, 'enter', () => {
+    if (activeEnterRun === record) activeEnterRun = null
+  })
+  activeEnterRun = record
 }
 
 function routeAnimationOrder(route) {
@@ -580,23 +641,33 @@ function routeAnimationOrder(route) {
   return Number(route.meta.order ?? 0)
 }
 
-router.beforeEach((to, from) => {
+const removeBeforeRouteGuard = router.beforeEach((to, from) => {
   const toIdx = routeAnimationOrder(to)
   const fromIdx = routeAnimationOrder(from)
-  pendingPageDirection = toIdx >= fromIdx ? 'forward' : 'back'
-  transitionName.value = `page-${pendingPageDirection}`
+  const direction = toIdx >= fromIdx ? 'forward' : 'back'
+  activeEnterRun?.cancel?.()
+  const cycle = { id: ++navigationSequence, direction, ghost: null }
+  if (from.name) cycle.ghost = createRouteGhost(direction)
+  navigationCycle = cycle
 })
 
 // Scroll to top on route change.
-router.afterEach((to, from) => {
+const removeAfterRouteHook = router.afterEach((to, from, failure) => {
+  const cycle = navigationCycle
+  if (failure) {
+    cycle?.ghost?.cancel?.()
+    return
+  }
   pluginsStore.dispatchEvent('app:route-changed', {
     from: { path: from.path, name: String(from.name || '') },
     to: { path: to.path, name: String(to.name || '') }
   })
-  if (to.path.startsWith(from.path + '/')) return
   nextTick(() => {
-    const content = document.querySelector('.app-content')
-    if (content) content.scrollTop = 0
+    if (cycle) startRouteEnter(cycle)
+    if (!to.path.startsWith(from.path + '/')) {
+      const content = document.querySelector('.app-content')
+      if (content) content.scrollTop = 0
+    }
   })
 })
 
@@ -640,6 +711,10 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
+  activeEnterRun?.cancel?.()
+  removeRouteGhost()
+  removeBeforeRouteGuard()
+  removeAfterRouteHook()
   pluginsStore.markCleanShutdown()
   pluginsStore.unregisterAnimationSurface('global.transition', globalAnimationSurfaceRef.value)
   cancelAnimationFrame(pluginResizeFrame)
@@ -666,10 +741,23 @@ watch(
     settingsStore.settings.customThemeColor,
     settingsStore.settings.perfAnimations,
     systemAccent.value,
-    reducedMotion.value
+    reducedMotion.value,
+    selectedAppearance.value
   ],
   dispatchPluginTheme,
   { deep: true, immediate: true }
+)
+
+watch(
+  () => [pluginsStore.initialized, settingsStore.settings.colorTheme, pluginsStore.contributedAppearancePacks.map(pack => pack.value).join('|')],
+  ([ready, value]) => {
+    if (!ready || !String(value || '').startsWith('plugin-appearance::') || pluginsStore.appearanceByValue(value)) return
+    settingsStore.update('colorTheme', 'peach')
+    showBanner({
+      message: lang.value === 'en' ? 'The selected plugin appearance is unavailable. Peach has been restored.' : '所选插件外观已不可用，已恢复桃粉主题。',
+      icon: 'paint-brush-16-regular', type: 'warning', duration: 6000, dismissible: true
+    })
+  }
 )
 
 watch(() => settingsStore.settings.uiScale, (val) => {
@@ -705,8 +793,16 @@ watch(() => settingsStore.settings.fontFamily, (val) => {
   width: calc(100vw / var(--ui-scale, 1));
   height: calc(100vh / var(--ui-scale, 1));
 }
-.plugin-global-animation-surface { position: absolute; inset: 0; z-index: 0; pointer-events: none; opacity: 0; background: transparent; }
-.app-layout > :not(.plugin-visual-layers):not(.plugin-global-animation-surface) { position: relative; z-index: 1; }
+.plugin-global-animation-surface {
+  position: absolute;
+  inset: var(--titlebar-height, 40px) 0 0 var(--dock-width);
+  z-index: 2;
+  pointer-events: none;
+  opacity: 0;
+  overflow: hidden;
+  background: transparent;
+}
+.app-foreground-layer { position: relative; z-index: 1; }
 
 .app-body {
   flex: 1;
@@ -720,6 +816,25 @@ watch(() => settingsStore.settings.fontFamily, (val) => {
   overflow-x: hidden;
   background: var(--bg-base);
   position: relative;
+}
+
+.route-page-stage {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  min-height: 100%;
+}
+
+.route-page-ghost {
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: 2;
+  width: 100%;
+  min-height: 100%;
+  overflow: hidden;
+  pointer-events: none;
+  user-select: none;
+  contain: paint;
 }
 
 .version-badge {
@@ -977,14 +1092,6 @@ watch(() => settingsStore.settings.fontFamily, (val) => {
 }
 
 /* Page transitions */
-.page-forward-enter-active { transition: all 0.4s cubic-bezier(0.22, 1, 0.36, 1); }
-.page-forward-leave-active { transition: all 0.28s cubic-bezier(0.55, 0, 1, 0.45); }
-.page-forward-enter-from { opacity: 0; transform: translateX(40px) scale(0.97); filter: blur(4px); }
-.page-forward-leave-to { opacity: 0; transform: translateX(-24px) scale(0.98); filter: blur(2px); }
-.page-back-enter-active { transition: all 0.4s cubic-bezier(0.22, 1, 0.36, 1); }
-.page-back-leave-active { transition: all 0.28s cubic-bezier(0.55, 0, 1, 0.45); }
-.page-back-enter-from { opacity: 0; transform: translateX(-40px) scale(0.97); filter: blur(4px); }
-.page-back-leave-to { opacity: 0; transform: translateX(24px) scale(0.98); filter: blur(2px); }
 
 @media (max-width: 768px) {
   .app-body { flex-direction: column; }

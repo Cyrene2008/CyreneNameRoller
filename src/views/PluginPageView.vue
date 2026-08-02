@@ -6,10 +6,22 @@
           <h1>{{ page.title }}</h1>
           <p>{{ plugin.manifest.name }} · v{{ plugin.manifest.version }}</p>
         </div>
-        <FluentButton variant="subtle" size="sm" @click="router.push('/plugins')">
-          <FluentIcon icon="arrow-left-16-regular" :width="14" />
-          {{ lang === 'en' ? 'Back' : '返回插件管理' }}
-        </FluentButton>
+        <div class="plugin-page-actions">
+          <FluentButton
+            v-for="command in pageCommands"
+            :key="command.pluginId + ':' + command.id"
+            variant="subtle"
+            size="sm"
+            @click="invokeCommand(command)"
+          >
+            <FluentIcon :icon="command.icon" :width="14" />
+            {{ lang === 'en' && command.titleEn ? command.titleEn : command.title }}
+          </FluentButton>
+          <FluentButton variant="subtle" size="sm" @click="router.push('/plugins')">
+            <FluentIcon icon="arrow-left-16-regular" :width="14" />
+            {{ lang === 'en' ? 'Back' : '返回插件管理' }}
+          </FluentButton>
+        </div>
       </div>
 
       <div v-if="page.native?.type === 'settings'" class="native-page">
@@ -132,6 +144,7 @@ let mountGeneration = 0
 let mountedFrameKey = null
 const plugin = computed(() => plugins.pluginById(route.params.pluginId))
 const page = computed(() => plugins.pageById(route.params.pluginId, route.params.pageId))
+const pageCommands = computed(() => (plugins.contributedCommands || []).filter(command => command.pluginId === route.params.pluginId && command.locations?.includes('page-header')).sort((left, right) => left.order - right.order))
 
 function valueAt(path) { return values[path] }
 function defaultsFor(nativePage) {
@@ -149,6 +162,15 @@ function notify(message, type = 'info') {
     duration: 4500,
     dismissible: true
   })
+}
+async function invokeCommand(command) {
+  try {
+    const result = await plugins.invokePluginCommand(command.pluginId, command.id, {})
+    const summary = result && typeof result === 'object' && result.message ? String(result.message) : (lang.value === 'en' ? 'Command completed.' : '命令已完成。')
+    notify(summary, 'success')
+  } catch (error) {
+    notify(error.message || String(error), 'warning')
+  }
 }
 async function updateValue(control, value) {
   values[control.path] = value
@@ -268,6 +290,7 @@ onBeforeUnmount(() => {
 .plugin-page-view { height: 100%; padding: 28px 32px 32px; overflow: auto; }
 .plugin-page-shell { min-height: 100%; display: flex; flex-direction: column; gap: 22px; }
 .plugin-page-header { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+.plugin-page-actions { display: flex; align-items: center; justify-content: flex-end; gap: 6px; flex-wrap: wrap; }
 .plugin-page-header h1 { margin: 0; color: var(--text-primary); font-size: 26px; }
 .plugin-page-header p { margin: 6px 0 0; color: var(--text-muted); font-size: 12px; }
 .native-page { flex: 1; min-height: 0; }
@@ -294,5 +317,5 @@ onBeforeUnmount(() => {
 .plugin-frame { flex: 1; width: 100%; min-height: 0; border: 0; background: var(--bg-card-solid); }
 .page-status, .empty-state { flex: 1; min-height: 240px; display: flex; align-items: center; justify-content: center; gap: 9px; color: var(--text-muted); }
 .page-status.error { color: var(--danger); }
-@media (max-width: 760px) { .plugin-page-view { padding: 20px 14px; } .plugin-page-header { align-items: flex-start; } .setting-row { align-items: flex-start; flex-direction: column; gap: 12px; padding: 16px 0; } .range-control { width: 100%; min-width: 0; } .audio-actions, .animation-actions { width: 100%; min-width: 0; justify-content: flex-start; flex-wrap: wrap; } }
+@media (max-width: 760px) { .plugin-page-view { padding: 20px 14px; } .plugin-page-header { align-items: flex-start; flex-direction: column; } .plugin-page-actions { width: 100%; justify-content: flex-start; } .setting-row { align-items: flex-start; flex-direction: column; gap: 12px; padding: 16px 0; } .range-control { width: 100%; min-width: 0; } .audio-actions, .animation-actions { width: 100%; min-width: 0; justify-content: flex-start; flex-wrap: wrap; } }
 </style>

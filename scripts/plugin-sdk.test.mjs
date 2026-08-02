@@ -12,6 +12,9 @@ import {
   PluginCapabilities,
   PluginEvents,
   PluginPlatforms,
+  describeHost,
+  executeTransaction,
+  queryResource,
   readDependencyStorage
 } from '../packages/cyrene-name-roller/src/plugin-sdk.mjs'
 
@@ -106,7 +109,7 @@ test('SDK creates, validates and packs a CNRP package accepted by the applicatio
   await createTemplate(source, 'basic')
   const validation = await validateDirectory(source)
   assert.equal(validation.manifest.schemaVersion, 1)
-  assert.deepEqual(validation.manifest.engine, { min: '1.1.0', max: '1.1.0' })
+  assert.deepEqual(validation.manifest.engine, { min: '1.2.0', max: '1.2.0' })
   const packed = await packDirectory(source, output)
   assert.equal((await fs.readFile(output)).subarray(0, 6).toString('utf8'), 'CNRP1\n')
 
@@ -190,6 +193,45 @@ test('native Fluent settings pages validate and pack without an iframe entry', a
   assert.equal(parsed.manifest.contributes.pages[0].entry, '')
 })
 
+test('plugin-owned commands are validated, packed and advertised as a generic extension point', async t => {
+  const temporary = await createTestDirectory('cyrene-plugin-command-')
+  t.after(() => fs.rm(temporary, { recursive: true, force: true }))
+  const source = path.join(temporary, 'plugin')
+  const output = path.join(temporary, 'command.cnrp')
+  await createTemplate(source, 'basic')
+  const manifestPath = path.join(source, 'manifest.json')
+  const manifest = JSON.parse(await fs.readFile(manifestPath, 'utf8'))
+  manifest.contributes.commands = [{
+    id: 'refresh', title: '刷新插件数据', titleEn: 'Refresh plugin data',
+    locations: ['command-palette', 'page-header'], icon: 'arrow-clockwise-24-regular', order: 300
+  }]
+  await fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2))
+  const validation = await validateDirectory(source)
+  assert.deepEqual(validation.manifest.contributes.commands[0].locations, ['command-palette', 'page-header'])
+  await packDirectory(source, output)
+  const parser = await loadApplicationParser(temporary)
+  const parsed = await parser.parsePluginPackage(new Uint8Array(await fs.readFile(output)))
+  assert.equal(parsed.manifest.contributes.commands[0].id, 'refresh')
+
+  const runtimeModule = await loadPluginRuntime(temporary)
+  const plugin = { enabled: true, manifest: { id: 'cn.example.commands', version: '1.0.0', permissions: [], contributes: { commands: parsed.manifest.contributes.commands } } }
+  const runtime = new runtimeModule.PluginRuntime({
+    getPlugin: id => id === plugin.manifest.id ? plugin : null,
+    savePluginData: async () => true,
+    loadPluginData: async () => null,
+    showBanner: () => {},
+    getCoreSnapshot: async () => null,
+    executeCoreDraw: async () => null,
+    selectFile: async () => null,
+    playAudio: async () => true,
+    platformBridge: { info: () => ({ runtime: 'web', os: 'unknown', desktop: false }), capabilities: () => ({}), request: async () => ({ ok: false }) },
+    onFault: () => {}
+  })
+  const descriptor = await runtime.handleRpc(plugin.manifest.id, 'host.describe')
+  assert.ok(descriptor.contributions.includes('commands'))
+  assert.deepEqual(descriptor.extensionPoints.commands.locations, ['command-palette', 'page-header', 'context-menu'])
+})
+
 test('SDK validates animation packs and rejects properties outside the visual allow-list', async t => {
   const temporary = await createTestDirectory('cyrene-plugin-animation-')
   t.after(() => fs.rm(temporary, { recursive: true, force: true }))
@@ -237,6 +279,83 @@ test('SDK validates animation packs and rejects properties outside the visual al
   pack.presets[0].animation.keyframes[0].background = 'u\\72l(https://example.invalid/track.png)'
   await fs.writeFile(animationPath, JSON.stringify(pack, null, 2))
   await assert.rejects(() => validateDirectory(source), /keyframes\[0\]\.background is invalid/)
+})
+
+test('SDK and host accept declarative GSAP presets while rejecting layout and network values', async t => {
+  const temporary = await createTestDirectory('cyrene-plugin-gsap-')
+  t.after(() => fs.rm(temporary, { recursive: true, force: true }))
+  const source = path.join(temporary, 'plugin')
+  const output = path.join(temporary, 'gsap.cnrp')
+  await createTemplate(source, 'basic')
+  const manifestPath = path.join(source, 'manifest.json')
+  const manifest = JSON.parse(await fs.readFile(manifestPath, 'utf8'))
+  manifest.permissions.push('ui:animations')
+  manifest.contributes.animationPacks = [{ id: 'motion', title: 'GSAP Motion', source: 'animations/presets.json' }]
+  await fs.mkdir(path.join(source, 'animations'), { recursive: true })
+  const animationPath = path.join(source, 'animations/presets.json')
+  const pack = {
+    schemaVersion: 1,
+    presets: [{
+      id: 'magnetic-snap', target: 'roller.finish', label: 'Magnetic snap',
+      animation: {
+        gsap: {
+          from: { opacity: 0, y: 28, scale: 0.82, filter: 'blur(8px)' },
+          to: { opacity: 1, y: 0, scale: 1, filter: 'blur(0px)' },
+          options: { duration: 760, ease: 'elastic.out(1,0.36)' }
+        }
+      }
+    }]
+  }
+  await fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2))
+  await fs.writeFile(animationPath, JSON.stringify(pack, null, 2))
+
+  const validation = await validateDirectory(source)
+  assert.equal(validation.animationPacks[0].presets[0].animation.engine, 'gsap')
+  await packDirectory(source, output)
+  const parser = await loadApplicationParser(temporary)
+  const parsed = await parser.parsePluginPackage(new Uint8Array(await fs.readFile(output)))
+  assert.equal(parsed.animationPacks[0].presets[0].animation.engine, 'gsap')
+
+  pack.presets[0].animation.gsap.to.left = '100vw'
+  await fs.writeFile(animationPath, JSON.stringify(pack, null, 2))
+  await assert.rejects(() => validateDirectory(source), /disallows property left/)
+  delete pack.presets[0].animation.gsap.to.left
+  pack.presets[0].animation.gsap.to.background = 'image-set(url(https://example.invalid/a.png) 1x)'
+  await fs.writeFile(animationPath, JSON.stringify(pack, null, 2))
+  await assert.rejects(() => validateDirectory(source), /background is invalid/)
+})
+
+test('appearance packs provide semantic light and dark tokens with host and CLI parity', async t => {
+  const temporary = await createTestDirectory('cyrene-plugin-appearance-')
+  t.after(() => fs.rm(temporary, { recursive: true, force: true }))
+  const source = path.join(temporary, 'plugin')
+  const output = path.join(temporary, 'appearance.cnrp')
+  await createTemplate(source, 'basic')
+  const manifestPath = path.join(source, 'manifest.json')
+  const manifest = JSON.parse(await fs.readFile(manifestPath, 'utf8'))
+  manifest.permissions.push('ui:appearance')
+  manifest.contributes.appearancePacks = [{
+    id: 'ocean-glass', title: '海蓝玻璃', titleEn: 'Ocean Glass', base: 'fluent',
+    light: { '--accent': '#0067c0', '--bg-base': '#f7fbff', '--text-primary': '#10243a', '--text-on-accent': '#ffffff' },
+    dark: { '--accent': '#60aeea', '--bg-base': '#101820', '--text-primary': '#f4f8fc', '--text-on-accent': '#0a1620', '--shadow-8': '0 12px 24px rgba(0, 0, 0, 0.3)' }
+  }]
+  await fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2))
+
+  const validation = await validateDirectory(source)
+  assert.equal(validation.manifest.contributes.appearancePacks[0].base, 'fluent')
+  await packDirectory(source, output)
+  const parser = await loadApplicationParser(temporary)
+  const parsed = await parser.parsePluginPackage(new Uint8Array(await fs.readFile(output)))
+  assert.equal(parsed.manifest.contributes.appearancePacks[0].dark['--accent'], '#60aeea')
+
+  manifest.contributes.appearancePacks[0].light.width = '100vw'
+  await fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2))
+  await assert.rejects(() => validateDirectory(source), /disallows token width/)
+  delete manifest.contributes.appearancePacks[0].light.width
+  manifest.contributes.appearancePacks[0].light['--text-primary'] = '#f8f8f8'
+  manifest.contributes.appearancePacks[0].light['--bg-base'] = '#ffffff'
+  await fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2))
+  await assert.rejects(() => validateDirectory(source), /contrast must be at least 4.5:1/)
 })
 
 test('SDK bundles visual surface workers and preserves top-level Dock page metadata', async t => {
@@ -287,8 +406,9 @@ test('CLI rejects packages that the host would reject before installation', asyn
   const manifest = JSON.parse(await fs.readFile(manifestPath, 'utf8'))
   delete manifest.entry
   manifest.contributes.pages = []
+  manifest.contributes.commands = []
   await fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2))
-  await assert.rejects(() => validateDirectory(source), /at least one Worker, page or visual surface/)
+  await assert.rejects(() => validateDirectory(source), /at least one Worker, page, visual surface or appearance pack/)
 
   manifest.entry = 'src/worker.js'
   manifest.dependencies = [{ id: manifest.id, range: '^1.0.0' }]
@@ -296,7 +416,7 @@ test('CLI rejects packages that the host would reject before installation', asyn
   await assert.rejects(() => validateDirectory(source), /dependencies\[0\].*invalid/)
 })
 
-test('CLI and host normalize API 1.1 page, native and dependency metadata consistently', async t => {
+test('CLI and host normalize API 1.2 page, native and dependency metadata consistently', async t => {
   const temporary = await createTestDirectory('cyrene-plugin-parity-metadata-')
   t.after(() => fs.rm(temporary, { recursive: true, force: true }))
   const source = path.join(temporary, 'plugin')
@@ -368,7 +488,7 @@ test('host and CLI load older plugin APIs in compatibility mode but reject newer
   assert.equal(compatibility.degraded, true)
   assert.match(compatibility.reason, /旧版 API|older API/i)
 
-  manifest.engine = { min: '1.2.0', max: '2.0.0' }
+  manifest.engine = { min: '1.3.0', max: '2.0.0' }
   await fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2))
   assert.throws(() => parser.normalizePluginManifest(manifest), /需要 API/)
   await assert.rejects(() => validateDirectory(source), /requires API/i)
@@ -418,6 +538,62 @@ test('core plugin data exposes read-only snapshots and no write RPCs', async t =
   for (const method of ['names.write', 'records.write', 'statistics.write', 'balance.write']) {
     await assert.rejects(() => runtime.handleRpc(plugin.manifest.id, method, {}), /不支持的插件请求/)
   }
+})
+
+test('generic host capability discovery composes read-only resources and host-owned transactions', async t => {
+  const temporary = await createTestDirectory('cyrene-plugin-host-broker-')
+  t.after(() => fs.rm(temporary, { recursive: true, force: true }))
+  const { PluginRuntime } = await loadPluginRuntime(temporary)
+  const plugin = {
+    enabled: true,
+    manifest: { id: 'cn.example.composed', version: '1.0.0', permissions: ['names:read', 'draw:execute'], contributes: { pages: [] } }
+  }
+  const calls = []
+  const runtime = new PluginRuntime({
+    getPlugin: id => id === plugin.manifest.id ? plugin : null,
+    savePluginData: async () => true,
+    loadPluginData: async () => null,
+    showBanner: () => {},
+    getCoreSnapshot: async (resource, query) => ({ resource, query }),
+    executeCoreDraw: async (_plugin, input) => ({ operationId: 'host-owned', results: [], input }),
+    selectFile: async () => null,
+    playAudio: async () => true,
+    platformBridge: {
+      info: () => ({ runtime: 'web', os: 'unknown', desktop: false }),
+      capabilities: () => ({}),
+      request: async () => ({ ok: false })
+    },
+    onFault: () => {}
+  })
+
+  const descriptor = await runtime.handleRpc(plugin.manifest.id, 'host.describe')
+  assert.equal(descriptor.apiVersion, PLUGIN_API_VERSION)
+  assert.equal(descriptor.model, 'product-freedom-core-hosted')
+  assert.equal(descriptor.resources.find(item => item.id === 'names').available, true)
+  assert.equal(descriptor.resources.find(item => item.id === 'records').available, false)
+  assert.equal(descriptor.transactions.find(item => item.id === 'draw').appendOnly, true)
+  assert.equal(descriptor.guarantees.resultSelectionHostOwned, true)
+
+  assert.deepEqual(await runtime.handleRpc(plugin.manifest.id, 'resources.query', { resource: 'names', query: { listId: 'a' } }), { resource: 'names', query: { listId: 'a' } })
+  await assert.rejects(() => runtime.handleRpc(plugin.manifest.id, 'resources.query', { resource: 'records' }), /records:read/)
+  const receipt = await runtime.handleRpc(plugin.manifest.id, 'transactions.execute', { transaction: 'draw', input: { count: 2 } })
+  assert.equal(receipt.operationId, 'host-owned')
+  assert.equal(receipt.input.count, 2)
+
+  const context = {
+    host: descriptor,
+    request: async (method, args) => {
+      calls.push({ method, args })
+      return { method, args }
+    }
+  }
+  assert.equal((await describeHost(context)).model, 'product-freedom-core-hosted')
+  await queryResource(context, 'names', { listId: 'b' })
+  await executeTransaction(context, 'draw', { count: 3 })
+  assert.deepEqual(calls, [
+    { method: 'resources.query', args: { resource: 'names', query: { listId: 'b' } } },
+    { method: 'transactions.execute', args: { transaction: 'draw', input: { count: 3 } } }
+  ])
 })
 
 test('draw.execute requires permission and returns only the host-owned draw receipt', async t => {

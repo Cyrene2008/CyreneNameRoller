@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "apiVersion": "1.1.0",
+  "apiVersion": "1.2.0",
   "updatedAt": "2026-08-02",
   "plugins": [
     {
@@ -19,6 +19,7 @@
         "storage:read",
         "storage:write",
         "events:draw",
+        "events:lifecycle",
         "audio:select",
         "audio:play",
         "notifications:show"
