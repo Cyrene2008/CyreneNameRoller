@@ -11,8 +11,6 @@ on:
   push:
     tags:
       - 'plugin-sdk-v*'
-  release:
-    types: [published]
 
 permissions:
   contents: write
@@ -35,16 +33,25 @@ jobs:
       - run: npm run plugin:sdk:pack
       - name: Publish SDK to GitHub Packages
         id: publish-sdk
-        continue-on-error: true
         if: >-
           (github.event_name == 'workflow_dispatch' && inputs.publish_package) ||
           (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/plugin-sdk-v'))
         working-directory: packages/cyrene-name-roller
         env:
           NODE_AUTH_TOKEN: ${{ github.token }}
-        run: npm publish --registry=https://npm.pkg.github.com --access public --provenance=false
+        run: |
+          set +e
+          npm publish --registry=https://npm.pkg.github.com --access public --provenance=false
+          status=$?
+          if [ "$status" -ne 0 ]; then
+            echo "publish_failed=true" >> "$GITHUB_OUTPUT"
+            echo "GitHub Packages publication was not accepted (exit $status)."
+            echo "The package will remain available as a workflow artifact; configure a token with package write access before retrying."
+            exit 0
+          fi
+          echo "publish_failed=false" >> "$GITHUB_OUTPUT"
       - name: Report GitHub Packages publication status
-        if: steps.publish-sdk.outcome == 'failure'
+        if: steps.publish-sdk.outputs.publish_failed == 'true'
         run: |
           echo "GitHub Packages publication was rejected by the repository/package installation permissions."
           echo "The SDK archive and workflow artifact are still produced; use a publisher PAT or restore package ownership to publish npm metadata."
@@ -65,8 +72,3 @@ jobs:
         with:
           name: cyrene-name-roller-plugin-sdk
           path: build-output/plugin-sdk/*
-      - name: Attach assets to published release
-        if: github.event_name == 'release'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh release upload "${{ github.event.release.tag_name }}" build-output/plugin-sdk/* --clobber
