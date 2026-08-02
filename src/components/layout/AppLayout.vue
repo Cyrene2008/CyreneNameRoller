@@ -1,11 +1,13 @@
 <template>
   <div class="app-layout" :class="[settingsStore.settings.colorTheme || 'peach', { dark: settingsStore.darkMode, 'perf-no-blur': !settingsStore.settings.perfBlur, 'perf-no-shadow': !settingsStore.settings.perfShadows, 'perf-no-anim': !settingsStore.settings.perfAnimations }]" :style="themeStyle" @contextmenu.prevent>
+    <PluginVisualLayers />
+    <div ref="globalAnimationSurfaceRef" class="plugin-global-animation-surface" aria-hidden="true" />
     <TitleBar />
     <div class="app-body">
       <NavigationDock />
       <main class="app-content">
         <router-view v-slot="{ Component, route }">
-          <Transition :name="transitionName" mode="out-in">
+          <Transition :name="transitionName" mode="out-in" :css="false" @enter="onPageEnter" @leave="onPageLeave" @enter-cancelled="cancelPageTransition" @leave-cancelled="cancelPageTransition">
             <component :is="Component" :key="route.path" />
           </Transition>
         </router-view>
@@ -117,6 +119,7 @@ import FluentInput from '../FluentInput.vue'
 import FluentButton from '../FluentButton.vue'
 import FullscreenToggle from '../FullscreenToggle.vue'
 import FluentIcon from '../FluentIcon.vue'
+import PluginVisualLayers from '../plugins/PluginVisualLayers.vue'
 import { useSettingsStore } from '../../stores/settings'
 import { useNamesStore } from '../../stores/names'
 import { useStatisticsStore } from '../../stores/statistics'
@@ -137,10 +140,16 @@ const statisticsStore = useStatisticsStore()
 const recordsStore = useRecordsStore()
 const prizesStore = usePrizesStore()
 const pluginsStore = usePluginsStore()
+const globalAnimationSurfaceRef = ref(null)
 
 const lang = computed(() => settingsStore.settings.language)
 const systemAccent = ref(DEFAULT_ACCENT)
+const reducedMotionQuery = typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+  ? window.matchMedia('(prefers-reduced-motion: reduce)')
+  : null
+const reducedMotion = ref(!!reducedMotionQuery?.matches)
 let removeAccentListener
+let removeReducedMotionListener
 const themeStyle = computed(() => {
   const settings = settingsStore.settings
   const style = { fontSize: (14 * (settings.uiScale || 100) / 100) + 'px' }
@@ -153,6 +162,27 @@ const themeStyle = computed(() => {
   return style
 })
 const isDesktopApp = computed(() => isTauri())
+
+function pluginThemePayload() {
+  const theme = settingsStore.settings.colorTheme || 'peach'
+  const accent = theme === 'custom'
+    ? normalizeHex(settingsStore.settings.customThemeColor, DEFAULT_ACCENT)
+    : theme === 'fluent'
+      ? normalizeHex(systemAccent.value, DEFAULT_ACCENT)
+      : DEFAULT_ACCENT
+  return {
+    theme,
+    dark: !!settingsStore.darkMode,
+    accent,
+    perfAnimations: settingsStore.settings.perfAnimations !== false,
+    reducedMotion: reducedMotion.value
+  }
+}
+
+function dispatchPluginTheme() {
+  Promise.resolve(pluginsStore.dispatchEvent('app:theme-changed', pluginThemePayload()))
+    .catch(error => console.warn('[plugins] theme lifecycle dispatch failed', error))
+}
 
 const dragActive = ref(false)
 const showDropPassword = ref(false)
@@ -446,15 +476,106 @@ async function setupFileDrop() {
 }
 
 const transitionName = ref('page-forward')
+const pageTransitionRuns = new WeakMap()
+let pendingPageDirection = 'forward'
+let pageTransitionCycle = null
+let pageTransitionCycleId = 0
+
+const defaultPageAnimations = {
+  'forward.enter': {
+    keyframes: [
+      { opacity: 0, transform: 'translateX(40px) scale(.97)', filter: 'blur(4px)' },
+      { opacity: 1, transform: 'translateX(0) scale(1)', filter: 'blur(0)' }
+    ],
+    options: { duration: 400, easing: 'cubic-bezier(.22,1,.36,1)', fill: 'both' }
+  },
+  'forward.leave': {
+    keyframes: [
+      { opacity: 1, transform: 'translateX(0) scale(1)', filter: 'blur(0)' },
+      { opacity: 0, transform: 'translateX(-24px) scale(.98)', filter: 'blur(2px)' }
+    ],
+    options: { duration: 280, easing: 'cubic-bezier(.55,0,1,.45)', fill: 'both' }
+  },
+  'back.enter': {
+    keyframes: [
+      { opacity: 0, transform: 'translateX(-40px) scale(.97)', filter: 'blur(4px)' },
+      { opacity: 1, transform: 'translateX(0) scale(1)', filter: 'blur(0)' }
+    ],
+    options: { duration: 400, easing: 'cubic-bezier(.22,1,.36,1)', fill: 'both' }
+  },
+  'back.leave': {
+    keyframes: [
+      { opacity: 1, transform: 'translateX(0) scale(1)', filter: 'blur(0)' },
+      { opacity: 0, transform: 'translateX(24px) scale(.98)', filter: 'blur(2px)' }
+    ],
+    options: { duration: 280, easing: 'cubic-bezier(.55,0,1,.45)', fill: 'both' }
+  }
+}
+
+function pageVariant(phase, direction) {
+  return `${direction}.${phase}`
+}
+
+function runPageTransition(element, phase, direction, cycle, done) {
+  if (!settingsStore.settings.perfAnimations || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return done()
+  const variant = pageVariant(phase, direction)
+  let run = pluginsStore.startAnimation('page.transition', element, { variant })
+  if (!run) {
+    const fallback = defaultPageAnimations[variant]
+    const animation = element.animate(fallback.keyframes, fallback.options)
+    run = { animation, finished: animation.finished.catch(() => undefined), cancel: () => animation.cancel() }
+  }
+  const entry = { run, phase, direction, cycle }
+  pageTransitionRuns.set(element, entry)
+  if (phase === 'enter') pluginsStore.startAnimation('global.transition', null, { variant: 'page' })
+  run.finished.finally(() => {
+    if (pageTransitionRuns.get(element) === entry) pageTransitionRuns.delete(element)
+    done()
+  })
+}
+
+function onPageEnter(element, done) {
+  const cycle = pageTransitionCycle || { id: ++pageTransitionCycleId, direction: pendingPageDirection }
+  pageTransitionCycle = cycle
+  runPageTransition(element, 'enter', cycle.direction, cycle, () => {
+    if (pageTransitionCycle === cycle) pageTransitionCycle = null
+    done()
+  })
+}
+function onPageLeave(element, done) {
+  const cycle = { id: ++pageTransitionCycleId, direction: pendingPageDirection }
+  pageTransitionCycle = cycle
+  runPageTransition(element, 'leave', cycle.direction, cycle, done)
+}
+function cancelPageTransition(element) {
+  const entry = pageTransitionRuns.get(element)
+  entry?.run?.cancel?.()
+  if (entry && pageTransitionCycle === entry.cycle) pageTransitionCycle = null
+  pageTransitionRuns.delete(element)
+}
+
+function routeAnimationOrder(route) {
+  if (route.name === 'PluginPage') {
+    const page = pluginsStore.pageById(route.params.pluginId, route.params.pageId)
+    const order = Number(page?.order ?? 500) / 1000
+    return page?.location === 'dock' ? 550 + order : 781 + order
+  }
+  return Number(route.meta.order ?? 0)
+}
 
 router.beforeEach((to, from) => {
-  const toIdx = Number(to.meta.order ?? 0)
-  const fromIdx = Number(from.meta.order ?? 0)
-  transitionName.value = toIdx >= fromIdx ? 'page-forward' : 'page-back'
+  const toIdx = routeAnimationOrder(to)
+  const fromIdx = routeAnimationOrder(from)
+  pendingPageDirection = toIdx >= fromIdx ? 'forward' : 'back'
+  transitionName.value = `page-${pendingPageDirection}`
 })
 
 // Scroll to top on route change.
 router.afterEach((to, from) => {
+  pluginsStore.dispatchEvent('app:route-changed', {
+    from: { path: from.path, name: String(from.name || '') },
+    to: { path: to.path, name: String(to.name || '') }
+  })
   if (to.path.startsWith(from.path + '/')) return
   nextTick(() => {
     const content = document.querySelector('.app-content')
@@ -465,6 +586,16 @@ router.afterEach((to, from) => {
 document.title = APP_NAME
 
 onMounted(async () => {
+  if (reducedMotionQuery) {
+    const onReducedMotionChange = event => { reducedMotion.value = !!event.matches }
+    if (typeof reducedMotionQuery.addEventListener === 'function') {
+      reducedMotionQuery.addEventListener('change', onReducedMotionChange)
+      removeReducedMotionListener = () => reducedMotionQuery.removeEventListener('change', onReducedMotionChange)
+    } else if (typeof reducedMotionQuery.addListener === 'function') {
+      reducedMotionQuery.addListener(onReducedMotionChange)
+      removeReducedMotionListener = () => reducedMotionQuery.removeListener(onReducedMotionChange)
+    }
+  }
   await namesStore.initialize()
   await statisticsStore.initialize()
   await recordsStore.initialize()
@@ -476,8 +607,11 @@ onMounted(async () => {
   } catch (error) {
     showBanner({ message: `插件已进入纯净模式：${error.message || error}`, icon: 'shield-error-24-regular', type: 'warning', duration: 10000, dismissible: true })
   }
+  pluginsStore.registerAnimationSurface('global.transition', globalAnimationSurfaceRef.value)
+  pluginsStore.dispatchEvent('app:ready', { route: currentRoute.path, version: APP_VERSION, platform: APP_PLATFORM })
   window.addEventListener('message', onPluginMessage)
   window.addEventListener('beforeunload', onBeforeWindowUnload)
+  window.addEventListener('resize', onPluginResize)
   await setupFileDrop()
   if (isTauri()) {
     systemAccent.value = normalizeHex(await tauriAPI.systemAccent(), DEFAULT_ACCENT)
@@ -490,11 +624,36 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   pluginsStore.markCleanShutdown()
+  pluginsStore.unregisterAnimationSurface('global.transition', globalAnimationSurfaceRef.value)
+  cancelAnimationFrame(pluginResizeFrame)
   removeAccentListener?.()
+  removeReducedMotionListener?.()
   removeDropListener?.()
   window.removeEventListener('message', onPluginMessage)
   window.removeEventListener('beforeunload', onBeforeWindowUnload)
+  window.removeEventListener('resize', onPluginResize)
 })
+
+let pluginResizeFrame = 0
+function onPluginResize() {
+  cancelAnimationFrame(pluginResizeFrame)
+  pluginResizeFrame = requestAnimationFrame(() => {
+    pluginsStore.dispatchEvent('app:resize', { width: window.innerWidth, height: window.innerHeight, dpr: window.devicePixelRatio || 1 })
+  })
+}
+
+watch(
+  () => [
+    settingsStore.settings.colorTheme,
+    settingsStore.darkMode,
+    settingsStore.settings.customThemeColor,
+    settingsStore.settings.perfAnimations,
+    systemAccent.value,
+    reducedMotion.value
+  ],
+  dispatchPluginTheme,
+  { deep: true, immediate: true }
+)
 
 watch(() => settingsStore.settings.uiScale, (val) => {
   document.documentElement.style.setProperty('--ui-scale', (val || 100) / 100 * 1.25)
@@ -529,6 +688,8 @@ watch(() => settingsStore.settings.fontFamily, (val) => {
   width: calc(100vw / var(--ui-scale, 1));
   height: calc(100vh / var(--ui-scale, 1));
 }
+.plugin-global-animation-surface { position: absolute; inset: 0; z-index: 0; pointer-events: none; opacity: 0; background: transparent; }
+.app-layout > :not(.plugin-visual-layers):not(.plugin-global-animation-surface) { position: relative; z-index: 1; }
 
 .app-body {
   flex: 1;

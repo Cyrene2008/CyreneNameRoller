@@ -21,8 +21,9 @@
           <div v-if="drawStyle === 'roller'" class="roller-experience">
             <div
               :key="resultNonce"
+              ref="rollerResultRef"
               class="roller-result"
-              :class="resultPrize && !rolling ? `finish-${settingsStore.settings.finishAnimation || 'spotlight'}` : ''"
+              :class="resultPrize && !rolling && !pluginFinishEnabled ? `finish-${settingsStore.settings.finishAnimation || 'spotlight'}` : ''"
             >
               <span class="result-quality">{{ visiblePrize?.quality || (lang === 'en' ? 'READY' : '等待抽取') }}</span>
               <strong>{{ visiblePrize?.name || (lang === 'en' ? 'Prize draw' : '奖品抽取') }}</strong>
@@ -46,8 +47,9 @@
             </div>
             <div
               :key="resultNonce"
+              ref="wheelResultRef"
               class="wheel-result"
-              :class="resultPrize && !rolling && !settling ? `finish-${settingsStore.settings.finishAnimation || 'spotlight'}` : ''"
+              :class="resultPrize && !rolling && !settling && !pluginFinishEnabled ? `finish-${settingsStore.settings.finishAnimation || 'spotlight'}` : ''"
             >
               <span>{{ resultPrize ? (lang === 'en' ? 'Selected prize' : '抽取结果') : (lang === 'en' ? 'Weighted wheel' : '加权转盘') }}</span>
               <strong>{{ resultPrize?.name || (lang === 'en' ? 'Ready' : '等待开始') }}</strong>
@@ -149,7 +151,7 @@
 </template>
 
 <script setup>
-import { computed, inject, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { computed, inject, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { usePrizesStore } from '../stores/prizes'
 import { useNamesStore } from '../stores/names'
@@ -190,6 +192,9 @@ const settling = ref(false)
 const previewPrize = ref(null)
 const resultPrize = ref(null)
 const resultNonce = ref(0)
+const rollerResultRef = ref(null)
+const wheelResultRef = ref(null)
+const pluginFinishEnabled = computed(() => pluginsStore.hasAnimation('lottery.finish'))
 const wheelSnapshot = ref([])
 const wheelRotation = ref(0)
 const wheelTransition = ref('none')
@@ -266,7 +271,7 @@ function beginDraw() {
   }
   if (settingsStore.settings.autoStop) autoStopTimer = setTimeout(stopDraw, AUTO_STOP_DELAY)
 }
-function revealResult(prize) {
+async function revealResult(prize) {
   resultPrize.value = prize
   resultNonce.value += 1
   prizes.recordDraw({ prizeId: prize.id, mode: 'draw' })
@@ -285,6 +290,10 @@ function revealResult(prize) {
     style: drawStyle.value,
     results: [result]
   })
+  await nextTick()
+  const resultElement = drawStyle.value === 'wheel' ? wheelResultRef.value : rollerResultRef.value
+  pluginsStore.startAnimation('lottery.finish', resultElement)
+  pluginsStore.startAnimation('global.transition', null, { variant: 'lottery' })
 }
 function stopDraw() {
   if (!rolling.value || settling.value) return
@@ -366,6 +375,7 @@ async function assignPrizes() {
       prize: { id: allocation.prize.id, name: allocation.prize.name, quality: allocation.prize.quality || '' }
     }))
   })
+  pluginsStore.startAnimation('global.transition', null, { variant: 'lottery' })
   assigning.value = false
 }
 function displayPerson(person) { return settingsStore.settings.englishMode && person.en ? person.en : person.cn }

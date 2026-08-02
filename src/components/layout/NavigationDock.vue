@@ -71,6 +71,20 @@
         <span v-if="!dockCollapsed" class="dock-item-label">{{ item.label[lang] }}</span>
       </router-link>
 
+      <router-link
+        v-for="item in pluginDockItems"
+        :key="item.path"
+        :to="item.path"
+        class="dock-item plugin-dock-item"
+        :class="{ active: route.path === item.path }"
+        draggable="false"
+        :title="item.label"
+      >
+        <div class="dock-item-indicator" />
+        <Icon :icon="item.icon" :width="20" class="dock-item-icon" />
+        <span v-if="!dockCollapsed" class="dock-item-label">{{ item.label }}</span>
+      </router-link>
+
       <!-- 名单管理：可向下展开的子菜单 -->
       <div
         class="dock-item dock-parent"
@@ -146,7 +160,7 @@
       <router-link
         to="/plugins"
         class="dock-item"
-        :class="{ active: route.path === '/plugins' || route.path.startsWith('/plugin/') }"
+        :class="{ active: pluginManagerActive }"
         draggable="false"
         :title="lang === 'en' ? 'Plugins' : '插件'"
       >
@@ -176,6 +190,7 @@ import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { Icon } from '@iconify/vue'
 import { useSettingsStore } from '../../stores/settings'
+import { usePluginsStore } from '../../plugins/store'
 import { isTauri } from '../../utils/tauriAPI'
 import { t } from '../../utils/i18n'
 
@@ -185,9 +200,23 @@ const props = defineProps({
 
 const route = useRoute()
 const settingsStore = useSettingsStore()
+const pluginsStore = usePluginsStore()
 const lang = computed(() => settingsStore.settings.language)
 const dockCollapsed = computed(() => settingsStore.settings.dockCollapsed || false)
 const isDesktopApp = computed(() => isTauri())
+const pluginDockItems = computed(() => pluginsStore.contributedPages
+  .filter(page => page.location === 'dock')
+  .sort((left, right) => (left.order ?? 500) - (right.order ?? 500))
+  .map(page => ({
+    path: `/plugin/${encodeURIComponent(page.pluginId)}/${encodeURIComponent(page.id)}`,
+    icon: String(page.icon || '').includes(':') ? page.icon : `fluent:${page.icon || 'apps-24-regular'}`,
+    label: lang.value === 'en' && page.titleEn ? page.titleEn : page.title
+  })))
+const pluginManagerActive = computed(() => {
+  if (route.path === '/plugins') return true
+  if (route.name !== 'PluginPage') return false
+  return pluginsStore.pageById(route.params.pluginId, route.params.pageId)?.location !== 'dock'
+})
 
 function toggleDock() {
   settingsStore.update('dockCollapsed', !dockCollapsed.value)

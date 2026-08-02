@@ -27,8 +27,8 @@
           <p class="plugin-description">{{ plugin.manifest.description || (lang === 'en' ? 'No description.' : '暂无说明。') }}</p>
           <div v-if="!pluginCompatibility(plugin).compatible" class="compatibility-warning"><FluentIcon icon="warning-16-regular" :width="14" /><span>{{ pluginCompatibility(plugin).reason }}</span></div>
           <div v-else-if="pluginCompatibility(plugin).degraded" class="compatibility-warning limited"><FluentIcon icon="info-16-regular" :width="14" /><span>{{ pluginCompatibility(plugin).reason }}</span></div>
-          <div class="plugin-meta"><span>{{ lang === 'en' ? 'By' : '开发者' }} {{ plugin.manifest.author }}</span><span>{{ plugin.trusted ? (lang === 'en' ? 'Verified' : '已验证') : (lang === 'en' ? 'Local / unverified' : '本地 / 未验证') }}</span></div>
-          <div v-if="pagesFor(plugin).length" class="plugin-pages"><span>{{ lang === 'en' ? 'Pages' : '扩展页面' }}</span><div class="plugin-page-links"><FluentButton v-for="page in pagesFor(plugin)" :key="`${plugin.manifest.id}:${page.id}`" variant="subtle" size="sm" @click="openPluginPage(page)"><FluentIcon icon="open-16-regular" :width="14" />{{ page.title }}</FluentButton></div></div>
+          <div class="plugin-meta"><span>{{ lang === 'en' ? 'By' : '开发者' }} {{ plugin.manifest.author }}</span><span>{{ pluginProvenance(plugin) }}</span></div>
+          <div v-if="pagesFor(plugin).length" class="plugin-pages"><span>{{ lang === 'en' ? 'Extension pages' : '扩展页面' }}</span><div class="plugin-page-links"><FluentButton v-for="page in pagesFor(plugin)" :key="`${plugin.manifest.id}:${page.id}`" variant="primary" size="sm" @click="openPluginPage(page)"><FluentIcon icon="settings-16-regular" :width="14" />{{ lang === 'en' ? 'Plugin settings' : '插件设置' }}</FluentButton></div></div>
           <div class="plugin-actions"><FluentButton variant="subtle" size="sm" @click="openDetails(plugin)">{{ lang === 'en' ? 'Details' : '详情' }}</FluentButton><FluentButton variant="danger" size="sm" @click="removePlugin(plugin)">{{ lang === 'en' ? 'Uninstall' : '卸载' }}</FluentButton></div>
         </article>
       </div>
@@ -59,7 +59,7 @@
           <div><span>{{ lang === 'en' ? 'Platform' : '运行平台' }}</span><strong>{{ plugins.platform.runtime }} / {{ plugins.platform.os }}</strong></div>
           <div><span>{{ lang === 'en' ? 'Compatibility' : '兼容性' }}</span><strong :class="{ danger: !confirmCompatibility.compatible }">{{ confirmCompatibility.compatible ? (lang === 'en' ? 'Compatible' : '兼容') : confirmCompatibility.reason }}</strong></div>
         </div>
-        <div v-if="confirmManifest.permissions?.length" class="confirm-list"><h3>{{ lang === 'en' ? 'Permissions' : '所需权限' }}</h3><ul><li v-for="permission in confirmManifest.permissions" :key="permission">{{ permission }}</li></ul></div>
+        <div v-if="confirmManifest.permissions?.length" class="confirm-list"><h3>{{ lang === 'en' ? 'Permissions' : '所需权限' }}</h3><ul><li v-for="permission in confirmManifest.permissions" :key="permission"><span><strong>{{ permissionInfo(permission).label }}</strong><small>{{ permission }}</small></span><em :class="`risk-${permissionInfo(permission).risk}`">{{ permissionInfo(permission).riskLabel }}</em></li></ul></div>
         <div v-if="confirmManifest.dependencies?.length" class="confirm-list"><h3>{{ lang === 'en' ? 'Dependencies' : '依赖插件' }}</h3><ul><li v-for="dependency in confirmManifest.dependencies" :key="dependency.id">{{ dependency.id }} {{ dependency.range || dependency.version || '*' }}</li></ul></div>
         <p v-if="!confirmCompatibility.compatible" class="confirm-warning">{{ confirmCompatibility.reason }}</p>
       </div>
@@ -109,6 +109,28 @@ const confirmPlugin = ref(null)
 let confirmResolver = null
 const installedPlugins = computed(() => Object.values(plugins.installed))
 const contributedPages = computed(() => plugins.contributedPages)
+const permissionDescriptions = {
+  'draw:execute': { zh: '通过宿主 CAF 公平事务追加抽取结果', en: 'Run host-controlled CAF draws and append records', risk: 'elevated' },
+  'ui:animations': { zh: '为宿主提供受控动画方案', en: 'Provide controlled host animations', risk: 'normal' },
+  'ui:visual-surfaces': { zh: '在核心内容后方绘制 Canvas / WebGL 特效', en: 'Draw Canvas / WebGL effects behind core content', risk: 'elevated' },
+  'events:lifecycle': { zh: '接收路由、主题和窗口生命周期事件', en: 'Receive route, theme and window lifecycle events', risk: 'normal' },
+  'system:execute': { zh: '执行已声明的本地系统命令', en: 'Run declared local system commands', risk: 'high' },
+  'records:read': { zh: '读取不可变的抽取记录快照', en: 'Read immutable record snapshots', risk: 'normal' },
+  'statistics:read': { zh: '读取不可变的统计快照', en: 'Read immutable statistics snapshots', risk: 'normal' },
+  'balance:read': { zh: '读取公平算法状态', en: 'Read fairness state', risk: 'normal' }
+}
+function permissionInfo(permission) {
+  const item = permissionDescriptions[permission] || { zh: permission, en: permission, risk: permission.startsWith('system:') ? 'high' : 'normal' }
+  return {
+    label: lang.value === 'en' ? item.en : item.zh,
+    risk: item.risk,
+    riskLabel: item.risk === 'high'
+      ? (lang.value === 'en' ? 'High risk' : '高风险')
+      : item.risk === 'elevated'
+        ? (lang.value === 'en' ? 'Sensitive' : '敏感能力')
+        : (lang.value === 'en' ? 'Standard' : '常规')
+  }
+}
 
 function installedVersion(id) { return plugins.installed[id]?.manifest?.version || '' }
 function compareVersion(left, right) {
@@ -137,6 +159,15 @@ function catalogButtonLabel(item) {
 function pagesFor(plugin) { return contributedPages.value.filter(page => page.pluginId === plugin.manifest.id) }
 function pluginIcon(plugin) { return plugins.pluginAssetUrl(plugin) || plugin.manifest.iconDataUrl || '' }
 function pluginCompatibility(plugin) { return plugins.compatibilityFor(plugin) }
+function pluginProvenance(plugin) {
+  if (plugin.origin === 'catalog') {
+    return plugin.trusted
+      ? (lang.value === 'en' ? 'Catalog / verified' : '插件列表 / 已验证')
+      : (lang.value === 'en' ? 'Installed from catalog' : '插件列表安装')
+  }
+  if (plugin.signed) return lang.value === 'en' ? 'Local / signed' : '本地 / 签名有效'
+  return lang.value === 'en' ? 'Local / unverified' : '本地 / 未验证'
+}
 function capabilityDetails(manifest = {}) {
   return Object.entries(manifest.capabilities || {}).map(([id, declaration]) => ({
     id,
@@ -208,7 +239,7 @@ onMounted(async () => { await plugins.initialize(); plugins.setBannerHandler(sho
 .compatibility-warning { display: flex; align-items: flex-start; gap: 7px; padding: 8px 9px; border: 1px solid color-mix(in srgb, var(--warning) 40%, var(--border-default)); border-radius: var(--radius-sm); color: var(--warning); background: color-mix(in srgb, var(--warning) 8%, var(--bg-card)); font-size: 11px; line-height: 1.45; }
 .compatibility-warning.limited { border-color: color-mix(in srgb, var(--accent) 30%, var(--border-default)); color: var(--text-secondary); background: color-mix(in srgb, var(--accent) 6%, var(--bg-card)); }
 .plugin-meta { display: flex; justify-content: space-between; gap: 8px; color: var(--text-muted); font-size: 11px; }
-.plugin-pages { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-top: 10px; border-top: 1px solid var(--border-subtle); color: var(--text-muted); font-size: 11px; }
+.plugin-pages { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0 -4px; padding: 10px 4px 0; border-top: 1px solid color-mix(in srgb, var(--accent) 26%, var(--border-subtle)); color: var(--text-secondary); font-size: 12px; font-weight: 600; }
 .plugin-page-links { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
 .plugin-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: auto; }
 .empty-state { display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 120px; color: var(--text-muted); border: 1px dashed var(--border-default); border-radius: var(--radius-md); }
@@ -233,7 +264,14 @@ onMounted(async () => { await plugins.initialize(); plugins.setBannerHandler(sho
 .confirm-summary strong.danger, .confirm-warning { color: var(--danger); }
 .confirm-list { padding-top: 12px; border-top: 1px solid var(--border-subtle); }
 .confirm-list h3 { margin: 0 0 6px; color: var(--text-primary); font-size: 13px; }
-.confirm-list ul { margin: 0 0 12px; padding-left: 20px; color: var(--text-secondary); font-family: Consolas, monospace; font-size: 12px; }
+.confirm-list ul { margin: 0 0 12px; padding: 0; color: var(--text-secondary); font-size: 12px; list-style: none; }
+.confirm-list li { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 6px 0; }
+.confirm-list li > span { display: flex; min-width: 0; flex-direction: column; gap: 2px; }
+.confirm-list li small { color: var(--text-muted); font: 10px/1.4 Consolas, monospace; }
+.confirm-list li em { flex: 0 0 auto; padding: 2px 7px; border-radius: var(--radius-full); font-size: 10px; font-style: normal; }
+.confirm-list li .risk-normal { color: var(--text-secondary); background: var(--bg-hover); }
+.confirm-list li .risk-elevated { color: var(--warning); background: color-mix(in srgb, var(--warning) 11%, transparent); }
+.confirm-list li .risk-high { color: var(--danger); background: color-mix(in srgb, var(--danger) 11%, transparent); }
 .confirm-warning { padding: 9px 11px; border: 1px solid color-mix(in srgb, var(--danger) 35%, var(--border-default)); border-radius: var(--radius-sm); background: color-mix(in srgb, var(--danger) 7%, var(--bg-card)); }
 @media (max-width: 760px) { .page-header { flex-direction: column; } .header-actions { justify-content: flex-start; } .plugins-view { padding: 20px 14px; } }
 </style>
