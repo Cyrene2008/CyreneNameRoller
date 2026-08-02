@@ -520,46 +520,106 @@ function runDefaultGsapPageTransition(stage, ghost, direction) {
   const settle = () => {
     if (settled) return
     settled = true
-    try { gsap.set(stage, { clearProps: 'transform,clipPath,opacity,filter' }) } catch {}
-    try { if (ghost) gsap.set(ghost, { clearProps: 'transform,clipPath,opacity,filter' }) } catch {}
+    try { gsap.set(stage, { clearProps: 'transform,clipPath,opacity,filter,boxShadow' }) } catch {}
+    try { if (ghost) gsap.set(ghost, { clearProps: 'transform,clipPath,opacity,filter,boxShadow' }) } catch {}
     settleRun()
   }
   const sign = direction === 'back' ? -1 : 1
+  const hingeOrigin = sign > 0 ? '0% 50%' : '100% 50%'
+  const stageOrigin = sign > 0 ? '100% 50%' : '0% 50%'
+  const foldedClip = sign > 0
+    ? 'polygon(0 0, 72% 0, 58% 50%, 72% 100%, 0 100%)'
+    : 'polygon(100% 0, 28% 0, 42% 50%, 28% 100%, 100% 100%)'
+  const finalClip = sign > 0
+    ? 'polygon(0 0, 0 0, 0 50%, 0 100%, 0 100%)'
+    : 'polygon(100% 0, 100% 0, 100% 50%, 100% 100%, 100% 100%)'
+  const exitShadow = sign > 0
+    ? '24px 0 52px rgba(19, 24, 33, 0.22)'
+    : '-24px 0 52px rgba(19, 24, 33, 0.22)'
   const timeline = gsap.timeline({
     defaults: { overwrite: 'auto' },
     onComplete: settle,
     onInterrupt: settle
   })
   gsap.set(stage, {
-    x: sign * 34,
-    scale: 0.985,
+    x: sign * 56,
+    y: 10,
+    rotateY: -sign * 7,
+    rotateX: sign * 0.8,
+    scale: 0.972,
+    filter: 'blur(2px) brightness(0.98)',
     opacity: 1,
-    transformOrigin: '50% 50%'
+    transformOrigin: stageOrigin,
+    transformStyle: 'preserve-3d'
   })
   if (ghost) {
-    const clipPath = sign > 0 ? 'inset(0 100% 0 0)' : 'inset(0 0 0 100%)'
-    gsap.set(ghost, { x: 0, scale: 1, opacity: 1, clipPath: 'inset(0 0 0 0)' })
+    gsap.set(ghost, {
+      x: 0,
+      y: 0,
+      rotateY: 0,
+      rotateX: 0,
+      skewY: 0,
+      scale: 1,
+      scaleX: 1,
+      opacity: 1,
+      clipPath: 'polygon(0 0, 100% 0, 100% 100%, 0 100%)',
+      transformOrigin: hingeOrigin,
+      transformStyle: 'preserve-3d',
+      boxShadow: '0 0 0 rgba(19, 24, 33, 0)'
+    })
     timeline.to(ghost, {
-      x: -sign * 18,
-      clipPath,
-      duration: 0.42,
-      ease: 'power3.inOut'
+      x: -sign * 10,
+      rotateY: sign * 5,
+      skewY: -sign * 0.6,
+      scaleX: 0.985,
+      duration: 0.2,
+      ease: 'power2.out'
     }, 0)
-    // The ghost is opaque and sits above the new stage. Reveal the new page
-    // with a single moving edge instead of cross-fading two readable pages.
+    // The old page folds around a vertical hinge. The angled clip edge keeps
+    // the curtain opaque while the new route remains visually quiet beneath it.
     timeline.to(stage, {
       x: 0,
+      y: 0,
+      rotateY: 0,
+      rotateX: 0,
       scale: 1,
-      duration: 0.58,
+      filter: 'blur(0px) brightness(1)',
+      duration: 0.82,
       ease: 'expo.out'
     }, 0.04)
+    timeline.to(ghost, {
+      x: -sign * 28,
+      rotateY: sign * 18,
+      rotateX: -sign * 1.4,
+      skewY: -sign * 1.2,
+      scaleX: 0.94,
+      clipPath: foldedClip,
+      boxShadow: exitShadow,
+      duration: 0.34,
+      ease: 'power3.inOut'
+    }, 0.16)
+    timeline.to(ghost, {
+      x: -sign * 64,
+      rotateY: sign * 36,
+      rotateX: -sign * 2.6,
+      skewY: -sign * 2,
+      scaleX: 0.84,
+      clipPath: finalClip,
+      opacity: 0.98,
+      boxShadow: exitShadow,
+      duration: 0.48,
+      ease: 'expo.in'
+    }, 0.42)
   } else {
-    gsap.set(stage, { opacity: 0, x: sign * 36, scale: 0.98 })
+    gsap.set(stage, { opacity: 0, x: sign * 44, y: 8, rotateY: -sign * 6, scale: 0.972 })
     timeline.to(stage, {
       opacity: 1,
       x: 0,
+      y: 0,
+      rotateY: 0,
       scale: 1,
-      duration: 0.52,
+      filter: 'blur(0px) brightness(1)',
+      duration: 0.72,
       ease: 'expo.out'
     }, 0)
   }
@@ -874,6 +934,8 @@ watch(() => settingsStore.settings.fontFamily, (val) => {
   overflow-x: hidden;
   background: var(--bg-base);
   position: relative;
+  perspective: 1500px;
+  perspective-origin: 50% 46%;
 }
 
 .route-page-stage {
@@ -885,7 +947,7 @@ watch(() => settingsStore.settings.fontFamily, (val) => {
   isolation: isolate;
   backface-visibility: hidden;
   transform-style: preserve-3d;
-  will-change: transform, clip-path;
+  will-change: transform, clip-path, filter;
 }
 
 .route-page-ghost {
@@ -900,7 +962,7 @@ watch(() => settingsStore.settings.fontFamily, (val) => {
   contain: paint;
   backface-visibility: hidden;
   transform-style: preserve-3d;
-  will-change: transform, clip-path;
+  will-change: transform, clip-path, filter, box-shadow;
   background: var(--bg-base);
 }
 
