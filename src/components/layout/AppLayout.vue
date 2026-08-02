@@ -663,7 +663,11 @@ const removeAfterRouteHook = router.afterEach((to, from, failure) => {
     to: { path: to.path, name: String(to.name || '') }
   })
   nextTick(() => {
-    if (cycle) startRouteEnter(cycle)
+    // Wait for Vue to commit and paint the new route stage before starting
+    // GSAP/WAAPI. Starting in the same microtask can capture a zero-sized
+    // stage during async route resolution, which makes the transition appear
+    // to be a hard cut.
+    if (cycle) requestAnimationFrame(() => startRouteEnter(cycle))
     if (!to.path.startsWith(from.path + '/')) {
       const content = document.querySelector('.app-content')
       if (content) content.scrollTop = 0
@@ -808,10 +812,13 @@ watch(() => settingsStore.settings.fontFamily, (val) => {
   flex: 1;
   display: flex;
   overflow: hidden;
+  min-height: 0;
 }
 
 .app-content {
   flex: 1;
+  height: 100%;
+  min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
   background: var(--bg-base);
@@ -822,7 +829,9 @@ watch(() => settingsStore.settings.fontFamily, (val) => {
   position: relative;
   z-index: 1;
   width: 100%;
+  height: 100%;
   min-height: 100%;
+  isolation: isolate;
 }
 
 .route-page-ghost {
