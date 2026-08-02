@@ -10,6 +10,8 @@ test('SDK release workflow keeps package publication separate from GitHub Releas
   assert.match(workflow, /@starcyrene/)
   assert.match(workflow, /scope:\s+'@starcyrene'/)
   assert.match(workflow, /npm publish --registry=https:\/\/npm\.pkg\.github\.com/)
+  assert.match(workflow, /npm publish --registry=https:\/\/registry\.npmjs\.org/)
+  assert.match(workflow, /secrets\.NPM_TOKEN/)
   assert.doesNotMatch(workflow, /publish_failed=true/)
   assert.doesNotMatch(workflow, /exit 0/)
 })

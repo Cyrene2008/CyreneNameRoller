@@ -8,6 +8,11 @@ CyreneNameRoller plugin SDK and `.cnrp` package tool.
 npm install --save-dev @starcyrene/cyrene-name-roller
 ```
 
+The public package is published to npmjs. GitHub Packages mirrors the same
+version for organization-internal use; configure
+`@starcyrene:registry=https://npm.pkg.github.com` only when you specifically
+need that registry.
+
 Use the SDK through the documented subpath:
 
 ```js
