@@ -24,7 +24,7 @@ Use `cnrp create <directory>` for the basic template, or `cnrp create <directory
   "name": "My Plugin",
   "version": "1.0.0",
   "author": "Your Name",
-  "engine": { "min": "1.1.0", "max": "1.1.0" },
+  "engine": { "min": "1.2.0", "max": "1.2.0" },
   "entry": "src/worker.js",
   "readme": "README.md",
   "permissions": ["events:draw", "events:lifecycle", "draw:execute", "storage:read", "storage:write"],
@@ -32,6 +32,9 @@ Use `cnrp create <directory>` for the basic template, or `cnrp create <directory
   "contributes": {
     "pages": [
       { "id": "main", "title": "Plugin", "location": "dock", "order": 700, "icon": "sparkle-24-regular", "entry": "pages/main.html" }
+    ],
+    "commands": [
+      { "id": "refresh", "title": "刷新插件数据", "locations": ["command-palette", "page-header"], "icon": "arrow-clockwise-24-regular" }
     ]
   }
 }
@@ -77,6 +80,7 @@ Activation must complete within ten seconds. The Worker has no host DOM, Pinia, 
 | `draw:execute` | `draw.execute` | Request a host-owned CAF draw and append its statistics/history transaction. |
 | `ui:animations` | — | Contribute validated animation packs. |
 | `ui:visual-surfaces` | — | Contribute isolated background Canvas/WebGL workers. |
+| `ui:appearance` | — | Contribute validated semantic appearance-token packs. |
 | `notifications:show` | `notifications.show` | Show a host notification. |
 | `audio:select` | `audio.select` | Ask the user to choose an audio file. |
 | `audio:play` | `audio.play` | Play a user-selected local audio data URL. |
@@ -85,9 +89,66 @@ Activation must complete within ten seconds. The Worker has no host DOM, Pinia, 
 | `statistics:read` | `statistics.read` | Read aggregate draw counts and the total count. |
 | `balance:read` | `balance.read` | Read the fairness algorithm version, enabled state and public parameters. |
 
-Core lists, existing draw history, statistics and fairness parameters are intentionally read-only. The SDK does not expose matching write RPCs, so plugins cannot rewrite history, alter counts or weaken fairness. `draw.execute` is the sole append path: the host chooses results through CAF, updates statistics and appends immutable records as one operation. `storage.write` writes only inside that plugin's own namespace.
+Core lists, existing draw history, statistics and fairness parameters are intentionally read-only. The SDK does not expose matching write RPCs, so plugins cannot rewrite history, alter counts or weaken fairness. `draw.execute` is the compatibility alias for the host-owned `draw` transaction: the host chooses results through CAF, updates statistics and appends immutable records as one operation. `storage.write` writes only inside that plugin's own namespace.
 
 Audio files are limited to 16 MB each. The plugin namespace has a 96 MB serialized data quota. Storage keys are restricted to short alphanumeric/dot/dash/underscore values.
+
+### Composable host extension model
+
+API 1.2 is not designed as an ever-growing list of feature-specific RPC names. Plugins receive a host descriptor and compose a small set of primitives:
+
+```js
+import { describeHost, queryResource, executeTransaction } from '@cyrene2008/cyrene-name-roller/plugin-sdk'
+
+const host = await describeHost(context)
+const names = await queryResource(context, 'names', { listId: 'class-a' })
+const receipt = await executeTransaction(context, 'draw', {
+  listId: names.currentListId,
+  target: 'people',
+  count: 1
+})
+```
+
+`host.resources` lists read-only resources available to the installed plugin. `host.transactions` lists host-owned mutations. A future host can register another resource or transaction without inventing a new transport or changing the page bridge. The same descriptor is available as `context.host` and through `host.describe`, allowing old plugins to detect new capabilities and degrade gracefully.
+
+### Plugin-owned commands
+
+Commands are a generic product contribution, not a list of privileged host actions. They let the host place a plugin-defined action in a command palette, page header or context menu while the implementation remains in the plugin Worker:
+
+```js
+import { definePlugin } from '@cyrene2008/cyrene-name-roller/plugin-sdk'
+
+definePlugin({
+  async onCommand(commandId, args) {
+    if (commandId !== 'refresh') return { handled: false }
+    const value = await this.request('storage.read', { key: 'settings' })
+    return { handled: true, value, args }
+  }
+})
+```
+
+Declare the command in `manifest.json`:
+
+```json
+{
+  "contributes": {
+    "commands": [
+      {
+        "id": "refresh",
+        "title": "刷新插件数据",
+        "titleEn": "Refresh plugin data",
+        "locations": ["command-palette", "page-header"],
+        "icon": "arrow-clockwise-24-regular",
+        "order": 300
+      }
+    ]
+  }
+}
+```
+
+The host validates the declaration, keeps the command registry separate from core routes, and brokers invocation to the plugin Worker with a bounded timeout. A command does not gain extra permissions and cannot write core history, statistics, CAF parameters or draw results. Older hosts can ignore this optional contribution after inspecting `host.extensionPoints.commands`.
+
+The model is **product freedom, core-hosted state transitions**: a plugin is free to create a new page, interaction model, visualization or workflow; whenever it needs to modify protected application state, it submits an intent to a discovered host transaction. Existing records, statistics and CAF parameters remain immutable, and draw results remain host-selected.
 
 ## Platform compatibility and system bridges
 
@@ -208,7 +269,7 @@ Use host-native settings pages whenever possible. The application renders these 
 
 Supported controls are `toggle`, `range`, `select`, `audio` and `animation-select`. Ordinary values are stored in the plugin namespace and can be read by the Worker through `storage.read`; animation selections are maintained by the host animation registry.
 
-HTML pages remain supported for rich custom functionality and are rendered in a sandboxed frame with the `window.CyrenePlugin.request()` bridge. They cannot access the host DOM. Use host-native settings pages for ordinary configuration because they automatically follow Peach, Fluent, custom, light and dark themes.
+HTML pages remain supported for rich custom functionality and are rendered in a sandboxed frame with the `window.CyrenePlugin.request()` bridge. They cannot access the host DOM. The host injects the current semantic appearance tokens, a small Fluent base stylesheet, `window.CyrenePlugin.host`, and live theme updates. Use the provided `.cyrene-fluent-page`, `.cyrene-fluent-card`, `.cyrene-fluent-row` and `.cyrene-muted` primitives as a baseline, then build any page-specific UI inside the plugin frame. Host-native settings pages remain the simplest choice for ordinary configuration.
 
 Set `location: "dock"` to make a substantial plugin page a first-level Dock destination. The page still uses the same sandbox and permission model; Dock placement does not grant extra privileges. `order` controls stable placement and `icon` uses a Fluent icon name. Use `location: "plugins"` for secondary/configuration pages.
 
@@ -249,7 +310,19 @@ Declare `ui:animations` and reference one or more JSON packs:
 }
 ```
 
-Targets are `page.transition`, `roller.finish`, `card.deal`, `card.flip`, `lottery.finish` and `global.transition`. Keyframes use a limited allow-list of visual CSS properties and a bounded duration. Animation packs cannot replace or modify the host-selected result, result text or result data.
+Targets are `page.transition`, `roller.finish`, `card.deal`, `card.flip`, `lottery.finish` and `global.transition`. Legacy WAAPI keyframes remain supported. API 1.2 additionally accepts host-run GSAP `from`/`to` definitions:
+
+```json
+{
+  "gsap": {
+    "from": { "opacity": 0, "y": 28, "scale": 0.82, "filter": "blur(8px)" },
+    "to": { "opacity": 1, "y": 0, "scale": 1, "filter": "blur(0px)" },
+    "options": { "duration": 760, "ease": "elastic.out(1,0.36)" }
+  }
+}
+```
+
+The host owns the GSAP runtime, cancellation, reduced-motion behavior and cleanup. Plugins declare bounded visual values; they do not receive callbacks, selectors, network-backed CSS, result-writing access or unrestricted host DOM access. Animation packs cannot replace or modify the host-selected result, result text or result data.
 
 ## Canvas and WebGL visual surfaces
 
@@ -291,7 +364,39 @@ defineVisualSurface({
 })
 ```
 
-The host transfers an `OffscreenCanvas` where supported and calls visual lifecycle methods in this order: `activate(context)`, initial `onResize(viewport)`, then subscribed lifecycle-event replay. Canvas 2D and WebGL are available through the browser implementation; importing GSAP into the host is unnecessary. Keep render loops bounded, stop them in `deactivate`, obey `perfAnimations` and `reducedMotion`, and degrade gracefully when OffscreenCanvas/WebGL is unavailable.
+The host transfers an `OffscreenCanvas` where supported and calls visual lifecycle methods in this order: `activate(context)`, initial `onResize(viewport)`, then subscribed lifecycle-event replay. Canvas 2D and WebGL are available through the browser implementation. The host GSAP runner animates registered host targets; it is not injected into the isolated visual Worker. Use a bounded Worker render loop for particles and multi-layer effects, stop it in `deactivate`, obey `perfAnimations` and `reducedMotion`, and degrade gracefully when OffscreenCanvas/WebGL is unavailable.
+
+## Semantic appearance packs
+
+Appearance packs are safe application-wide visual token sets, not arbitrary CSS. They can provide a full theme or a small override that inherits a generated Peach/Fluent base:
+
+```json
+{
+  "permissions": ["ui:appearance"],
+  "contributes": {
+    "appearancePacks": [{
+      "id": "ocean-glass",
+      "title": "海蓝玻璃",
+      "titleEn": "Ocean Glass",
+      "base": "fluent",
+      "light": {
+        "--accent": "#0067c0",
+        "--bg-base": "#f7fbff",
+        "--text-primary": "#10243a",
+        "--text-on-accent": "#ffffff"
+      },
+      "dark": {
+        "--accent": "#60aeea",
+        "--bg-base": "#101820",
+        "--text-primary": "#f4f8fc",
+        "--text-on-accent": "#0a1620"
+      }
+    }]
+  }
+}
+```
+
+Only documented semantic color and shadow tokens are accepted. Selectors, layout properties, scripts and network/data-backed CSS are rejected. Explicit foreground/background pairs must meet a 4.5:1 contrast ratio. If the providing plugin is disabled or removed, the application automatically falls back to Peach.
 
 ## Dependencies
 
@@ -317,7 +422,7 @@ const sharedSettings = await readDependencyStorage(context, 'cn.example.base', '
 
 ```bash
 npx cnrp validate ./my-plugin
-npx cnrp pack ./my-plugin --out ./dist/my-plugin-1.1.0.cnrp
+npx cnrp pack ./my-plugin --out ./dist/my-plugin-1.0.0.cnrp
 ```
 
 The CLI bundles the Worker with esbuild, obfuscates JavaScript, creates a per-file SHA-256 integrity map, compresses the package and emits an authenticated `CNRP1` AES-GCM envelope.
@@ -326,7 +431,7 @@ For a catalog release, sign the package with an Ed25519 private key:
 
 ```bash
 npx cnrp pack ./my-plugin \
-  --out ./dist/my-plugin-1.1.0.cnrp \
+  --out ./dist/my-plugin-1.0.0.cnrp \
   --private-key ./publisher-private.pem
 ```
 

@@ -2,6 +2,7 @@ import JSZip from 'jszip'
 import {
   PLUGIN_ANIMATION_TARGETS,
   PLUGIN_API_VERSION,
+  PLUGIN_COMMAND_LOCATIONS,
   PLUGIN_LIFECYCLE_EVENTS,
   PLUGIN_PERMISSIONS,
   PLUGIN_PLATFORM_CAPABILITIES,
@@ -22,6 +23,21 @@ const ANIMATION_FRAME_PROPERTIES = new Set([
   'opacity', 'transform', 'filter', 'clipPath', 'borderRadius', 'boxShadow', 'textShadow',
   'color', 'background', 'backgroundColor', 'letterSpacing', 'offset', 'easing', 'composite'
 ])
+const GSAP_ANIMATION_PROPERTIES = new Set([
+  'opacity', 'autoAlpha', 'x', 'y', 'xPercent', 'yPercent',
+  'scale', 'scaleX', 'scaleY', 'rotation', 'rotate', 'rotationX', 'rotationY', 'rotateX', 'rotateY',
+  'skewX', 'skewY', 'filter', 'clipPath', 'borderRadius', 'boxShadow', 'textShadow',
+  'color', 'background', 'backgroundColor', 'letterSpacing', 'transformOrigin'
+])
+const UNSAFE_VISUAL_VALUE_PATTERN = /url\s*\(|image-set\s*\(|cross-fade\s*\(|paint\s*\(|(?:https?:|data:|blob:|\/\/)/i
+const APPEARANCE_COLOR_TOKENS = new Set([
+  '--accent', '--accent-light', '--accent-dark', '--accent-hover', '--accent-200', '--accent-50', '--text-on-accent',
+  '--bg-base', '--bg-card', '--bg-card-solid', '--bg-hover', '--bg-acrylic', '--bg-mica',
+  '--text-primary', '--text-secondary', '--text-muted',
+  '--border-default', '--border-subtle', '--border-strong'
+])
+const APPEARANCE_SHADOW_TOKENS = new Set(['--shadow-2', '--shadow-4', '--shadow-8', '--shadow-16'])
+const APPEARANCE_TOKENS = new Set([...APPEARANCE_COLOR_TOKENS, ...APPEARANCE_SHADOW_TOKENS])
 const ANIMATION_DIRECTIONS = new Set(['normal', 'reverse', 'alternate', 'alternate-reverse'])
 const VISUAL_SURFACE_EVENTS = new Set([
   ...PLUGIN_LIFECYCLE_EVENTS,
@@ -157,6 +173,40 @@ function normalizeAnimationOptions(value, label) {
   return { duration, delay, iterations, easing, direction, fill: 'both' }
 }
 
+function normalizeSafeAnimationValue(raw, label) {
+  if (typeof raw !== 'string' && typeof raw !== 'number' && typeof raw !== 'boolean') throw new Error(label + ' 无效')
+  if (typeof raw === 'boolean') return raw
+  const serialized = String(raw)
+  if (serialized.length > 600 || /[{};<>\\]/.test(serialized) || UNSAFE_VISUAL_VALUE_PATTERN.test(serialized)) {
+    throw new Error(label + ' 过长或包含不安全内容')
+  }
+  return raw
+}
+
+function normalizeGsapVars(value, label) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error(label + ' 无效')
+  const normalized = {}
+  for (const [property, raw] of Object.entries(value)) {
+    if (!GSAP_ANIMATION_PROPERTIES.has(property)) throw new Error(label + ' 不允许属性 ' + property)
+    normalized[property] = normalizeSafeAnimationValue(raw, label + '.' + property)
+  }
+  if (!Object.keys(normalized).length) throw new Error(label + ' 至少需要一个动画属性')
+  return normalized
+}
+
+function normalizeGsapOptions(value, label) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error(label + '.options 无效')
+  const duration = Number(value.duration)
+  const delay = Number(value.delay || 0)
+  const repeat = Number(value.repeat || 0)
+  const ease = String(value.ease || value.easing || 'power3.out')
+  if (!Number.isFinite(duration) || duration < 80 || duration > MAX_ANIMATION_DURATION_MS) throw new Error(label + '.options.duration 必须在 80-' + MAX_ANIMATION_DURATION_MS + 'ms')
+  if (!Number.isFinite(delay) || delay < 0 || delay > MAX_ANIMATION_DELAY_MS) throw new Error(label + '.options.delay 必须在 0-' + MAX_ANIMATION_DELAY_MS + 'ms')
+  if (!Number.isInteger(repeat) || repeat < 0 || repeat >= MAX_ANIMATION_ITERATIONS) throw new Error(label + '.options.repeat 必须在 0-' + (MAX_ANIMATION_ITERATIONS - 1))
+  if (!/^[a-z0-9().,%\s+\-*/]+$/i.test(ease) || ease.length > 160) throw new Error(label + '.options.ease 无效')
+  return { duration, delay, repeat, ease, yoyo: value.yoyo === true }
+}
+
 function normalizeAnimationKeyframes(value, label) {
   if (!Array.isArray(value) || value.length < 2 || value.length > 32) throw new Error(`${label}.keyframes 必须包含 2-32 帧`)
   let previousOffset = -1
@@ -179,7 +229,7 @@ function normalizeAnimationKeyframes(value, label) {
       }
       if (typeof raw !== 'string' && typeof raw !== 'number') throw new Error(`${label}.keyframes[${index}].${property} 无效`)
       const serialized = String(raw)
-      if (serialized.length > 600 || /[{};<>\\]/.test(serialized) || /url\s*\(/i.test(serialized)) {
+      if (serialized.length > 600 || /[{};<>\\]/.test(serialized) || UNSAFE_VISUAL_VALUE_PATTERN.test(serialized)) {
         throw new Error(`${label}.keyframes[${index}].${property} 过长或包含不安全内容`)
       }
       normalized[property] = raw
@@ -193,7 +243,19 @@ function normalizeAnimationKeyframes(value, label) {
 
 function normalizeAnimationDefinition(value, label) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error(`${label} 无效`)
+  if (value.gsap !== undefined) {
+    if (!value.gsap || typeof value.gsap !== 'object' || Array.isArray(value.gsap)) throw new Error(`${label}.gsap 无效`)
+    return {
+      engine: 'gsap',
+      gsap: {
+        from: normalizeGsapVars(value.gsap.from, `${label}.gsap.from`),
+        to: normalizeGsapVars(value.gsap.to, `${label}.gsap.to`)
+      },
+      options: normalizeGsapOptions(value.gsap.options || value.options || {}, label)
+    }
+  }
   return {
+    engine: 'waapi',
     keyframes: normalizeAnimationKeyframes(value.keyframes, label),
     options: normalizeAnimationOptions(value.options || {}, label)
   }
@@ -246,6 +308,95 @@ function normalizeAnimationPacks(value, permissions) {
     ids.add(pack.id)
     if (!pack.title || String(pack.title).length > 120) throw new Error(`animationPacks[${index}] 缺少 title`)
     return { id: String(pack.id), title: String(pack.title), description: String(pack.description || '').slice(0, 300), source: validatePath(pack.source) }
+  })
+}
+
+function normalizeAppearanceColor(value, label) {
+  const source = String(value || '').trim()
+  const hex = source.match(/^#([0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i)
+  if (hex) return source.toLowerCase()
+  const rgb = source.match(/^rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})(?:\s*,\s*(0|1|0?\.\d+))?\s*\)$/i)
+  if (!rgb || rgb.slice(1, 4).some(channel => Number(channel) > 255)) throw new Error(`${label} 必须是十六进制或 rgb/rgba 颜色`)
+  if (source.toLowerCase().startsWith('rgba') && rgb[4] === undefined) throw new Error(`${label} 的 rgba 缺少透明度`)
+  return source.replace(/\s+/g, ' ')
+}
+
+function normalizeAppearanceShadow(value, label) {
+  const source = String(value || '').trim()
+  if (source === 'none') return source
+  if (!source || source.length > 320 || UNSAFE_VISUAL_VALUE_PATTERN.test(source) || /[{};<>\\]/.test(source) || !/^[#(),.%\sa-z0-9+\-]+$/i.test(source)) {
+    throw new Error(`${label} 阴影值无效`)
+  }
+  return source.replace(/\s+/g, ' ')
+}
+
+function opaqueRgb(value) {
+  const source = String(value || '').trim()
+  const hex = source.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i)
+  if (hex) {
+    const raw = hex[1].length === 3 ? hex[1].split('').map(character => character + character).join('') : hex[1]
+    return [0, 2, 4].map(index => parseInt(raw.slice(index, index + 2), 16))
+  }
+  const rgb = source.match(/^rgb\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*\)$/i)
+  return rgb ? rgb.slice(1).map(Number) : null
+}
+
+function contrastRatio(foreground, background) {
+  const channel = value => {
+    const normalized = value / 255
+    return normalized <= 0.03928 ? normalized / 12.92 : ((normalized + 0.055) / 1.055) ** 2.4
+  }
+  const luminance = color => color.map(channel).reduce((sum, value, index) => sum + value * [0.2126, 0.7152, 0.0722][index], 0)
+  const first = luminance(foreground)
+  const second = luminance(background)
+  return (Math.max(first, second) + 0.05) / (Math.min(first, second) + 0.05)
+}
+
+function normalizeAppearanceTokens(value, label) {
+  if (value === undefined) return {}
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error(`${label} 必须是 Token 对象`)
+  const normalized = {}
+  for (const [token, raw] of Object.entries(value)) {
+    if (!APPEARANCE_TOKENS.has(token)) throw new Error(`${label} 不允许 Token ${token}`)
+    normalized[token] = APPEARANCE_SHADOW_TOKENS.has(token)
+      ? normalizeAppearanceShadow(raw, `${label}.${token}`)
+      : normalizeAppearanceColor(raw, `${label}.${token}`)
+  }
+  const pairs = [['--text-primary', '--bg-base'], ['--text-on-accent', '--accent']]
+  for (const [foregroundToken, backgroundToken] of pairs) {
+    const foreground = opaqueRgb(normalized[foregroundToken])
+    const background = opaqueRgb(normalized[backgroundToken])
+    if (foreground && background && contrastRatio(foreground, background) < 4.5) {
+      throw new Error(`${label} 的 ${foregroundToken} 与 ${backgroundToken} 对比度低于 4.5:1`)
+    }
+  }
+  return normalized
+}
+
+function normalizeAppearancePacks(value, permissions) {
+  if (value === undefined) return []
+  if (!permissions.includes('ui:appearance')) throw new Error('appearancePacks 需要 ui:appearance 权限')
+  if (!Array.isArray(value) || value.length > 16) throw new Error('appearancePacks 必须是最多 16 项的数组')
+  const ids = new Set()
+  return value.map((pack, index) => {
+    if (!pack || typeof pack !== 'object' || !CONTRIBUTION_ID_PATTERN.test(pack.id || '') || ids.has(pack.id)) {
+      throw new Error(`appearancePacks[${index}] ID 无效或重复`)
+    }
+    ids.add(pack.id)
+    const title = String(pack.title || '').trim()
+    if (!title || title.length > 120) throw new Error(`appearancePacks[${index}] 缺少 title 或过长`)
+    const titleEn = String(pack.titleEn || '').trim()
+    if (titleEn.length > 120) throw new Error(`appearancePacks[${index}].titleEn 过长`)
+    const light = normalizeAppearanceTokens(pack.light, `appearancePacks[${index}].light`)
+    const dark = normalizeAppearanceTokens(pack.dark, `appearancePacks[${index}].dark`)
+    if (!Object.keys(light).length && !Object.keys(dark).length) throw new Error(`appearancePacks[${index}] 至少需要一个浅色或深色 Token`)
+    return {
+      id: String(pack.id), title, titleEn,
+      description: String(pack.description || '').slice(0, 300),
+      base: pack.base === 'fluent' ? 'fluent' : 'peach',
+      light,
+      dark
+    }
   })
 }
 
@@ -359,6 +510,40 @@ function normalizePages(value) {
   })
 }
 
+function normalizeCommands(value) {
+  if (value === undefined) return []
+  if (!Array.isArray(value) || value.length > 64) throw new Error('commands 必须是最多 64 项的数组')
+  const ids = new Set()
+  return value.map((rawCommand, index) => {
+    if (!rawCommand || typeof rawCommand !== 'object' || Array.isArray(rawCommand)) {
+      throw new Error(`commands[${index}] 无效`)
+    }
+    const id = String(rawCommand.id || '')
+    if (!CONTRIBUTION_ID_PATTERN.test(id) || ids.has(id)) throw new Error(`commands[${index}] ID 无效或重复`)
+    ids.add(id)
+    const title = String(rawCommand.title || '').trim()
+    if (!title || title.length > 120) throw new Error(`commands[${index}] 缺少 title 或过长`)
+    const titleEn = String(rawCommand.titleEn || '').trim()
+    if (titleEn.length > 120) throw new Error(`commands[${index}].titleEn 过长`)
+    const locations = [...new Set(Array.isArray(rawCommand.locations) ? rawCommand.locations.map(String) : ['command-palette'])]
+    const unknownLocation = locations.find(location => !PLUGIN_COMMAND_LOCATIONS.has(location))
+    if (unknownLocation) throw new Error(`commands[${index}] 包含未知 location：${unknownLocation}`)
+    const icon = String(rawCommand.icon || 'apps-24-regular')
+    if (!/^[a-z0-9][a-z0-9:_-]{0,99}$/i.test(icon)) throw new Error(`commands[${index}].icon 无效`)
+    const order = rawCommand.order === undefined ? 500 : Number(rawCommand.order)
+    if (!Number.isInteger(order) || order < 0 || order > 999) throw new Error(`commands[${index}].order 必须是 0-999 的整数`)
+    return {
+      id,
+      title,
+      titleEn,
+      description: String(rawCommand.description || '').slice(0, 300),
+      icon,
+      locations,
+      order
+    }
+  })
+}
+
 export function normalizePluginManifest(raw) {
   if (!raw || typeof raw !== 'object') throw new Error('manifest.json 无效')
   const manifest = JSON.parse(JSON.stringify(raw))
@@ -373,16 +558,21 @@ export function normalizePluginManifest(raw) {
   if (unknownPermission) throw new Error(`未知插件权限：${unknownPermission}`)
   manifest.contributes = manifest.contributes && typeof manifest.contributes === 'object' ? manifest.contributes : {}
   manifest.contributes.pages = normalizePages(manifest.contributes.pages)
+  manifest.contributes.commands = normalizeCommands(manifest.contributes.commands)
   manifest.contributes.animationPacks = normalizeAnimationPacks(manifest.contributes.animationPacks, manifest.permissions)
   manifest.contributes.visualSurfaces = normalizeVisualSurfaces(manifest.contributes.visualSurfaces, manifest.permissions)
+  manifest.contributes.appearancePacks = normalizeAppearancePacks(manifest.contributes.appearancePacks, manifest.permissions)
   manifest.supportedPlatforms = normalizePlatforms(manifest.supportedPlatforms, 'supportedPlatforms')
   manifest.platformEntries = normalizePlatformEntries(manifest.platformEntries, 'platformEntries')
   manifest.capabilities = normalizeCapabilities(manifest.capabilities, manifest.permissions)
   manifest.systemOperations = normalizeSystemOperations(manifest.systemOperations, manifest.permissions)
   manifest.dependencies = normalizeDependencies(manifest.dependencies, manifest.id)
   if (manifest.entry) manifest.entry = validatePath(manifest.entry)
-  if (!manifest.entry && !Object.keys(manifest.platformEntries).length && !(manifest.contributes.pages || []).length && !manifest.contributes.visualSurfaces.length) {
-    throw new Error('插件至少需要一个 Worker、页面或视觉层入口')
+  if (manifest.contributes.commands.length && !manifest.entry && !Object.keys(manifest.platformEntries).length) {
+    throw new Error('commands 需要插件 Worker 入口')
+  }
+  if (!manifest.entry && !Object.keys(manifest.platformEntries).length && !(manifest.contributes.pages || []).length && !manifest.contributes.commands.length && !manifest.contributes.visualSurfaces.length && !manifest.contributes.appearancePacks.length) {
+    throw new Error('插件至少需要一个 Worker、页面、视觉层或外观包入口')
   }
   if (manifest.icon) manifest.icon = validatePath(manifest.icon)
   if (manifest.readme) manifest.readme = validatePath(manifest.readme)

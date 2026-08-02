@@ -399,6 +399,7 @@
 import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch, inject } from 'vue'
 import { useNamesStore } from '../stores/names'
 import { useSettingsStore } from '../stores/settings'
+import { usePluginsStore } from '../plugins/store'
 import { useRecordsStore } from '../stores/records'
 import { useStatisticsStore } from '../stores/statistics'
 import { dataBridge } from '../utils/dataBridge'
@@ -423,6 +424,7 @@ import { FLOATING_WINDOW_STYLES, floatingWindowImagePath, normalizeFloatingWindo
 import { normalizeFloatingWindowSize } from '../utils/floatingWindowSize'
 
 const settingsStore = useSettingsStore()
+const pluginsStore = usePluginsStore()
 const namesStore = useNamesStore()
 const recordsStore = useRecordsStore()
 const statisticsStore = useStatisticsStore()
@@ -477,7 +479,11 @@ const fontOptions = [
 const colorThemeOptions = computed(() => [
   { value: 'peach', label: lang.value === 'en' ? 'Peach' : '桃粉', icon: 'fluent:heart-16-regular' },
   { value: 'fluent', label: 'Fluent', icon: 'fluent:window-16-regular' },
-  { value: 'custom', label: lang.value === 'en' ? 'Custom' : '自定义', icon: 'fluent:color-16-regular' }
+  { value: 'custom', label: lang.value === 'en' ? 'Custom' : '自定义', icon: 'fluent:color-16-regular' },
+  ...pluginsStore.appearanceOptions(lang.value).map(option => ({
+    ...option,
+    label: `${option.label} · ${option.pluginName}`
+  }))
 ])
 const downloadSourceOptions = computed(() => [
   { value: 'cyrene', label: 'gh.昔涟.cn', icon: 'fluent:cloud-arrow-down-16-regular' },

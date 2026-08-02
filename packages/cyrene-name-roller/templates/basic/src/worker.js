@@ -11,6 +11,11 @@ definePlugin({
       type: 'info'
     })
   },
+  async onCommand(commandId) {
+    if (commandId !== 'refresh') return { handled: false }
+    const settings = await this.request('storage.read', { key: 'settings' })
+    return { handled: true, message: '插件数据已刷新', settings }
+  },
   async deactivate() {
     this.request = null
   }

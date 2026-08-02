@@ -1,4 +1,4 @@
-export const PLUGIN_API_VERSION = '1.1.0'
+export const PLUGIN_API_VERSION = '1.2.0'
 export const PLUGIN_LIST_REPOSITORY = 'Cyrene2008/CyreneNameRoller'
 export const PLUGIN_LIST_PATH = 'plugins/list.json'
 
@@ -23,6 +23,7 @@ export const PLUGIN_PERMISSIONS = new Set([
   'draw:execute',
   'ui:animations',
   'ui:visual-surfaces',
+  'ui:appearance',
   'system:open-url',
   'system:select-file',
   'system:select-directory',
@@ -64,6 +65,14 @@ export const PLUGIN_PLATFORM_CAPABILITIES = new Set([
 
 export const PLUGIN_PLATFORM_IDS = new Set([
   'web', 'tauri', 'windows', 'macos', 'linux', 'android', 'ios'
+])
+
+// Contribution kinds describe product-owned extension surfaces rather than
+// individual feature targets.  New host UI can discover these at runtime and
+// plugins do not need a bespoke permission for a command that only runs inside
+// their own worker.
+export const PLUGIN_COMMAND_LOCATIONS = new Set([
+  'command-palette', 'page-header', 'context-menu'
 ])
 
 function githubRawAlternative(url) {
