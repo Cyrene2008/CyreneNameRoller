@@ -1,4 +1,5 @@
 import { decodePluginFile, MAX_PLUGIN_ANIMATION_ACTIVE_MS, normalizeAnimationPack } from './package'
+import { gsap } from 'gsap'
 
 const VALUE_SEPARATOR = '::'
 
@@ -19,6 +20,69 @@ function animationEnabled() {
   if (typeof document !== 'undefined' && document.querySelector('.app-layout')?.classList.contains('perf-no-anim')) return false
   if (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches) return false
   return true
+}
+
+function gsapSeconds(milliseconds) {
+  return Math.max(0, Number(milliseconds || 0) / 1000)
+}
+
+function animationDurationMs(definition) {
+  if (definition?.engine === 'gsap') {
+    const options = definition.options || {}
+    return Math.ceil((options.delay || 0) + (options.duration || 0) * ((options.repeat || 0) + 1))
+  }
+  return Math.ceil((definition.options.delay || 0) + (definition.options.duration || 0) * (definition.options.iterations || 1))
+}
+
+function animationTimeoutMs(definition) {
+  return Math.min(MAX_PLUGIN_ANIMATION_ACTIVE_MS, animationDurationMs(definition) + 500)
+}
+
+function createAnimationRunner(targetElement, definition) {
+  if (definition.engine === 'gsap') {
+    let settled = false
+    let settleRunner
+    let context
+    let tween
+    const runnerFinished = new Promise(resolve => { settleRunner = resolve })
+    const settle = () => {
+      if (settled) return
+      settled = true
+      try { context?.revert() } catch {}
+      settleRunner()
+    }
+    const options = definition.options || {}
+    context = gsap.context(() => {
+      tween = gsap.fromTo(targetElement, clone(definition.gsap.from), {
+        ...clone(definition.gsap.to),
+        duration: gsapSeconds(options.duration),
+        delay: gsapSeconds(options.delay),
+        repeat: Number(options.repeat || 0),
+        yoyo: options.yoyo === true,
+        ease: options.ease || 'power3.out',
+        overwrite: 'auto',
+        onComplete: settle,
+        onInterrupt: settle
+      })
+    })
+    return {
+      animation: tween,
+      finished: runnerFinished,
+      totalDurationMs: animationDurationMs(definition),
+      cancel() { try { tween.kill() } finally { settle() } }
+    }
+  }
+  if (typeof targetElement.animate !== 'function') throw new Error('WAAPI is unavailable for this animation target')
+  const animation = targetElement.animate(clone(definition.keyframes), clone(definition.options))
+  const finished = Promise.resolve(animation.finished).catch(() => undefined).finally(() => {
+    try { animation.cancel() } catch {}
+  })
+  return {
+    animation,
+    finished,
+    totalDurationMs: animationDurationMs(definition),
+    cancel() { try { animation.cancel() } catch {} }
+  }
 }
 
 export class PluginAnimationRegistry {
@@ -120,27 +184,24 @@ export class PluginAnimationRegistry {
     if (!animationEnabled() || typeof Element === 'undefined') return null
     const resolved = this.resolve(target, selections, selection)
     const targetElement = element || this.surfaces.get(target)
-    if (!resolved || !(targetElement instanceof Element) || typeof targetElement.animate !== 'function') return null
+    if (!resolved || !(targetElement instanceof Element)) return null
     const definition = resolved.preset.variants?.[variant] || resolved.preset.animation
     if (!definition) return null
-    let animation
+    let active
     try {
       const current = this.elementAnimations.get(targetElement)?.get(target)
       current?.cancel()
-      animation = targetElement.animate(clone(definition.keyframes), clone(definition.options))
+      active = createAnimationRunner(targetElement, definition)
     } catch (error) {
       console.warn('[plugins] animation failed to start', error)
       return null
     }
     const pluginId = resolved.pack.pluginId
     if (!this.running.has(pluginId)) this.running.set(pluginId, new Set())
-    this.running.get(pluginId).add(animation)
+    this.running.get(pluginId).add(active)
     if (!this.elementAnimations.has(targetElement)) this.elementAnimations.set(targetElement, new Map())
-    this.elementAnimations.get(targetElement).set(target, animation)
-    const timeoutMs = Math.min(
-      MAX_PLUGIN_ANIMATION_ACTIVE_MS,
-      Math.ceil((definition.options.delay || 0) + (definition.options.duration || 0) * (definition.options.iterations || 1) + 500)
-    )
+    this.elementAnimations.get(targetElement).set(target, active)
+    const timeoutMs = animationTimeoutMs(definition)
     let timeoutId
     let settled = false
     const finished = new Promise(resolve => {
@@ -150,23 +211,24 @@ export class PluginAnimationRegistry {
         if (timeoutId) clearTimeout(timeoutId)
         resolve()
       }
-      Promise.resolve(animation.finished).catch(() => undefined).then(settle)
+      Promise.resolve(active.finished).catch(() => undefined).then(settle)
       timeoutId = setTimeout(() => {
         if (settled) return
-        try { animation.cancel() } catch {}
+        try { active.cancel() } catch {}
         settle()
       }, timeoutMs)
     }).finally(() => {
-      this.running.get(pluginId)?.delete(animation)
-      if (this.elementAnimations.get(targetElement)?.get(target) === animation) this.elementAnimations.get(targetElement).delete(target)
+      this.running.get(pluginId)?.delete(active)
+      if (this.elementAnimations.get(targetElement)?.get(target) === active) this.elementAnimations.get(targetElement).delete(target)
     })
     return {
       pluginId,
       packId: resolved.pack.id,
       presetId: resolved.preset.id,
-      animation,
+      animation: active.animation,
+      totalDurationMs: active.totalDurationMs,
       finished,
-      cancel() { try { animation.cancel() } catch {} }
+      cancel() { try { active.cancel() } catch {} }
     }
   }
 }
