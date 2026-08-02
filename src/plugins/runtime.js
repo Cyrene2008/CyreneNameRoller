@@ -526,11 +526,22 @@ export class PluginRuntime {
     return runtime.cleanupPromise
   }
 
-  dispatchVisualForPlugin(pluginId, event, payload) {
+  dispatchForPlugin(pluginId, event, payload) {
+    const plugin = this.getPlugin(pluginId)
+    if (!canReceiveEvent(plugin, event)) return
+    const transferredPayload = transferableValue(payload)
+    const worker = this.workers.get(pluginId)
+    try { worker?.worker.postMessage({ type: 'event', event, payload: transferredPayload }) } catch {}
+    for (const [key, frame] of this.frames) {
+      if (!key.startsWith(`${pluginId}:`)) continue
+      try { frame.contentWindow?.postMessage({ type: 'event', event, payload: transferredPayload }, '*') } catch {}
+    }
     for (const [key, runtime] of this.visualRuntimes) {
       if (!key.startsWith(`${pluginId}:`)) continue
       if (!runtime.activationComplete || runtime.cancelled || runtime.finalized) continue
-      try { runtime.worker.postMessage({ type: 'event', event, payload: transferableValue(payload) }) } catch {}
+      const surface = this.visualSurfaces.get(key)
+      if (surface?.events?.length && !surface.events.includes(event)) continue
+      try { runtime.worker.postMessage({ type: 'event', event, payload: transferredPayload }) } catch {}
     }
   }
 
@@ -558,7 +569,7 @@ export class PluginRuntime {
       case 'storage.write': {
         const key = storageKey(args.key)
         const result = await this.savePluginData(pluginId, key, args.value)
-        this.dispatchVisualForPlugin(pluginId, 'plugin:storage-changed', { key })
+        this.dispatchForPlugin(pluginId, 'plugin:storage-changed', { key })
         return result
       }
       case 'names.read': return this.getCoreSnapshot('names')

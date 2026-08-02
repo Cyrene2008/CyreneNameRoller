@@ -2,9 +2,16 @@
  * Public SDK for CyreneNameRoller plugins.
  * The host injects the request function into activate(context).
  */
-export const PLUGIN_API_VERSION = '1.0.0'
+export const PLUGIN_API_VERSION = '1.1.0'
 
 export const PluginEvents = Object.freeze({
+  APP_READY: 'app:ready',
+  APP_ROUTE_CHANGED: 'app:route-changed',
+  APP_THEME_CHANGED: 'app:theme-changed',
+  APP_RESIZE: 'app:resize',
+  PLUGIN_STORAGE_CHANGED: 'plugin:storage-changed',
+  DRAW_ITEM_RESULT: 'draw:item-result',
+  DRAW_RESULT: 'draw:result',
   ROLLER_START: 'roller:start',
   ROLLER_ITEM_RESULT: 'roller:item-result',
   ROLLER_RESULT: 'roller:result',
@@ -26,6 +33,10 @@ export const PluginPermissions = Object.freeze({
   RECORDS_READ: 'records:read',
   STATISTICS_READ: 'statistics:read',
   BALANCE_READ: 'balance:read',
+  EVENTS_LIFECYCLE: 'events:lifecycle',
+  DRAW_EXECUTE: 'draw:execute',
+  UI_ANIMATIONS: 'ui:animations',
+  UI_VISUAL_SURFACES: 'ui:visual-surfaces',
   SYSTEM_OPEN_URL: 'system:open-url',
   SYSTEM_SELECT_FILE: 'system:select-file',
   SYSTEM_SELECT_DIRECTORY: 'system:select-directory',
@@ -35,15 +46,34 @@ export const PluginPermissions = Object.freeze({
   SYSTEM_EXECUTE: 'system:execute'
 })
 
+export const AnimationTargets = Object.freeze({
+  PAGE_TRANSITION: 'page.transition',
+  ROLLER_FINISH: 'roller.finish',
+  CARD_DEAL: 'card.deal',
+  CARD_FLIP: 'card.flip',
+  LOTTERY_FINISH: 'lottery.finish',
+  GLOBAL_TRANSITION: 'global.transition'
+})
+
+export const PluginPageLocations = Object.freeze({
+  PLUGINS: 'plugins',
+  DOCK: 'dock'
+})
+
 export const PluginPlatforms = Object.freeze({
   WEB: 'web',
   TAURI: 'tauri',
   WINDOWS: 'windows',
   MACOS: 'macos',
-  LINUX: 'linux'
+  LINUX: 'linux',
+  ANDROID: 'android',
+  IOS: 'ios'
 })
 
 export const PluginCapabilities = Object.freeze({
+  NOTIFICATIONS_SHOW: 'notifications:show',
+  AUDIO_SELECT: 'audio:select',
+  AUDIO_PLAY: 'audio:play',
   OPEN_URL: 'system:open-url',
   SELECT_FILE: 'system:select-file',
   SELECT_DIRECTORY: 'system:select-directory',
@@ -60,6 +90,14 @@ export function definePlugin(plugin) {
   const target = globalThis
   target.CyrenePluginModule = plugin
   return plugin
+}
+
+export function defineVisualSurface(surface) {
+  if (!surface || typeof surface.activate !== 'function') {
+    throw new TypeError('defineVisualSurface() requires an object with activate(context)')
+  }
+  globalThis.CyreneVisualSurfaceModule = surface
+  return surface
 }
 
 export function createRequest(context) {
@@ -90,6 +128,14 @@ export async function requestCapability(context, method, args = {}, options = {}
   error.code = result.code
   error.result = result
   throw error
+}
+
+export function executeDraw(context, options = {}) {
+  return createRequest(context)('draw.execute', options)
+}
+
+export function readDependencyStorage(context, pluginId, key) {
+  return createRequest(context)('dependency.storage.read', { pluginId, key })
 }
 
 export async function withPlatform(context, handlers = {}) {
