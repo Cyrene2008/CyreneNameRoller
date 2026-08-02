@@ -49,6 +49,7 @@ jobs:
             echo "NPM_TOKEN is not configured. Add a publish token for registry.npmjs.org before running this workflow." >&2
             exit 1
           fi
+          npm config set @starcyrene:registry https://registry.npmjs.org
           npm config set //registry.npmjs.org/:_authToken "$NODE_AUTH_TOKEN"
           npm publish --registry=https://registry.npmjs.org --access public --provenance=false
       - name: Build example sound plugin
