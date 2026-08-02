@@ -368,9 +368,6 @@ export function normalizePluginManifest(raw) {
   if (!manifest.engine || comparePluginVersions(PLUGIN_API_VERSION, manifest.engine.min || '0') < 0) {
     throw new Error(`插件需要 API ${manifest.engine?.min || '未知'}，当前为 ${PLUGIN_API_VERSION}`)
   }
-  if (manifest.engine.max && comparePluginVersions(PLUGIN_API_VERSION, manifest.engine.max) > 0) {
-    throw new Error(`插件仅支持 API ${manifest.engine.max} 及以下`)
-  }
   manifest.permissions = [...new Set(manifest.permissions || [])]
   const unknownPermission = manifest.permissions.find(permission => !PLUGIN_PERMISSIONS.has(permission))
   if (unknownPermission) throw new Error(`未知插件权限：${unknownPermission}`)

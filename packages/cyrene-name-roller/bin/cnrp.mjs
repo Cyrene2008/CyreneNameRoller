@@ -332,7 +332,6 @@ function normalizeManifest(raw) {
   if (!ID_PATTERN.test(manifest.id || '')) fail('manifest.id must use reverse-domain style')
   if (!manifest.name || !manifest.version || !manifest.author) fail('manifest.name, version and author are required')
   if (!manifest.engine || compareVersions(API_VERSION, manifest.engine.min || '0') < 0) fail(`plugin requires API ${manifest.engine?.min || 'unknown'}`)
-  if (manifest.engine.max && compareVersions(API_VERSION, manifest.engine.max) > 0) fail(`plugin supports API ${manifest.engine.max} or lower`)
   manifest.permissions = [...new Set(manifest.permissions || [])]
   const permissions = new Set(['storage:read', 'storage:write', 'events:draw', 'events:lifecycle', 'draw:execute', 'ui:animations', 'ui:visual-surfaces', 'notifications:show', 'audio:select', 'audio:play', 'names:read', 'records:read', 'statistics:read', 'balance:read'])
   for (const permission of ['system:open-url', 'system:select-file', 'system:select-directory', 'system:clipboard-read', 'system:clipboard-write', 'system:reveal-file', 'system:execute']) permissions.add(permission)

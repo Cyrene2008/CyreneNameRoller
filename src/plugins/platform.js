@@ -1,7 +1,18 @@
 import { isTauri, tauriAPI } from '../utils/tauriAPI.js'
+import { PLUGIN_API_VERSION } from './constants.js'
 
 const MAX_SELECTED_FILE_SIZE = 32 * 1024 * 1024
 const MAX_CLIPBOARD_TEXT_LENGTH = 100000
+
+function compareApiVersions(left, right) {
+  const a = String(left || '0').split('.').map(value => Number(value) || 0)
+  const b = String(right || '0').split('.').map(value => Number(value) || 0)
+  for (let index = 0; index < Math.max(a.length, b.length); index += 1) {
+    const difference = (a[index] || 0) - (b[index] || 0)
+    if (difference) return Math.sign(difference)
+  }
+  return 0
+}
 
 export const PLATFORM_CAPABILITIES = Object.freeze({
   'notifications:show': { label: '宿主通知', web: true, tauri: true },
@@ -63,6 +74,18 @@ export function getCapabilityMap(platform = getCurrentPlatform()) {
 }
 
 export function getManifestCompatibility(manifest, platform = getCurrentPlatform()) {
+  const requiredApi = manifest?.engine?.min || '0'
+  const maximumApi = manifest?.engine?.max || ''
+  if (compareApiVersions(PLUGIN_API_VERSION, requiredApi) < 0) {
+    return {
+      compatible: false,
+      degraded: false,
+      platform,
+      missing: [],
+      unavailableOptional: [],
+      reason: `插件需要 API ${requiredApi}，当前宿主仅提供 ${PLUGIN_API_VERSION}`
+    }
+  }
   const supportedPlatforms = Array.isArray(manifest?.supportedPlatforms) ? manifest.supportedPlatforms : []
   if (supportedPlatforms.length && !platformMatches(supportedPlatforms, platform)) {
     return {
@@ -97,17 +120,22 @@ export function getManifestCompatibility(manifest, platform = getCurrentPlatform
       else unavailableOptional.push(status)
     }
   }
+  const warnings = []
+  if (maximumApi && compareApiVersions(PLUGIN_API_VERSION, maximumApi) > 0) {
+    warnings.push(`插件面向旧版 API（最高 ${maximumApi}，当前 ${PLUGIN_API_VERSION}），可能存在兼容性问题`)
+  }
+  if (unavailableOptional.length) {
+    warnings.push(`当前平台将安全跳过：${unavailableOptional.map(item => item.label).join('、')}`)
+  }
   return {
     compatible: missing.length === 0,
-    degraded: missing.length === 0 && unavailableOptional.length > 0,
+    degraded: missing.length === 0 && warnings.length > 0,
     platform,
     missing,
     unavailableOptional,
     reason: missing.length
       ? `当前平台缺少必须能力：${missing.map(item => item.label).join('、')}`
-      : unavailableOptional.length
-        ? `当前平台将安全跳过：${unavailableOptional.map(item => item.label).join('、')}`
-        : ''
+      : warnings.join('；')
   }
 }
 

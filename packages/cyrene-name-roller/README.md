@@ -28,6 +28,8 @@ The pack command bundles and obfuscates the Worker entry, adds file integrity ha
 
 The SDK also exposes `getPlatform()`, `getCapabilities()`, `isCapabilityAvailable()` and `requestCapability()` for Web/Tauri compatibility. Native-only capabilities should normally be optional; see `docs/plugin-development.md` for the bridge contract and fixed-operation security model.
 
+Plugin API compatibility is minimum-version based. A plugin whose `engine.min` is supported will be allowed to load; an older `engine.max` produces a non-blocking compatibility warning instead of rejecting the package.
+
 ## API 1.1 extension points
 
 - `contributes.pages[].location: "dock"` adds a top-level Dock destination for substantial plugin features.
