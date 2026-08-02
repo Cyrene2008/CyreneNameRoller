@@ -40,8 +40,7 @@
   },
   "publishConfig": {
     "access": "public",
-    "provenance": true,
-    "registry": "https://npm.pkg.github.com"
+    "provenance": true
   },
   "engines": {
     "node": ">=20"
