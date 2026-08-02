@@ -35,7 +35,7 @@
   "author": "Cyrene2008",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Cyrene2008/CyreneNameRoller.git",
+    "url": "git+https://github.com/StarCyrene/CyreneNameRoller.git",
     "directory": "packages/cyrene-name-roller"
   },
   "publishConfig": {

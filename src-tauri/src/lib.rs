@@ -24,7 +24,7 @@ use windows_sys::Win32::UI::Shell::{IsUserAnAdmin, ShellExecuteW};
 use windows_sys::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
 
 const UPDATE_PROXY_BASE: &str = "https://gh.xn--8hvv1o.cn/";
-const UPDATE_URL_PREFIX: &str = "https://github.com/Cyrene2008/CyreneNameRoller/releases/download/";
+const UPDATE_URL_PREFIX: &str = "https://github.com/StarCyrene/CyreneNameRoller/releases/download/";
 const MIN_INSTALLER_SIZE: usize = 1024 * 1024;
 const DATA_MAGIC: &[u8] = b"CYRENE1\0";
 const DATA_NONCE_LENGTH: usize = 12;
@@ -1235,8 +1235,8 @@ fn load_changelog() -> serde_json::Value {
 #[tauri::command]
 async fn check_update() -> Result<serde_json::Value, String> {
     let urls = [
-        "https://api.github.com/repos/Cyrene2008/CyreneNameRoller/releases/latest",
-        "https://api.kkgithub.com/repos/Cyrene2008/CyreneNameRoller/releases/latest",
+        "https://api.github.com/repos/StarCyrene/CyreneNameRoller/releases/latest",
+        "https://api.kkgithub.com/repos/StarCyrene/CyreneNameRoller/releases/latest",
     ];
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(8))
@@ -1287,11 +1287,11 @@ fn announcement_cache_path() -> PathBuf {
 async fn fetch_announcements() -> Result<serde_json::Value, String> {
     let urls = [
         // 镜像代理（refs/heads/master）—— 你确认可用的主源
-        "https://gh.xn--8hvv1o.cn/raw.githubusercontent.com/Cyrene2008/CyreneNameRoller/refs/heads/master/.announcement/latest.json",
+        "https://gh.xn--8hvv1o.cn/raw.githubusercontent.com/StarCyrene/CyreneNameRoller/refs/heads/master/.announcement/latest.json",
         // 自建 nameapi 镜像
         "https://nameapi.cyrene.hi.cn/announcement/latest.json",
         // 直连 raw.githubusercontent 兜底
-        "https://raw.githubusercontent.com/Cyrene2008/CyreneNameRoller/master/.announcement/latest.json",
+        "https://raw.githubusercontent.com/StarCyrene/CyreneNameRoller/master/.announcement/latest.json",
     ];
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(10))

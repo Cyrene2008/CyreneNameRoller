@@ -3,7 +3,7 @@ import { APP_VERSION } from './version'
 import { tauriAPI, isTauri } from './tauriAPI'
 import { useSettingsStore } from '../stores/settings'
 
-const GITHUB_REPO = 'Cyrene2008/CyreneNameRoller'
+const GITHUB_REPO = 'StarCyrene/CyreneNameRoller'
 const GHPROXY_BASE = 'https://gh.昔涟.cn/'
 const FALLBACK_URLS = [
   `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`,

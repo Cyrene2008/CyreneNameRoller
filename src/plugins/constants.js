@@ -1,5 +1,5 @@
 export const PLUGIN_API_VERSION = '1.2.0'
-export const PLUGIN_LIST_REPOSITORY = 'Cyrene2008/CyreneNameRoller'
+export const PLUGIN_LIST_REPOSITORY = 'StarCyrene/CyreneNameRoller'
 export const PLUGIN_LIST_PATH = 'plugins/list.json'
 
 export const PLUGIN_DOWNLOAD_SOURCES = [
