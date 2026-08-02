@@ -525,102 +525,56 @@ function runDefaultGsapPageTransition(stage, ghost, direction) {
     settleRun()
   }
   const sign = direction === 'back' ? -1 : 1
-  const hingeOrigin = sign > 0 ? '0% 50%' : '100% 50%'
-  const stageOrigin = sign > 0 ? '100% 50%' : '0% 50%'
-  const foldedClip = sign > 0
-    ? 'polygon(0 0, 72% 0, 58% 50%, 72% 100%, 0 100%)'
-    : 'polygon(100% 0, 28% 0, 42% 50%, 28% 100%, 100% 100%)'
-  const finalClip = sign > 0
-    ? 'polygon(0 0, 0 0, 0 50%, 0 100%, 0 100%)'
-    : 'polygon(100% 0, 100% 0, 100% 50%, 100% 100%, 100% 100%)'
-  const exitShadow = sign > 0
-    ? '24px 0 52px rgba(19, 24, 33, 0.22)'
-    : '-24px 0 52px rgba(19, 24, 33, 0.22)'
   const timeline = gsap.timeline({
     defaults: { overwrite: 'auto' },
     onComplete: settle,
     onInterrupt: settle
   })
+  // This is the GSAP equivalent of the original legacy Vue
+  // transition: leave the old page completely, then bring the new page in.
+  // Keeping the phases sequential is what makes the old effect feel calm and
+  // readable instead of producing a layered/blurred double exposure.
+  const leaveDuration = 0.28
+  const enterDuration = 0.4
   gsap.set(stage, {
-    x: sign * 56,
-    y: 10,
-    rotateY: -sign * 7,
-    rotateX: sign * 0.8,
-    scale: 0.972,
-    filter: 'blur(2px) brightness(0.98)',
-    opacity: 1,
-    transformOrigin: stageOrigin,
-    transformStyle: 'preserve-3d'
+    x: sign * 40,
+    scale: 0.97,
+    opacity: 0,
+    filter: 'blur(4px)',
+    transformOrigin: '50% 50%'
   })
   if (ghost) {
     gsap.set(ghost, {
       x: 0,
-      y: 0,
-      rotateY: 0,
-      rotateX: 0,
-      skewY: 0,
       scale: 1,
-      scaleX: 1,
       opacity: 1,
-      clipPath: 'polygon(0 0, 100% 0, 100% 100%, 0 100%)',
-      transformOrigin: hingeOrigin,
-      transformStyle: 'preserve-3d',
-      boxShadow: '0 0 0 rgba(19, 24, 33, 0)'
+      filter: 'blur(0px)',
+      transformOrigin: '50% 50%'
     })
     timeline.to(ghost, {
-      x: -sign * 10,
-      rotateY: sign * 5,
-      skewY: -sign * 0.6,
-      scaleX: 0.985,
-      duration: 0.2,
-      ease: 'power2.out'
+      opacity: 0,
+      x: -sign * 24,
+      scale: 0.98,
+      filter: 'blur(2px)',
+      duration: leaveDuration,
+      ease: 'power4.in'
     }, 0)
-    // The old page folds around a vertical hinge. The angled clip edge keeps
-    // the curtain opaque while the new route remains visually quiet beneath it.
-    timeline.to(stage, {
-      x: 0,
-      y: 0,
-      rotateY: 0,
-      rotateX: 0,
-      scale: 1,
-      filter: 'blur(0px) brightness(1)',
-      duration: 0.82,
-      ease: 'expo.out'
-    }, 0.04)
-    timeline.to(ghost, {
-      x: -sign * 28,
-      rotateY: sign * 18,
-      rotateX: -sign * 1.4,
-      skewY: -sign * 1.2,
-      scaleX: 0.94,
-      clipPath: foldedClip,
-      boxShadow: exitShadow,
-      duration: 0.34,
-      ease: 'power3.inOut'
-    }, 0.16)
-    timeline.to(ghost, {
-      x: -sign * 64,
-      rotateY: sign * 36,
-      rotateX: -sign * 2.6,
-      skewY: -sign * 2,
-      scaleX: 0.84,
-      clipPath: finalClip,
-      opacity: 0.98,
-      boxShadow: exitShadow,
-      duration: 0.48,
-      ease: 'expo.in'
-    }, 0.42)
-  } else {
-    gsap.set(stage, { opacity: 0, x: sign * 44, y: 8, rotateY: -sign * 6, scale: 0.972 })
     timeline.to(stage, {
       opacity: 1,
       x: 0,
-      y: 0,
-      rotateY: 0,
       scale: 1,
-      filter: 'blur(0px) brightness(1)',
-      duration: 0.72,
-      ease: 'expo.out'
+      filter: 'blur(0px)',
+      duration: enterDuration,
+      ease: 'power4.out'
+    }, leaveDuration)
+  } else {
+    timeline.to(stage, {
+      opacity: 1,
+      x: 0,
+      scale: 1,
+      filter: 'blur(0px)',
+      duration: enterDuration,
+      ease: 'power4.out'
     }, 0)
   }
   return {
@@ -934,8 +888,6 @@ watch(() => settingsStore.settings.fontFamily, (val) => {
   overflow-x: hidden;
   background: var(--bg-base);
   position: relative;
-  perspective: 1500px;
-  perspective-origin: 50% 46%;
 }
 
 .route-page-stage {
