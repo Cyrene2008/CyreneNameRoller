@@ -19,6 +19,8 @@ test('secondary menu exposes route-aware overlay navigation with a GSAP slide', 
   assert.match(component, /gsap\.to\(panel, \{/)
   assert.match(component, /xPercent: open \? 0 : 100/)
   assert.match(component, /duration: 0\.26/)
+  assert.match(component, /panelAnimationToken/)
+  assert.match(component, /animationToken === panelAnimationToken && !props\.open/)
   assert.doesNotMatch(component, /transition:\s*transform/)
 })
 
