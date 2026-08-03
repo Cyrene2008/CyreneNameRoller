@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import { dataBridge } from '../utils/dataBridge'
 import { normalizeFloatingWindowStyle } from '../utils/floatingWindowStyle'
 import { normalizeFloatingWindowSize } from '../utils/floatingWindowSize'
+import { normalizeAutoStopDuration } from '../utils/autoStop.mjs'
 
 const DEFAULT_SETTINGS = {
   recordCounts: true,
@@ -16,6 +17,7 @@ const DEFAULT_SETTINGS = {
   forbidDuplicates: false,
   multiStepStop: true,
   autoStop: false,
+  autoStopDuration: 3,
   finishAnimation: 'spotlight',
   stepStopInterval: 0.15,
   theme: 'default',
@@ -61,6 +63,7 @@ export const useSettingsStore = defineStore('settings', () => {
         settings.value.newMemberCountMode = settings.value.newMemberCountMode === 'zero' ? 'zero' : 'midpoint'
         settings.value.floatingWindowStyle = normalizeFloatingWindowStyle(settings.value.floatingWindowStyle)
         settings.value.floatingWindowSize = normalizeFloatingWindowSize(settings.value.floatingWindowSize)
+        settings.value.autoStopDuration = normalizeAutoStopDuration(settings.value.autoStopDuration)
         darkMode.value = !!saved.darkMode
 
         if (!saved.uiScaleVersion || saved.uiScaleVersion < 2) {

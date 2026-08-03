@@ -281,6 +281,31 @@
         <span class="setting-label">{{ lang === 'en' ? 'Auto stop' : '自动停止' }}</span>
         <FluentToggle :model-value="settings.autoStop" @update:model-value="update('autoStop', $event)" />
       </div>
+      <Transition name="toggle-expand">
+        <div v-if="settings.autoStop" class="sub-setting">
+          <div class="setting-row">
+            <div class="setting-label-group">
+              <span class="setting-label">{{ lang === 'en' ? 'Auto-stop duration' : '自动停止时间' }}</span>
+              <span class="setting-desc">{{ lang === 'en' ? 'Seconds before the roller stops automatically.' : '点名开始后，经过指定秒数自动停止。' }}</span>
+            </div>
+            <div class="scale-control">
+              <div class="scale-input-wrap" style="width: 140px">
+                <input
+                  type="number"
+                  class="scale-input"
+                  min="1"
+                  max="60"
+                  step="1"
+                  :value="settings.autoStopDuration"
+                  :aria-label="lang === 'en' ? 'Auto-stop duration in seconds' : '自动停止时间（秒）'"
+                  @change="onAutoStopDurationChange"
+                />
+                <span class="scale-unit">sec</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </Transition>
       <div class="setting-row">
         <span class="setting-label">{{ lang === 'en' ? 'Result emphasis' : '结果强调动画' }}</span>
         <FluentSelect :model-value="settings.finishAnimation" :options="finishAnimationOptions" width="220px" @update:model-value="update('finishAnimation', $event)" />
@@ -422,6 +447,7 @@ import FluentModal from '../components/FluentModal.vue'
 import { normalizeHex } from '../utils/theme'
 import { FLOATING_WINDOW_STYLES, floatingWindowImagePath, normalizeFloatingWindowStyle } from '../utils/floatingWindowStyle'
 import { normalizeFloatingWindowSize } from '../utils/floatingWindowSize'
+import { normalizeAutoStopDuration } from '../utils/autoStop.mjs'
 
 defineProps({
   section: { type: String, default: 'general' }
@@ -558,6 +584,10 @@ const pwModalHint = computed(() => {
 })
 
 function update(key, value) { return settingsStore.update(key, value) }
+
+function onAutoStopDurationChange(event) {
+  update('autoStopDuration', normalizeAutoStopDuration(event.target.value))
+}
 const customColorDraft = ref(settings.value.customThemeColor)
 const autoStartBusy = ref(false)
 const uriSchemeBusy = ref(false)
