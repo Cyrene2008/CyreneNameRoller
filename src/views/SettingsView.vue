@@ -481,13 +481,17 @@ function onCustomColorPicker(event) {
 async function onAutoStart(value) {
   autoStartBusy.value = true
   const previousValue = !value
-  const mode = settings.value.autoStartMode || 'scheduled'
+  const mode = settings.value.autoStartMode || 'registry'
   await update('autoStart', value)
   const result = await tauriAPI.setAutoStart(value, mode, mode)
   if (!result || result.success === false) {
-    await update('autoStart', previousValue)
-    if (result?.requiresElevation) offerAutoStartElevation({ enabled: value, mode, previousMode: mode, rollbackEnabled: previousValue, rollbackMode: mode })
-    else showBanner({ message: result?.error || (lang.value === 'en' ? 'Startup task update failed' : '启动项更新失败'), icon: 'warning-16-regular', type: 'warning', duration: 8000 })
+    if (result?.requiresElevation && value && mode === 'scheduled') {
+      await fallbackToRegistryAutoStart({ rollbackEnabled: previousValue, rollbackMode: mode })
+    } else {
+      await update('autoStart', previousValue)
+      if (result?.requiresElevation) offerAutoStartElevation({ enabled: value, mode, previousMode: mode, rollbackEnabled: previousValue, rollbackMode: mode })
+      else showBanner({ message: result?.error || (lang.value === 'en' ? 'Startup task update failed' : '启动项更新失败'), icon: 'warning-16-regular', type: 'warning', duration: 8000 })
+    }
   } else if (!result.restarting) {
     showBanner({
       message: value
@@ -500,20 +504,46 @@ async function onAutoStart(value) {
 }
 
 async function onAutoStartModeChange(mode) {
-  const previousMode = settings.value.autoStartMode || 'scheduled'
+  const previousMode = settings.value.autoStartMode || 'registry'
   if (mode === previousMode) return
   await update('autoStartMode', mode)
   if (!settings.value.autoStart) return
   autoStartBusy.value = true
   const result = await tauriAPI.setAutoStart(true, mode, previousMode)
   if (!result || result.success === false) {
-    await update('autoStartMode', previousMode)
-    if (result?.requiresElevation) offerAutoStartElevation({ enabled: true, mode, previousMode, rollbackEnabled: true, rollbackMode: previousMode })
-    else showBanner({ message: result?.error || (lang.value === 'en' ? 'Startup method update failed' : '启动方式更新失败'), icon: 'warning-16-regular', type: 'warning', duration: 8000 })
+    if (result?.requiresElevation && mode === 'scheduled') {
+      await fallbackToRegistryAutoStart({ rollbackEnabled: true, rollbackMode: previousMode })
+    } else {
+      await update('autoStartMode', previousMode)
+      if (result?.requiresElevation) offerAutoStartElevation({ enabled: true, mode, previousMode, rollbackEnabled: true, rollbackMode: previousMode })
+      else showBanner({ message: result?.error || (lang.value === 'en' ? 'Startup method update failed' : '启动方式更新失败'), icon: 'warning-16-regular', type: 'warning', duration: 8000 })
+    }
   } else {
     showBanner({ message: lang.value === 'en' ? 'Startup method updated' : '启动方式已更新', icon: 'checkmark-circle-16-regular', type: 'success', duration: 5000 })
   }
   autoStartBusy.value = false
+}
+
+async function fallbackToRegistryAutoStart({ rollbackEnabled, rollbackMode }) {
+  await update('autoStart', true)
+  await update('autoStartMode', 'registry')
+  const result = await tauriAPI.setAutoStart(true, 'registry', 'registry')
+  if (!result || result.success === false) {
+    await update('autoStart', rollbackEnabled)
+    await update('autoStartMode', rollbackMode)
+    showBanner({
+      message: result?.error || (lang.value === 'en' ? 'Traditional startup entry creation failed' : '传统自启动项创建失败'),
+      icon: 'warning-16-regular', type: 'warning', duration: 8000
+    })
+    return false
+  }
+  showBanner({
+    message: lang.value === 'en'
+      ? 'Administrator permission is unavailable. Switched to the traditional startup entry.'
+      : '当前没有管理员权限，已改用传统自启动项',
+    icon: 'shield-keyhole-16-regular', type: 'warning', duration: 8000
+  })
+  return true
 }
 
 function offerAutoStartElevation({ enabled, mode, previousMode, rollbackEnabled, rollbackMode }) {

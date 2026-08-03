@@ -42,7 +42,7 @@ const DEFAULT_SETTINGS = {
   floatingWindowStyle: 'text',
   floatingWindowSize: 64,
   autoStart: false,
-  autoStartMode: 'scheduled',
+  autoStartMode: 'registry',
   autoStartToTray: false
 }
 
