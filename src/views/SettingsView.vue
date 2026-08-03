@@ -6,7 +6,7 @@
     </h1>
 
     <!-- 基本设置 -->
-    <FluentCard class="settings-section">
+    <FluentCard v-if="section === 'general'" class="settings-section">
       <h3 class="section-title"><FluentIcon icon="options-24-regular" :width="20" /> {{ lang === 'en' ? 'General' : '基本设置' }}</h3>
       <div class="setting-row">
         <span class="setting-label">{{ lang === 'en' ? 'Language' : '语言' }}</span>
@@ -131,7 +131,7 @@
     </FluentCard>
 
     <!-- 主题与显示 -->
-    <FluentCard class="settings-section">
+    <FluentCard v-if="section === 'appearance'" class="settings-section">
       <h3 class="section-title"><FluentIcon icon="color-24-regular" :width="20" /> {{ lang === 'en' ? 'Theme & Display' : '主题与显示' }}</h3>
       <div class="setting-row">
         <span class="setting-label">{{ lang === 'en' ? 'Dark Mode' : '深色模式' }}</span>
@@ -203,7 +203,7 @@
     </FluentCard>
 
     <!-- 性能设置 -->
-    <FluentCard class="settings-section">
+    <FluentCard v-if="section === 'appearance'" class="settings-section">
       <h3 class="section-title"><FluentIcon icon="gauge-24-regular" :width="20" /> {{ lang === 'en' ? 'Performance' : '性能设置' }}</h3>
       <div class="setting-row">
         <div class="setting-label-group">
@@ -233,7 +233,7 @@
     </FluentCard>
 
     <!-- 数据管理 -->
-    <FluentCard class="settings-section">
+    <FluentCard v-if="section === 'data'" class="settings-section">
       <h3 class="section-title"><FluentIcon icon="database-24-regular" :width="20" /> {{ lang === 'en' ? 'Data' : '数据管理' }}</h3>
       <div class="setting-row">
         <div class="setting-label-group">
@@ -275,7 +275,7 @@
     </FluentCard>
 
     <!-- 抽取设置 -->
-    <FluentCard class="settings-section">
+    <FluentCard v-if="section === 'features'" class="settings-section">
       <h3 class="section-title"><FluentIcon icon="play-24-regular" :width="18" /> {{ t('drawSettings', lang) }}</h3>
       <div class="setting-row">
         <span class="setting-label">{{ lang === 'en' ? 'Auto stop' : '自动停止' }}</span>
@@ -308,7 +308,7 @@
     </FluentCard>
 
     <!-- 平衡算法 -->
-    <FluentCard class="settings-section">
+    <FluentCard v-if="section === 'features'" class="settings-section">
       <h3 class="section-title"><FluentIcon icon="data-line-24-regular" :width="20" /> {{ t('balanceSettings', lang) }}</h3>
       <div class="setting-row">
         <span class="setting-label">{{ lang === 'en' ? 'Enable Balance' : '启用平衡算法' }}</span>
@@ -326,7 +326,7 @@
     </FluentCard>
 
     <!-- 更新日志 -->
-    <FluentCard class="settings-section">
+    <FluentCard v-if="section === 'data'" class="settings-section">
       <h3 class="section-title"><FluentIcon icon="list-24-regular" :width="20" /> {{ t('changelog', lang) }}</h3>
       <div class="changelog-list">
         <div v-for="log in changelog" :key="log.version" class="changelog-item">
@@ -422,6 +422,10 @@ import FluentModal from '../components/FluentModal.vue'
 import { normalizeHex } from '../utils/theme'
 import { FLOATING_WINDOW_STYLES, floatingWindowImagePath, normalizeFloatingWindowStyle } from '../utils/floatingWindowStyle'
 import { normalizeFloatingWindowSize } from '../utils/floatingWindowSize'
+
+defineProps({
+  section: { type: String, default: 'general' }
+})
 
 const settingsStore = useSettingsStore()
 const pluginsStore = usePluginsStore()
