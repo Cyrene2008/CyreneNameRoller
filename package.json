@@ -10,6 +10,7 @@
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
     "preview": "vite preview",
+    "test": "node --test scripts/*.test.js"
     "plugin:create": "node packages/cyrene-name-roller/bin/cnrp.mjs create",
     "plugin:validate": "node packages/cyrene-name-roller/bin/cnrp.mjs validate",
     "plugin:pack": "node packages/cyrene-name-roller/bin/cnrp.mjs pack",
@@ -25,6 +26,7 @@
     "gsap": "^3.15.0",
     "jszip": "^3.10.1",
     "pinia": "^3.0.3",
+    "pnpm": "^11.18.0",
     "vue": "^3.5.17",
     "vue-router": "^4.5.1",
     "xlsx": "^0.18.5"

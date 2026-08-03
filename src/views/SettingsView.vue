@@ -82,9 +82,9 @@
         </div>
       </Transition>
       <div v-if="isTauri()" class="setting-row"><span class="setting-label">{{ lang === 'en' ? 'Launch at sign-in' : '开机自启动' }}</span><FluentToggle :model-value="settings.autoStart" :disabled="autoStartBusy" @update:model-value="onAutoStart" /></div>
-      <div v-if="isTauri()" class="setting-row"><span class="setting-label">{{ lang === 'en' ? 'Startup method' : '启动方式' }}</span><FluentSelect :model-value="settings.autoStartMode" :options="autoStartModeOptions" width="240px" :disabled="autoStartBusy" @update:model-value="onAutoStartModeChange" /></div>
       <Transition name="toggle-expand">
         <div v-if="isTauri() && settings.autoStart" class="sub-setting">
+          <div class="setting-row"><span class="setting-label">{{ lang === 'en' ? 'Startup method' : '启动方式' }}</span><FluentSelect :model-value="settings.autoStartMode" :options="autoStartModeOptions" width="240px" :disabled="autoStartBusy" @update:model-value="onAutoStartModeChange" /></div>
           <div class="setting-row"><span class="setting-label">{{ lang === 'en' ? 'Start hidden in tray' : '启动到托盘' }}</span><FluentToggle :model-value="settings.autoStartToTray" @update:model-value="update('autoStartToTray', $event)" /></div>
         </div>
       </Transition>
@@ -281,6 +281,31 @@
         <span class="setting-label">{{ lang === 'en' ? 'Auto stop' : '自动停止' }}</span>
         <FluentToggle :model-value="settings.autoStop" @update:model-value="update('autoStop', $event)" />
       </div>
+      <Transition name="toggle-expand">
+        <div v-if="settings.autoStop" class="sub-setting">
+          <div class="setting-row">
+            <div class="setting-label-group">
+              <span class="setting-label">{{ lang === 'en' ? 'Auto-stop duration' : '自动停止时间' }}</span>
+              <span class="setting-desc">{{ lang === 'en' ? 'Seconds before the roller stops automatically.' : '点名开始后，经过指定秒数自动停止。' }}</span>
+            </div>
+            <div class="scale-control">
+              <div class="scale-input-wrap" style="width: 140px">
+                <input
+                  type="number"
+                  class="scale-input"
+                  min="1"
+                  max="60"
+                  step="1"
+                  :value="settings.autoStopDuration"
+                  :aria-label="lang === 'en' ? 'Auto-stop duration in seconds' : '自动停止时间（秒）'"
+                  @change="onAutoStopDurationChange"
+                />
+                <span class="scale-unit">sec</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </Transition>
       <div class="setting-row">
         <span class="setting-label">{{ lang === 'en' ? 'Result emphasis' : '结果强调动画' }}</span>
         <FluentSelect :model-value="settings.finishAnimation" :options="finishAnimationOptions" width="220px" @update:model-value="update('finishAnimation', $event)" />
@@ -422,6 +447,7 @@ import FluentModal from '../components/FluentModal.vue'
 import { normalizeHex } from '../utils/theme'
 import { FLOATING_WINDOW_STYLES, floatingWindowImagePath, normalizeFloatingWindowStyle } from '../utils/floatingWindowStyle'
 import { normalizeFloatingWindowSize } from '../utils/floatingWindowSize'
+import { normalizeAutoStopDuration } from '../utils/autoStop.mjs'
 
 defineProps({
   section: { type: String, default: 'general' }
@@ -558,6 +584,10 @@ const pwModalHint = computed(() => {
 })
 
 function update(key, value) { return settingsStore.update(key, value) }
+
+function onAutoStopDurationChange(event) {
+  update('autoStopDuration', normalizeAutoStopDuration(event.target.value))
+}
 const customColorDraft = ref(settings.value.customThemeColor)
 const autoStartBusy = ref(false)
 const uriSchemeBusy = ref(false)
@@ -578,13 +608,17 @@ function onCustomColorPicker(event) {
 async function onAutoStart(value) {
   autoStartBusy.value = true
   const previousValue = !value
-  const mode = settings.value.autoStartMode || 'scheduled'
+  const mode = settings.value.autoStartMode || 'registry'
   await update('autoStart', value)
   const result = await tauriAPI.setAutoStart(value, mode, mode)
   if (!result || result.success === false) {
-    await update('autoStart', previousValue)
-    if (result?.requiresElevation) offerAutoStartElevation({ enabled: value, mode, previousMode: mode, rollbackEnabled: previousValue, rollbackMode: mode })
-    else showBanner({ message: result?.error || (lang.value === 'en' ? 'Startup task update failed' : '启动项更新失败'), icon: 'warning-16-regular', type: 'warning', duration: 8000 })
+    if (result?.requiresElevation && value && mode === 'scheduled') {
+      await fallbackToRegistryAutoStart({ rollbackEnabled: previousValue, rollbackMode: mode })
+    } else {
+      await update('autoStart', previousValue)
+      if (result?.requiresElevation) offerAutoStartElevation({ enabled: value, mode, previousMode: mode, rollbackEnabled: previousValue, rollbackMode: mode })
+      else showBanner({ message: result?.error || (lang.value === 'en' ? 'Startup task update failed' : '启动项更新失败'), icon: 'warning-16-regular', type: 'warning', duration: 8000 })
+    }
   } else if (!result.restarting) {
     showBanner({
       message: value
@@ -625,20 +659,46 @@ async function copyUriExample(value) {
 }
 
 async function onAutoStartModeChange(mode) {
-  const previousMode = settings.value.autoStartMode || 'scheduled'
+  const previousMode = settings.value.autoStartMode || 'registry'
   if (mode === previousMode) return
   await update('autoStartMode', mode)
   if (!settings.value.autoStart) return
   autoStartBusy.value = true
   const result = await tauriAPI.setAutoStart(true, mode, previousMode)
   if (!result || result.success === false) {
-    await update('autoStartMode', previousMode)
-    if (result?.requiresElevation) offerAutoStartElevation({ enabled: true, mode, previousMode, rollbackEnabled: true, rollbackMode: previousMode })
-    else showBanner({ message: result?.error || (lang.value === 'en' ? 'Startup method update failed' : '启动方式更新失败'), icon: 'warning-16-regular', type: 'warning', duration: 8000 })
+    if (result?.requiresElevation && mode === 'scheduled') {
+      await fallbackToRegistryAutoStart({ rollbackEnabled: true, rollbackMode: previousMode })
+    } else {
+      await update('autoStartMode', previousMode)
+      if (result?.requiresElevation) offerAutoStartElevation({ enabled: true, mode, previousMode, rollbackEnabled: true, rollbackMode: previousMode })
+      else showBanner({ message: result?.error || (lang.value === 'en' ? 'Startup method update failed' : '启动方式更新失败'), icon: 'warning-16-regular', type: 'warning', duration: 8000 })
+    }
   } else {
     showBanner({ message: lang.value === 'en' ? 'Startup method updated' : '启动方式已更新', icon: 'checkmark-circle-16-regular', type: 'success', duration: 5000 })
   }
   autoStartBusy.value = false
+}
+
+async function fallbackToRegistryAutoStart({ rollbackEnabled, rollbackMode }) {
+  await update('autoStart', true)
+  await update('autoStartMode', 'registry')
+  const result = await tauriAPI.setAutoStart(true, 'registry', 'registry')
+  if (!result || result.success === false) {
+    await update('autoStart', rollbackEnabled)
+    await update('autoStartMode', rollbackMode)
+    showBanner({
+      message: result?.error || (lang.value === 'en' ? 'Traditional startup entry creation failed' : '传统自启动项创建失败'),
+      icon: 'warning-16-regular', type: 'warning', duration: 8000
+    })
+    return false
+  }
+  showBanner({
+    message: lang.value === 'en'
+      ? 'Administrator permission is unavailable. Switched to the traditional startup entry.'
+      : '当前没有管理员权限，已改用传统自启动项',
+    icon: 'shield-keyhole-16-regular', type: 'warning', duration: 8000
+  })
+  return true
 }
 
 function offerAutoStartElevation({ enabled, mode, previousMode, rollbackEnabled, rollbackMode }) {

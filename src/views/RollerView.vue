@@ -57,6 +57,12 @@
       <FluentButton :variant="isRunning ? 'danger' : 'primary'" size="lg" class="start-btn" :class="{ 'btn-dimmed': !canStart && !isRunning }" @click="toggleRoll">
         <FluentIcon :icon="isRunning ? 'stop-24-filled' : 'play-24-filled'" :width="18" />
         {{ isRunning ? t('stop', lang) : t('start', lang) }}
+        <span
+          v-if="isRunning && settings.autoStop"
+          class="start-btn-countdown"
+          :style="{ width: `${autoStopProgress}%` }"
+          aria-hidden="true"
+        ></span>
       </FluentButton>
     </div>
   </div>
@@ -72,6 +78,7 @@ import { useRecordsStore } from '../stores/records'
 import { usePluginsStore } from '../plugins/store'
 import { dataBridge } from '../utils/dataBridge'
 import { consumePendingUriNavigation } from '../utils/uriNavigation'
+import { getAutoStopProgress, normalizeAutoStopDuration } from '../utils/autoStop.mjs'
 import {
   pickCyreneBalanced,
   pickCyreneBatch,
@@ -164,6 +171,9 @@ const lastPickedNames = ref([])
 const sessionCounts = ref({})
 let intervalId = null
 let autoStopTimer = null
+let autoStopInterval = null
+const autoStopRemaining = ref(0)
+const autoStopProgress = computed(() => getAutoStopProgress(autoStopRemaining.value, normalizeAutoStopDuration(settings.value.autoStopDuration) * 1000))
 let drawOperationId = ''
 let suppressAutoStopOnce = false
 let pendingUriNavigation = null
@@ -374,8 +384,22 @@ function updateNamePositionsOnly() {
 function stopRoll() {
   clearTimeout(intervalId)
   clearTimeout(autoStopTimer)
+  clearInterval(autoStopInterval)
+  autoStopInterval = null
+  autoStopRemaining.value = 0
   isRunning.value = false
   finishRoll()
+}
+
+function startAutoStopCountdown() {
+  const durationMs = normalizeAutoStopDuration(settings.value.autoStopDuration) * 1000
+  const deadline = Date.now() + durationMs
+  autoStopRemaining.value = durationMs
+  clearInterval(autoStopInterval)
+  autoStopInterval = setInterval(() => {
+    autoStopRemaining.value = Math.max(0, deadline - Date.now())
+  }, 50)
+  autoStopTimer = setTimeout(stopRoll, durationMs)
 }
 
 function toggleRoll() {
@@ -406,7 +430,8 @@ function toggleRoll() {
     computeGridParams()
     computeNameLayout()
     animationLoop()
-    if (settings.value.autoStop && !suppressAutoStopOnce) autoStopTimer = setTimeout(stopRoll, 3000)
+    if (settings.value.autoStop && !suppressAutoStopOnce) startAutoStopCountdown()
+    else autoStopRemaining.value = 0
     suppressAutoStopOnce = false
   })
 }
@@ -422,6 +447,9 @@ async function applyUriNavigation(event) {
   if (isRunning.value) {
     clearTimeout(intervalId)
     clearTimeout(autoStopTimer)
+    clearInterval(autoStopInterval)
+    autoStopInterval = null
+    autoStopRemaining.value = 0
     pendingTimers.forEach(id => clearTimeout(id))
     pendingTimers.length = 0
     isRunning.value = false
@@ -844,7 +872,7 @@ onMounted(() => {
   if (controlsCenterRef.value) layoutObserver.observe(controlsCenterRef.value)
   window.addEventListener('resize', onResize)
 })
-onBeforeUnmount(() => { if (intervalId) clearTimeout(intervalId); clearTimeout(autoStopTimer); pendingTimers.forEach(id => clearTimeout(id)); layoutObserver?.disconnect(); window.removeEventListener('resize', onResize); window.removeEventListener('cyrene-uri-navigation', applyUriNavigation) })
+onBeforeUnmount(() => { if (intervalId) clearTimeout(intervalId); clearTimeout(autoStopTimer); clearInterval(autoStopInterval); pendingTimers.forEach(id => clearTimeout(id)); layoutObserver?.disconnect(); window.removeEventListener('resize', onResize); window.removeEventListener('cyrene-uri-navigation', applyUriNavigation) })
 </script>
 
 <style scoped>
@@ -918,7 +946,8 @@ onBeforeUnmount(() => { if (intervalId) clearTimeout(intervalId); clearTimeout(a
 .count-input :deep(input)::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 .list-selector-bar { display: flex; align-items: center; gap: 12px; background: var(--bg-card); backdrop-filter: blur(20px); padding: 8px 16px; border-radius: var(--radius-lg); border: 1px solid var(--border-default); box-shadow: var(--shadow-4); width: 100%; justify-content: center; }
 .selector-label { font-size: 14px; font-weight: 600; color: var(--text-secondary); white-space: nowrap; }
-.start-btn { min-width: 280px; font-size: 16px; min-height: 48px; margin-top: 8px; }
+.start-btn { min-width: 280px; font-size: 16px; min-height: 48px; margin-top: 8px; position: relative; overflow: hidden; }
+.start-btn-countdown { position: absolute; left: 0; right: auto; bottom: 0; height: 3px; background: #ffd6e8; box-shadow: 0 0 8px rgba(255, 214, 232, 0.75); pointer-events: none; transition: width 0.05s linear; }
 .btn-dimmed { opacity: 0.45; cursor: not-allowed; }
 
 .toggle-expand-enter-active { animation: toggle-in 0.25s cubic-bezier(0.1, 0.9, 0.2, 1); }
