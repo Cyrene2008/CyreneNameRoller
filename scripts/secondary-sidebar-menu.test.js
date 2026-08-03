@@ -17,10 +17,18 @@ test('secondary menu exposes route-aware overlay navigation with a GSAP slide', 
   assert.match(component, /router\.push\(target\.to\)/)
   assert.match(component, /defineEmits\(\['back'\]\)/)
   assert.match(component, /gsap\.to\(panel, \{/)
+  assert.match(component, /gsap\.set\(panel, \{ x: 0, xPercent: open \? 0 : 100 \}\)/)
+  assert.match(component, /gsap\.set\(menuRef\.value, \{ x: 0, xPercent: props\.open \? 0 : 100 \}\)/)
+  assert.match(component, /gsap\.to\(panel, \{\s*x: 0,\s*xPercent: open \? 0 : 100/)
   assert.match(component, /xPercent: open \? 0 : 100/)
   assert.match(component, /duration: 0\.26/)
   assert.match(component, /panelAnimationToken/)
   assert.match(component, /animationToken === panelAnimationToken && !props\.open/)
+  assert.ok(
+    component.indexOf('animatePanel(true)') < component.indexOf('await router.push(target.to)'),
+    'the secondary panel must begin opening before route navigation can delay it'
+  )
+  assert.doesNotMatch(component, /transform:\s*translateX\(100%\)/)
   assert.doesNotMatch(component, /transition:\s*transform/)
 })
 
