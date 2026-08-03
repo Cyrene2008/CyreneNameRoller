@@ -10,7 +10,7 @@
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
     "preview": "vite preview",
-    "test": "node --test scripts/removed-desktop-runtime.test.js"
+    "test": "node --test scripts/*.test.js"
   },
   "dependencies": {
     "@iconify-json/fluent": "^1.2.10",
