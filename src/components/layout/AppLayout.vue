@@ -8,7 +8,7 @@
       <main ref="appContentRef" class="app-content">
         <router-view v-slot="{ Component, route }">
           <div ref="routeStageRef" class="route-page-stage" :data-route-path="route.path">
-            <component :is="Component" :key="route.path" />
+            <component :is="Component" :key="route.matched[0]?.path || route.path" />
           </div>
         </router-view>
       </main>
@@ -53,7 +53,12 @@
           <button v-if="b.action" class="banner-undo" @click="runBannerAction(b)">
             <FluentIcon :icon="b.actionIcon || 'shield-keyhole-16-regular'" :width="12" /> {{ b.actionLabel }}
           </button>
-          <button v-if="b.dismissible" class="banner-dismiss" @click="dismissBanner(b.id)">
+          <button
+            class="banner-dismiss"
+            :aria-label="lang === 'en' ? 'Close notification' : '关闭通知'"
+            :title="lang === 'en' ? 'Close notification' : '关闭通知'"
+            @click="dismissBanner(b.id)"
+          >
             <FluentIcon icon="dismiss-12-regular" :width="12" />
           </button>
         </div>
