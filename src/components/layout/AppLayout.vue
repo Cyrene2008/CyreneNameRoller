@@ -6,7 +6,7 @@
       <main class="app-content">
         <router-view v-slot="{ Component, route }">
           <Transition :name="transitionName" mode="out-in">
-            <component :is="Component" :key="route.path" />
+            <component :is="Component" :key="route.matched[0]?.path || route.path" />
           </Transition>
         </router-view>
       </main>
@@ -762,16 +762,6 @@ watch(() => settingsStore.settings.fontFamily, (val) => {
     max-height: 0;
   }
 }
-
-/* Page transitions */
-.page-forward-enter-active { transition: all 0.4s cubic-bezier(0.22, 1, 0.36, 1); }
-.page-forward-leave-active { transition: all 0.28s cubic-bezier(0.55, 0, 1, 0.45); }
-.page-forward-enter-from { opacity: 0; transform: translateX(40px) scale(0.97); filter: blur(4px); }
-.page-forward-leave-to { opacity: 0; transform: translateX(-24px) scale(0.98); filter: blur(2px); }
-.page-back-enter-active { transition: all 0.4s cubic-bezier(0.22, 1, 0.36, 1); }
-.page-back-leave-active { transition: all 0.28s cubic-bezier(0.55, 0, 1, 0.45); }
-.page-back-enter-from { opacity: 0; transform: translateX(-40px) scale(0.97); filter: blur(4px); }
-.page-back-leave-to { opacity: 0; transform: translateX(24px) scale(0.98); filter: blur(2px); }
 
 @media (max-width: 768px) {
   .app-body { flex-direction: column; }
