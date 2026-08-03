@@ -62,6 +62,7 @@ const menuRef = ref(null)
 const indicatorRef = ref(null)
 const indicatorVisible = ref(false)
 const panelVisible = ref(props.open)
+let panelAnimationToken = 0
 let indicatorGeometry = null
 let indicatorResizeObserver = null
 let indicatorMotionQuery = null
@@ -101,11 +102,12 @@ function goBack() {
 function animatePanel(open) {
   const panel = menuRef.value
   if (!panel) return
+  const animationToken = ++panelAnimationToken
   gsap.killTweensOf(panel)
   if (open) panelVisible.value = true
   if (motionDisabled()) {
     gsap.set(panel, { xPercent: open ? 0 : 100 })
-    if (!open) panelVisible.value = false
+    if (!open && animationToken === panelAnimationToken && !props.open) panelVisible.value = false
     return
   }
   gsap.to(panel, {
@@ -114,7 +116,7 @@ function animatePanel(open) {
     ease: 'power2.inOut',
     overwrite: 'auto',
     onComplete: () => {
-      if (!open) panelVisible.value = false
+      if (!open && animationToken === panelAnimationToken && !props.open) panelVisible.value = false
     }
   })
 }
@@ -200,6 +202,7 @@ async function syncIndicatorAfterLayout(animate = false) {
 }
 
 watch(() => props.open, async open => {
+  if (open) panelVisible.value = true
   if (open) {
     const target = itemForRoute() || initialItem()
     if (props.navigateOnOpen && target && routePath(target.to) !== route.path) await router.push(target.to)

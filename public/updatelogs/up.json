@@ -1,7 +1,7 @@
 [
   {
     "version": "26.1.0",
-    "date": "2026-08-01",
+    "date": "2026-08-03",
     "logs": {
       "zh": [
         "【平台调整】停止 Electron 版本开发与发布，后续核心更新仅面向 Web 与 Tauri，保留必要兼容代码但不再扩展 Electron 功能",
@@ -21,6 +21,10 @@
         "【新成员统计】新增成员可按现有计数极值的整数中间值初始化，默认保持公平；也可在设置中选择从 0 开始，总次数同步保持一致且不伪造历史记录",
         "【智能导入】Web 与 Tauri 支持拖入 CSV、JSON、XLSX 与 CYRENE 文件，自动判断名单或完整程序数据，并修复单文件被重复导入的问题",
         "【名单文件】简化 CSV 可读格式，同时保留名单 ID、人员 UUID、小组 ID 与名单绑定关系，避免同名名单或人员失去身份",
+        "【导航】新增覆盖式二级 Dock 菜单，统一管理抽奖、记录、名单和设置分区，并支持返回与折叠状态",
+        "【动画】页面转场统一由 GSAP 宿主运行时控制，Dock 活动竖线支持上下移动与拉伸动画",
+        "【插件 Dock】安装的功能性插件可继续贡献独立页面和 Dock 栏入口，插件排序与激活态保持稳定",
+        "【通知与体积】通知横幅统一支持关闭，压缩 MiSans 字体以减少桌面端构建体积",
         "【稳定性修复】改进 Tauri 启动、窗口居中、启动动画时序、后台命令隐藏、名单选择持久化及少数字体字符裁切问题"
       ],
       "en": [
@@ -41,6 +45,10 @@
         "[New Members] Counts can initialize at the midpoint of the current range or zero; totals stay consistent without fabricating history",
         "[Smart Import] Web and Tauri accept dropped CSV, JSON, XLSX, and CYRENE files with automatic routing and duplicate-drop prevention",
         "[List Files] Simplified CSV readability while preserving list IDs, person UUIDs, group IDs, and bindings",
+        "[Navigation] Added overlay secondary Dock menus for lottery, records, lists, and settings, with back navigation and collapsed-state support",
+        "[Animation] Unified page transitions under the host GSAP runtime and added a stretched animated Dock active indicator",
+        "[Plugin Dock] Installed functional plugins can contribute independent pages and Dock entries with stable ordering and active state",
+        "[Notifications and Size] Notification banners are dismissible and MiSans fonts are compressed for smaller desktop builds",
         "[Stability] Improved Tauri startup, centering, splash timing, hidden background commands, selected-list persistence, and clipped English glyphs"
       ]
     }

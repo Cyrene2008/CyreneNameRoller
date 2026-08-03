@@ -2,19 +2,19 @@
   {
     "id": 6,
     "title": {
-      "cn": "v26.1.0 已进入 Tauri 发布前测试",
-      "en": "v26.1.0 Has Entered Tauri Pre-release Testing"
+      "cn": "v26.1.0 正式发布",
+      "en": "v26.1.0 Is Now Officially Released"
     },
     "important": true,
     "pinned": true,
     "tag": {
-      "cn": "抢先测试",
-      "en": "Preview"
+      "cn": "正式发布",
+      "en": "Release"
     },
-    "time": "2026/08/01 21:10",
+    "time": "2026/08/03 15:39",
     "content": {
-      "cn": "v26.1.0 的功能开发已基本完成，当前正在进行 Tauri 安装包发布前测试。**主程序正式 Release 尚未发布**，测试确认无问题后再提供正式下载。\n\n本次更新重点包括：\n\n- 完整插件系统：在线安装、更新、卸载、依赖、纯净恢复模式与本地 `.cnrp` 调试\n- 宿主原生 Fluent 插件页面、跨平台能力桥接，以及名单、记录、统计和平衡数据只读保护\n- 官方插件模板、Fluent 组件/API Pages 与『来点音效』v1.1.0 示例插件\n- Tauri `cyrenenr` URI、Web Hash 一次性参数及指定 Roller 配置后自动开始滚动\n- 跨管理员权限单实例 IPC、双模式开机启动、启动到托盘与启动动画时序修复\n- 人员性别与 Roller 性别筛选、公平算法状态标识、新成员统计初始化策略\n- CSV/JSON/XLSX/CYRENE 智能拖入导入及名单身份信息保护\n- 正式移除 Electron 支持，后续核心版本仅维护 Web 与 Tauri\n\n详细内容可在「设置 → 更新日志」查看。测试期间如发现异常，请暂时保留 26.0.5 安装包并通过 GitHub Issues 反馈。",
-      "en": "Development for v26.1.0 is substantially complete and the Tauri installer is now in pre-release testing. **The main application Release has not been published yet.** A public download will follow after testing succeeds.\n\nHighlights include the complete plugin system and native Fluent plugin pages; cross-platform bridges with read-only protection for lists, records, statistics, and balance data; the official plugin template and Sound Effects v1.1.0; desktop URI and Web hash one-time Roller parameters; cross-elevation single-instance IPC; two startup methods and startup-to-tray fixes; gender-aware draws and fairness status; new-member statistics policies; smart CSV/JSON/XLSX/CYRENE drag-and-drop import; and the removal of Electron support.\n\nSee Settings → Changelog for details. Keep the v26.0.5 installer during testing and report issues through GitHub Issues."
+      "cn": "v26.1.0 正式发布！本版本完成了插件平台、桌面运行时、导航动画与数据导入体验的集中升级，Web 与 Tauri 桌面端现已提供正式版本。\n\n本次更新重点包括：\n\n- 完整插件系统：在线安装、更新、卸载、依赖、纯净恢复模式与本地 `.cnrp` 调试\n- 宿主原生 Fluent 插件页面、跨平台能力桥接，以及名单、记录、统计和平衡数据只读保护\n- 插件可贡献独立页面和 Dock 栏功能入口，并支持插件 SDK 1.1 运行时\n- 覆盖式二级 Dock 菜单，GSAP 页面转场与 Dock 活动竖线动画\n- 官方插件模板、Fluent 组件/API Pages 与『来点音效』v1.1.0 示例插件\n- Tauri `cyrenenr` URI、Web Hash 一次性参数及指定 Roller 配置后自动开始滚动\n- 跨管理员权限单实例 IPC、双模式开机启动、启动到托盘与启动动画时序修复\n- 人员性别与 Roller 性别筛选、公平算法状态标识、新成员统计初始化策略\n- CSV/JSON/XLSX/CYRENE 智能拖入导入及名单身份信息保护\n- 通知横幅统一支持关闭，压缩 MiSans 字体以减少桌面端体积\n- 正式移除 Electron 支持，后续核心版本仅维护 Web 与 Tauri\n\n详细内容可在「设置 → 更新日志」查看。欢迎通过 GitHub Issues 反馈问题与建议。",
+      "en": "v26.1.0 is now officially released. This version brings a coordinated upgrade to the plugin platform, desktop runtime, navigation animations, and import experience. The Web and Tauri desktop builds are now available as stable releases.\n\nHighlights include:\n\n- A complete plugin system with catalog install, update, uninstall, dependencies, clean recovery, and local `.cnrp` debugging\n- Host-rendered native Fluent plugin pages, cross-platform bridges, and read-only protection for lists, records, statistics, and balance data\n- Independent plugin pages and functional Dock entries, backed by the plugin API 1.1 runtime\n- Overlay secondary Dock menus, GSAP page transitions, and animated Dock active indicators\n- The official plugin template, Fluent components/API Pages, and the usable Sound Effects v1.1.0 example plugin\n- The `cyrenenr` desktop URI scheme, Web hash one-time parameters, and direct Roller startup with supplied settings\n- Cross-elevation single-instance IPC, two startup methods, startup-to-tray, and splash timing fixes\n- Gender-aware draws, fairness status, and configurable new-member statistics initialization\n- Smart CSV/JSON/XLSX/CYRENE drag-and-drop import with identity preservation\n- Dismissible notification banners and compressed MiSans fonts for smaller desktop builds\n- Electron development and releases have ended; future core versions target Web and Tauri\n\nSee Settings → Changelog for the full list, and use GitHub Issues for feedback."
     }
   }
 ]
