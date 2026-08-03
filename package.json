@@ -10,12 +10,13 @@
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
     "preview": "vite preview",
-    "test": "node --test scripts/*.test.js scripts/*.test.mjs",
+    "test": "node --test scripts/*.test.js"
     "plugin:create": "node packages/cyrene-name-roller/bin/cnrp.mjs create",
     "plugin:validate": "node packages/cyrene-name-roller/bin/cnrp.mjs validate",
     "plugin:pack": "node packages/cyrene-name-roller/bin/cnrp.mjs pack",
     "plugin:pack:sound": "node packages/cyrene-name-roller/bin/cnrp.mjs pack plugin-dev/sound-effects --out plugin-dev/dist/sound-effects-1.1.0.cnrp",
-    "plugin:sdk:pack": "node scripts/prepare-plugin-sdk-output.mjs"
+    "plugin:sdk:pack": "node scripts/prepare-plugin-sdk-output.mjs",
+    "test": "node --test scripts/removed-desktop-runtime.test.js scripts/cyrene-balance.test.mjs scripts/plugin-sdk.test.mjs scripts/plugin-ui-resilience.test.mjs scripts/plugin-sdk-release-workflow.test.mjs scripts/plugin-draw-transaction.test.mjs scripts/card-operation-cancellation.test.mjs scripts/uri-navigation.test.mjs scripts/banner-dismiss.test.js scripts/navigation-indicator.test.js scripts/navigation-layout.test.js scripts/secondary-sidebar-menu.test.js"
   },
   "dependencies": {
     "@iconify-json/fluent": "^1.2.10",
