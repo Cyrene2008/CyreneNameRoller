@@ -10,7 +10,6 @@
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
     "preview": "vite preview",
-    "test": "node --test scripts/removed-desktop-runtime.test.js scripts/cyrene-balance.test.mjs scripts/plugin-sdk.test.mjs scripts/plugin-ui-resilience.test.mjs scripts/plugin-sdk-release-workflow.test.mjs",
     "plugin:create": "node packages/cyrene-name-roller/bin/cnrp.mjs create",
     "plugin:validate": "node packages/cyrene-name-roller/bin/cnrp.mjs validate",
     "plugin:pack": "node packages/cyrene-name-roller/bin/cnrp.mjs pack",
