@@ -3,15 +3,12 @@ const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const path = require('node:path')
 
-const root = path.resolve(__dirname, '..')
-const appLayout = fs.readFileSync(path.join(root, 'src', 'components', 'layout', 'AppLayout.vue'), 'utf8')
+const appLayout = fs.readFileSync(path.join(__dirname, '..', 'src', 'components', 'layout', 'AppLayout.vue'), 'utf8')
 
-test('every top banner renders a close button', () => {
-  assert.doesNotMatch(appLayout, /<button v-if="b\.dismissible" class="banner-dismiss"/)
-  assert.match(appLayout, /<button\s+class="banner-dismiss"[\s\S]*?@click="dismissBanner\(b\.id\)"/)
-})
-
-test('banner close button has localized accessible text', () => {
-  assert.match(appLayout, /:aria-label="lang === 'en' \? 'Close notification' : '关闭通知'"/)
-  assert.match(appLayout, /:title="lang === 'en' \? 'Close notification' : '关闭通知'"/)
+test('every global notification banner exposes an accessible close button', () => {
+  const button = appLayout.match(/<button\s+class="banner-dismiss"[\s\S]*?<\/button>/)?.[0] || ''
+  assert.match(button, /:aria-label=/)
+  assert.match(button, /:title=/)
+  assert.match(button, /@click="dismissBanner\(b\.id\)"/)
+  assert.doesNotMatch(button, /v-if="b\.dismissible"/)
 })

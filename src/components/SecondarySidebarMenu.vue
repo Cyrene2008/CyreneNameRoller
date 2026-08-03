@@ -2,16 +2,21 @@
   <aside
     ref="menuRef"
     class="secondary-sidebar-menu"
-    :class="{ 'is-open': open, 'is-collapsed': collapsed }"
+    :class="{
+      'is-visible': panelVisible,
+      'is-interactive': open,
+      'is-collapsed': collapsed
+    }"
     :aria-hidden="!open"
+    @keydown.esc="goBack"
   >
     <div
       v-show="indicatorVisible"
       ref="indicatorRef"
       class="secondary-sidebar-menu__shared-indicator"
-      :class="indicatorAnimationClass"
       aria-hidden="true"
     />
+
     <header class="secondary-sidebar-menu__header">
       <button type="button" class="secondary-sidebar-menu__back" :aria-label="backLabel" @click="goBack">
         <FluentIcon icon="arrow-left-20-regular" :width="18" />
@@ -35,6 +40,7 @@
 </template>
 
 <script setup>
+import { gsap } from 'gsap'
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import FluentIcon from './FluentIcon.vue'
@@ -55,14 +61,13 @@ const router = useRouter()
 const menuRef = ref(null)
 const indicatorRef = ref(null)
 const indicatorVisible = ref(false)
-const indicatorAnimationClass = ref('')
+const panelVisible = ref(props.open)
+let panelAnimationToken = 0
 let indicatorGeometry = null
-let indicatorTimer = null
-let indicatorMotionQuery = null
 let indicatorResizeObserver = null
+let indicatorMotionQuery = null
 let layoutSyncFrame = null
 let layoutSyncAnimate = false
-const indicatorDuration = 250
 
 function routePath(target) {
   if (!target) return ''
@@ -75,6 +80,7 @@ function itemForRoute(path = route.path) {
     return path === itemPath || path.startsWith(`${itemPath}/`)
   })
 }
+
 function initialItem() {
   const requested = routePath(props.initialRoute)
   return props.items.find(item => item.id === props.initialRoute || routePath(item.to) === requested)
@@ -85,8 +91,34 @@ function isItemActive(item) {
   return itemForRoute()?.id === item.id
 }
 
+function motionDisabled() {
+  return indicatorMotionQuery?.matches || Boolean(document.querySelector('.perf-no-anim'))
+}
+
 function goBack() {
   emit('back')
+}
+
+function animatePanel(open) {
+  const panel = menuRef.value
+  if (!panel) return
+  const animationToken = ++panelAnimationToken
+  gsap.killTweensOf(panel)
+  if (open) panelVisible.value = true
+  if (motionDisabled()) {
+    gsap.set(panel, { xPercent: open ? 0 : 100 })
+    if (!open && animationToken === panelAnimationToken && !props.open) panelVisible.value = false
+    return
+  }
+  gsap.to(panel, {
+    xPercent: open ? 0 : 100,
+    duration: 0.26,
+    ease: 'power2.inOut',
+    overwrite: 'auto',
+    onComplete: () => {
+      if (!open && animationToken === panelAnimationToken && !props.open) panelVisible.value = false
+    }
+  })
 }
 
 function activeIndicatorTarget() {
@@ -95,14 +127,17 @@ function activeIndicatorTarget() {
 
 function applyIndicatorGeometry(geometry) {
   if (!indicatorRef.value) return
-  indicatorRef.value.style.setProperty('--indicator-left', `${geometry.left}px`)
-  indicatorRef.value.style.setProperty('--indicator-top', `${geometry.top}px`)
-  indicatorRef.value.style.setProperty('--indicator-height', `${geometry.height}px`)
+  gsap.set(indicatorRef.value, {
+    left: geometry.left,
+    top: geometry.top,
+    height: geometry.height
+  })
 }
 
 function syncIndicator({ animate = false } = {}) {
   const target = activeIndicatorTarget()
-  if (!props.open || !target || !menuRef.value || !indicatorRef.value) {
+  const indicator = indicatorRef.value
+  if (!props.open || !target || !menuRef.value || !indicator) {
     indicatorVisible.value = false
     indicatorGeometry = null
     return
@@ -119,35 +154,39 @@ function syncIndicator({ animate = false } = {}) {
   const previousGeometry = indicatorGeometry
   const shouldAnimate = animate
     && previousGeometry
-    && !indicatorMotionQuery?.matches
-    && !document.querySelector('.perf-no-anim')
+    && !motionDisabled()
     && getIndicatorDirection(previousGeometry, targetGeometry) !== 'none'
 
-  if (indicatorTimer) clearTimeout(indicatorTimer)
   indicatorVisible.value = true
+  gsap.killTweensOf(indicator)
   if (!shouldAnimate) {
-    indicatorAnimationClass.value = ''
     applyIndicatorGeometry(targetGeometry)
     indicatorGeometry = targetGeometry
     return
   }
 
   const transition = getIndicatorTransition(previousGeometry, targetGeometry, 20)
-  indicatorAnimationClass.value = `is-moving ${transition.direction}`
-  indicatorRef.value.style.setProperty('--indicator-from-top', `${transition.fromTop}px`)
-  indicatorRef.value.style.setProperty('--indicator-to-top', `${transition.toTop}px`)
-  indicatorRef.value.style.setProperty('--indicator-stretch-top', `${transition.stretchTop}px`)
-  indicatorRef.value.style.setProperty('--indicator-stretch-height', `${transition.stretchHeight}px`)
-  indicatorRef.value.style.setProperty('--indicator-from-left', `${previousGeometry.left}px`)
-  indicatorRef.value.style.setProperty('--indicator-to-left', `${targetGeometry.left}px`)
-  indicatorRef.value.style.setProperty('--indicator-from-height', `${previousGeometry.height}px`)
-  indicatorRef.value.style.setProperty('--indicator-to-height', `${targetGeometry.height}px`)
+  gsap.set(indicator, {
+    left: previousGeometry.left,
+    top: transition.fromTop,
+    height: previousGeometry.height
+  })
+  gsap.timeline({ defaults: { overwrite: 'auto' } })
+    .to(indicator, {
+      left: targetGeometry.left,
+      top: transition.stretchTop,
+      height: transition.stretchHeight,
+      duration: 0.13,
+      ease: 'power2.out'
+    })
+    .to(indicator, {
+      left: targetGeometry.left,
+      top: transition.toTop,
+      height: targetGeometry.height,
+      duration: 0.12,
+      ease: 'power2.inOut'
+    })
   indicatorGeometry = targetGeometry
-  indicatorTimer = window.setTimeout(() => {
-    applyIndicatorGeometry(targetGeometry)
-    indicatorAnimationClass.value = ''
-    indicatorTimer = null
-  }, indicatorDuration + 20)
 }
 
 async function syncIndicatorAfterLayout(animate = false) {
@@ -163,33 +202,32 @@ async function syncIndicatorAfterLayout(animate = false) {
 }
 
 watch(() => props.open, async open => {
-  if (!open) {
-    syncIndicatorAfterLayout(false)
-    return
+  if (open) panelVisible.value = true
+  if (open) {
+    const target = itemForRoute() || initialItem()
+    if (props.navigateOnOpen && target && routePath(target.to) !== route.path) await router.push(target.to)
   }
-  const target = itemForRoute() || initialItem()
-  if (props.navigateOnOpen && target && routePath(target.to) !== route.path) await router.push(target.to)
+  await nextTick()
+  animatePanel(open)
   syncIndicatorAfterLayout(false)
-}, { immediate: true })
+}, { immediate: true, flush: 'post' })
 
-watch(() => route.path, () => {
-  syncIndicatorAfterLayout(true)
-})
-watch(() => props.items, () => {
-  syncIndicatorAfterLayout(false)
-}, { deep: true })
+watch(() => route.path, () => syncIndicatorAfterLayout(true))
+watch(() => props.items, () => syncIndicatorAfterLayout(false), { deep: true })
 watch(() => props.collapsed, () => syncIndicatorAfterLayout(false))
 
 onMounted(() => {
   indicatorMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)')
+  gsap.set(menuRef.value, { xPercent: props.open ? 0 : 100 })
   syncIndicatorAfterLayout(false)
   indicatorResizeObserver = new ResizeObserver(() => syncIndicatorAfterLayout(false))
   if (menuRef.value) indicatorResizeObserver.observe(menuRef.value)
 })
 
 onBeforeUnmount(() => {
-  if (indicatorTimer) clearTimeout(indicatorTimer)
   if (layoutSyncFrame) cancelAnimationFrame(layoutSyncFrame)
+  if (menuRef.value) gsap.killTweensOf(menuRef.value)
+  if (indicatorRef.value) gsap.killTweensOf(indicatorRef.value)
   indicatorResizeObserver?.disconnect()
 })
 </script>
@@ -206,56 +244,93 @@ onBeforeUnmount(() => {
   padding: 12px 6px;
   overflow: hidden;
   background: var(--bg-acrylic);
-  transform: translateX(100%);
-  pointer-events: none;
   visibility: hidden;
-  transition: transform var(--duration-normal) var(--ease-standard), visibility 0s linear var(--duration-normal);
+  pointer-events: none;
+  transform: translateX(100%);
 }
+
+.secondary-sidebar-menu.is-visible { visibility: visible; }
+.secondary-sidebar-menu.is-interactive { pointer-events: auto; }
+
 .secondary-sidebar-menu__shared-indicator {
   position: absolute;
   z-index: 3;
-  left: var(--indicator-left, 0px);
-  top: var(--indicator-top, 0px);
+  left: 0;
+  top: 0;
   width: 3px;
-  height: var(--indicator-height, 20px);
+  height: 20px;
   border-radius: var(--radius-full);
   background: var(--accent);
   pointer-events: none;
 }
-.secondary-sidebar-menu__shared-indicator.is-moving {
-  animation-duration: 250ms;
-  animation-timing-function: var(--ease-standard);
-  animation-fill-mode: both;
+
+.secondary-sidebar-menu__header {
+  flex: 0 0 auto;
+  padding: 0 4px 12px;
+  border-bottom: 1px solid var(--border-subtle);
 }
-.secondary-sidebar-menu__shared-indicator.is-moving.down { animation-name: secondary-indicator-down; }
-.secondary-sidebar-menu__shared-indicator.is-moving.up { animation-name: secondary-indicator-up; }
-@keyframes secondary-indicator-down {
-  0% { left: var(--indicator-from-left); top: var(--indicator-from-top); height: var(--indicator-from-height); }
-  52% { left: var(--indicator-to-left); top: var(--indicator-stretch-top); height: var(--indicator-stretch-height); }
-  100% { left: var(--indicator-to-left); top: var(--indicator-to-top); height: var(--indicator-to-height); }
+
+.secondary-sidebar-menu__back {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 36px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  cursor: pointer;
 }
-@keyframes secondary-indicator-up {
-  0% { left: var(--indicator-from-left); top: var(--indicator-from-top); height: var(--indicator-from-height); }
-  52% { left: var(--indicator-to-left); top: var(--indicator-stretch-top); height: var(--indicator-stretch-height); }
-  100% { left: var(--indicator-to-left); top: var(--indicator-to-top); height: var(--indicator-to-height); }
-}
-.secondary-sidebar-menu.is-open {
-  transform: translateX(0);
-  pointer-events: auto;
-  visibility: visible;
-  transition-delay: 0s;
-}
-.secondary-sidebar-menu__header { flex: 0 0 auto; padding: 0 4px 12px; border-bottom: 1px solid var(--border-subtle); }
-.secondary-sidebar-menu__back { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 36px; padding: 6px 8px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--text-secondary); font: inherit; cursor: pointer; }
-.secondary-sidebar-menu__back-label { white-space: nowrap; }
+
 .secondary-sidebar-menu__back:hover { background: var(--bg-hover); color: var(--text-primary); }
-.secondary-sidebar-menu__list { display: flex; flex: 1; flex-direction: column; gap: 4px; padding: 10px 0; overflow-x: hidden; overflow-y: auto; }
-.secondary-sidebar-menu__item { position: relative; display: flex; align-items: center; gap: 9px; width: 100%; min-height: 40px; padding: 9px 10px; border: 0; border-radius: var(--radius-md); background: transparent; color: var(--text-secondary); font: inherit; font-size: 13px; text-align: left; text-decoration: none; cursor: pointer; transition: background var(--duration-fast) ease, color var(--duration-fast) ease, transform var(--duration-fast) ease; }
-.secondary-sidebar-menu__item-label { white-space: nowrap; }
-.secondary-sidebar-menu__item:hover, .secondary-sidebar-menu__item.active { background: var(--bg-hover); color: var(--accent); transform: translateX(2px); }
-.secondary-sidebar-menu__item.active::before { display: none; }
+.secondary-sidebar-menu__back-label { white-space: nowrap; }
+
+.secondary-sidebar-menu__list {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 0;
+  padding: 10px 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.secondary-sidebar-menu__item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  min-height: 40px;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background var(--duration-fast) ease, color var(--duration-fast) ease, transform var(--duration-fast) ease;
+}
+
+.secondary-sidebar-menu__item:hover,
+.secondary-sidebar-menu__item.active {
+  background: var(--bg-hover);
+  color: var(--accent);
+  transform: translateX(2px);
+}
+
+.secondary-sidebar-menu__item-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .secondary-sidebar-menu.is-collapsed .secondary-sidebar-menu__back-label,
 .secondary-sidebar-menu.is-collapsed .secondary-sidebar-menu__item-label { display: none; }
-@media (prefers-reduced-motion: reduce) { .secondary-sidebar-menu, .secondary-sidebar-menu__item { transition-duration: 0ms; } }
-@media (prefers-reduced-motion: reduce) { .secondary-sidebar-menu__shared-indicator.is-moving { animation-duration: 0ms; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .secondary-sidebar-menu__item { transition-duration: 0ms; }
+}
 </style>

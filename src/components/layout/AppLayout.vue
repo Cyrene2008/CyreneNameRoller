@@ -7,9 +7,9 @@
       <NavigationDock />
       <main ref="appContentRef" class="app-content">
         <router-view v-slot="{ Component, route }">
-          <Transition :name="transitionName" mode="out-in">
+          <div ref="routeStageRef" class="route-page-stage" :data-route-path="route.path">
             <component :is="Component" :key="route.matched[0]?.path || route.path" />
-          </Transition>
+          </div>
         </router-view>
       </main>
     </div>

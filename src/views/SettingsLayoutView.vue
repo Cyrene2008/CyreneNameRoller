@@ -1,10 +1,6 @@
 <template>
   <main class="settings-layout-view">
-    <router-view v-slot="{ Component, route }">
-      <Transition name="page-forward" mode="out-in">
-        <component :is="Component" :key="route.path" />
-      </Transition>
-    </router-view>
+    <router-view />
   </main>
 </template>
 

@@ -4,136 +4,140 @@
       v-show="indicatorVisible"
       ref="indicatorRef"
       class="dock-shared-indicator"
-      :class="indicatorAnimationClass"
       aria-hidden="true"
     />
-    <div class="dock-primary">
-    <div v-if="!isDesktopApp" class="dock-top">
-      <button class="dock-toggle" @click="toggleDock" :title="dockCollapsed ? '展开' : '收起'">
-        <Icon icon="fluent:line-horizontal-3-20-regular" :width="18" />
-      </button>
-      <template v-if="!dockCollapsed">
-        <img src="/cyrene.png" class="dock-logo-img" alt="" />
-        <span class="dock-logo-text">Cyreneの随机点名器</span>
-      </template>
-    </div>
 
-    <div class="dock-items">
-      <template v-for="item in mainItems" :key="item.id">
+    <div ref="dockPrimaryRef" class="dock-primary">
+      <div v-if="!isDesktopApp" class="dock-top">
+        <button class="dock-toggle" @click="toggleDock" :title="dockCollapsed ? '展开' : '收起'">
+          <Icon icon="fluent:line-horizontal-3-20-regular" :width="18" />
+        </button>
+        <template v-if="!dockCollapsed">
+          <img src="/cyrene.png" class="dock-logo-img" alt="" />
+          <span class="dock-logo-text">Cyreneの随机点名器</span>
+        </template>
+      </div>
+
+      <div class="dock-items">
+        <template v-for="item in mainItems" :key="item.id">
+          <router-link
+            v-if="item.to"
+            :to="item.to"
+            class="dock-item"
+            :class="{ active: isPrimaryItemActive(item) }"
+            draggable="false"
+            :title="item.label[lang]"
+            @click="closeSecondaryMenu"
+          >
+            <Icon :icon="item.icon" :width="20" class="dock-item-icon" />
+            <span v-if="!dockCollapsed" class="dock-item-label">{{ item.label[lang] }}</span>
+          </router-link>
+
+          <button
+            v-else
+            type="button"
+            class="dock-item dock-parent"
+            :class="{ active: isPrimaryItemActive(item) }"
+            :title="item.label[lang]"
+            :aria-expanded="activeSecondaryMenu === item.menu"
+            @click="openSecondaryMenu(item.menu)"
+          >
+            <Icon :icon="item.icon" :width="20" class="dock-item-icon" />
+            <span v-if="!dockCollapsed" class="dock-item-label">{{ item.label[lang] }}</span>
+            <Icon icon="fluent:chevron-right-16-regular" :width="14" class="dock-chevron" />
+          </button>
+
+          <template v-if="item.id === 'records'">
+            <router-link
+              v-for="pluginItem in pluginDockItems"
+              :key="pluginItem.path"
+              :to="pluginItem.path"
+              class="dock-item plugin-dock-item"
+              :class="{ active: route.path === pluginItem.path }"
+              draggable="false"
+              :title="pluginItem.label"
+              @click="closeSecondaryMenu"
+            >
+              <Icon :icon="pluginItem.icon" :width="20" class="dock-item-icon" />
+              <span v-if="!dockCollapsed" class="dock-item-label">{{ pluginItem.label }}</span>
+            </router-link>
+          </template>
+        </template>
+      </div>
+
+      <div class="dock-bottom">
         <router-link
-          v-if="item.to"
-          :to="item.to"
+          to="/announcement"
           class="dock-item"
-          :class="{ active: isPrimaryItemActive(item) }"
+          :class="{ active: route.path === '/announcement' }"
           draggable="false"
-          :title="item.label[lang]"
+          :title="lang === 'en' ? 'Announcements' : '公告'"
           @click="closeSecondaryMenu"
         >
-          <div class="dock-item-indicator" />
-          <Icon :icon="item.icon" :width="20" class="dock-item-icon" />
-          <span v-if="!dockCollapsed" class="dock-item-label">{{ item.label[lang] }}</span>
+          <Icon icon="fluent:megaphone-24-regular" :width="20" class="dock-item-icon" />
+          <span v-if="!dockCollapsed" class="dock-item-label">{{ lang === 'en' ? 'Announcements' : '公告' }}</span>
         </router-link>
+
+        <template v-if="!isDesktopApp">
+          <router-link
+            to="/download"
+            class="dock-item"
+            :class="{ active: route.path === '/download' }"
+            draggable="false"
+            :title="lang === 'en' ? 'Download Client' : '下载客户端'"
+            @click="closeSecondaryMenu"
+          >
+            <Icon icon="fluent:arrow-download-24-regular" :width="20" class="dock-item-icon" />
+            <span v-if="!dockCollapsed" class="dock-item-label">{{ lang === 'en' ? 'Download' : '下载客户端' }}</span>
+          </router-link>
+          <a
+            target="_blank"
+            class="dock-item dock-docs"
+            draggable="false"
+            :title="lang === 'en' ? 'Documentation' : '查看文档'"
+          >
+            <Icon icon="fluent:book-24-regular" :width="20" class="dock-item-icon" />
+            <span v-if="!dockCollapsed" class="dock-item-label">{{ lang === 'en' ? 'Docs' : '查看文档' }}</span>
+          </a>
+        </template>
+
+        <router-link
+          to="/plugins"
+          class="dock-item dock-plugin"
+          :class="{ active: pluginManagerActive }"
+          draggable="false"
+          :title="lang === 'en' ? 'Plugins' : '插件'"
+          @click="closeSecondaryMenu"
+        >
+          <Icon icon="fluent:plug-connected-24-regular" :width="20" class="dock-item-icon" />
+          <span v-if="!dockCollapsed" class="dock-item-label">{{ lang === 'en' ? 'Plugins' : '插件' }}</span>
+        </router-link>
+
         <button
-          v-else
           type="button"
           class="dock-item dock-parent"
-          :class="{ active: isPrimaryItemActive(item) }"
-          :title="item.label[lang]"
-          @click="openSecondaryMenu(item.menu)"
+          :class="{ active: route.path.startsWith('/settings') }"
+          :title="lang === 'en' ? 'Settings' : '设置'"
+          :aria-expanded="activeSecondaryMenu === 'settings'"
+          @click="openSecondaryMenu('settings')"
         >
-          <div class="dock-item-indicator" />
-          <Icon :icon="item.icon" :width="20" class="dock-item-icon" />
-          <span v-if="!dockCollapsed" class="dock-item-label">{{ item.label[lang] }}</span>
+          <Icon icon="fluent:settings-24-regular" :width="20" class="dock-item-icon" />
+          <span v-if="!dockCollapsed" class="dock-item-label">{{ lang === 'en' ? 'Settings' : '设置' }}</span>
           <Icon icon="fluent:chevron-right-16-regular" :width="14" class="dock-chevron" />
         </button>
-      </template>
-    </div>
 
-    <div class="dock-bottom">
-      <!-- 公告 -->
-      <router-link
-        to="/announcement"
-        class="dock-item"
-        :class="{ active: route.path === '/announcement' }"
-        draggable="false"
-        :title="lang === 'en' ? 'Announcements' : '公告'"
-        @click="closeSecondaryMenu"
-      >
-        <div class="dock-item-indicator" />
-        <Icon icon="fluent:megaphone-24-regular" :width="20" class="dock-item-icon" />
-        <span v-if="!dockCollapsed" class="dock-item-label">{{ lang === 'en' ? 'Announcements' : '公告' }}</span>
-      </router-link>
-      <!-- Web版专属按钮 -->
-      <template v-if="!isDesktopApp">
         <router-link
-          to="/download"
+          to="/about"
           class="dock-item"
-          :class="{ active: route.path === '/download' }"
+          :class="{ active: route.path.startsWith('/about') }"
           draggable="false"
-          :title="lang === 'en' ? 'Download Client' : '下载客户端'"
+          :title="lang === 'en' ? 'About' : '关于'"
           @click="closeSecondaryMenu"
         >
-          <div class="dock-item-indicator" />
-          <Icon icon="fluent:arrow-download-24-regular" :width="20" class="dock-item-icon" />
-          <span v-if="!dockCollapsed" class="dock-item-label">{{ lang === 'en' ? 'Download' : '下载客户端' }}</span>
+          <Icon icon="fluent:info-24-regular" :width="20" class="dock-item-icon" />
+          <span v-if="!dockCollapsed" class="dock-item-label">{{ lang === 'en' ? 'About' : '关于' }}</span>
         </router-link>
-        <a
-          target="_blank"
-          class="dock-item dock-docs"
-          draggable="false"
-          :title="lang === 'en' ? 'Documentation' : '查看文档'"
-        >
-          <Icon icon="fluent:book-24-regular" :width="20" class="dock-item-icon" />
-          <span v-if="!dockCollapsed" class="dock-item-label">{{ lang === 'en' ? 'Docs' : '查看文档' }}</span>
-        </a>
-      </template>
-      <button
-        type="button"
-        class="dock-item dock-plugin"
-        :title="lang === 'en' ? 'Plugins' : '插件'"
-      >
-        <div class="dock-item-indicator" />
-        <Icon icon="fluent:puzzle-piece-24-regular" :width="20" class="dock-item-icon" />
-        <span v-if="!dockCollapsed" class="dock-item-label">{{ lang === 'en' ? 'Plugins' : '插件' }}</span>
-      </button>
-      <button
-        type="button"
-        class="dock-item dock-parent"
-        :class="{ active: route.path.startsWith('/settings') }"
-        :title="lang === 'en' ? 'Settings' : '设置'"
-        @click="openSecondaryMenu('settings')"
-      >
-        <div class="dock-item-indicator" />
-        <Icon icon="fluent:settings-24-regular" :width="20" class="dock-item-icon" />
-        <span v-if="!dockCollapsed" class="dock-item-label">{{ lang === 'en' ? 'Settings' : '设置' }}</span>
-        <Icon icon="fluent:chevron-right-16-regular" :width="14" class="dock-chevron" />
-      </button>
-      <router-link
-        to="/plugins"
-        class="dock-item"
-        :class="{ active: pluginManagerActive }"
-        draggable="false"
-        :title="lang === 'en' ? 'Plugins' : '插件'"
-      >
-        <div class="dock-item-indicator" />
-        <Icon icon="fluent:plug-connected-24-regular" :width="20" class="dock-item-icon" />
-        <span v-if="!dockCollapsed" class="dock-item-label">{{ lang === 'en' ? 'Plugins' : '插件' }}</span>
-      </router-link>
-      <router-link
-        v-for="item in bottomItems"
-        :key="item.path"
-        :to="item.path"
-        class="dock-item"
-        :class="{ active: route.path.startsWith('/about') }"
-        draggable="false"
-        :title="lang === 'en' ? 'About' : '关于'"
-        @click="closeSecondaryMenu"
-      >
-        <div class="dock-item-indicator" />
-        <Icon icon="fluent:info-24-regular" :width="20" class="dock-item-icon" />
-        <span v-if="!dockCollapsed" class="dock-item-label">{{ lang === 'en' ? 'About' : '关于' }}</span>
-      </router-link>
-    </div>
+      </div>
     </div>
 
     <SecondarySidebarMenu
@@ -142,25 +146,22 @@
       :items="activeSecondaryConfig.items"
       :navigate-on-open="activeSecondaryConfig.navigateOnOpen"
       :back-label="lang === 'en' ? 'Back' : '返回'"
-      @back="closeSecondaryMenu"
+      @back="closeSecondaryMenu({ restoreFocus: true })"
     />
   </nav>
 </template>
 
 <script setup>
+import { gsap } from 'gsap'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { Icon } from '@iconify/vue'
-import { useSettingsStore } from '../../stores/settings'
-import { usePluginsStore } from '../../plugins/store'
-import { isTauri } from '../../utils/tauriAPI'
-import { t } from '../../utils/i18n'
 import SecondarySidebarMenu from '../SecondarySidebarMenu.vue'
+import { usePluginsStore } from '../../plugins/store'
+import { useSettingsStore } from '../../stores/settings'
+import { t } from '../../utils/i18n'
 import { getIndicatorDirection, getIndicatorGeometry, getIndicatorTransition } from '../../utils/navigationIndicator.mjs'
-
-const props = defineProps({
-  buildHash: { type: String, default: '' }
-})
+import { isTauri } from '../../utils/tauriAPI'
 
 const route = useRoute()
 const settingsStore = useSettingsStore()
@@ -168,6 +169,7 @@ const pluginsStore = usePluginsStore()
 const lang = computed(() => settingsStore.settings.language)
 const dockCollapsed = computed(() => settingsStore.settings.dockCollapsed || false)
 const isDesktopApp = computed(() => isTauri())
+
 const pluginDockItems = computed(() => pluginsStore.contributedPages
   .filter(page => page.location === 'dock')
   .sort((left, right) => (left.order ?? 500) - (right.order ?? 500))
@@ -176,6 +178,7 @@ const pluginDockItems = computed(() => pluginsStore.contributedPages
     icon: String(page.icon || '').includes(':') ? page.icon : `fluent:${page.icon || 'apps-24-regular'}`,
     label: lang.value === 'en' && page.titleEn ? page.titleEn : page.title
   })))
+
 const pluginManagerActive = computed(() => {
   if (route.path === '/plugins') return true
   if (route.name !== 'PluginPage') return false
@@ -192,33 +195,37 @@ function secondaryMenuForRoute(path) {
 
 const activeSecondaryMenu = ref(secondaryMenuForRoute(route.path))
 const dockRef = ref(null)
+const dockPrimaryRef = ref(null)
 const indicatorRef = ref(null)
 const indicatorVisible = ref(false)
-const indicatorAnimationClass = ref('')
 let indicatorGeometry = null
-let indicatorTimer = null
 let indicatorResizeObserver = null
 let indicatorMotionQuery = null
-
-const indicatorDuration = 250
 let layoutSyncFrame = null
 let layoutSyncAnimate = false
 
+function motionDisabled() {
+  return indicatorMotionQuery?.matches || Boolean(document.querySelector('.perf-no-anim'))
+}
+
 function activeIndicatorTarget() {
   if (activeSecondaryMenu.value || !dockRef.value) return null
-  return dockRef.value.querySelector('.dock-primary .dock-item.active, .dock-bottom .dock-item.active')
+  return dockRef.value.querySelector('.dock-primary .dock-item.active')
 }
 
 function applyIndicatorGeometry(geometry) {
   if (!indicatorRef.value) return
-  indicatorRef.value.style.setProperty('--indicator-left', `${geometry.left}px`)
-  indicatorRef.value.style.setProperty('--indicator-top', `${geometry.top}px`)
-  indicatorRef.value.style.setProperty('--indicator-height', `${geometry.height}px`)
+  gsap.set(indicatorRef.value, {
+    left: geometry.left,
+    top: geometry.top,
+    height: geometry.height
+  })
 }
 
 function syncIndicator({ animate = false } = {}) {
   const target = activeIndicatorTarget()
-  if (!target || !dockRef.value || !indicatorRef.value) {
+  const indicator = indicatorRef.value
+  if (!target || !dockRef.value || !indicator) {
     indicatorVisible.value = false
     indicatorGeometry = null
     return
@@ -235,39 +242,39 @@ function syncIndicator({ animate = false } = {}) {
   const previousGeometry = indicatorGeometry
   const shouldAnimate = animate
     && previousGeometry
-    && !indicatorMotionQuery?.matches
-    && !document.querySelector('.perf-no-anim')
+    && !motionDisabled()
     && getIndicatorDirection(previousGeometry, targetGeometry) !== 'none'
 
-  if (indicatorTimer) {
-    clearTimeout(indicatorTimer)
-    indicatorTimer = null
-  }
-
   indicatorVisible.value = true
+  gsap.killTweensOf(indicator)
   if (!shouldAnimate) {
-    indicatorAnimationClass.value = ''
     applyIndicatorGeometry(targetGeometry)
     indicatorGeometry = targetGeometry
     return
   }
 
   const transition = getIndicatorTransition(previousGeometry, targetGeometry, 20)
-  indicatorAnimationClass.value = `is-moving ${transition.direction}`
-  indicatorRef.value.style.setProperty('--indicator-from-top', `${transition.fromTop}px`)
-  indicatorRef.value.style.setProperty('--indicator-to-top', `${transition.toTop}px`)
-  indicatorRef.value.style.setProperty('--indicator-stretch-top', `${transition.stretchTop}px`)
-  indicatorRef.value.style.setProperty('--indicator-stretch-height', `${transition.stretchHeight}px`)
-  indicatorRef.value.style.setProperty('--indicator-from-left', `${previousGeometry.left}px`)
-  indicatorRef.value.style.setProperty('--indicator-to-left', `${targetGeometry.left}px`)
-  indicatorRef.value.style.setProperty('--indicator-from-height', `${previousGeometry.height}px`)
-  indicatorRef.value.style.setProperty('--indicator-to-height', `${targetGeometry.height}px`)
+  gsap.set(indicator, {
+    left: previousGeometry.left,
+    top: transition.fromTop,
+    height: previousGeometry.height
+  })
+  gsap.timeline({ defaults: { overwrite: 'auto' } })
+    .to(indicator, {
+      left: targetGeometry.left,
+      top: transition.stretchTop,
+      height: transition.stretchHeight,
+      duration: 0.13,
+      ease: 'power2.out'
+    })
+    .to(indicator, {
+      left: targetGeometry.left,
+      top: transition.toTop,
+      height: targetGeometry.height,
+      duration: 0.12,
+      ease: 'power2.inOut'
+    })
   indicatorGeometry = targetGeometry
-  indicatorTimer = window.setTimeout(() => {
-    applyIndicatorGeometry(targetGeometry)
-    indicatorAnimationClass.value = ''
-    indicatorTimer = null
-  }, indicatorDuration + 20)
 }
 
 async function syncIndicatorAfterLayout(animate = false) {
@@ -282,17 +289,44 @@ async function syncIndicatorAfterLayout(animate = false) {
   })
 }
 
+function animatePrimaryPanel(open) {
+  const panel = dockPrimaryRef.value
+  if (!panel) return
+  gsap.killTweensOf(panel)
+  if (motionDisabled()) {
+    gsap.set(panel, { xPercent: open ? -100 : 0 })
+    return
+  }
+  gsap.to(panel, {
+    xPercent: open ? -100 : 0,
+    duration: 0.26,
+    ease: 'power2.inOut',
+    overwrite: 'auto'
+  })
+}
+
 watch(() => route.path, path => {
   activeSecondaryMenu.value = secondaryMenuForRoute(path)
   syncIndicatorAfterLayout(true)
 })
 
+watch(activeSecondaryMenu, menu => {
+  nextTick(() => animatePrimaryPanel(Boolean(menu)))
+  syncIndicatorAfterLayout(false)
+}, { flush: 'post' })
+
+watch([dockCollapsed, lang, pluginDockItems], () => syncIndicatorAfterLayout(false))
+
 function openSecondaryMenu(menu) {
   activeSecondaryMenu.value = menu
 }
 
-function closeSecondaryMenu() {
+async function closeSecondaryMenu({ restoreFocus = false } = {}) {
   activeSecondaryMenu.value = null
+  if (restoreFocus) {
+    await nextTick()
+    dockRef.value?.querySelector('.dock-primary .dock-item.active')?.focus()
+  }
 }
 
 function isPrimaryItemActive(item) {
@@ -355,89 +389,61 @@ const activeSecondaryConfig = computed(() => secondaryMenus.value[activeSecondar
   items: []
 })
 
-watch([dockCollapsed, lang, activeSecondaryMenu], () => {
-  syncIndicatorAfterLayout(false)
-})
-
 onMounted(() => {
   indicatorMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)')
+  gsap.set(dockPrimaryRef.value, { xPercent: activeSecondaryMenu.value ? -100 : 0 })
   syncIndicatorAfterLayout(false)
   indicatorResizeObserver = new ResizeObserver(() => syncIndicatorAfterLayout(false))
   if (dockRef.value) indicatorResizeObserver.observe(dockRef.value)
 })
 
 onBeforeUnmount(() => {
-  if (indicatorTimer) clearTimeout(indicatorTimer)
   if (layoutSyncFrame) cancelAnimationFrame(layoutSyncFrame)
+  if (dockPrimaryRef.value) gsap.killTweensOf(dockPrimaryRef.value)
+  if (indicatorRef.value) gsap.killTweensOf(indicatorRef.value)
   indicatorResizeObserver?.disconnect()
 })
 </script>
 
 <style scoped>
 .dock {
+  position: relative;
+  z-index: 50;
+  display: flex;
+  flex-shrink: 0;
+  flex-direction: column;
   width: var(--dock-width);
   height: 100%;
-  display: flex;
-  flex-direction: column;
+  overflow: hidden;
+  border-right: 1px solid var(--border-subtle);
   background: var(--bg-acrylic);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border-right: 1px solid var(--border-subtle);
-  flex-shrink: 0;
-  overflow: hidden;
   transition: width var(--duration-normal) var(--ease-standard);
-  position: relative;
-  z-index: 50;
 }
+
+.dock.collapsed { width: 48px; }
 
 .dock-primary {
   display: flex;
   flex: 1;
   flex-direction: column;
   min-height: 0;
-  transform: translateX(0);
-  transition: transform var(--duration-normal) var(--ease-standard);
+  will-change: transform;
 }
 
-.dock.secondary-open .dock-primary { transform: translateX(-100%); pointer-events: none; }
+.dock.secondary-open .dock-primary { pointer-events: none; }
 
 .dock-shared-indicator {
   position: absolute;
   z-index: 4;
-  left: var(--indicator-left, 0px);
-  top: var(--indicator-top, 0px);
+  left: 0;
+  top: 0;
   width: 3px;
-  height: var(--indicator-height, 20px);
+  height: 20px;
   border-radius: var(--radius-full);
   background: var(--accent);
   pointer-events: none;
-  transform: translateY(0);
-}
-
-.dock-shared-indicator.is-moving {
-  animation-duration: 250ms;
-  animation-timing-function: var(--ease-standard);
-  animation-fill-mode: both;
-}
-.dock-shared-indicator.is-moving.down { animation-name: dock-indicator-down; }
-.dock-shared-indicator.is-moving.up { animation-name: dock-indicator-up; }
-
-@keyframes dock-indicator-down {
-  0% { left: var(--indicator-from-left); top: var(--indicator-from-top); height: var(--indicator-from-height); }
-  52% { left: var(--indicator-to-left); top: var(--indicator-stretch-top); height: var(--indicator-stretch-height); }
-  100% { left: var(--indicator-to-left); top: var(--indicator-to-top); height: var(--indicator-to-height); }
-}
-
-@keyframes dock-indicator-up {
-  0% { left: var(--indicator-from-left); top: var(--indicator-from-top); height: var(--indicator-from-height); }
-  52% { left: var(--indicator-to-left); top: var(--indicator-stretch-top); height: var(--indicator-stretch-height); }
-  100% { left: var(--indicator-to-left); top: var(--indicator-to-top); height: var(--indicator-to-height); }
-}
-
-.dock-item-indicator { display: none; }
-
-.dock.collapsed {
-  width: 48px;
 }
 
 .dock-top {
@@ -445,133 +451,99 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 6px;
   padding: 12px 10px;
-  border-bottom: 1px solid var(--border-subtle);
   overflow: hidden;
+  border-bottom: 1px solid var(--border-subtle);
 }
 
 .dock-toggle {
-  width: 28px;
-  height: 28px;
   display: flex;
+  flex-shrink: 0;
   align-items: center;
   justify-content: center;
-  background: transparent;
+  width: 28px;
+  height: 28px;
   border: none;
   border-radius: var(--radius-sm);
+  background: transparent;
   color: var(--text-secondary);
   cursor: pointer;
   transition: background var(--duration-normal) var(--ease-standard), color var(--duration-normal) var(--ease-standard), transform var(--duration-normal) var(--ease-standard), box-shadow var(--duration-normal) var(--ease-standard);
-  flex-shrink: 0;
 }
 
-.dock-toggle:hover {
-  background: var(--bg-hover);
-}
-
-.dock-logo-img {
-  width: 24px;
-  height: 24px;
-  border-radius: 5px;
-  object-fit: cover;
-  flex-shrink: 0;
-}
-
-.dock-logo-text {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-primary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  min-width: 0;
-}
+.dock-toggle:hover { background: var(--bg-hover); }
+.dock-logo-img { flex-shrink: 0; width: 24px; height: 24px; border-radius: 5px; object-fit: cover; }
+.dock-logo-text { min-width: 0; overflow: hidden; color: var(--text-primary); font-size: 12px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
 
 .dock-items {
-  flex: 1;
-  min-height: 0;
   display: flex;
+  flex: 1;
   flex-direction: column;
   gap: 2px;
+  min-height: 0;
   padding: 8px 6px;
   overflow-x: hidden;
   overflow-y: auto;
 }
 
 .dock-item {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 9px 10px;
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  transition: background var(--duration-fast) ease;
-  text-decoration: none;
-  color: var(--text-secondary);
-  position: relative;
-  border: none;
-  background: transparent;
   width: 100%;
-  font-size: 13px;
-  font-family: var(--font-ui);
-  overflow: hidden;
-}
-
-.dock.collapsed .dock-item {
-  justify-content: flex-start;
+  min-height: 38px;
   padding: 9px 10px;
+  overflow: hidden;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background var(--duration-fast) ease, color var(--duration-fast) ease, transform var(--duration-fast) ease;
 }
 
+.dock.collapsed .dock-item { justify-content: flex-start; padding: 9px 10px; }
 .dock-item:hover { background: var(--bg-hover); color: var(--text-primary); transform: translateX(1px); }
 .dock-item.active { background: var(--bg-hover); color: var(--accent); transform: translateX(1px); }
 .dark .dock-item.active { background: var(--bg-hover); }
-
 .dock-item-icon { flex-shrink: 0; transition: transform var(--duration-normal) var(--ease-standard); }
-.dock-item.active .dock-item-icon { animation: dock-icon-arrive .42s var(--ease-standard); transform: scale(1.08); }
-@keyframes dock-icon-arrive { 0% { transform: translateX(-5px) scale(.9); opacity:.5 } 65% { transform: translateX(2px) scale(1.12) } 100% { transform:translateX(0) scale(1.08); opacity:1 } }
-.dock-item-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.dock-item.active .dock-item-label { animation: dock-label-arrive .4s var(--ease-standard); }
-@keyframes dock-label-arrive { 0% { opacity: .35; transform: translateX(-5px); } 65% { opacity: 1; transform: translateX(2px); } 100% { transform: translateX(0); } }
+.dock-item.active .dock-item-icon { transform: scale(1.08); }
+.dock-item-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.plugin-dock-item { flex-shrink: 0; }
 
-.dock-parent { cursor: pointer; user-select: none; }
-.dock-chevron {
-  margin-left: auto;
-  flex-shrink: 0;
-  color: var(--text-muted);
-}
+.dock-parent { user-select: none; }
+.dock-chevron { flex-shrink: 0; margin-left: auto; color: var(--text-muted); }
 .dock-parent.active { background: var(--bg-hover); color: var(--accent); }
-.dark .dock-parent.active { background: var(--bg-hover); }
 
 .dock-bottom {
-  flex-shrink: 0;
-  padding: 8px 6px;
-  border-top: 1px solid var(--border-subtle);
   display: flex;
+  flex-shrink: 0;
   flex-direction: column;
   gap: 2px;
+  padding: 8px 6px;
   overflow: hidden;
+  border-top: 1px solid var(--border-subtle);
 }
 
 @media (max-width: 768px) {
   .dock {
     position: fixed;
-    left: 0;
     top: 0;
     bottom: 0;
+    left: 0;
     z-index: 100;
     width: 48px;
     box-shadow: var(--shadow-8);
   }
 
-  .dock:not(.collapsed) {
-    width: var(--dock-width);
-  }
-
-  .dock.collapsed {
-    width: 48px;
-  }
+  .dock:not(.collapsed) { width: var(--dock-width); }
+  .dock.collapsed { width: 48px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .dock-shared-indicator.is-moving { animation-duration: 0ms; }
+  .dock-item { transition-duration: 0ms; }
 }
 </style>
