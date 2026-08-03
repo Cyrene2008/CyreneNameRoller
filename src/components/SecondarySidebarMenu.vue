@@ -106,11 +106,12 @@ function animatePanel(open) {
   gsap.killTweensOf(panel)
   if (open) panelVisible.value = true
   if (motionDisabled()) {
-    gsap.set(panel, { xPercent: open ? 0 : 100 })
+    gsap.set(panel, { x: 0, xPercent: open ? 0 : 100 })
     if (!open && animationToken === panelAnimationToken && !props.open) panelVisible.value = false
     return
   }
   gsap.to(panel, {
+    x: 0,
     xPercent: open ? 0 : 100,
     duration: 0.26,
     ease: 'power2.inOut',
@@ -202,13 +203,17 @@ async function syncIndicatorAfterLayout(animate = false) {
 }
 
 watch(() => props.open, async open => {
-  if (open) panelVisible.value = true
   if (open) {
+    panelVisible.value = true
+    await nextTick()
+    animatePanel(true)
+    syncIndicatorAfterLayout(false)
     const target = itemForRoute() || initialItem()
     if (props.navigateOnOpen && target && routePath(target.to) !== route.path) await router.push(target.to)
+    return
   }
   await nextTick()
-  animatePanel(open)
+  animatePanel(false)
   syncIndicatorAfterLayout(false)
 }, { immediate: true, flush: 'post' })
 
@@ -218,7 +223,7 @@ watch(() => props.collapsed, () => syncIndicatorAfterLayout(false))
 
 onMounted(() => {
   indicatorMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)')
-  gsap.set(menuRef.value, { xPercent: props.open ? 0 : 100 })
+  gsap.set(menuRef.value, { x: 0, xPercent: props.open ? 0 : 100 })
   syncIndicatorAfterLayout(false)
   indicatorResizeObserver = new ResizeObserver(() => syncIndicatorAfterLayout(false))
   if (menuRef.value) indicatorResizeObserver.observe(menuRef.value)
@@ -246,7 +251,6 @@ onBeforeUnmount(() => {
   background: var(--bg-acrylic);
   visibility: hidden;
   pointer-events: none;
-  transform: translateX(100%);
 }
 
 .secondary-sidebar-menu.is-visible { visibility: visible; }
