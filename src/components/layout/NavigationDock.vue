@@ -1,202 +1,167 @@
 <template>
-  <nav class="dock" :class="{ collapsed: dockCollapsed }">
-    <div v-if="!isDesktopApp" class="dock-top">
-      <button class="dock-toggle" @click="toggleDock" :title="dockCollapsed ? '展开' : '收起'">
-        <Icon icon="fluent:line-horizontal-3-20-regular" :width="18" />
-      </button>
-      <template v-if="!dockCollapsed">
-        <img src="/cyrene.png" class="dock-logo-img" alt="" />
-        <span class="dock-logo-text">Cyreneの随机点名器</span>
-      </template>
-    </div>
+  <nav ref="dockRef" class="dock" :class="{ collapsed: dockCollapsed, 'secondary-open': Boolean(activeSecondaryMenu) }">
+    <div
+      v-show="indicatorVisible"
+      ref="indicatorRef"
+      class="dock-shared-indicator"
+      aria-hidden="true"
+    />
 
-    <div class="dock-items">
-      <router-link
-        v-for="item in leadingItems"
-        :key="item.path"
-        :to="item.path"
-        class="dock-item"
-        :class="{ active: route.path === item.path || (item.path === '/settings' && route.path.startsWith('/settings/')) || (item.path === '/about' && route.path.startsWith('/about/')) }"
-        draggable="false"
-        :title="item.label[lang]"
-      >
-        <div class="dock-item-indicator" />
-        <Icon :icon="item.icon" :width="20" class="dock-item-icon" />
-        <span v-if="!dockCollapsed" class="dock-item-label">{{ item.label[lang] }}</span>
-      </router-link>
-
-      <div
-        class="dock-item dock-parent"
-        :class="{ active: isLotteryActive, open: lotterySubmenuOpen }"
-        @click="toggleLotterySubmenu"
-        :title="lang === 'en' ? 'Lottery' : '抽奖模式'"
-      >
-        <div class="dock-item-indicator" />
-        <Icon icon="fluent:gift-24-regular" :width="20" class="dock-item-icon" />
-        <span v-if="!dockCollapsed" class="dock-item-label">{{ lang === 'en' ? 'Lottery' : '抽奖模式' }}</span>
-        <Icon icon="fluent:chevron-down-16-regular" :width="14" class="dock-chevron" />
+    <div ref="dockPrimaryRef" class="dock-primary">
+      <div v-if="!isDesktopApp" class="dock-top">
+        <button class="dock-toggle" @click="toggleDock" :title="dockCollapsed ? '展开' : '收起'">
+          <Icon icon="fluent:line-horizontal-3-20-regular" :width="18" />
+        </button>
+        <template v-if="!dockCollapsed">
+          <img src="/cyrene.png" class="dock-logo-img" alt="" />
+          <span class="dock-logo-text">Cyreneの随机点名器</span>
+        </template>
       </div>
-      <Transition name="submenu">
-        <div v-if="lotterySubmenuOpen" class="dock-submenu">
-          <router-link to="/lottery/draw" class="dock-subitem" :class="{ active: route.path === '/lottery/draw' }" :title="lang === 'en' ? 'Prize draw' : '奖品抽取'">
-            <Icon icon="fluent:gift-16-regular" :width="16" class="dock-subitem-icon" />
-            <span v-if="!dockCollapsed" class="dock-subitem-label">{{ lang === 'en' ? 'Prize draw' : '奖品抽取' }}</span>
-          </router-link>
-          <router-link to="/lottery/assign" class="dock-subitem" :class="{ active: route.path === '/lottery/assign' }" :title="lang === 'en' ? 'Assign prizes' : '人员奖品分配'">
-            <Icon icon="fluent:people-team-16-regular" :width="16" class="dock-subitem-icon" />
-            <span v-if="!dockCollapsed" class="dock-subitem-label">{{ lang === 'en' ? 'Assign prizes' : '人员奖品分配' }}</span>
-          </router-link>
-          <router-link to="/lottery/records" class="dock-subitem" :class="{ active: route.path === '/lottery/records' }" :title="lang === 'en' ? 'Lottery records' : '抽奖记录'">
-            <Icon icon="fluent:history-16-regular" :width="16" class="dock-subitem-icon" />
-            <span v-if="!dockCollapsed" class="dock-subitem-label">{{ lang === 'en' ? 'Lottery records' : '抽奖记录' }}</span>
-          </router-link>
-          <router-link to="/lottery/prizes" class="dock-subitem" :class="{ active: route.path.startsWith('/lottery/prizes') }" :title="lang === 'en' ? 'Prizes' : '奖品管理'">
-            <Icon icon="fluent:clipboard-bullet-list-16-regular" :width="16" class="dock-subitem-icon" />
-            <span v-if="!dockCollapsed" class="dock-subitem-label">{{ lang === 'en' ? 'Prizes' : '奖品管理' }}</span>
-          </router-link>
-        </div>
-      </Transition>
 
-      <router-link
-        v-for="item in trailingItems"
-        :key="item.path"
-        :to="item.path"
-        class="dock-item"
-        :class="{ active: route.path === item.path }"
-        draggable="false"
-        :title="item.label[lang]"
-      >
-        <div class="dock-item-indicator" />
-        <Icon :icon="item.icon" :width="20" class="dock-item-icon" />
-        <span v-if="!dockCollapsed" class="dock-item-label">{{ item.label[lang] }}</span>
-      </router-link>
+      <div class="dock-items">
+        <template v-for="item in mainItems" :key="item.id">
+          <router-link
+            v-if="item.to"
+            :to="item.to"
+            class="dock-item"
+            :class="{ active: isPrimaryItemActive(item) }"
+            draggable="false"
+            :title="item.label[lang]"
+            @click="closeSecondaryMenu"
+          >
+            <Icon :icon="item.icon" :width="20" class="dock-item-icon" />
+            <span v-if="!dockCollapsed" class="dock-item-label">{{ item.label[lang] }}</span>
+          </router-link>
 
-      <router-link
-        v-for="item in pluginDockItems"
-        :key="item.path"
-        :to="item.path"
-        class="dock-item plugin-dock-item"
-        :class="{ active: route.path === item.path }"
-        draggable="false"
-        :title="item.label"
-      >
-        <div class="dock-item-indicator" />
-        <Icon :icon="item.icon" :width="20" class="dock-item-icon" />
-        <span v-if="!dockCollapsed" class="dock-item-label">{{ item.label }}</span>
-      </router-link>
+          <button
+            v-else
+            type="button"
+            class="dock-item dock-parent"
+            :class="{ active: isPrimaryItemActive(item) }"
+            :title="item.label[lang]"
+            :aria-expanded="activeSecondaryMenu === item.menu"
+            @click="openSecondaryMenu(item.menu)"
+          >
+            <Icon :icon="item.icon" :width="20" class="dock-item-icon" />
+            <span v-if="!dockCollapsed" class="dock-item-label">{{ item.label[lang] }}</span>
+            <Icon icon="fluent:chevron-right-16-regular" :width="14" class="dock-chevron" />
+          </button>
 
-      <!-- 名单管理：可向下展开的子菜单 -->
-      <div
-        class="dock-item dock-parent"
-        :class="{ active: isListActive, open: listSubmenuOpen }"
-        @click="toggleListSubmenu"
-        :title="t('listManager', lang)"
-      >
-        <div class="dock-item-indicator" />
-        <Icon icon="fluent:people-list-24-regular" :width="20" class="dock-item-icon" />
-        <span v-if="!dockCollapsed" class="dock-item-label">{{ t('listManager', lang) }}</span>
-        <Icon icon="fluent:chevron-down-16-regular" :width="14" class="dock-chevron" />
+          <template v-if="item.id === 'records'">
+            <router-link
+              v-for="pluginItem in pluginDockItems"
+              :key="pluginItem.path"
+              :to="pluginItem.path"
+              class="dock-item plugin-dock-item"
+              :class="{ active: route.path === pluginItem.path }"
+              draggable="false"
+              :title="pluginItem.label"
+              @click="closeSecondaryMenu"
+            >
+              <Icon :icon="pluginItem.icon" :width="20" class="dock-item-icon" />
+              <span v-if="!dockCollapsed" class="dock-item-label">{{ pluginItem.label }}</span>
+            </router-link>
+          </template>
+        </template>
       </div>
-      <Transition name="submenu">
-        <div v-if="listSubmenuOpen" class="dock-submenu">
-          <router-link
-            to="/lists"
-            class="dock-subitem"
-            :class="{ active: route.path === '/lists' }"
-            :title="t('personnelList', lang)"
-          >
-            <Icon icon="fluent:person-24-regular" :width="16" class="dock-subitem-icon" />
-            <span v-if="!dockCollapsed" class="dock-subitem-label">{{ t('personnelList', lang) }}</span>
-          </router-link>
-          <router-link
-            to="/group-manage"
-            class="dock-subitem"
-            :class="{ active: route.path === '/group-manage' }"
-            :title="t('groupManage', lang)"
-          >
-            <Icon icon="fluent:group-24-regular" :width="16" class="dock-subitem-icon" />
-            <span v-if="!dockCollapsed" class="dock-subitem-label">{{ t('groupManage', lang) }}</span>
-          </router-link>
-        </div>
-      </Transition>
-    </div>
 
-    <div class="dock-bottom">
-      <!-- 公告 -->
-      <router-link
-        to="/announcement"
-        class="dock-item"
-        :class="{ active: route.path === '/announcement' }"
-        draggable="false"
-        :title="lang === 'en' ? 'Announcements' : '公告'"
-      >
-        <div class="dock-item-indicator" />
-        <Icon icon="fluent:megaphone-24-regular" :width="20" class="dock-item-icon" />
-        <span v-if="!dockCollapsed" class="dock-item-label">{{ lang === 'en' ? 'Announcements' : '公告' }}</span>
-      </router-link>
-      <!-- Web版专属按钮 -->
-      <template v-if="!isDesktopApp">
+      <div class="dock-bottom">
         <router-link
-          to="/download"
+          to="/announcement"
           class="dock-item"
-          :class="{ active: route.path === '/download' }"
+          :class="{ active: route.path === '/announcement' }"
           draggable="false"
-          :title="lang === 'en' ? 'Download Client' : '下载客户端'"
+          :title="lang === 'en' ? 'Announcements' : '公告'"
+          @click="closeSecondaryMenu"
         >
-          <div class="dock-item-indicator" />
-          <Icon icon="fluent:arrow-download-24-regular" :width="20" class="dock-item-icon" />
-          <span v-if="!dockCollapsed" class="dock-item-label">{{ lang === 'en' ? 'Download' : '下载客户端' }}</span>
+          <Icon icon="fluent:megaphone-24-regular" :width="20" class="dock-item-icon" />
+          <span v-if="!dockCollapsed" class="dock-item-label">{{ lang === 'en' ? 'Announcements' : '公告' }}</span>
         </router-link>
-        <a
-          target="_blank"
-          class="dock-item"
+
+        <template v-if="!isDesktopApp">
+          <router-link
+            to="/download"
+            class="dock-item"
+            :class="{ active: route.path === '/download' }"
+            draggable="false"
+            :title="lang === 'en' ? 'Download Client' : '下载客户端'"
+            @click="closeSecondaryMenu"
+          >
+            <Icon icon="fluent:arrow-download-24-regular" :width="20" class="dock-item-icon" />
+            <span v-if="!dockCollapsed" class="dock-item-label">{{ lang === 'en' ? 'Download' : '下载客户端' }}</span>
+          </router-link>
+          <a
+            target="_blank"
+            class="dock-item dock-docs"
+            draggable="false"
+            :title="lang === 'en' ? 'Documentation' : '查看文档'"
+          >
+            <Icon icon="fluent:book-24-regular" :width="20" class="dock-item-icon" />
+            <span v-if="!dockCollapsed" class="dock-item-label">{{ lang === 'en' ? 'Docs' : '查看文档' }}</span>
+          </a>
+        </template>
+
+        <router-link
+          to="/plugins"
+          class="dock-item dock-plugin"
+          :class="{ active: pluginManagerActive }"
           draggable="false"
-          :title="lang === 'en' ? 'Documentation' : '查看文档'"
+          :title="lang === 'en' ? 'Plugins' : '插件'"
+          @click="closeSecondaryMenu"
         >
-          <Icon icon="fluent:book-24-regular" :width="20" class="dock-item-icon" />
-          <span v-if="!dockCollapsed" class="dock-item-label">{{ lang === 'en' ? 'Docs' : '查看文档' }}</span>
-        </a>
-      </template>
-      <router-link
-        to="/plugins"
-        class="dock-item"
-        :class="{ active: pluginManagerActive }"
-        draggable="false"
-        :title="lang === 'en' ? 'Plugins' : '插件'"
-      >
-        <div class="dock-item-indicator" />
-        <Icon icon="fluent:plug-connected-24-regular" :width="20" class="dock-item-icon" />
-        <span v-if="!dockCollapsed" class="dock-item-label">{{ lang === 'en' ? 'Plugins' : '插件' }}</span>
-      </router-link>
-      <router-link
-        v-for="item in bottomItems"
-        :key="item.path"
-        :to="item.path"
-        class="dock-item"
-        :class="{ active: route.path === item.path || (item.path === '/settings' && route.path.startsWith('/settings/')) || (item.path === '/about' && route.path.startsWith('/about/')) }"
-        draggable="false"
-        :title="item.label[lang]"
-      >
-        <div class="dock-item-indicator" />
-        <Icon :icon="item.icon" :width="20" class="dock-item-icon" />
-        <span v-if="!dockCollapsed" class="dock-item-label">{{ item.label[lang] }}</span>
-      </router-link>
+          <Icon icon="fluent:plug-connected-24-regular" :width="20" class="dock-item-icon" />
+          <span v-if="!dockCollapsed" class="dock-item-label">{{ lang === 'en' ? 'Plugins' : '插件' }}</span>
+        </router-link>
+
+        <button
+          type="button"
+          class="dock-item dock-parent"
+          :class="{ active: route.path.startsWith('/settings') }"
+          :title="lang === 'en' ? 'Settings' : '设置'"
+          :aria-expanded="activeSecondaryMenu === 'settings'"
+          @click="openSecondaryMenu('settings')"
+        >
+          <Icon icon="fluent:settings-24-regular" :width="20" class="dock-item-icon" />
+          <span v-if="!dockCollapsed" class="dock-item-label">{{ lang === 'en' ? 'Settings' : '设置' }}</span>
+          <Icon icon="fluent:chevron-right-16-regular" :width="14" class="dock-chevron" />
+        </button>
+
+        <router-link
+          to="/about"
+          class="dock-item"
+          :class="{ active: route.path.startsWith('/about') }"
+          draggable="false"
+          :title="lang === 'en' ? 'About' : '关于'"
+          @click="closeSecondaryMenu"
+        >
+          <Icon icon="fluent:info-24-regular" :width="20" class="dock-item-icon" />
+          <span v-if="!dockCollapsed" class="dock-item-label">{{ lang === 'en' ? 'About' : '关于' }}</span>
+        </router-link>
+      </div>
     </div>
+
+    <SecondarySidebarMenu
+      :open="Boolean(activeSecondaryMenu)"
+      :collapsed="dockCollapsed"
+      :items="activeSecondaryConfig.items"
+      :navigate-on-open="activeSecondaryConfig.navigateOnOpen"
+      :back-label="lang === 'en' ? 'Back' : '返回'"
+      @back="closeSecondaryMenu({ restoreFocus: true })"
+    />
   </nav>
 </template>
 
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { gsap } from 'gsap'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { Icon } from '@iconify/vue'
-import { useSettingsStore } from '../../stores/settings'
+import SecondarySidebarMenu from '../SecondarySidebarMenu.vue'
 import { usePluginsStore } from '../../plugins/store'
-import { isTauri } from '../../utils/tauriAPI'
+import { useSettingsStore } from '../../stores/settings'
 import { t } from '../../utils/i18n'
-
-const props = defineProps({
-  buildHash: { type: String, default: '' }
-})
+import { getIndicatorDirection, getIndicatorGeometry, getIndicatorTransition } from '../../utils/navigationIndicator.mjs'
+import { isTauri } from '../../utils/tauriAPI'
 
 const route = useRoute()
 const settingsStore = useSettingsStore()
@@ -204,6 +169,7 @@ const pluginsStore = usePluginsStore()
 const lang = computed(() => settingsStore.settings.language)
 const dockCollapsed = computed(() => settingsStore.settings.dockCollapsed || false)
 const isDesktopApp = computed(() => isTauri())
+
 const pluginDockItems = computed(() => pluginsStore.contributedPages
   .filter(page => page.location === 'dock')
   .sort((left, right) => (left.order ?? 500) - (right.order ?? 500))
@@ -212,70 +178,272 @@ const pluginDockItems = computed(() => pluginsStore.contributedPages
     icon: String(page.icon || '').includes(':') ? page.icon : `fluent:${page.icon || 'apps-24-regular'}`,
     label: lang.value === 'en' && page.titleEn ? page.titleEn : page.title
   })))
+
 const pluginManagerActive = computed(() => {
   if (route.path === '/plugins') return true
   if (route.name !== 'PluginPage') return false
   return pluginsStore.pageById(route.params.pluginId, route.params.pageId)?.location !== 'dock'
 })
 
+function secondaryMenuForRoute(path) {
+  if (path.startsWith('/settings')) return 'settings'
+  if (path === '/lottery/draw' || path === '/lottery/assign') return 'lottery'
+  if (path === '/records' || path === '/lottery/records') return 'records'
+  if (path === '/lists' || path.startsWith('/lists/') || path === '/group-manage' || path.startsWith('/lottery/prizes')) return 'lists'
+  return null
+}
+
+const activeSecondaryMenu = ref(secondaryMenuForRoute(route.path))
+const dockRef = ref(null)
+const dockPrimaryRef = ref(null)
+const indicatorRef = ref(null)
+const indicatorVisible = ref(false)
+let indicatorGeometry = null
+let indicatorResizeObserver = null
+let indicatorMotionQuery = null
+let layoutSyncFrame = null
+let layoutSyncAnimate = false
+
+function motionDisabled() {
+  return indicatorMotionQuery?.matches || Boolean(document.querySelector('.perf-no-anim'))
+}
+
+function activeIndicatorTarget() {
+  if (activeSecondaryMenu.value || !dockRef.value) return null
+  return dockRef.value.querySelector('.dock-primary .dock-item.active')
+}
+
+function applyIndicatorGeometry(geometry) {
+  if (!indicatorRef.value) return
+  gsap.set(indicatorRef.value, {
+    left: geometry.left,
+    top: geometry.top,
+    height: geometry.height
+  })
+}
+
+function syncIndicator({ animate = false } = {}) {
+  const target = activeIndicatorTarget()
+  const indicator = indicatorRef.value
+  if (!target || !dockRef.value || !indicator) {
+    indicatorVisible.value = false
+    indicatorGeometry = null
+    return
+  }
+
+  const dockRect = dockRef.value.getBoundingClientRect()
+  const targetRect = target.getBoundingClientRect()
+  const scaleX = dockRect.width / dockRef.value.offsetWidth || 1
+  const scaleY = dockRect.height / dockRef.value.offsetHeight || 1
+  const targetGeometry = {
+    ...getIndicatorGeometry(targetRect, dockRect, 20, scaleY),
+    left: (targetRect.left - dockRect.left) / scaleX
+  }
+  const previousGeometry = indicatorGeometry
+  const shouldAnimate = animate
+    && previousGeometry
+    && !motionDisabled()
+    && getIndicatorDirection(previousGeometry, targetGeometry) !== 'none'
+
+  indicatorVisible.value = true
+  gsap.killTweensOf(indicator)
+  if (!shouldAnimate) {
+    applyIndicatorGeometry(targetGeometry)
+    indicatorGeometry = targetGeometry
+    return
+  }
+
+  const transition = getIndicatorTransition(previousGeometry, targetGeometry, 20)
+  gsap.set(indicator, {
+    left: previousGeometry.left,
+    top: transition.fromTop,
+    height: previousGeometry.height
+  })
+  gsap.timeline({ defaults: { overwrite: 'auto' } })
+    .to(indicator, {
+      left: targetGeometry.left,
+      top: transition.stretchTop,
+      height: transition.stretchHeight,
+      duration: 0.13,
+      ease: 'power2.out'
+    })
+    .to(indicator, {
+      left: targetGeometry.left,
+      top: transition.toTop,
+      height: targetGeometry.height,
+      duration: 0.12,
+      ease: 'power2.inOut'
+    })
+  indicatorGeometry = targetGeometry
+}
+
+async function syncIndicatorAfterLayout(animate = false) {
+  await nextTick()
+  layoutSyncAnimate = layoutSyncAnimate || animate
+  if (layoutSyncFrame) return
+  layoutSyncFrame = window.requestAnimationFrame(() => {
+    const shouldAnimate = layoutSyncAnimate
+    layoutSyncAnimate = false
+    layoutSyncFrame = null
+    syncIndicator({ animate: shouldAnimate })
+  })
+}
+
+function animatePrimaryPanel(open) {
+  const panel = dockPrimaryRef.value
+  if (!panel) return
+  gsap.killTweensOf(panel)
+  if (motionDisabled()) {
+    gsap.set(panel, { xPercent: open ? -100 : 0 })
+    return
+  }
+  gsap.to(panel, {
+    xPercent: open ? -100 : 0,
+    duration: 0.26,
+    ease: 'power2.inOut',
+    overwrite: 'auto'
+  })
+}
+
+watch(() => route.path, path => {
+  activeSecondaryMenu.value = secondaryMenuForRoute(path)
+  syncIndicatorAfterLayout(true)
+})
+
+watch(activeSecondaryMenu, menu => {
+  nextTick(() => animatePrimaryPanel(Boolean(menu)))
+  syncIndicatorAfterLayout(false)
+}, { flush: 'post' })
+
+watch([dockCollapsed, lang, pluginDockItems], () => syncIndicatorAfterLayout(false))
+
+function openSecondaryMenu(menu) {
+  activeSecondaryMenu.value = menu
+}
+
+async function closeSecondaryMenu({ restoreFocus = false } = {}) {
+  activeSecondaryMenu.value = null
+  if (restoreFocus) {
+    await nextTick()
+    dockRef.value?.querySelector('.dock-primary .dock-item.active')?.focus()
+  }
+}
+
+function isPrimaryItemActive(item) {
+  if (item.menu) return secondaryMenuForRoute(route.path) === item.menu
+  return route.path === item.to
+}
+
 function toggleDock() {
   settingsStore.update('dockCollapsed', !dockCollapsed.value)
+  syncIndicatorAfterLayout(false)
 }
 
-const isListActive = computed(() =>
-  ['/lists', '/lists/manage', '/group-manage'].includes(route.path)
-)
-const listSubmenuOpen = ref(isListActive.value)
-watch(() => route.path, () => {
-  listSubmenuOpen.value = isListActive.value
+const mainItems = [
+  { id: 'roller', to: '/roller', icon: 'fluent:flash-24-regular', label: { zh: '随机点名', en: 'Roller' } },
+  { id: 'card', to: '/card', icon: 'fluent:card-ui-portrait-flip-24-regular', label: { zh: '翻牌点名', en: 'Card Mode' } },
+  { id: 'lottery', menu: 'lottery', icon: 'fluent:gift-24-regular', label: { zh: '抽奖模式', en: 'Lottery' } },
+  { id: 'statistics', to: '/statistics', icon: 'fluent:chart-multiple-24-regular', label: { zh: '统计', en: 'Statistics' } },
+  { id: 'records', menu: 'records', icon: 'fluent:history-24-regular', label: { zh: '抽取记录', en: 'Records' } },
+  { id: 'lists', menu: 'lists', icon: 'fluent:people-list-24-regular', label: { zh: '名单管理', en: 'List Management' } }
+]
+
+const settingsMenuItems = computed(() => [
+  { id: 'general', label: lang.value === 'en' ? 'General' : '基本', icon: 'options-20-regular', to: '/settings/general' },
+  { id: 'appearance', label: lang.value === 'en' ? 'Appearance' : '外观', icon: 'color-20-regular', to: '/settings/appearance' },
+  { id: 'features', label: lang.value === 'en' ? 'Features' : '功能', icon: 'play-20-regular', to: '/settings/features' },
+  { id: 'data', label: lang.value === 'en' ? 'Data' : '数据', icon: 'database-20-regular', to: '/settings/data' }
+])
+
+const secondaryMenus = computed(() => ({
+  lottery: {
+    navigateOnOpen: true,
+    items: [
+      { id: 'draw', label: lang.value === 'en' ? 'Prize draw' : '奖品抽取', icon: 'gift-20-regular', to: '/lottery/draw' },
+      { id: 'assign', label: lang.value === 'en' ? 'Assign prizes' : '人员奖品分配', icon: 'people-team-20-regular', to: '/lottery/assign' }
+    ]
+  },
+  records: {
+    navigateOnOpen: true,
+    items: [
+      { id: 'roll-records', label: lang.value === 'en' ? 'Name records' : '点名记录', icon: 'history-20-regular', to: '/records' },
+      { id: 'lottery-records', label: lang.value === 'en' ? 'Lottery records' : '抽奖记录', icon: 'gift-20-regular', to: '/lottery/records' }
+    ]
+  },
+  lists: {
+    navigateOnOpen: true,
+    items: [
+      { id: 'people', label: t('personnelList', lang.value), icon: 'person-20-regular', to: '/lists' },
+      { id: 'groups', label: lang.value === 'en' ? 'Groups' : '小组名单', icon: 'people-team-20-regular', to: '/group-manage' },
+      { id: 'prizes', label: lang.value === 'en' ? 'Prizes' : '奖品管理', icon: 'clipboard-bullet-list-20-regular', to: '/lottery/prizes' }
+    ]
+  },
+  settings: {
+    navigateOnOpen: true,
+    items: settingsMenuItems.value
+  }
+}))
+
+const activeSecondaryConfig = computed(() => secondaryMenus.value[activeSecondaryMenu.value] || {
+  navigateOnOpen: false,
+  items: []
 })
-function toggleListSubmenu() {
-  listSubmenuOpen.value = !listSubmenuOpen.value
-}
 
-const isLotteryActive = computed(() => route.path.startsWith('/lottery'))
-const lotterySubmenuOpen = ref(isLotteryActive.value)
-watch(() => route.path, () => {
-  lotterySubmenuOpen.value = isLotteryActive.value
+onMounted(() => {
+  indicatorMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)')
+  gsap.set(dockPrimaryRef.value, { xPercent: activeSecondaryMenu.value ? -100 : 0 })
+  syncIndicatorAfterLayout(false)
+  indicatorResizeObserver = new ResizeObserver(() => syncIndicatorAfterLayout(false))
+  if (dockRef.value) indicatorResizeObserver.observe(dockRef.value)
 })
-function toggleLotterySubmenu() {
-  lotterySubmenuOpen.value = !lotterySubmenuOpen.value
-}
 
-const leadingItems = [
-  { path: '/roller', icon: 'fluent:flash-24-regular', label: { zh: '随机点名', en: 'Roller' } },
-  { path: '/card', icon: 'fluent:card-ui-portrait-flip-24-regular', label: { zh: '翻牌点名', en: 'Card Mode' } }
-]
-const trailingItems = [
-  { path: '/statistics', icon: 'fluent:chart-multiple-24-regular', label: { zh: '统计', en: 'Statistics' } },
-  { path: '/records', icon: 'fluent:history-24-regular', label: { zh: '抽取记录', en: 'Records' } }
-]
-
-const bottomItems = [
-  { path: '/settings', icon: 'fluent:settings-24-regular', label: { zh: '设置', en: 'Settings' } },
-  { path: '/about', icon: 'fluent:info-24-regular', label: { zh: '关于', en: 'About' } }
-]
+onBeforeUnmount(() => {
+  if (layoutSyncFrame) cancelAnimationFrame(layoutSyncFrame)
+  if (dockPrimaryRef.value) gsap.killTweensOf(dockPrimaryRef.value)
+  if (indicatorRef.value) gsap.killTweensOf(indicatorRef.value)
+  indicatorResizeObserver?.disconnect()
+})
 </script>
 
 <style scoped>
 .dock {
+  position: relative;
+  z-index: 50;
+  display: flex;
+  flex-shrink: 0;
+  flex-direction: column;
   width: var(--dock-width);
   height: 100%;
-  display: flex;
-  flex-direction: column;
+  overflow: hidden;
+  border-right: 1px solid var(--border-subtle);
   background: var(--bg-acrylic);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border-right: 1px solid var(--border-subtle);
-  flex-shrink: 0;
-  overflow: visible;
   transition: width var(--duration-normal) var(--ease-standard);
-  position: relative;
-  z-index: 50;
 }
 
-.dock.collapsed {
-  width: 48px;
+.dock.collapsed { width: 48px; }
+
+.dock-primary {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  will-change: transform;
+}
+
+.dock.secondary-open .dock-primary { pointer-events: none; }
+
+.dock-shared-indicator {
+  position: absolute;
+  z-index: 4;
+  left: 0;
+  top: 0;
+  width: 3px;
+  height: 20px;
+  border-radius: var(--radius-full);
+  background: var(--accent);
+  pointer-events: none;
 }
 
 .dock-top {
@@ -283,185 +451,99 @@ const bottomItems = [
   align-items: center;
   gap: 6px;
   padding: 12px 10px;
-  border-bottom: 1px solid var(--border-subtle);
   overflow: hidden;
+  border-bottom: 1px solid var(--border-subtle);
 }
 
 .dock-toggle {
-  width: 28px;
-  height: 28px;
   display: flex;
+  flex-shrink: 0;
   align-items: center;
   justify-content: center;
-  background: transparent;
+  width: 28px;
+  height: 28px;
   border: none;
   border-radius: var(--radius-sm);
+  background: transparent;
   color: var(--text-secondary);
   cursor: pointer;
   transition: background var(--duration-normal) var(--ease-standard), color var(--duration-normal) var(--ease-standard), transform var(--duration-normal) var(--ease-standard), box-shadow var(--duration-normal) var(--ease-standard);
-  flex-shrink: 0;
 }
 
-.dock-toggle:hover {
-  background: var(--bg-hover);
-}
-
-.dock-logo-img {
-  width: 24px;
-  height: 24px;
-  border-radius: 5px;
-  object-fit: cover;
-  flex-shrink: 0;
-}
-
-.dock-logo-text {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-primary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  min-width: 0;
-}
+.dock-toggle:hover { background: var(--bg-hover); }
+.dock-logo-img { flex-shrink: 0; width: 24px; height: 24px; border-radius: 5px; object-fit: cover; }
+.dock-logo-text { min-width: 0; overflow: hidden; color: var(--text-primary); font-size: 12px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
 
 .dock-items {
-  flex: 1;
   display: flex;
+  flex: 1;
   flex-direction: column;
   gap: 2px;
+  min-height: 0;
   padding: 8px 6px;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .dock-item {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 9px 10px;
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  transition: background var(--duration-fast) ease;
-  text-decoration: none;
-  color: var(--text-secondary);
-  position: relative;
-  border: none;
-  background: transparent;
   width: 100%;
-  font-size: 13px;
-  font-family: var(--font-ui);
-  overflow: hidden;
-}
-
-.dock.collapsed .dock-item {
-  justify-content: flex-start;
+  min-height: 38px;
   padding: 9px 10px;
+  overflow: hidden;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background var(--duration-fast) ease, color var(--duration-fast) ease, transform var(--duration-fast) ease;
 }
 
+.dock.collapsed .dock-item { justify-content: flex-start; padding: 9px 10px; }
 .dock-item:hover { background: var(--bg-hover); color: var(--text-primary); transform: translateX(1px); }
 .dock-item.active { background: var(--bg-hover); color: var(--accent); transform: translateX(1px); }
 .dark .dock-item.active { background: var(--bg-hover); }
-
-.dock-item-indicator {
-  position: absolute;
-  left: 0;
-  top: 50%;
-  transform: translateY(-50%) scaleY(.25);
-  width: 3px;
-  height: 0;
-  background: var(--accent);
-  border-radius: var(--radius-full);
-  opacity: 0;
-  transition: height var(--duration-normal) var(--ease-standard), transform var(--duration-normal) var(--ease-standard), opacity var(--duration-normal) ease;
-}
-
-.dock-item.active .dock-item-indicator { height: 20px; opacity: 1; transform: translateY(-50%) scaleY(1); }
 .dock-item-icon { flex-shrink: 0; transition: transform var(--duration-normal) var(--ease-standard); }
-.dock-item.active .dock-item-icon { animation: dock-icon-arrive .42s var(--ease-standard); transform: scale(1.08); }
-@keyframes dock-icon-arrive { 0% { transform: translateX(-5px) scale(.9); opacity:.5 } 65% { transform: translateX(2px) scale(1.12) } 100% { transform:translateX(0) scale(1.08); opacity:1 } }
-.dock-item-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.dock-item.active .dock-item-label { animation: dock-label-arrive .4s var(--ease-standard); }
-@keyframes dock-label-arrive { 0% { opacity: .35; transform: translateX(-5px); } 65% { opacity: 1; transform: translateX(2px); } 100% { transform: translateX(0); } }
+.dock-item.active .dock-item-icon { transform: scale(1.08); }
+.dock-item-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.plugin-dock-item { flex-shrink: 0; }
 
-/* 名单管理子菜单 */
-.dock-parent { cursor: pointer; user-select: none; }
-.dock-chevron {
-  margin-left: auto;
-  flex-shrink: 0;
-  color: var(--text-muted);
-  transition: transform var(--duration-fast) ease;
-}
-.dock-parent.open .dock-chevron { transform: rotate(180deg); }
+.dock-parent { user-select: none; }
+.dock-chevron { flex-shrink: 0; margin-left: auto; color: var(--text-muted); }
 .dock-parent.active { background: var(--bg-hover); color: var(--accent); }
-.dark .dock-parent.active { background: var(--bg-hover); }
-
-.dock-submenu {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  margin-left: 14px;
-  padding-left: 6px;
-  border-left: 1px solid var(--border-subtle);
-}
-.dock-subitem {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 7px 10px;
-  border-radius: var(--radius-sm);
-  text-decoration: none;
-  color: var(--text-secondary);
-  font-size: 12.5px;
-  font-family: var(--font-ui);
-  transition: background var(--duration-fast) ease;
-}
-.dock-subitem:hover { background: var(--bg-hover); color: var(--text-primary); }
-.dock-subitem::before { content: ''; position: absolute; left: 1px; top: 50%; width: 3px; height: 16px; border-radius: var(--radius-full); background: var(--accent); opacity: 0; transform: translateY(-50%) scaleY(.2); transition: opacity var(--duration-normal) ease, transform var(--duration-normal) var(--ease-standard); }
-.dock-subitem.active { background: var(--accent-50); color: var(--accent); transform: translateX(3px); }
-.dock-subitem.active::before { opacity: 1; transform: translateY(-50%) scaleY(1); }
-.dock-subitem.active .dock-subitem-icon { animation: dock-subicon-arrive .38s var(--ease-standard); }
-@keyframes dock-subicon-arrive { 0% { transform: scale(.75) rotate(-8deg); opacity: .35; } 70% { transform: scale(1.12) rotate(2deg); opacity: 1; } 100% { transform: none; } }
-.dark .dock-subitem.active { background: var(--accent-50); }
-.dock-subitem-icon { flex-shrink: 0; }
-.dock-subitem-label { white-space: nowrap; }
-
-.submenu-enter-active,
-.submenu-leave-active {
-  transition: opacity var(--duration-fast) var(--ease-standard),
-    transform var(--duration-fast) var(--ease-standard);
-}
-.submenu-enter-from,
-.submenu-leave-to {
-  opacity: 0;
-  transform: translateY(-4px);
-}
 
 .dock-bottom {
-  padding: 8px 6px;
-  border-top: 1px solid var(--border-subtle);
   display: flex;
+  flex-shrink: 0;
   flex-direction: column;
   gap: 2px;
+  padding: 8px 6px;
   overflow: hidden;
+  border-top: 1px solid var(--border-subtle);
 }
 
 @media (max-width: 768px) {
   .dock {
     position: fixed;
-    left: 0;
     top: 0;
     bottom: 0;
+    left: 0;
     z-index: 100;
     width: 48px;
     box-shadow: var(--shadow-8);
   }
 
-  .dock:not(.collapsed) {
-    width: var(--dock-width);
-  }
+  .dock:not(.collapsed) { width: var(--dock-width); }
+  .dock.collapsed { width: 48px; }
+}
 
-  .dock.collapsed {
-    width: 48px;
-  }
+@media (prefers-reduced-motion: reduce) {
+  .dock-item { transition-duration: 0ms; }
 }
 </style>
