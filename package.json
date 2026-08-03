@@ -10,6 +10,7 @@
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
     "preview": "vite preview",
+    "test": "node --test scripts/*.test.js scripts/*.test.mjs",
     "plugin:create": "node packages/cyrene-name-roller/bin/cnrp.mjs create",
     "plugin:validate": "node packages/cyrene-name-roller/bin/cnrp.mjs validate",
     "plugin:pack": "node packages/cyrene-name-roller/bin/cnrp.mjs pack",
