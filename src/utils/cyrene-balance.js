@@ -23,6 +23,14 @@ export const DEFAULT_CYRENE_BALANCE_SETTINGS = {
   algorithm: ALGORITHM_NAME
 }
 
+// Person UUID is the canonical identity for fairness/statistics. The Chinese
+// name fallback keeps imported legacy records and synthetic group entries
+// usable while every persisted person created by the app has an id.
+export function personKey(person) {
+  if (person && typeof person === 'object') return String(person.id || person.cn || '')
+  return String(person || '')
+}
+
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value))
 }
@@ -31,7 +39,7 @@ function capWeightShares(weightMap, names) {
   if (names.length <= 1) return weightMap
 
   const maxShare = Math.max(MAX_SELECTION_PROBABILITY, 1 / names.length)
-  const remaining = new Set(names.map(name => name.cn))
+  const remaining = new Set(names.map(personKey))
   const shares = new Map()
   let remainingMass = 1
 
@@ -65,8 +73,9 @@ function capWeightShares(weightMap, names) {
   return shares
 }
 
-function getCount(countsMap, name) {
-  const value = Number(countsMap?.[name])
+function getCount(countsMap, person) {
+  const key = personKey(person)
+  const value = Number(countsMap?.[key])
   return Number.isFinite(value) && value > 0 ? value : 0
 }
 
@@ -89,13 +98,13 @@ export function secureRandom() {
 
 function createWeightMap(names, whiteList, countsMap, rawSettings) {
   const settings = normalizeCyreneBalanceSettings(rawSettings)
-  const whiteListSet = new Set(whiteList || [])
-  const regularNames = names.filter(name => !whiteListSet.has(name.cn))
-  const weights = new Map(names.map(name => [name.cn, 1]))
+  const whiteListSet = new Set((whiteList || []).map(personKey))
+  const regularNames = names.filter(name => !whiteListSet.has(personKey(name)))
+  const weights = new Map(names.map(name => [personKey(name), 1]))
 
   if (!settings.enabled || regularNames.length === 0) return weights
 
-  const counts = regularNames.map(name => getCount(countsMap, name.cn))
+  const counts = regularNames.map(name => getCount(countsMap, name))
   const totalDraws = counts.reduce((sum, count) => sum + count, 0)
   const expectedCount = totalDraws / regularNames.length
   const gap = Math.max(...counts) - Math.min(...counts)
@@ -127,7 +136,7 @@ function createWeightMap(names, whiteList, countsMap, rawSettings) {
       guard = OVERFLOW_PENALTY
     }
 
-    weights.set(name.cn, Math.exp(bounded * warmup) * guard)
+    weights.set(personKey(name), Math.exp(bounded * warmup) * guard)
   })
 
   // Cap only the current single-draw probability. Batch positions always
@@ -137,19 +146,19 @@ function createWeightMap(names, whiteList, countsMap, rawSettings) {
 
 function getAvailableNames(names, excludeList, allowDuplicates) {
   if (allowDuplicates || !excludeList?.length) return names
-  const excluded = new Set(excludeList)
-  return names.filter(name => !excluded.has(name.cn))
+  const excluded = new Set(excludeList.map(personKey))
+  return names.filter(name => !excluded.has(personKey(name)))
 }
 
 export function computeCyreneBalanceProbability(names, whiteList, countsMap, settings) {
   if (!Array.isArray(names) || names.length === 0) return {}
 
   const weightMap = createWeightMap(names, whiteList, countsMap, settings)
-  const totalWeight = names.reduce((sum, name) => sum + (weightMap.get(name.cn) || 1), 0)
+  const totalWeight = names.reduce((sum, name) => sum + (weightMap.get(personKey(name)) || 1), 0)
   const probabilities = {}
 
   names.forEach(name => {
-    probabilities[name.cn] = ((weightMap.get(name.cn) || 1) / totalWeight) * 100
+    probabilities[personKey(name)] = ((weightMap.get(personKey(name)) || 1) / totalWeight) * 100
   })
 
   return probabilities
@@ -165,7 +174,7 @@ export function pickCyreneBalanced(
   random = secureRandom
 ) {
   const available = getAvailableNames(names, excludeList, allowDuplicates)
-  const whiteListSet = new Set(whiteList || [])
+  const whiteListSet = new Set((whiteList || []).map(personKey))
   if (available.length === 0) {
     return { cn: '(没人选了!)', en: '(No one left!)' }
   }
@@ -173,7 +182,7 @@ export function pickCyreneBalanced(
   // In no-repeat mode, removing a candidate changes the current target pool.
   // Recompute the feedback model from the remaining candidates each draw.
   const weightMap = createWeightMap(available, whiteList, countsMap, settings)
-  const weights = available.map(name => weightMap.get(name.cn) || 1)
+  const weights = available.map(name => weightMap.get(personKey(name)) || 1)
   const totalWeight = weights.reduce((sum, weight) => sum + weight, 0)
   const randomValue = clamp(Number(random()) || 0, 0, 1 - Number.EPSILON)
   let threshold = randomValue * totalWeight
@@ -187,7 +196,7 @@ export function pickCyreneBalanced(
         cn: selected.cn,
         en: selected.en,
         index: names.indexOf(selected),
-        isWhiteList: whiteListSet.has(selected.cn)
+        isWhiteList: whiteListSet.has(personKey(selected))
       }
     }
   }
@@ -198,7 +207,7 @@ export function pickCyreneBalanced(
     cn: selected.cn,
     en: selected.en,
     index: names.indexOf(selected),
-    isWhiteList: whiteListSet.has(selected.cn)
+    isWhiteList: whiteListSet.has(personKey(selected))
   }
 }
 
@@ -230,9 +239,9 @@ export function pickCyreneBatch(
     if (!pick.cn || pick.cn === '(没人选了!)') break
 
     picks.push(pick)
-    if (!allowDuplicates) excluded.push(pick.cn)
+    if (!allowDuplicates) excluded.push(personKey(pick))
     if (!pick.isWhiteList) {
-      localCounts[pick.cn] = getCount(localCounts, pick.cn) + 1
+      localCounts[personKey(pick)] = getCount(localCounts, pick) + 1
     }
   }
 

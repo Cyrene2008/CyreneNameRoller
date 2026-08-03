@@ -1,6 +1,6 @@
-const ANNOUNCEMENT_URL = 'https://gh.xn--8hvv1o.cn/raw.githubusercontent.com/Cyrene2008/CyreneNameRoller/refs/heads/master/.announcement/latest.json'
+const ANNOUNCEMENT_URL = 'https://gh.xn--8hvv1o.cn/raw.githubusercontent.com/StarCyrene/CyreneNameRoller/refs/heads/master/.announcement/latest.json'
 const ANNOUNCEMENT_NAMEAPI = 'https://nameapi.cyrene.hi.cn/announcement/latest.json'
-const ANNOUNCEMENT_FALLBACK = 'https://raw.githubusercontent.com/Cyrene2008/CyreneNameRoller/master/.announcement/latest.json'
+const ANNOUNCEMENT_FALLBACK = 'https://raw.githubusercontent.com/StarCyrene/CyreneNameRoller/master/.announcement/latest.json'
 const ANNOUNCEMENT_LOCAL = '/announcements.json'
 
 import { isTauri, tauriAPI } from './tauriAPI'

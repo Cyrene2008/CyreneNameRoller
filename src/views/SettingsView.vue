@@ -88,6 +88,19 @@
           <div class="setting-row"><span class="setting-label">{{ lang === 'en' ? 'Start hidden in tray' : '启动到托盘' }}</span><FluentToggle :model-value="settings.autoStartToTray" @update:model-value="update('autoStartToTray', $event)" /></div>
         </div>
       </Transition>
+      <div class="setting-row uri-setting-row">
+        <div class="setting-label-group">
+          <span class="setting-label">{{ isTauri() ? (lang === 'en' ? 'Cyrene URI protocol' : 'Cyrene URI 协议') : (lang === 'en' ? 'One-time URL parameters' : 'URL 一次性参数') }}</span>
+          <span class="setting-desc">{{ isTauri() ? (lang === 'en' ? 'Open the app or navigate directly from an external link' : '允许外部链接呼出程序或直接跳转页面') : (lang === 'en' ? 'Append parameters to the page URL without changing saved settings' : '在页面 URL 后追加参数，不修改已保存设置') }}</span>
+        </div>
+        <div class="uri-setting-actions">
+          <FluentButton variant="secondary" size="sm" @click="showUriHelp = true">
+            <FluentIcon icon="book-open-16-regular" :width="14" />
+            {{ lang === 'en' ? 'Usage guide' : '查看调用方式' }}
+          </FluentButton>
+          <FluentToggle v-if="isTauri()" :model-value="settings.uriSchemeEnabled" :disabled="uriSchemeBusy" @update:model-value="onUriSchemeToggle" />
+        </div>
+      </div>
       <div v-if="isDesktop" class="setting-row">
         <span class="setting-label">{{ lang === 'en' ? 'Check for Updates' : '检查更新' }}</span>
         <div class="update-actions">
@@ -232,6 +245,13 @@
           <FluentToggle :model-value="settings.recordCounts" :disabled="balance.enabled" @update:model-value="update('recordCounts', $event)" />
       </div>
       <div class="setting-row">
+        <div class="setting-label-group">
+          <span class="setting-label">{{ lang === 'en' ? 'New member initial count' : '新成员初始统计' }}</span>
+          <span class="setting-desc">{{ lang === 'en' ? 'Choose the baseline used when adding a person.' : '选择新增人员时使用的初始次数。' }}</span>
+        </div>
+        <FluentSelect :model-value="settings.newMemberCountMode" :options="newMemberCountModeOptions" width="220px" @update:model-value="update('newMemberCountMode', $event)" />
+      </div>
+      <div class="setting-row">
         <span class="setting-label">{{ lang === 'en' ? 'Data Password' : '数据操作密码' }}</span>
         <FluentButton variant="secondary" size="sm" @click="openPasswordModal">
           <FluentIcon icon="lock-closed-16-regular" :width="14" />
@@ -337,6 +357,41 @@
         <FluentButton variant="danger" size="sm" @click="confirmImport">{{ lang === 'en' ? 'Import' : '确认导入' }}</FluentButton>
       </template>
     </FluentModal>
+
+    <FluentModal v-model="showUriHelp" :title="isTauri() ? (lang === 'en' ? 'Cyrene URI usage' : 'Cyrene URI 调用方式') : (lang === 'en' ? 'One-time URL parameters' : 'URL 一次性参数')" max-width="760px">
+      <div class="uri-help-body">
+        <p class="uri-help-intro">
+          {{ isTauri()
+            ? (lang === 'en' ? 'After enabling URI registration, external links can reveal the existing app window or navigate to a page.' : '启用 URI 注册后，外部链接可以呼出已经运行的程序，或直接跳转到指定页面。')
+            : (lang === 'en' ? 'Web parameters are appended after the hash route. They apply only to this navigation and do not overwrite saved settings.' : 'Web 参数应添加在 Hash 路由之后，仅对本次进入生效，不会覆盖已保存的设置。') }}
+        </p>
+
+        <div class="uri-example-block">
+          <div class="uri-example-header"><strong>{{ isTauri() ? (lang === 'en' ? 'Reveal / open' : '呼出或打开') : (lang === 'en' ? 'Open the Roller page' : '打开点名器页面') }}</strong><FluentButton variant="subtle" size="sm" @click="copyUriExample(uriStartExample)"><FluentIcon icon="copy-16-regular" :width="14" />{{ lang === 'en' ? 'Copy' : '复制' }}</FluentButton></div>
+          <code>{{ uriStartExample }}</code>
+        </div>
+        <div class="uri-example-block">
+          <div class="uri-example-header"><strong>{{ lang === 'en' ? 'Roller with one-time parameters' : '带一次性参数打开点名器' }}</strong><FluentButton variant="subtle" size="sm" @click="copyUriExample(uriRollerExample)"><FluentIcon icon="copy-16-regular" :width="14" />{{ lang === 'en' ? 'Copy' : '复制' }}</FluentButton></div>
+          <code>{{ uriRollerExample }}</code>
+          <span>{{ lang === 'en' ? 'A valid Roller parameter set starts rolling immediately; the user stops it normally.' : '只要包含有效的点名参数，就会自动开始滚动；之后由用户正常点击停止。' }}</span>
+        </div>
+
+        <div class="uri-help-section">
+          <h4>{{ lang === 'en' ? 'Available pages' : '可用页面' }}</h4>
+          <div class="uri-route-grid"><div v-for="route in uriHelpRoutes" :key="route.id"><code>{{ route.path }}</code><span>{{ route.label }}</span></div></div>
+        </div>
+
+        <div class="uri-help-section">
+          <h4>{{ lang === 'en' ? 'Roller-only parameters' : '仅点名器可用的参数' }}</h4>
+          <div class="uri-parameter-table">
+            <div class="uri-parameter-row header"><strong>{{ lang === 'en' ? 'Parameter' : '参数' }}</strong><strong>{{ lang === 'en' ? 'Values' : '可选值' }}</strong><strong>{{ lang === 'en' ? 'Meaning' : '含义' }}</strong></div>
+            <div v-for="item in uriHelpParameters" :key="item.name" class="uri-parameter-row"><code>{{ item.name }}</code><code>{{ item.values }}</code><span>{{ item.label }}</span></div>
+          </div>
+          <p class="uri-value-note">{{ lang === 'en' ? 'Boolean values accept 1/0 or true/false. count is clamped to 1–9999. Parameters on other pages are ignored.' : '布尔值可使用 1/0 或 true/false；count 会限制在 1–9999；其他页面会忽略这些参数。' }}</p>
+        </div>
+      </div>
+      <template #footer><FluentButton variant="primary" size="sm" @click="showUriHelp = false">{{ lang === 'en' ? 'Done' : '完成' }}</FluentButton></template>
+    </FluentModal>
   </div>
 </template>
 
@@ -344,6 +399,7 @@
 import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch, inject } from 'vue'
 import { useNamesStore } from '../stores/names'
 import { useSettingsStore } from '../stores/settings'
+import { usePluginsStore } from '../plugins/store'
 import { useRecordsStore } from '../stores/records'
 import { useStatisticsStore } from '../stores/statistics'
 import { dataBridge } from '../utils/dataBridge'
@@ -372,6 +428,7 @@ defineProps({
 })
 
 const settingsStore = useSettingsStore()
+const pluginsStore = usePluginsStore()
 const namesStore = useNamesStore()
 const recordsStore = useRecordsStore()
 const statisticsStore = useStatisticsStore()
@@ -379,7 +436,6 @@ const showBanner = inject('banner')
 
 const lang = computed(() => settingsStore.settings.language)
 const settings = computed(() => settingsStore.settings)
-
 const isDesktop = computed(() => isTauri())
 const floatingStyleOptions = computed(() => FLOATING_WINDOW_STYLES.map((value, index) => ({
   value,
@@ -427,7 +483,11 @@ const fontOptions = [
 const colorThemeOptions = computed(() => [
   { value: 'peach', label: lang.value === 'en' ? 'Peach' : '桃粉', icon: 'fluent:heart-16-regular' },
   { value: 'fluent', label: 'Fluent', icon: 'fluent:window-16-regular' },
-  { value: 'custom', label: lang.value === 'en' ? 'Custom' : '自定义', icon: 'fluent:color-16-regular' }
+  { value: 'custom', label: lang.value === 'en' ? 'Custom' : '自定义', icon: 'fluent:color-16-regular' },
+  ...pluginsStore.appearanceOptions(lang.value).map(option => ({
+    ...option,
+    label: `${option.label} · ${option.pluginName}`
+  }))
 ])
 const downloadSourceOptions = computed(() => [
   { value: 'cyrene', label: 'gh.昔涟.cn', icon: 'fluent:cloud-arrow-down-16-regular' },
@@ -437,6 +497,10 @@ const downloadSourceOptions = computed(() => [
 const autoStartModeOptions = computed(() => [
   { value: 'scheduled', label: lang.value === 'en' ? 'Administrator scheduled task' : '管理员计划任务', icon: 'fluent:shield-keyhole-16-regular' },
   { value: 'registry', label: lang.value === 'en' ? 'Traditional startup entry' : '传统自启动项', icon: 'fluent:window-console-20-regular' }
+])
+const newMemberCountModeOptions = computed(() => [
+  { value: 'midpoint', label: lang.value === 'en' ? 'Current range midpoint' : '当前极值中间值', icon: 'fluent:branch-compare-16-regular' },
+  { value: 'zero', label: lang.value === 'en' ? 'Start from zero' : '从 0 开始', icon: 'fluent:number-symbol-16-regular' }
 ])
 const finishAnimationOptions = computed(() => [
   { value: 'spotlight', label: lang.value === 'en' ? 'Classic emphasis' : '经典强调', icon: 'fluent:sparkle-16-regular' },
@@ -453,6 +517,34 @@ const pwError = ref('')
 const pwModalMode = ref('verify')
 const pendingAction = ref(null)
 const showImportWarning = ref(false)
+const showUriHelp = ref(false)
+
+const webUrlBase = computed(() => {
+  if (typeof window === 'undefined') return 'https://example.com/'
+  return `${window.location.origin}${window.location.pathname}`
+})
+const uriStartExample = computed(() => isTauri() ? 'cyrenenr://start' : `${webUrlBase.value}#/roller`)
+const uriRollerExample = computed(() => isTauri()
+  ? 'cyrenenr://page/roller?isEN=0&isGroupMode=0&sex=all&multiMode=1&count=6&noDuplication=0'
+  : `${webUrlBase.value}#/roller?isEN=0&isGroupMode=0&sex=all&multiMode=1&count=6&noDuplication=0`)
+const uriHelpRoutes = computed(() => [
+  { id: 'roller', path: isTauri() ? 'cyrenenr://page/roller' : '#/roller', label: lang.value === 'en' ? 'Random roller' : '随机点名' },
+  { id: 'card', path: isTauri() ? 'cyrenenr://page/cards' : '#/card', label: lang.value === 'en' ? 'Card draw' : '翻牌点名' },
+  { id: 'lottery', path: isTauri() ? 'cyrenenr://page/lottery' : '#/lottery/draw', label: lang.value === 'en' ? 'Lottery draw' : '奖品抽取' },
+  { id: 'lists', path: isTauri() ? 'cyrenenr://page/lists' : '#/lists', label: lang.value === 'en' ? 'People lists' : '人员名单' },
+  { id: 'records', path: isTauri() ? 'cyrenenr://page/records' : '#/records', label: lang.value === 'en' ? 'Draw records' : '抽取记录' },
+  { id: 'statistics', path: isTauri() ? 'cyrenenr://page/statistics' : '#/statistics', label: lang.value === 'en' ? 'Statistics' : '数据统计' },
+  { id: 'plugins', path: isTauri() ? 'cyrenenr://page/plugins' : '#/plugins', label: lang.value === 'en' ? 'Plugins' : '插件' },
+  { id: 'settings', path: isTauri() ? 'cyrenenr://page/settings' : '#/settings', label: lang.value === 'en' ? 'Settings' : '设置' }
+])
+const uriHelpParameters = computed(() => [
+  { name: 'isEN', values: '0 / 1', label: lang.value === 'en' ? 'Disable or enable English Mode' : '关闭或开启 English Mode' },
+  { name: 'isGroupMode', values: '0 / 1', label: lang.value === 'en' ? 'Draw people or groups' : '抽取人员或抽取小组' },
+  { name: 'sex', values: 'all / male / female', label: lang.value === 'en' ? 'Gender filter for people' : '人员性别筛选' },
+  { name: 'multiMode', values: '0 / 1', label: lang.value === 'en' ? 'Single or multiple draw mode' : '单次或多人/多次抽取' },
+  { name: 'count', values: '1–9999', label: lang.value === 'en' ? 'Number of people or groups' : '抽取人数或小组数量' },
+  { name: 'noDuplication', values: '0 / 1', label: lang.value === 'en' ? 'Allow or prevent duplicate results' : '允许或禁止重复结果' }
+])
 
 const pwModalTitle = computed(() => {
   if (pwModalMode.value === 'set') return lang.value === 'en' ? 'Set Password' : '设置密码'
@@ -468,6 +560,7 @@ const pwModalHint = computed(() => {
 function update(key, value) { return settingsStore.update(key, value) }
 const customColorDraft = ref(settings.value.customThemeColor)
 const autoStartBusy = ref(false)
+const uriSchemeBusy = ref(false)
 watch(() => settings.value.customThemeColor, value => { customColorDraft.value = value })
 function commitCustomColor() {
   const normalized = normalizeHex(customColorDraft.value, '')
@@ -505,6 +598,34 @@ async function onAutoStart(value) {
     })
   }
   autoStartBusy.value = false
+}
+
+async function onUriSchemeToggle(value) {
+  uriSchemeBusy.value = true
+  const result = await tauriAPI.setUriSchemeEnabled(value)
+  if (result?.success) {
+    await update('uriSchemeEnabled', value)
+    showBanner({
+      message: value
+        ? (lang.value === 'en' ? 'cyrenenr:// links are enabled' : 'cyrenenr:// 协议已启用')
+        : (lang.value === 'en' ? 'cyrenenr:// links are disabled' : 'cyrenenr:// 协议已关闭'),
+      icon: value ? 'link-16-regular' : 'link-dismiss-16-regular',
+      type: 'success',
+      duration: 5000
+    })
+  } else {
+    showBanner({ message: result?.error || (lang.value === 'en' ? 'URI protocol update failed' : 'URI 协议更新失败'), icon: 'warning-16-regular', type: 'warning', duration: 8000 })
+  }
+  uriSchemeBusy.value = false
+}
+
+async function copyUriExample(value) {
+  try {
+    await navigator.clipboard.writeText(value)
+    showBanner({ message: lang.value === 'en' ? 'Example copied' : '调用示例已复制', icon: 'checkmark-circle-16-regular', type: 'success', duration: 3000 })
+  } catch {
+    showBanner({ message: lang.value === 'en' ? 'Copy failed; select the text manually' : '复制失败，请手动选择文本', icon: 'warning-16-regular', type: 'warning', duration: 5000 })
+  }
 }
 
 async function onAutoStartModeChange(mode) {
@@ -707,6 +828,14 @@ function getLogEntries(log) {
 }
 
 onMounted(async () => {
+  if (isTauri()) {
+    let registered = !!(await tauriAPI.isUriSchemeEnabled())
+    if (settings.value.uriSchemeEnabled && !registered) {
+      const result = await tauriAPI.setUriSchemeEnabled(true)
+      registered = !!result?.success
+    }
+    if (registered !== settings.value.uriSchemeEnabled) await update('uriSchemeEnabled', registered)
+  }
   await loadPasswordHash()
   const saved = await dataBridge.load('balance')
   balance.value = normalizeCyreneBalanceSettings(saved)
@@ -774,6 +903,24 @@ function onBalanceEnabledChange(enabled) {
 .readonly-id { max-width: 170px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .setting-label-group { display: flex; flex-direction: column; gap: 2px; }
 .setting-desc { font-size: 12px; color: var(--text-muted); }
+.uri-setting-actions { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+.uri-help-body { display: flex; flex-direction: column; gap: 16px; color: var(--text-secondary); }
+.uri-help-intro { margin: 0; font-size: 13px; line-height: 1.65; }
+.uri-example-block { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border: 1px solid var(--border-default); border-radius: var(--radius-md); background: var(--bg-subtle); }
+.uri-example-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.uri-example-block code { display: block; padding: 9px 10px; overflow-x: auto; border-radius: var(--radius-sm); background: var(--bg-card-solid); color: var(--accent); font: 12px/1.55 Consolas, monospace; white-space: nowrap; }
+.uri-example-block > span { color: var(--text-muted); font-size: 11px; line-height: 1.5; }
+.uri-help-section { display: flex; flex-direction: column; gap: 10px; }
+.uri-help-section h4 { margin: 0; color: var(--text-primary); font-size: 14px; }
+.uri-route-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.uri-route-grid > div { display: flex; flex-direction: column; gap: 4px; padding: 9px 10px; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); }
+.uri-route-grid code, .uri-parameter-row code { color: var(--accent); font: 11px/1.45 Consolas, monospace; overflow-wrap: anywhere; }
+.uri-route-grid span, .uri-parameter-row span { color: var(--text-muted); font-size: 11px; }
+.uri-parameter-table { border: 1px solid var(--border-default); border-radius: var(--radius-md); overflow: hidden; }
+.uri-parameter-row { display: grid; grid-template-columns: minmax(110px, .55fr) minmax(130px, .7fr) minmax(190px, 1.4fr); gap: 10px; align-items: center; padding: 9px 11px; border-bottom: 1px solid var(--border-subtle); }
+.uri-parameter-row:last-child { border-bottom: 0; }
+.uri-parameter-row.header { background: var(--bg-subtle); color: var(--text-primary); font-size: 11px; }
+.uri-value-note { margin: 0; color: var(--text-muted); font-size: 11px; line-height: 1.55; }
 .balance-sub { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border-default); display: flex; flex-direction: column; gap: 10px; }
 .balance-explain { font-size: 13px; color: var(--text-secondary); line-height: 1.6; }
 .balance-info { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-muted); padding: 8px 12px; background: var(--bg-subtle); border-radius: var(--radius-sm); }
@@ -847,6 +994,13 @@ function onBalanceEnabledChange(enabled) {
 .toggle-expand-enter-active { animation: toggle-in 0.25s cubic-bezier(0.1, 0.9, 0.2, 1); }
 .toggle-expand-leave-active { animation: toggle-in 0.15s ease-in reverse; }
 @keyframes toggle-in { from { opacity: 0; transform: translateY(-8px); max-height: 0; } to { opacity: 1; transform: translateY(0); max-height: 300px; } }
+
+@media (max-width: 720px) {
+  .uri-setting-row { align-items: flex-start; flex-direction: column; }
+  .uri-setting-actions { width: 100%; justify-content: space-between; }
+  .uri-route-grid { grid-template-columns: 1fr; }
+  .uri-parameter-row { grid-template-columns: 1fr; gap: 4px; }
+}
 
 .update-actions {
   display: flex;

@@ -36,10 +36,18 @@ A random name picker desktop app built with Vue 3 + Tauri, featuring Windows 11 
 - UI scale (75%-200%), name font size adjustment
 - Dark/Light mode, Chinese/English switch
 
+**Plugin System**
+- Install, update, uninstall, enable, and disable `.cnrp` plugins from the built-in catalog or local files
+- Plugins can contribute full Dock pages, host-native Fluent settings, animation packs, and Canvas/WebGL visual surfaces
+- The same permission-based capability bridge works on Web and Tauri, with explicit fallback for unavailable platform operations
+- Names, records, statistics, and CAF settings are exposed as read-only snapshots; new draw experiences use host-owned `draw.execute`
+- The host selects every result and append-only commits statistics and history; plugins cannot choose winners or rewrite existing core data
+- [Official plugin template, Fluent component gallery, and API documentation](https://github.com/Cyrene2008/CyreneNameRoller-Plugin-Template)
+
 ## Quick Start
 
 ```bash
-git clone https://github.com/Cyrene2008/CyreneNameRoller.git
+git clone https://github.com/StarCyrene/CyreneNameRoller.git
 cd CyreneNameRoller
 npm install
 npm run dev

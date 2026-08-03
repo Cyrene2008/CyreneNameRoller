@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "apiVersion": "1.2.0",
+  "updatedAt": "2026-08-02",
+  "plugins": [
+    {
+      "id": "cn.cyrene2008.sound-effects",
+      "name": "来点音效",
+      "author": "Cyrene2008",
+      "description": "为随机点名、翻牌点名和抽奖添加可选音效。",
+      "repository": "Cyrene2008/CyreneNameRoller-SoundEffects",
+      "release": {
+        "provider": "github",
+        "channel": "latest",
+        "assetPattern": "sound-effects-*.cnrp"
+      },
+      "publisherKey": "",
+      "permissions": [
+        "storage:read",
+        "storage:write",
+        "events:draw",
+        "events:lifecycle",
+        "audio:select",
+        "audio:play",
+        "notifications:show"
+      ],
+      "dependencies": [],
+      "defaultEnabled": true,
+      "status": "preview"
+    },
+    {
+      "id": "cn.cyrene2008.more-animations",
+      "name": "更多动画",
+      "author": "Cyrene2008",
+      "description": "为页面切换、随机点名、翻牌与抽奖提供更丰富的高级动画和环境视觉效果。",
+      "repository": "Cyrene2008/CyreneNameRoller-MoreAnimations",
+      "release": {
+        "provider": "github",
+        "channel": "latest",
+        "assetPattern": "more-animations-*.cnrp"
+      },
+      "publisherKey": "",
+      "permissions": [
+        "storage:read",
+        "storage:write",
+        "events:draw",
+        "events:lifecycle",
+        "ui:animations",
+        "ui:visual-surfaces"
+      ],
+      "dependencies": [],
+      "defaultEnabled": true,
+      "status": "preview"
+    }
+  ]
+}

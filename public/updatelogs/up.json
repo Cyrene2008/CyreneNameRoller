@@ -1,5 +1,51 @@
 [
   {
+    "version": "26.1.0",
+    "date": "2026-08-01",
+    "logs": {
+      "zh": [
+        "【平台调整】停止 Electron 版本开发与发布，后续核心更新仅面向 Web 与 Tauri，保留必要兼容代码但不再扩展 Electron 功能",
+        "【插件系统】新增独立插件管理页面，支持在线列表、本地 .cnrp 导入、安装、更新、卸载、启用、禁用、依赖解析及异常启动后的纯净恢复模式",
+        "【插件页面】新增由宿主 Fluent 组件渲染的原生设置页面，插件页面可自动适配桃粉、Fluent、自定义主题及深浅色模式",
+        "【插件能力】提供 Web/Tauri 跨平台能力桥接、抽取事件、插件私有存储、通知、音频、文件、剪贴板及受声明限制的系统操作接口",
+        "【插件公平边界】名单、抽取历史、统计数据与公平平衡状态仅向插件提供深拷贝只读快照，不提供任何对应写入 RPC",
+        "【插件目录】通过 GitHub Releases API 自动解析最新正式 Release、.cnrp 资源地址与 SHA-256，不再要求目录维护者手动更新版本 URL",
+        "【插件开发】发布 @starcyrene/cyrene-name-roller SDK/打包工具、官方模板仓库、Fluent 组件与 API Pages，以及可实际使用的『来点音效』v1.1.0 示例插件",
+        "【URI 启动】桌面端可手动注册 cyrenenr URI，通过 start 或 page 路径呼出程序并快速进入指定页面",
+        "【URL 参数】桌面 URI 与 Web Hash URL 支持 Roller 一次性参数，可指定中英文、人员/小组、性别、单次/多次、数量及是否允许重复，并直接开始滚动",
+        "【单实例与权限】加强 Tauri 跨权限单实例与 IPC，普通权限启动请求可呼出由管理员计划任务启动的现有实例",
+        "【开机启动】开机自启动支持管理员计划任务与传统启动项，补充按需管理员重启、启动到托盘及首次显示时无闪烁补播启动动画",
+        "【人员属性】名单人员新增男女性别属性与批量设置；Roller 增加全部、男性、女性筛选并在切换后立即校验最大可抽人数",
+        "【多人交互】人数减到 1 时自动切回单人/单次抽取；主动切换模式时保留上次多人数量，并根据人员/小组动态调整文案",
+        "【公平提示】Roller 页面新增半透明盾牌状态提示，明确展示公平平衡算法当前是否启用",
+        "【新成员统计】新增成员可按现有计数极值的整数中间值初始化，默认保持公平；也可在设置中选择从 0 开始，总次数同步保持一致且不伪造历史记录",
+        "【智能导入】Web 与 Tauri 支持拖入 CSV、JSON、XLSX 与 CYRENE 文件，自动判断名单或完整程序数据，并修复单文件被重复导入的问题",
+        "【名单文件】简化 CSV 可读格式，同时保留名单 ID、人员 UUID、小组 ID 与名单绑定关系，避免同名名单或人员失去身份",
+        "【稳定性修复】改进 Tauri 启动、窗口居中、启动动画时序、后台命令隐藏、名单选择持久化及少数字体字符裁切问题"
+      ],
+      "en": [
+        "[Platform] Electron development and releases have ended; future core updates target Web and Tauri",
+        "[Plugins] Added a standalone manager with online catalog, local .cnrp import, install, update, uninstall, enable/disable, dependency resolution, and clean recovery mode",
+        "[Plugin UI] Added host-rendered native Fluent settings pages with automatic theme and light/dark adaptation",
+        "[Plugin API] Added cross-platform Web/Tauri bridges for draw events, private storage, notifications, audio, files, clipboard, and declared system operations",
+        "[Fairness Boundary] Lists, draw history, statistics, and balance state are exposed only as cloned read-only snapshots with no matching write RPCs",
+        "[Catalog] Latest stable GitHub Releases, .cnrp assets, and SHA-256 digests are resolved automatically without pinned version URLs",
+        "[Developer Tools] Published the plugin SDK/packer, official template repository, Fluent/API Pages, and the usable Sound Effects v1.1.0 example plugin",
+        "[URI] Desktop can register the cyrenenr scheme to reveal the app or navigate directly to a page",
+        "[URL Parameters] Desktop URI and Web hash URLs accept one-time Roller parameters for language, people/groups, gender, single/multiple mode, count, and duplication",
+        "[Single Instance] Hardened cross-elevation Tauri IPC so a normal launch can reveal an administrator-started instance",
+        "[Startup] Added administrator scheduled-task and traditional startup modes, elevation-on-demand, startup to tray, and seamless first-show splash replay",
+        "[People] Added gender data and batch editing, plus All/Male/Female Roller filters with immediate maximum-count validation",
+        "[Multi Draw] Reducing count to one returns to single mode while normal tab switching preserves the previous multi count and context-aware wording",
+        "[Fairness UI] Added a translucent shield indicator showing whether the balance algorithm is active",
+        "[New Members] Counts can initialize at the midpoint of the current range or zero; totals stay consistent without fabricating history",
+        "[Smart Import] Web and Tauri accept dropped CSV, JSON, XLSX, and CYRENE files with automatic routing and duplicate-drop prevention",
+        "[List Files] Simplified CSV readability while preserving list IDs, person UUIDs, group IDs, and bindings",
+        "[Stability] Improved Tauri startup, centering, splash timing, hidden background commands, selected-list persistence, and clipped English glyphs"
+      ]
+    }
+  },
+  {
     "version": "26.0.5",
     "date": "2026-07-26",
     "logs": {

@@ -1,7 +1,9 @@
 <template>
-  <button v-if="show" class="fullscreen-btn" @click="toggle" :title="isFullscreen ? '退出全屏' : '全屏'">
-    <Icon :icon="isFullscreen ? 'fluent:full-screen-minimize-24-regular' : 'fluent:full-screen-maximize-24-regular'" :width="16" />
-  </button>
+  <Teleport to="body">
+    <button v-if="show" class="fullscreen-btn" @click="toggle" :title="isFullscreen ? '退出全屏' : '全屏'">
+      <Icon :icon="isFullscreen ? 'fluent:full-screen-minimize-24-regular' : 'fluent:full-screen-maximize-24-regular'" :width="16" />
+    </button>
+  </Teleport>
 </template>
 
 <script setup>

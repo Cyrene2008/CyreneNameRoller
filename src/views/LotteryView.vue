@@ -21,8 +21,9 @@
           <div v-if="drawStyle === 'roller'" class="roller-experience">
             <div
               :key="resultNonce"
+              ref="rollerResultRef"
               class="roller-result"
-              :class="resultPrize && !rolling ? `finish-${settingsStore.settings.finishAnimation || 'spotlight'}` : ''"
+              :class="resultPrize && !rolling && !pluginFinishEnabled ? `finish-${settingsStore.settings.finishAnimation || 'spotlight'}` : ''"
             >
               <span class="result-quality">{{ visiblePrize?.quality || (lang === 'en' ? 'READY' : '等待抽取') }}</span>
               <strong>{{ visiblePrize?.name || (lang === 'en' ? 'Prize draw' : '奖品抽取') }}</strong>
@@ -46,8 +47,9 @@
             </div>
             <div
               :key="resultNonce"
+              ref="wheelResultRef"
               class="wheel-result"
-              :class="resultPrize && !rolling && !settling ? `finish-${settingsStore.settings.finishAnimation || 'spotlight'}` : ''"
+              :class="resultPrize && !rolling && !settling && !pluginFinishEnabled ? `finish-${settingsStore.settings.finishAnimation || 'spotlight'}` : ''"
             >
               <span>{{ resultPrize ? (lang === 'en' ? 'Selected prize' : '抽取结果') : (lang === 'en' ? 'Weighted wheel' : '加权转盘') }}</span>
               <strong>{{ resultPrize?.name || (lang === 'en' ? 'Ready' : '等待开始') }}</strong>
@@ -149,11 +151,12 @@
 </template>
 
 <script setup>
-import { computed, inject, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { computed, inject, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { usePrizesStore } from '../stores/prizes'
 import { useNamesStore } from '../stores/names'
 import { useSettingsStore } from '../stores/settings'
+import { usePluginsStore } from '../plugins/store'
 import FluentTabs from '../components/FluentTabs.vue'
 import FluentCard from '../components/FluentCard.vue'
 import FluentInput from '../components/FluentInput.vue'
@@ -170,6 +173,7 @@ const router = useRouter()
 const prizes = usePrizesStore()
 const names = useNamesStore()
 const settingsStore = useSettingsStore()
+const pluginsStore = usePluginsStore()
 const showBanner = inject('banner')
 const lang = computed(() => settingsStore.settings.language)
 const section = computed(() => props.section)
@@ -188,6 +192,9 @@ const settling = ref(false)
 const previewPrize = ref(null)
 const resultPrize = ref(null)
 const resultNonce = ref(0)
+const rollerResultRef = ref(null)
+const wheelResultRef = ref(null)
+const pluginFinishEnabled = computed(() => pluginsStore.hasAnimation('lottery.finish'))
 const wheelSnapshot = ref([])
 const wheelRotation = ref(0)
 const wheelTransition = ref('none')
@@ -264,10 +271,29 @@ function beginDraw() {
   }
   if (settingsStore.settings.autoStop) autoStopTimer = setTimeout(stopDraw, AUTO_STOP_DELAY)
 }
-function revealResult(prize) {
+async function revealResult(prize) {
   resultPrize.value = prize
   resultNonce.value += 1
   prizes.recordDraw({ prizeId: prize.id, mode: 'draw' })
+  const operationId = crypto.randomUUID?.() || `lottery-${Date.now()}`
+  const result = { id: prize.id, name: prize.name, quality: prize.quality || '', remaining: currentPrizeStock.value }
+  pluginsStore.dispatchEvent('lottery:item-result', {
+    operationId,
+    index: 0,
+    count: 1,
+    prizeListId: prizes.currentId,
+    result
+  })
+  pluginsStore.dispatchEvent('lottery:result', {
+    operationId,
+    prizeListId: prizes.currentId,
+    style: drawStyle.value,
+    results: [result]
+  })
+  await nextTick()
+  const resultElement = drawStyle.value === 'wheel' ? wheelResultRef.value : rollerResultRef.value
+  pluginsStore.startAnimation('lottery.finish', resultElement)
+  pluginsStore.startAnimation('global.transition', null, { variant: 'lottery' })
 }
 function stopDraw() {
   if (!rolling.value || settling.value) return
@@ -324,8 +350,32 @@ async function assignPrizes() {
   const people = [...eligiblePeople.value].sort(() => Math.random() - 0.5).slice(0, normalizedAssignmentCount.value)
   const result = prizes.draw(people.length)
   if (!result.success) { assigning.value = false; return notifyError(result.error) }
+  const operationId = crypto.randomUUID?.() || `lottery-assign-${Date.now()}`
   allocations.value = people.map((person, index) => ({ person, prize: result.prizes[index] }))
-  allocations.value.forEach(allocation => prizes.recordDraw({ prizeId: allocation.prize.id, personId: allocation.person.id, peopleListId: names.currentListId, mode: 'assign' }))
+  allocations.value.forEach((allocation, index) => {
+    prizes.recordDraw({ prizeId: allocation.prize.id, personId: allocation.person.id, peopleListId: names.currentListId, mode: 'assign' })
+    pluginsStore.dispatchEvent('lottery:item-result', {
+      operationId,
+      index,
+      count: allocations.value.length,
+      prizeListId: prizes.currentId,
+      peopleListId: names.currentListId,
+      result: {
+        person: { id: allocation.person.id, name: allocation.person.cn, englishName: allocation.person.en || '' },
+        prize: { id: allocation.prize.id, name: allocation.prize.name, quality: allocation.prize.quality || '' }
+      }
+    })
+  })
+  pluginsStore.dispatchEvent('lottery:assign-result', {
+    operationId,
+    prizeListId: prizes.currentId,
+    peopleListId: names.currentListId,
+    results: allocations.value.map(allocation => ({
+      person: { id: allocation.person.id, name: allocation.person.cn, englishName: allocation.person.en || '' },
+      prize: { id: allocation.prize.id, name: allocation.prize.name, quality: allocation.prize.quality || '' }
+    }))
+  })
+  pluginsStore.startAnimation('global.transition', null, { variant: 'lottery' })
   assigning.value = false
 }
 function displayPerson(person) { return settingsStore.settings.englishMode && person.en ? person.en : person.cn }

@@ -33,7 +33,7 @@
         <span class="col-balanced">{{ lang === 'en' ? 'Balanced' : '平衡概率' }}</span>
       </div>
       <ul class="stats-list">
-        <li v-for="stat in statsWithBalance" :key="stat.name" class="stats-item">
+        <li v-for="stat in statsWithBalance" :key="stat.id" class="stats-item">
           <span class="col-name">{{ stat.name }}</span>
           <span class="col-en">{{ stat.en }}</span>
           <span class="col-count">{{ stat.count }}</span>
@@ -83,7 +83,6 @@ const selectedList = computed(() =>
 
 const selectedNames = computed(() => selectedList.value.names || [])
 const selectedWhiteList = computed(() => selectedNames.value.filter(n => n.isWhiteList))
-const whiteListCns = computed(() => selectedWhiteList.value.map(w => w.cn))
 
 const statsData = computed(() => {
   return statisticsStore.getStatsForList(
@@ -95,13 +94,13 @@ const statsData = computed(() => {
 const statsWithBalance = computed(() => {
   const probMap = computeCyreneBalanceProbability(
     selectedNames.value,
-    whiteListCns.value,
+    selectedWhiteList.value,
     statisticsStore.counts,
     balanceSettings.value
   )
   return statsData.value.stats.map(s => ({
     ...s,
-    balancedProbability: probMap[s.name] || 0
+    balancedProbability: probMap[s.id] || 0
   }))
 })
 

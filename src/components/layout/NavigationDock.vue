@@ -109,7 +109,20 @@
         <Icon icon="fluent:chevron-right-16-regular" :width="14" class="dock-chevron" />
       </button>
       <router-link
-        to="/about"
+        to="/plugins"
+        class="dock-item"
+        :class="{ active: pluginManagerActive }"
+        draggable="false"
+        :title="lang === 'en' ? 'Plugins' : '插件'"
+      >
+        <div class="dock-item-indicator" />
+        <Icon icon="fluent:plug-connected-24-regular" :width="20" class="dock-item-icon" />
+        <span v-if="!dockCollapsed" class="dock-item-label">{{ lang === 'en' ? 'Plugins' : '插件' }}</span>
+      </router-link>
+      <router-link
+        v-for="item in bottomItems"
+        :key="item.path"
+        :to="item.path"
         class="dock-item"
         :class="{ active: route.path.startsWith('/about') }"
         draggable="false"
@@ -139,6 +152,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { Icon } from '@iconify/vue'
 import { useSettingsStore } from '../../stores/settings'
+import { usePluginsStore } from '../../plugins/store'
 import { isTauri } from '../../utils/tauriAPI'
 import { t } from '../../utils/i18n'
 import SecondarySidebarMenu from '../SecondarySidebarMenu.vue'
@@ -150,9 +164,23 @@ const props = defineProps({
 
 const route = useRoute()
 const settingsStore = useSettingsStore()
+const pluginsStore = usePluginsStore()
 const lang = computed(() => settingsStore.settings.language)
 const dockCollapsed = computed(() => settingsStore.settings.dockCollapsed || false)
 const isDesktopApp = computed(() => isTauri())
+const pluginDockItems = computed(() => pluginsStore.contributedPages
+  .filter(page => page.location === 'dock')
+  .sort((left, right) => (left.order ?? 500) - (right.order ?? 500))
+  .map(page => ({
+    path: `/plugin/${encodeURIComponent(page.pluginId)}/${encodeURIComponent(page.id)}`,
+    icon: String(page.icon || '').includes(':') ? page.icon : `fluent:${page.icon || 'apps-24-regular'}`,
+    label: lang.value === 'en' && page.titleEn ? page.titleEn : page.title
+  })))
+const pluginManagerActive = computed(() => {
+  if (route.path === '/plugins') return true
+  if (route.name !== 'PluginPage') return false
+  return pluginsStore.pageById(route.params.pluginId, route.params.pageId)?.location !== 'dock'
+})
 
 function secondaryMenuForRoute(path) {
   if (path.startsWith('/settings')) return 'settings'

@@ -3,6 +3,7 @@
 .algorithm/
 data/
 node_modules
+.npm-cache/
 dist
 release*
 build-output
@@ -17,10 +18,13 @@ build-output
 *.yml
 *.pak
 .git-rewrite
+.codex/
 public/names.json
 public/up.json
 src-tauri/target
 src-tauri/gen
 target/
-docs/assets/
-/docs
+tmp/
+/docs/
+plugin-dev/
+*.cnrp

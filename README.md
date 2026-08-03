@@ -20,7 +20,7 @@
 - [x] 小组管理功能
 - [x] 桌面端后台常驻
 - [x] 抽奖模式
-- [ ] 插件系统
+- [x] [插件系统](https://github.com/Cyrene2008/CyreneNameRoller-Plugin-Template)
 - [ ] 积分系统
 - [ ] 多平台支持
   - [x] Windows10+
@@ -59,6 +59,14 @@
 - 桃粉、Windows Fluent 与智能生成的自定义浅/深主题
 - 深色/浅色模式、中/英文切换、自动停止与多种结果强调动画
 
+**插件系统**
+- 支持在线安装、更新、卸载、启用和禁用 `.cnrp` 插件
+- 插件可贡献独立 Dock 大型页面、宿主原生 Fluent 设置页面、动画包与 Canvas/WebGL 视觉层
+- Web/Tauri 使用同一套权限化能力桥接，不支持的平台操作会明确降级
+- 名单、抽取历史、统计与公平平衡参数以只读快照提供；新玩法只能通过宿主 `draw.execute` 发起抽取
+- 抽取结果始终由宿主 CAF/安全随机逻辑决定，统计和历史只能由宿主追加，插件不能指定结果、改写或删除既有数据
+- [官方插件模板、Fluent 组件画廊与 API 文档](https://github.com/Cyrene2008/CyreneNameRoller-Plugin-Template)
+
 ## 页面展示
 
 <img width="2560" height="1440" alt="image" src="https://github.com/user-attachments/assets/4dd696bd-b5cf-4c5c-810a-e842103384f8" />
@@ -74,7 +82,7 @@
 ## 快速开始
 
 ```bash
-git clone https://github.com/Cyrene2008/CyreneNameRoller.git
+git clone https://github.com/StarCyrene/CyreneNameRoller.git
 cd CyreneNameRoller
 npm install
 npm run dev

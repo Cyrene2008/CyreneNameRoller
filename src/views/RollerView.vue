@@ -13,6 +13,7 @@
       <div
         v-for="(display, i) in nameDisplays"
         :key="i"
+        :ref="element => setNameDisplayRef(element, i)"
         class="name-display"
         :class="{ rainbow: settings.nameColorMode === 'gradient', final: display.animating, [`final-${settings.finishAnimation || 'spotlight'}`]: display.animating }"
         :style="getNameStyle(display, i)"
@@ -68,7 +69,9 @@ import { useSettingsStore } from '../stores/settings'
 import { useStatisticsStore } from '../stores/statistics'
 import { t } from '../utils/i18n'
 import { useRecordsStore } from '../stores/records'
+import { usePluginsStore } from '../plugins/store'
 import { dataBridge } from '../utils/dataBridge'
+import { consumePendingUriNavigation } from '../utils/uriNavigation'
 import {
   pickCyreneBalanced,
   pickCyreneBatch,
@@ -86,6 +89,7 @@ const namesStore = useNamesStore()
 const settingsStore = useSettingsStore()
 const statisticsStore = useStatisticsStore()
 const recordsStore = useRecordsStore()
+const pluginsStore = usePluginsStore()
 const showBanner = inject('banner')
 
 const lang = computed(() => settingsStore.settings.language)
@@ -114,8 +118,8 @@ const drawCountOptions = computed(() => [
 ])
 const genderFilterOptions = computed(() => [
   { value: 'all', label: lang.value === 'en' ? 'All' : '全部', icon: 'fluent:people-16-regular' },
-  { value: 'male', label: lang.value === 'en' ? 'Male only' : '仅男', icon: 'fluent:person-16-regular' },
-  { value: 'female', label: lang.value === 'en' ? 'Female only' : '仅女', icon: 'fluent:person-16-regular' }
+  { value: 'male', label: lang.value === 'en' ? 'Male only' : '仅男', symbol: '♂' },
+  { value: 'female', label: lang.value === 'en' ? 'Female only' : '仅女', symbol: '♀' }
 ])
 const countSettingLabel = computed(() => settings.value.groupMode
   ? (lang.value === 'en' ? 'Draw count' : '抽取次数')
@@ -137,8 +141,9 @@ const availableNames = computed(() => namesStore.currentNames.filter(person =>
 const nonWhiteListCount = computed(() => availableNames.value.filter(n => !n.isWhiteList).length)
 const maxPeopleCount = computed(() => {
   if (!settings.value.multiMode) return 1
+  if (!settings.value.groupMode) return Math.max(1, nonWhiteListCount.value)
   if (settings.value.forbidDuplicates) {
-    return Math.max(2, settings.value.groupMode ? groupPoolCount.value : nonWhiteListCount.value)
+    return Math.max(2, groupPoolCount.value)
   }
   return 9999
 })
@@ -159,6 +164,9 @@ const lastPickedNames = ref([])
 const sessionCounts = ref({})
 let intervalId = null
 let autoStopTimer = null
+let drawOperationId = ''
+let suppressAutoStopOnce = false
+let pendingUriNavigation = null
 const pendingTimers = []
 const revealed = ref([])
 const gridParams = reactive({ valid: false, font: 52, lineH: 60, cellW: 0, count: 0, positions: [], revealScale: 1 })
@@ -210,10 +218,29 @@ function getNameStyle(display, i) {
 
 function saveSetting(key, value) { settingsStore.update(key, value) }
 
+function enforceGenderAvailability() {
+  if (settings.value.groupMode || !settings.value.multiMode) return false
+  const availableCount = nonWhiteListCount.value
+  if (availableCount < 2) {
+    settingsStore.update('peopleCount', 1)
+    settingsStore.update('multiMode', false)
+    initializeDisplays(1)
+    nextTick(computeNameLayout)
+    return true
+  }
+  const currentCount = Math.max(2, settings.value.peopleCount || 2)
+  const nextCount = Math.min(currentCount, availableCount)
+  if (nextCount !== settings.value.peopleCount) settingsStore.update('peopleCount', nextCount)
+  initializeDisplays(nextCount)
+  nextTick(computeNameLayout)
+  return true
+}
+
 function onMultiModeChange(val) {
   settingsStore.update('multiMode', val)
   if (!val) initializeDisplays(1)
   else {
+    if (enforceGenderAvailability()) return
     let c = Math.max(2, Math.min(settings.value.peopleCount || 2, maxPeopleCount.value))
     if (settings.value.groupMode && settings.value.forbidDuplicates) c = Math.min(c, groupPoolCount.value)
     settingsStore.update('peopleCount', c); initializeDisplays(c)
@@ -225,9 +252,12 @@ function onDrawCountChange(value) { onMultiModeChange(value === 'multiple') }
 
 function onGroupModeChange(val) {
   settingsStore.update('groupMode', val)
-  if (settings.value.multiMode && settings.value.forbidDuplicates && (settings.value.peopleCount || 2) > groupPoolCount.value) {
-    const c = Math.max(2, groupPoolCount.value)
-    settingsStore.update('peopleCount', c); initializeDisplays(c)
+  if (settings.value.multiMode) {
+    if (!val && enforceGenderAvailability()) return
+    if (val && settings.value.forbidDuplicates && (settings.value.peopleCount || 2) > groupPoolCount.value) {
+      const c = Math.max(2, groupPoolCount.value)
+      settingsStore.update('peopleCount', c); initializeDisplays(c)
+    }
   }
   nextTick(computeNameLayout)
 }
@@ -263,7 +293,17 @@ function switchToSingleFromCount() {
   nextTick(computeNameLayout)
 }
 
-function emphasize(index) { nameDisplays[index].animating = true; setTimeout(() => { nameDisplays[index].animating = false }, 900) }
+const nameDisplayRefs = []
+function setNameDisplayRef(element, index) { nameDisplayRefs[index] = element || null }
+function emphasize(index) {
+  const run = pluginsStore.startAnimation('roller.finish', nameDisplayRefs[index])
+  if (run) {
+    nameDisplays[index].animating = false
+    return
+  }
+  nameDisplays[index].animating = true
+  setTimeout(() => { nameDisplays[index].animating = false }, 900)
+}
 
 function getDisplayName(person) {
   return settings.value.englishMode && person.en ? person.en : person.cn
@@ -288,7 +328,7 @@ function doPick(excludeList = []) {
     return pool[Math.floor(Math.random() * pool.length)]
   }
   const names = availableNames.value
-  const wl = names.filter(n => n.isWhiteList).map(n => n.cn)
+  const wl = names.filter(n => n.isWhiteList)
   const forbidDup = settings.value.multiMode && settings.value.forbidDuplicates
   const combinedCounts = { ...statisticsStore.counts }
   for (const [k, v] of Object.entries(sessionCounts.value)) {
@@ -315,8 +355,8 @@ function animationLoop() {
       nameDisplays[i].opacity = 1
       nameDisplays[i].isWhiteList = !!pick.isWhiteList
     }
-    if (pick.cn && !pick.isWhiteList) {
-      sessionCounts.value[pick.cn] = (sessionCounts.value[pick.cn] || 0) + 1
+    if (pick.id && !pick.isWhiteList) {
+      sessionCounts.value[pick.id] = (sessionCounts.value[pick.id] || 0) + 1
     }
   }
   // 只更新文字内容的位置，不重新计算网格参数（避免抖动）
@@ -352,6 +392,13 @@ function toggleRoll() {
     return
   }
   isRunning.value = true
+  drawOperationId = crypto.randomUUID?.() || `roller-${Date.now()}`
+  pluginsStore.dispatchEvent('roller:start', {
+    operationId: drawOperationId,
+    listId: namesStore.currentList.id,
+    target: settings.value.groupMode ? 'groups' : 'people',
+    count: settings.value.multiMode ? (settings.value.peopleCount || 2) : 1
+  })
   sessionCounts.value = {}
   initializeDisplays(settings.value.multiMode ? (settings.value.peopleCount || 2) : 1)
   // 动画开始前先计算好网格参数
@@ -359,14 +406,70 @@ function toggleRoll() {
     computeGridParams()
     computeNameLayout()
     animationLoop()
-    if (settings.value.autoStop) autoStopTimer = setTimeout(stopRoll, 3000)
+    if (settings.value.autoStop && !suppressAutoStopOnce) autoStopTimer = setTimeout(stopRoll, 3000)
+    suppressAutoStopOnce = false
   })
+}
+
+async function applyUriNavigation(event) {
+  const navigation = event?.detail
+  if (!navigation || navigation.route !== '/roller') return
+  consumePendingUriNavigation('/roller')
+  if (!namesStore.isLoaded) {
+    pendingUriNavigation = navigation
+    return
+  }
+  if (isRunning.value) {
+    clearTimeout(intervalId)
+    clearTimeout(autoStopTimer)
+    pendingTimers.forEach(id => clearTimeout(id))
+    pendingTimers.length = 0
+    isRunning.value = false
+  }
+  const parameters = navigation.roller || {}
+  if (typeof parameters.englishMode === 'boolean') settings.value.englishMode = parameters.englishMode
+  if (typeof parameters.groupMode === 'boolean') settings.value.groupMode = parameters.groupMode
+  if (typeof parameters.noDuplication === 'boolean') settings.value.forbidDuplicates = parameters.noDuplication
+  if (!settings.value.groupMode && parameters.sex) genderFilter.value = parameters.sex
+
+  const requestedMulti = typeof parameters.multiMode === 'boolean'
+    ? parameters.multiMode
+    : Number(parameters.count) > 1
+  settings.value.multiMode = requestedMulti
+  if (requestedMulti) {
+    const availableMaximum = maxPeopleCount.value
+    if (availableMaximum < 2) {
+      settings.value.multiMode = false
+      await settingsStore.save()
+      initializeDisplays(1)
+      await nextTick()
+      if (navigation.autoStart && !isRunning.value) {
+        suppressAutoStopOnce = true
+        toggleRoll()
+        if (!isRunning.value) suppressAutoStopOnce = false
+      }
+      return
+    }
+    const requestedCount = Math.max(2, Number(parameters.count) || settings.value.peopleCount || 2)
+    const count = Math.max(2, Math.min(requestedCount, availableMaximum))
+    settings.value.peopleCount = count
+    initializeDisplays(count)
+  } else {
+    initializeDisplays(1)
+  }
+  await settingsStore.save()
+  await nextTick()
+  if (navigation.autoStart && !isRunning.value) {
+    suppressAutoStopOnce = true
+    toggleRoll()
+    if (!isRunning.value) suppressAutoStopOnce = false
+  }
 }
 
 function finishRoll() {
   const count = settings.value.multiMode ? (settings.value.peopleCount || 2) : 1
   const names = availableNames.value
-  const wl = names.filter(n => n.isWhiteList).map(n => n.cn)
+  const wl = names.filter(n => n.isWhiteList)
   const forbidDup = settings.value.multiMode && settings.value.forbidDuplicates
   lastPickedNames.value = []
   let finalPicks = []
@@ -394,11 +497,11 @@ function finishRoll() {
       count,
       !forbidDup
     )
-    lastPickedNames.value = finalPicks.map(pick => pick.cn)
+    lastPickedNames.value = finalPicks.map(pick => pick.id || pick.cn)
   }
   const shouldRecordCounts = settings.value.recordCounts || balanceSettings.value.enabled
   if (shouldRecordCounts) {
-    statisticsStore.incrementCounts(finalPicks.filter(pick => !pick.isWhiteList).map(pick => pick.cn))
+    statisticsStore.incrementCounts(finalPicks.filter(pick => !pick.isWhiteList))
   }
   for (let i = 0; i < finalPicks.length; i++) {
     const pick = finalPicks[i]
@@ -409,6 +512,7 @@ function finishRoll() {
   const useStepStop = settings.value.multiMode && settings.value.multiStepStop
   const stagger = useStepStop ? Math.round((settings.value.stepStopInterval || 0.15) * 1000) : 0
   revealed.value = new Array(count).fill(false)
+  pluginsStore.startAnimation('global.transition', null, { variant: 'roller' })
   for (let i = 0; i < count; i++) {
     const tid = setTimeout(() => {
       revealed.value[i] = true
@@ -417,6 +521,34 @@ function finishRoll() {
       nameDisplays[i].opacity = 1
       nameDisplays[i].isWhiteList = !!pick.isWhiteList
       emphasize(i)
+      const result = {
+        id: pick.id || '',
+        name: pick.cn || '',
+        englishName: pick.en || '',
+        isGroup: !!pick.isGroup,
+        isWhiteList: !!pick.isWhiteList
+      }
+      pluginsStore.dispatchEvent('roller:item-result', {
+        operationId: drawOperationId,
+        index: i,
+        count: finalPicks.length,
+        listId: namesStore.currentList.id,
+        result
+      })
+      if (i === finalPicks.length - 1) {
+        pluginsStore.dispatchEvent('roller:result', {
+          operationId: drawOperationId,
+          listId: namesStore.currentList.id,
+          target: settings.value.groupMode ? 'groups' : 'people',
+          results: finalPicks.map(item => ({
+            id: item.id || '',
+            name: item.cn || '',
+            englishName: item.en || '',
+            isGroup: !!item.isGroup,
+            isWhiteList: !!item.isWhiteList
+          }))
+        })
+      }
     }, i * stagger)
     pendingTimers.push(tid)
   }
@@ -685,12 +817,26 @@ function onResize() { computeGridParams(); computeNameLayout() }
 let layoutObserver = null
 
 onMounted(() => {
+  window.addEventListener('cyrene-uri-navigation', applyUriNavigation)
+  const initialNavigation = consumePendingUriNavigation('/roller')
+  if (initialNavigation) applyUriNavigation({ detail: initialNavigation })
   if (namesStore.isLoaded) initializeDisplays(settings.value.multiMode ? (settings.value.peopleCount || 2) : 1)
-  watch(() => namesStore.isLoaded, (loaded) => { if (loaded) initializeDisplays(settings.value.multiMode ? (settings.value.peopleCount || 2) : 1) })
-  watch(() => namesStore.currentListId, () => nextTick(() => { computeGridParams(); computeNameLayout() }))
+  watch(() => namesStore.isLoaded, (loaded) => {
+    if (!loaded) return
+    initializeDisplays(settings.value.multiMode ? (settings.value.peopleCount || 2) : 1)
+    if (pendingUriNavigation) {
+      const navigation = pendingUriNavigation
+      pendingUriNavigation = null
+      applyUriNavigation({ detail: navigation })
+    }
+  })
+  watch(() => namesStore.currentListId, () => {
+    if (!settings.value.groupMode && enforceGenderAvailability()) return
+    initializeDisplays(settings.value.multiMode ? (settings.value.peopleCount || 2) : 1)
+  })
   watch(() => settings.value.englishMode, () => nextTick(() => { computeGridParams(); computeNameLayout() }))
   watch(genderFilter, () => {
-    if (!settings.value.groupMode) initializeDisplays(settings.value.multiMode ? (settings.value.peopleCount || 2) : 1)
+    if (!settings.value.groupMode && !enforceGenderAvailability()) initializeDisplays(1)
   })
   watch(() => [settings.value.multiMode, settings.value.groupMode, settings.value.forbidDuplicates, settings.value.peopleCount, settings.value.nameFontSize], () => nextTick(() => { computeGridParams(); computeNameLayout() }))
   layoutObserver = new ResizeObserver(onResize)
@@ -698,7 +844,7 @@ onMounted(() => {
   if (controlsCenterRef.value) layoutObserver.observe(controlsCenterRef.value)
   window.addEventListener('resize', onResize)
 })
-onBeforeUnmount(() => { if (intervalId) clearTimeout(intervalId); clearTimeout(autoStopTimer); pendingTimers.forEach(id => clearTimeout(id)); layoutObserver?.disconnect(); window.removeEventListener('resize', onResize) })
+onBeforeUnmount(() => { if (intervalId) clearTimeout(intervalId); clearTimeout(autoStopTimer); pendingTimers.forEach(id => clearTimeout(id)); layoutObserver?.disconnect(); window.removeEventListener('resize', onResize); window.removeEventListener('cyrene-uri-navigation', applyUriNavigation) })
 </script>
 
 <style scoped>
@@ -718,7 +864,7 @@ onBeforeUnmount(() => { if (intervalId) clearTimeout(intervalId); clearTimeout(a
   pointer-events: none;
 }
 
-.name-display { position: absolute; white-space: nowrap; overflow: hidden; text-overflow: clip; font-family: var(--font-display); font-weight: 700; color: var(--text-primary); line-height: 1.05; letter-spacing: 0.5px; transition: left 0.3s ease, top 0.3s ease, width 0.3s ease, font-size 0.3s ease, opacity 0.3s ease; text-shadow: 0 4px 20px rgba(234, 94, 193, 0.15); z-index: 5; }
+.name-display { position: absolute; white-space: nowrap; overflow: visible; font-family: var(--font-display); font-weight: 700; color: var(--text-primary); line-height: 1.05; letter-spacing: 0.5px; transition: left 0.3s ease, top 0.3s ease, width 0.3s ease, font-size 0.3s ease, opacity 0.3s ease; text-shadow: 0 4px 20px rgba(234, 94, 193, 0.15); z-index: 5; }
 .name-display::before { content: ''; position: absolute; inset: -4px; background: var(--accent); border-radius: var(--radius-sm); z-index: -1; opacity: 0; transition: opacity 0.3s ease; }
 .name-display.rainbow {
   background: linear-gradient(90deg, #ff6ad9, #72afec, #ff6ad9, #72afec, #ff6ad9, #72afec, #ff6ad9, #72afec, #ff6ad9);

@@ -1,9 +1,11 @@
 <template>
-  <div class="app-layout" :class="[settingsStore.settings.colorTheme || 'peach', { dark: settingsStore.darkMode, 'perf-no-blur': !settingsStore.settings.perfBlur, 'perf-no-shadow': !settingsStore.settings.perfShadows, 'perf-no-anim': !settingsStore.settings.perfAnimations }]" :style="themeStyle" @contextmenu.prevent>
-    <TitleBar />
-    <div class="app-body">
+  <div class="app-layout" :class="[themeClass, { dark: settingsStore.darkMode, 'perf-no-blur': !settingsStore.settings.perfBlur, 'perf-no-shadow': !settingsStore.settings.perfShadows, 'perf-no-anim': !settingsStore.settings.perfAnimations }]" :style="themeStyle" @contextmenu.prevent>
+    <PluginVisualLayers />
+    <div ref="globalAnimationSurfaceRef" class="plugin-global-animation-surface" aria-hidden="true" />
+    <TitleBar class="app-foreground-layer" />
+    <div class="app-body app-foreground-layer">
       <NavigationDock />
-      <main class="app-content">
+      <main ref="appContentRef" class="app-content">
         <router-view v-slot="{ Component, route }">
           <Transition :name="transitionName" mode="out-in">
             <component :is="Component" :key="route.matched[0]?.path || route.path" />
@@ -22,7 +24,7 @@
         <div class="file-drop-target">
           <FluentIcon icon="arrow-upload-20-regular" :width="28" />
           <strong>{{ lang === 'en' ? 'Drop to import' : '松开以导入文件' }}</strong>
-          <span>CSV / XLSX / JSON / CYRENE</span>
+          <span>CSV / XLSX / JSON / CYRENE / CNRP</span>
         </div>
       </div>
     </Transition>
@@ -114,6 +116,7 @@
 <script setup>
 import { onMounted, onBeforeUnmount, watch, provide, ref, computed, nextTick, reactive } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import { gsap } from 'gsap'
 import TitleBar from './TitleBar.vue'
 import NavigationDock from './NavigationDock.vue'
 import FluentToast from '../FluentToast.vue'
@@ -122,11 +125,13 @@ import FluentInput from '../FluentInput.vue'
 import FluentButton from '../FluentButton.vue'
 import FullscreenToggle from '../FullscreenToggle.vue'
 import FluentIcon from '../FluentIcon.vue'
+import PluginVisualLayers from '../plugins/PluginVisualLayers.vue'
 import { useSettingsStore } from '../../stores/settings'
 import { useNamesStore } from '../../stores/names'
 import { useStatisticsStore } from '../../stores/statistics'
 import { useRecordsStore } from '../../stores/records'
 import { usePrizesStore } from '../../stores/prizes'
+import { usePluginsStore } from '../../plugins/store'
 import { APP_VERSION, APP_VERSION_PREFIX, APP_BUILD, APP_PLATFORM, APP_NAME } from '../../utils/version'
 import { updateState, checkForUpdates, downloadUpdate } from '../../utils/updater'
 import { isTauri, tauriAPI } from '../../utils/tauriAPI'
@@ -140,22 +145,62 @@ const namesStore = useNamesStore()
 const statisticsStore = useStatisticsStore()
 const recordsStore = useRecordsStore()
 const prizesStore = usePrizesStore()
+const pluginsStore = usePluginsStore()
+const globalAnimationSurfaceRef = ref(null)
 
 const lang = computed(() => settingsStore.settings.language)
 const systemAccent = ref(DEFAULT_ACCENT)
+const reducedMotionQuery = typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+  ? window.matchMedia('(prefers-reduced-motion: reduce)')
+  : null
+const reducedMotion = ref(!!reducedMotionQuery?.matches)
 let removeAccentListener
+let removeReducedMotionListener
+const selectedAppearance = computed(() => pluginsStore.resolveAppearance(settingsStore.settings.colorTheme, settingsStore.darkMode))
+const themeClass = computed(() => ['peach', 'fluent', 'custom'].includes(settingsStore.settings.colorTheme) ? settingsStore.settings.colorTheme : 'plugin-appearance')
+const resolvedThemeTokens = computed(() => {
+  const settings = settingsStore.settings
+  const appearance = selectedAppearance.value
+  if (appearance) {
+    const accent = appearance.tokens['--accent'] || appearance.light?.['--accent'] || appearance.dark?.['--accent'] || DEFAULT_ACCENT
+    return {
+      ...createThemeVariables(accent, settingsStore.darkMode, appearance.base === 'fluent'),
+      ...appearance.tokens
+    }
+  }
+  if (settings.colorTheme === 'custom') return createThemeVariables(settings.customThemeColor, settingsStore.darkMode, false)
+  if (settings.colorTheme === 'fluent') return createThemeVariables(systemAccent.value, settingsStore.darkMode, true)
+  return {}
+})
 const themeStyle = computed(() => {
   const settings = settingsStore.settings
-  const style = { fontSize: (14 * (settings.uiScale || 100) / 100) + 'px' }
-  if (settings.colorTheme === 'custom') {
-    return { ...style, ...createThemeVariables(settings.customThemeColor, settingsStore.darkMode, false) }
-  }
-  if (settings.colorTheme === 'fluent') {
-    return { ...style, ...createThemeVariables(systemAccent.value, settingsStore.darkMode, true) }
-  }
-  return style
+  return { fontSize: (14 * (settings.uiScale || 100) / 100) + 'px', ...resolvedThemeTokens.value }
 })
 const isDesktopApp = computed(() => isTauri())
+
+function pluginThemePayload() {
+  const theme = settingsStore.settings.colorTheme || 'peach'
+  const tokens = Object.fromEntries(Object.entries(resolvedThemeTokens.value).filter(([key]) => key.startsWith('--')))
+  const accent = normalizeHex(tokens['--accent'] || (theme === 'custom' ? settingsStore.settings.customThemeColor : theme === 'fluent' ? systemAccent.value : DEFAULT_ACCENT), DEFAULT_ACCENT)
+  return {
+    theme,
+    dark: !!settingsStore.darkMode,
+    accent,
+    tokens,
+    appearance: selectedAppearance.value ? {
+      pluginId: selectedAppearance.value.pluginId,
+      id: selectedAppearance.value.id,
+      title: selectedAppearance.value.title
+    } : null,
+    perfAnimations: settingsStore.settings.perfAnimations !== false,
+    reducedMotion: reducedMotion.value
+  }
+}
+
+function dispatchPluginTheme() {
+  Promise.resolve(pluginsStore.dispatchEvent('app:theme-changed', pluginThemePayload()))
+    .catch(error => console.warn('[plugins] theme lifecycle dispatch failed', error))
+}
 
 const dragActive = ref(false)
 const showDropPassword = ref(false)
@@ -181,6 +226,14 @@ function claimDroppedFile(fingerprint) {
 
 const globalToast = ref(null)
 provide('toast', globalToast)
+
+function onPluginMessage(event) {
+  pluginsStore.handlePluginMessage(event)
+}
+
+function onBeforeWindowUnload() {
+  pluginsStore.markCleanShutdown()
+}
 
 // Banner notification system
 const banners = ref([])
@@ -323,6 +376,24 @@ async function importProtectedData() {
 }
 
 async function routeSmartImport(fileName, bytes) {
+  if (/\.cnrp$/i.test(String(fileName || ''))) {
+    const inspected = await pluginsStore.inspectPackage(bytes)
+    const permissions = inspected.manifest.permissions?.length ? inspected.manifest.permissions.join('\n• ') : (lang.value === 'en' ? 'None' : '无')
+    const dependencies = inspected.manifest.dependencies?.length
+      ? inspected.manifest.dependencies.map(item => `${item.id} ${item.range || item.version || '*'}`).join('\n• ')
+      : (lang.value === 'en' ? 'None' : '无')
+    const confirmed = window.confirm(lang.value === 'en'
+      ? `Install ${inspected.manifest.name} v${inspected.manifest.version}?\n\nPermissions:\n• ${permissions}\n\nDependencies:\n• ${dependencies}`
+      : `安装「${inspected.manifest.name}」v${inspected.manifest.version}？\n\n所需权限：\n• ${permissions}\n\n依赖插件：\n• ${dependencies}`)
+    if (!confirmed) return
+    const installed = await pluginsStore.installPackage(bytes, { origin: 'local' })
+    await router.push('/plugins')
+    showBanner({
+      message: `${lang.value === 'en' ? 'Plugin installed' : '插件已安装'}：${installed.manifest.name}`,
+      icon: 'plug-connected-16-regular', type: 'success', duration: 6000
+    })
+    return
+  }
   const { parseSmartFile } = await import('../../utils/smartImport')
   const parsed = parseSmartFile(fileName, bytes)
   if (parsed.kind === 'data') {
@@ -422,30 +493,287 @@ async function setupFileDrop() {
   }
 }
 
-const transitionName = ref('page-forward')
+const appContentRef = ref(null)
+const routeStageRef = ref(null)
+let navigationCycle = null
+let activeEnterRun = null
+let activeRouteGhost = null
+let navigationSequence = 0
+const MAX_PAGE_TRANSITION_MS = 5200
 
-router.beforeEach((to, from) => {
-  const toIdx = Number(to.meta.order ?? 0)
-  const fromIdx = Number(from.meta.order ?? 0)
-  transitionName.value = toIdx >= fromIdx ? 'page-forward' : 'page-back'
+function pageVariant(phase, direction) { return direction + '.' + phase }
+function pageAnimationsEnabled() {
+  // The application owns this switch. Do not silently override it with the
+  // browser/Windows reduced-motion preference; users can disable motion here.
+  return settingsStore.settings.perfAnimations !== false
+}
+function isUsablePageTransitionRun(run) {
+  if (!run || typeof run !== 'object') return false
+  const duration = Number(run.totalDurationMs)
+  if (!Number.isFinite(duration) || duration <= 0 || !run.finished) return false
+  return true
+}
+function pageTransitionDeadline(run, phase) {
+  let duration = Number(run?.totalDurationMs || 0)
+  if (!Number.isFinite(duration) || duration <= 0) duration = phase === 'leave' ? 360 : 520
+  return Math.min(MAX_PAGE_TRANSITION_MS, Math.max(240, Math.ceil(duration) + 300))
+}
+function runDefaultGsapPageTransition(stage, ghost, direction) {
+  let settled = false
+  let settleRun
+  const finished = new Promise(resolve => { settleRun = resolve })
+  const settle = () => {
+    if (settled) return
+    settled = true
+    try { gsap.set(stage, { clearProps: 'transform,clipPath,opacity,filter,boxShadow' }) } catch {}
+    try { if (ghost) gsap.set(ghost, { clearProps: 'transform,clipPath,opacity,filter,boxShadow' }) } catch {}
+    settleRun()
+  }
+  const sign = direction === 'back' ? -1 : 1
+  const timeline = gsap.timeline({
+    defaults: { overwrite: 'auto' },
+    onComplete: settle,
+    onInterrupt: settle
+  })
+  // This is the GSAP equivalent of the original legacy Vue
+  // transition: leave the old page completely, then bring the new page in.
+  // Keeping the phases sequential is what makes the old effect feel calm and
+  // readable instead of producing a layered/blurred double exposure.
+  const leaveDuration = 0.28
+  const enterDuration = 0.4
+  gsap.set(stage, {
+    x: sign * 40,
+    scale: 0.97,
+    opacity: 0,
+    filter: 'blur(4px)',
+    transformOrigin: '50% 50%'
+  })
+  if (ghost) {
+    gsap.set(ghost, {
+      x: 0,
+      scale: 1,
+      opacity: 1,
+      filter: 'blur(0px)',
+      transformOrigin: '50% 50%'
+    })
+    timeline.to(ghost, {
+      opacity: 0,
+      x: -sign * 24,
+      scale: 0.98,
+      filter: 'blur(2px)',
+      duration: leaveDuration,
+      ease: 'power4.in'
+    }, 0)
+    timeline.to(stage, {
+      opacity: 1,
+      x: 0,
+      scale: 1,
+      filter: 'blur(0px)',
+      duration: enterDuration,
+      ease: 'power4.out'
+    }, leaveDuration)
+  } else {
+    timeline.to(stage, {
+      opacity: 1,
+      x: 0,
+      scale: 1,
+      filter: 'blur(0px)',
+      duration: enterDuration,
+      ease: 'power4.out'
+    }, 0)
+  }
+  return {
+    animation: timeline,
+    totalDurationMs: Math.ceil(timeline.totalDuration() * 1000),
+    finished,
+    cancel() { try { timeline.kill() } finally { settle() } }
+  }
+}
+function startPageVisual(element, phase, direction) {
+  if (!element || !pageAnimationsEnabled()) return null
+  const variant = pageVariant(phase, direction)
+  try {
+    return pluginsStore.startAnimation('page.transition', element, { variant })
+  } catch (error) {
+    console.warn('[navigation] GSAP page transition failed', error)
+    return null
+  }
+}
+
+function settleVisualRun(run, phase, cleanup) {
+  if (!run) {
+    cleanup?.()
+    return () => {}
+  }
+  let settled = false
+  const complete = () => {
+    if (settled) return
+    settled = true
+    clearTimeout(watchdog)
+    cleanup?.()
+  }
+  const watchdog = setTimeout(() => {
+    try { run.cancel?.() } catch {}
+    complete()
+  }, pageTransitionDeadline(run, phase))
+  Promise.resolve(run.finished).catch(() => undefined).then(complete)
+  return () => {
+    try { run.cancel?.() } catch {}
+    complete()
+  }
+}
+
+function removeRouteGhost() {
+  activeRouteGhost?.cancel?.()
+  activeRouteGhost?.element?.remove?.()
+  activeRouteGhost = null
+}
+
+function createRouteGhost(direction) {
+  removeRouteGhost()
+  const source = routeStageRef.value
+  const container = appContentRef.value
+  if (!(source instanceof Element) || !(container instanceof Element)) return null
+
+  const ghost = source.cloneNode(true)
+  ghost.classList.add('route-page-ghost')
+  ghost.setAttribute('aria-hidden', 'true')
+  ghost.setAttribute('inert', '')
+  ghost.style.background = 'var(--bg-base)'
+  for (const node of ghost.querySelectorAll('[id]')) node.removeAttribute('id')
+  container.appendChild(ghost)
+  const record = { element: ghost, direction, cancel: null }
+  record.cancel = () => {
+    ghost.remove()
+    if (activeRouteGhost === record) activeRouteGhost = null
+  }
+  activeRouteGhost = record
+  return record
+}
+
+function startRouteTransition(cycle) {
+  activeEnterRun?.cancel?.()
+  const element = routeStageRef.value
+  if (!(element instanceof Element) || cycle !== navigationCycle) return
+  const ghost = cycle.ghost
+  if (!pageAnimationsEnabled()) {
+    ghost?.cancel?.()
+    return
+  }
+
+  // A selected page-transition preset is the complete transition. The host
+  // must not add its own tween or a global overlay on top of it.
+  if (pluginsStore.hasAnimation('page.transition')) {
+    const enter = startPageVisual(element, 'enter', cycle.direction)
+    const leave = ghost ? startPageVisual(ghost.element, 'leave', cycle.direction) : null
+    if (isUsablePageTransitionRun(enter) && (!ghost || isUsablePageTransitionRun(leave))) {
+      if (ghost) {
+        ghost.cancel = settleVisualRun(leave, 'leave', () => {
+          ghost.element.remove()
+          if (activeRouteGhost === ghost) activeRouteGhost = null
+        })
+      }
+      const record = { run: enter, cancel: null }
+      record.cancel = settleVisualRun(enter, 'enter', () => {
+        if (activeEnterRun === record) activeEnterRun = null
+      })
+      activeEnterRun = record
+      return
+    }
+    try { enter?.cancel?.() } catch {}
+    try { leave?.cancel?.() } catch {}
+  }
+
+  const run = runDefaultGsapPageTransition(element, ghost?.element, cycle.direction)
+  if (ghost) {
+    ghost.cancel = settleVisualRun(run, 'leave', () => {
+      ghost.element.remove()
+      if (activeRouteGhost === ghost) activeRouteGhost = null
+    })
+  }
+  const record = { run, cancel: null }
+  record.cancel = settleVisualRun(run, 'enter', () => {
+    if (activeEnterRun === record) activeEnterRun = null
+  })
+  activeEnterRun = record
+}
+
+// Keep the route hook name stable for diagnostics and existing regression
+// checks; page animations still never own Vue's route lifecycle.
+function startRouteEnter(cycle) { startRouteTransition(cycle) }
+
+function routeAnimationOrder(route) {
+  if (route.name === 'PluginPage') {
+    const page = pluginsStore.pageById(route.params.pluginId, route.params.pageId)
+    const order = Number(page?.order ?? 500) / 1000
+    return page?.location === 'dock' ? 550 + order : 781 + order
+  }
+  return Number(route.meta.order ?? 0)
+}
+
+const removeBeforeRouteGuard = router.beforeEach((to, from) => {
+  const toIdx = routeAnimationOrder(to)
+  const fromIdx = routeAnimationOrder(from)
+  const direction = toIdx >= fromIdx ? 'forward' : 'back'
+  activeEnterRun?.cancel?.()
+  const cycle = { id: ++navigationSequence, direction, ghost: null }
+  if (from.name) cycle.ghost = createRouteGhost(direction)
+  navigationCycle = cycle
 })
 
 // Scroll to top on route change.
-router.afterEach((to, from) => {
-  if (to.path.startsWith(from.path + '/')) return
+const removeAfterRouteHook = router.afterEach((to, from, failure) => {
+  const cycle = navigationCycle
+  if (failure) {
+    cycle?.ghost?.cancel?.()
+    return
+  }
+  pluginsStore.dispatchEvent('app:route-changed', {
+    from: { path: from.path, name: String(from.name || '') },
+    to: { path: to.path, name: String(to.name || '') }
+  })
   nextTick(() => {
-    const content = document.querySelector('.app-content')
-    if (content) content.scrollTop = 0
+    // Wait for Vue to commit and paint the new route stage before starting
+    // GSAP/WAAPI. Starting in the same microtask can capture a zero-sized
+    // stage during async route resolution, which makes the transition appear
+    // to be a hard cut.
+    if (cycle) requestAnimationFrame(() => requestAnimationFrame(() => startRouteEnter(cycle)))
+    if (!to.path.startsWith(from.path + '/')) {
+      const content = document.querySelector('.app-content')
+      if (content) content.scrollTop = 0
+    }
   })
 })
 
 document.title = APP_NAME
 
 onMounted(async () => {
+  if (reducedMotionQuery) {
+    const onReducedMotionChange = event => { reducedMotion.value = !!event.matches }
+    if (typeof reducedMotionQuery.addEventListener === 'function') {
+      reducedMotionQuery.addEventListener('change', onReducedMotionChange)
+      removeReducedMotionListener = () => reducedMotionQuery.removeEventListener('change', onReducedMotionChange)
+    } else if (typeof reducedMotionQuery.addListener === 'function') {
+      reducedMotionQuery.addListener(onReducedMotionChange)
+      removeReducedMotionListener = () => reducedMotionQuery.removeListener(onReducedMotionChange)
+    }
+  }
   await namesStore.initialize()
   await statisticsStore.initialize()
   await recordsStore.initialize()
   await prizesStore.initialize()
+  await pluginsStore.initialize()
+  pluginsStore.setBannerHandler(showBanner)
+  try {
+    await pluginsStore.activateEnabled()
+  } catch (error) {
+    showBanner({ message: `插件已进入纯净模式：${error.message || error}`, icon: 'shield-error-24-regular', type: 'warning', duration: 10000, dismissible: true })
+  }
+  pluginsStore.registerAnimationSurface('global.transition', globalAnimationSurfaceRef.value)
+  pluginsStore.dispatchEvent('app:ready', { route: currentRoute.path, version: APP_VERSION, platform: APP_PLATFORM })
+  window.addEventListener('message', onPluginMessage)
+  window.addEventListener('beforeunload', onBeforeWindowUnload)
+  window.addEventListener('resize', onPluginResize)
   await setupFileDrop()
   if (isTauri()) {
     systemAccent.value = normalizeHex(await tauriAPI.systemAccent(), DEFAULT_ACCENT)
@@ -457,9 +785,54 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
+  activeEnterRun?.cancel?.()
+  removeRouteGhost()
+  removeBeforeRouteGuard()
+  removeAfterRouteHook()
+  pluginsStore.markCleanShutdown()
+  pluginsStore.unregisterAnimationSurface('global.transition', globalAnimationSurfaceRef.value)
+  cancelAnimationFrame(pluginResizeFrame)
   removeAccentListener?.()
+  removeReducedMotionListener?.()
   removeDropListener?.()
+  window.removeEventListener('message', onPluginMessage)
+  window.removeEventListener('beforeunload', onBeforeWindowUnload)
+  window.removeEventListener('resize', onPluginResize)
 })
+
+let pluginResizeFrame = 0
+function onPluginResize() {
+  cancelAnimationFrame(pluginResizeFrame)
+  pluginResizeFrame = requestAnimationFrame(() => {
+    pluginsStore.dispatchEvent('app:resize', { width: window.innerWidth, height: window.innerHeight, dpr: window.devicePixelRatio || 1 })
+  })
+}
+
+watch(
+  () => [
+    settingsStore.settings.colorTheme,
+    settingsStore.darkMode,
+    settingsStore.settings.customThemeColor,
+    settingsStore.settings.perfAnimations,
+    systemAccent.value,
+    reducedMotion.value,
+    selectedAppearance.value
+  ],
+  dispatchPluginTheme,
+  { deep: true, immediate: true }
+)
+
+watch(
+  () => [pluginsStore.initialized, settingsStore.settings.colorTheme, pluginsStore.contributedAppearancePacks.map(pack => pack.value).join('|')],
+  ([ready, value]) => {
+    if (!ready || !String(value || '').startsWith('plugin-appearance::') || pluginsStore.appearanceByValue(value)) return
+    settingsStore.update('colorTheme', 'peach')
+    showBanner({
+      message: lang.value === 'en' ? 'The selected plugin appearance is unavailable. Peach has been restored.' : '所选插件外观已不可用，已恢复桃粉主题。',
+      icon: 'paint-brush-16-regular', type: 'warning', duration: 6000, dismissible: true
+    })
+  }
+)
 
 watch(() => settingsStore.settings.uiScale, (val) => {
   document.documentElement.style.setProperty('--ui-scale', (val || 100) / 100 * 1.25)
@@ -494,19 +867,60 @@ watch(() => settingsStore.settings.fontFamily, (val) => {
   width: calc(100vw / var(--ui-scale, 1));
   height: calc(100vh / var(--ui-scale, 1));
 }
+.plugin-global-animation-surface {
+  position: absolute;
+  inset: var(--titlebar-height, 40px) 0 0 var(--dock-width);
+  z-index: 2;
+  pointer-events: none;
+  opacity: 0;
+  overflow: hidden;
+  background: transparent;
+}
+.app-foreground-layer { position: relative; z-index: 1; }
 
 .app-body {
   flex: 1;
   display: flex;
   overflow: hidden;
+  min-height: 0;
 }
 
 .app-content {
   flex: 1;
+  height: 100%;
+  min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
   background: var(--bg-base);
   position: relative;
+}
+
+.route-page-stage {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  min-height: 100%;
+  isolation: isolate;
+  backface-visibility: hidden;
+  transform-style: preserve-3d;
+  will-change: transform, clip-path, filter;
+}
+
+.route-page-ghost {
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: 2;
+  width: 100%;
+  min-height: 100%;
+  overflow: hidden;
+  pointer-events: none;
+  user-select: none;
+  contain: paint;
+  backface-visibility: hidden;
+  transform-style: preserve-3d;
+  will-change: transform, clip-path, filter, box-shadow;
+  background: var(--bg-base);
 }
 
 .version-badge {
@@ -762,6 +1176,8 @@ watch(() => settingsStore.settings.fontFamily, (val) => {
     max-height: 0;
   }
 }
+
+/* Page transitions */
 
 @media (max-width: 768px) {
   .app-body { flex-direction: column; }

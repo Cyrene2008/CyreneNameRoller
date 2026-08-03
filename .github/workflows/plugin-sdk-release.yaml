@@ -1,0 +1,72 @@
+name: Publish Plugin SDK Package
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish_package:
+        description: Publish @starcyrene/cyrene-name-roller to GitHub Packages
+        required: true
+        type: boolean
+        default: true
+  push:
+    tags:
+      - 'plugin-sdk-v*'
+
+permissions:
+  contents: write
+  packages: write
+  id-token: write
+
+jobs:
+  build-plugin-sdk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          registry-url: https://npm.pkg.github.com
+          scope: '@starcyrene'
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+      - run: npm run plugin:sdk:pack
+      - name: Publish SDK to GitHub Packages
+        if: >-
+          (github.event_name == 'workflow_dispatch' && inputs.publish_package) ||
+          (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/plugin-sdk-v'))
+        working-directory: packages/cyrene-name-roller
+        env:
+          NODE_AUTH_TOKEN: ${{ github.token }}
+        run: npm publish --registry=https://npm.pkg.github.com --access public --provenance=false
+      - name: Publish SDK to npmjs
+        working-directory: packages/cyrene-name-roller
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -z "$NODE_AUTH_TOKEN" ]; then
+            echo "NPM_TOKEN is not configured. Add a publish token for registry.npmjs.org before running this workflow." >&2
+            exit 1
+          fi
+          npm config set @starcyrene:registry https://registry.npmjs.org
+          npm config set //registry.npmjs.org/:_authToken "$NODE_AUTH_TOKEN"
+          npm publish --registry=https://registry.npmjs.org --access public --provenance=false
+      - name: Build example sound plugin
+        env:
+          CNRP_PUBLISHER_PRIVATE_KEY: ${{ secrets.CNRP_PUBLISHER_PRIVATE_KEY }}
+        run: |
+          node packages/cyrene-name-roller/bin/cnrp.mjs create build-output/sound-effects --template sound-effects
+          if [ -n "$CNRP_PUBLISHER_PRIVATE_KEY" ]; then
+            printf '%s' "$CNRP_PUBLISHER_PRIVATE_KEY" > build-output/cnrp-publisher.pem
+            node packages/cyrene-name-roller/bin/cnrp.mjs pack build-output/sound-effects --out build-output/plugin-sdk/sound-effects-1.0.0.cnrp --private-key build-output/cnrp-publisher.pem
+            rm -f build-output/cnrp-publisher.pem
+          else
+            node packages/cyrene-name-roller/bin/cnrp.mjs pack build-output/sound-effects --out build-output/plugin-sdk/sound-effects-1.0.0.cnrp
+          fi
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cyrene-name-roller-plugin-sdk
+          path: build-output/plugin-sdk/*

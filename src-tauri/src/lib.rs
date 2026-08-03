@@ -7,7 +7,7 @@ use std::fs;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{Ipv4Addr, SocketAddrV4, TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -24,7 +24,7 @@ use windows_sys::Win32::UI::Shell::{IsUserAnAdmin, ShellExecuteW};
 use windows_sys::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
 
 const UPDATE_PROXY_BASE: &str = "https://gh.xn--8hvv1o.cn/";
-const UPDATE_URL_PREFIX: &str = "https://github.com/Cyrene2008/CyreneNameRoller/releases/download/";
+const UPDATE_URL_PREFIX: &str = "https://github.com/StarCyrene/CyreneNameRoller/releases/download/";
 const MIN_INSTALLER_SIZE: usize = 1024 * 1024;
 const DATA_MAGIC: &[u8] = b"CYRENE1\0";
 const DATA_NONCE_LENGTH: usize = 12;
@@ -50,6 +50,9 @@ const INSTANCE_MESSAGE: &[u8] = b"CYRENE_SHOW_MAIN_V1\n";
 const INSTANCE_ACK: &[u8] = b"CYRENE_SHOW_ACK_V1\n";
 const INSTANCE_REPLACE_MESSAGE: &[u8] = b"CYRENE_REPLACE_INSTANCE_V1\n";
 const INSTANCE_REPLACE_ACK: &[u8] = b"CYRENE_REPLACE_ACK_V1\n";
+const INSTANCE_URI_PREFIX: &str = "CYRENE_OPEN_URI_V1 ";
+const INSTANCE_URI_ACK: &[u8] = b"CYRENE_OPEN_URI_ACK_V1\n";
+const URI_SCHEME: &str = "cyrenenr";
 #[cfg(target_os = "windows")]
 const CREATE_NO_WINDOW: u32 = 0x08000000;
 
@@ -112,11 +115,38 @@ fn notify_existing_instance() -> bool {
     notify_instance(INSTANCE_MESSAGE, INSTANCE_ACK)
 }
 
+fn is_cyrene_uri(value: &str) -> bool {
+    value.get(..URI_SCHEME.len()).is_some_and(|scheme| {
+        scheme.eq_ignore_ascii_case(URI_SCHEME)
+            && value
+                .get(URI_SCHEME.len()..URI_SCHEME.len() + 3)
+                .is_some_and(|separator| separator == "://")
+    })
+}
+
+fn launch_uri_from_arguments(arguments: &[String]) -> Option<String> {
+    arguments
+        .iter()
+        .find(|argument| is_cyrene_uri(argument))
+        .cloned()
+}
+
+fn notify_existing_instance_with_uri(uri: &str) -> bool {
+    if !is_cyrene_uri(uri) || uri.contains(['\r', '\n']) {
+        return false;
+    }
+    let message = format!("{}{}\n", INSTANCE_URI_PREFIX, uri);
+    notify_instance(message.as_bytes(), INSTANCE_URI_ACK)
+}
+
 fn request_existing_instance_exit() -> bool {
     notify_instance(INSTANCE_REPLACE_MESSAGE, INSTANCE_REPLACE_ACK)
 }
 
-fn acquire_instance_listener(wait_for_replaced_instance: bool) -> TcpListener {
+fn acquire_instance_listener(
+    wait_for_replaced_instance: bool,
+    launch_uri: Option<&str>,
+) -> TcpListener {
     let deadline = Instant::now()
         + if wait_for_replaced_instance {
             Duration::from_secs(12)
@@ -127,11 +157,17 @@ fn acquire_instance_listener(wait_for_replaced_instance: bool) -> TcpListener {
         match TcpListener::bind(instance_address()) {
             Ok(listener) => return listener,
             Err(error) => {
-                if !wait_for_replaced_instance && notify_existing_instance() {
+                let notified = launch_uri
+                    .map(notify_existing_instance_with_uri)
+                    .unwrap_or_else(notify_existing_instance);
+                if !wait_for_replaced_instance && notified {
                     std::process::exit(0);
                 }
                 if Instant::now() >= deadline {
-                    if notify_existing_instance() {
+                    let notified = launch_uri
+                        .map(notify_existing_instance_with_uri)
+                        .unwrap_or_else(notify_existing_instance);
+                    if notified {
                         std::process::exit(0);
                     }
                     eprintln!("[single-instance] 无法绑定本机 IPC：{}", error);
@@ -156,20 +192,23 @@ fn start_instance_listener(listener: TcpListener, app: tauri::AppHandle) {
             if read_result.is_err() {
                 continue;
             }
-            match message.as_bytes() {
-                INSTANCE_MESSAGE => {
-                    let _ = stream.write_all(INSTANCE_ACK);
-                    let _ = request_reveal_main_window(&app);
-                }
-                INSTANCE_REPLACE_MESSAGE => {
-                    let _ = stream.write_all(INSTANCE_REPLACE_ACK);
-                    let exit_handle = app.clone();
-                    std::thread::spawn(move || {
-                        std::thread::sleep(Duration::from_millis(100));
-                        exit_handle.exit(0);
-                    });
-                }
-                _ => {}
+            if message.as_bytes() == INSTANCE_MESSAGE {
+                let _ = stream.write_all(INSTANCE_ACK);
+                let _ = request_reveal_main_window(&app);
+            } else if message.as_bytes() == INSTANCE_REPLACE_MESSAGE {
+                let _ = stream.write_all(INSTANCE_REPLACE_ACK);
+                let exit_handle = app.clone();
+                std::thread::spawn(move || {
+                    std::thread::sleep(Duration::from_millis(100));
+                    exit_handle.exit(0);
+                });
+            } else if let Some(uri) = message
+                .trim_end_matches(['\r', '\n'])
+                .strip_prefix(INSTANCE_URI_PREFIX)
+                .filter(|uri| is_cyrene_uri(uri))
+            {
+                let _ = stream.write_all(INSTANCE_URI_ACK);
+                let _ = request_open_uri(&app, uri.to_string());
             }
         }
     });
@@ -972,6 +1011,157 @@ async fn open_text_file(
     )
 }
 
+struct UriRequestState {
+    frontend_ready: AtomicBool,
+    pending: Mutex<Vec<String>>,
+}
+
+impl UriRequestState {
+    fn new() -> Self {
+        Self {
+            frontend_ready: AtomicBool::new(false),
+            pending: Mutex::new(Vec::new()),
+        }
+    }
+}
+
+fn request_open_uri(app: &tauri::AppHandle, uri: String) -> Result<(), String> {
+    if !is_cyrene_uri(&uri) {
+        return Err("不支持的 URI 协议".into());
+    }
+    let state = app.state::<UriRequestState>();
+    if state.frontend_ready.load(Ordering::Acquire) {
+        app.emit("uri-open-requested", uri)
+            .map_err(|error| error.to_string())?;
+    } else {
+        state
+            .pending
+            .lock()
+            .map_err(|_| "URI 请求队列锁定失败".to_string())?
+            .push(uri);
+    }
+    Ok(())
+}
+
+#[tauri::command]
+async fn plugin_select_file(
+    app: tauri::AppHandle,
+    extensions: Vec<String>,
+) -> Result<serde_json::Value, String> {
+    let mut safe_extensions: Vec<String> = extensions
+        .into_iter()
+        .map(|value| {
+            value
+                .chars()
+                .filter(|character| character.is_ascii_alphanumeric())
+                .collect::<String>()
+                .to_lowercase()
+        })
+        .filter(|value| !value.is_empty() && value.len() <= 12)
+        .take(24)
+        .collect();
+    safe_extensions.sort();
+    safe_extensions.dedup();
+    let mut picker = app.dialog().file().set_title("插件选择文件");
+    if !safe_extensions.is_empty() {
+        let filter_extensions: Vec<&str> = safe_extensions.iter().map(String::as_str).collect();
+        picker = picker.add_filter("允许的文件", &filter_extensions);
+    }
+    let Some(selected) = picker.blocking_pick_file() else {
+        return Ok(serde_json::json!({ "success": false, "cancelled": true }));
+    };
+    let path = selected.into_path().map_err(|error| error.to_string())?;
+    let metadata = fs::metadata(&path).map_err(|error| error.to_string())?;
+    if !metadata.is_file() {
+        return Err("插件只能选择普通文件".into());
+    }
+    if metadata.len() > 32 * 1024 * 1024 {
+        return Err("插件选择的文件不能超过 32 MB".into());
+    }
+    let bytes = fs::read(&path).map_err(|error| error.to_string())?;
+    Ok(serde_json::json!({
+        "success": true,
+        "name": path.file_name().and_then(OsStr::to_str).unwrap_or("file"),
+        "path": path.to_string_lossy(),
+        "size": metadata.len(),
+        "base64": base64::engine::general_purpose::STANDARD.encode(bytes)
+    }))
+}
+
+#[tauri::command]
+async fn plugin_select_directory(app: tauri::AppHandle) -> Result<serde_json::Value, String> {
+    let Some(selected) = app
+        .dialog()
+        .file()
+        .set_title("插件选择目录")
+        .blocking_pick_folder()
+    else {
+        return Ok(serde_json::json!({ "success": false, "cancelled": true }));
+    };
+    let path = selected.into_path().map_err(|error| error.to_string())?;
+    Ok(serde_json::json!({
+        "success": true,
+        "name": path.file_name().and_then(OsStr::to_str).unwrap_or("directory"),
+        "path": path.to_string_lossy()
+    }))
+}
+
+#[tauri::command]
+async fn plugin_execute_operation(
+    program: String,
+    args: Vec<String>,
+    timeout_ms: u64,
+) -> Result<serde_json::Value, String> {
+    if program.is_empty()
+        || program.len() > 128
+        || !program
+            .chars()
+            .all(|character| character.is_ascii_alphanumeric() || "_.-".contains(character))
+    {
+        return Err("插件系统操作的程序名无效".into());
+    }
+    if args.len() > 32
+        || args
+            .iter()
+            .any(|argument| argument.contains('\0') || argument.len() > 2048)
+    {
+        return Err("插件系统操作的固定参数无效".into());
+    }
+    let timeout_ms = timeout_ms.clamp(1000, 30000);
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut command = background_command(&program);
+        command
+            .args(&args)
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null());
+        let mut child = command.spawn().map_err(|error| error.to_string())?;
+        let deadline = Instant::now() + Duration::from_millis(timeout_ms);
+        loop {
+            if let Some(status) = child.try_wait().map_err(|error| error.to_string())? {
+                return Ok(serde_json::json!({
+                    "success": status.success(),
+                    "exitCode": status.code(),
+                    "timedOut": false,
+                    "error": if status.success() { "" } else { "系统操作返回非零退出状态" }
+                }));
+            }
+            if Instant::now() >= deadline {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Ok(serde_json::json!({
+                    "success": false,
+                    "timedOut": true,
+                    "error": "系统操作执行超时"
+                }));
+            }
+            std::thread::sleep(Duration::from_millis(25));
+        }
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+
 #[tauri::command]
 async fn export_data_file(
     app: tauri::AppHandle,
@@ -1045,8 +1235,8 @@ fn load_changelog() -> serde_json::Value {
 #[tauri::command]
 async fn check_update() -> Result<serde_json::Value, String> {
     let urls = [
-        "https://api.github.com/repos/Cyrene2008/CyreneNameRoller/releases/latest",
-        "https://api.kkgithub.com/repos/Cyrene2008/CyreneNameRoller/releases/latest",
+        "https://api.github.com/repos/StarCyrene/CyreneNameRoller/releases/latest",
+        "https://api.kkgithub.com/repos/StarCyrene/CyreneNameRoller/releases/latest",
     ];
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(8))
@@ -1097,11 +1287,11 @@ fn announcement_cache_path() -> PathBuf {
 async fn fetch_announcements() -> Result<serde_json::Value, String> {
     let urls = [
         // 镜像代理（refs/heads/master）—— 你确认可用的主源
-        "https://gh.xn--8hvv1o.cn/raw.githubusercontent.com/Cyrene2008/CyreneNameRoller/refs/heads/master/.announcement/latest.json",
+        "https://gh.xn--8hvv1o.cn/raw.githubusercontent.com/StarCyrene/CyreneNameRoller/refs/heads/master/.announcement/latest.json",
         // 自建 nameapi 镜像
         "https://nameapi.cyrene.hi.cn/announcement/latest.json",
         // 直连 raw.githubusercontent 兜底
-        "https://raw.githubusercontent.com/Cyrene2008/CyreneNameRoller/master/.announcement/latest.json",
+        "https://raw.githubusercontent.com/StarCyrene/CyreneNameRoller/master/.announcement/latest.json",
     ];
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(10))
@@ -1632,6 +1822,104 @@ fn is_autostart_launch() -> bool {
 }
 
 #[tauri::command]
+fn set_uri_scheme_enabled(enabled: bool) -> Result<serde_json::Value, String> {
+    #[cfg(target_os = "windows")]
+    {
+        let key = format!(r"HKCU\Software\Classes\{}", URI_SCHEME);
+        if enabled {
+            let executable = std::env::current_exe().map_err(|error| error.to_string())?;
+            let executable = executable.to_string_lossy().to_string();
+            let registrations = [
+                (key.clone(), None, format!("URL:{} protocol", URI_SCHEME)),
+                (key.clone(), Some("URL Protocol"), String::new()),
+                (
+                    format!(r"{}\DefaultIcon", key),
+                    None,
+                    format!("\"{}\",0", executable),
+                ),
+                (
+                    format!(r"{}\shell\open\command", key),
+                    None,
+                    format!("\"{}\" \"%1\"", executable),
+                ),
+            ];
+            for (path, name, value) in registrations {
+                let mut command = background_command("reg");
+                command.args(["add", &path]);
+                if let Some(name) = name {
+                    command.args(["/v", name]);
+                } else {
+                    command.arg("/ve");
+                }
+                let output = command
+                    .args(["/t", "REG_SZ", "/d", &value, "/f"])
+                    .output()
+                    .map_err(|error| error.to_string())?;
+                if !output.status.success() {
+                    let error = String::from_utf8_lossy(if output.stderr.is_empty() {
+                        &output.stdout
+                    } else {
+                        &output.stderr
+                    });
+                    return Err(error.trim().to_string());
+                }
+            }
+        } else {
+            let query = background_command("reg")
+                .args(["query", &key])
+                .output()
+                .map_err(|error| error.to_string())?;
+            if !query.status.success() {
+                return Ok(serde_json::json!({ "success": true, "enabled": false }));
+            }
+            let output = background_command("reg")
+                .args(["delete", &key, "/f"])
+                .output()
+                .map_err(|error| error.to_string())?;
+            if !output.status.success() {
+                let error = String::from_utf8_lossy(if output.stderr.is_empty() {
+                    &output.stdout
+                } else {
+                    &output.stderr
+                });
+                return Err(error.trim().to_string());
+            }
+        }
+        return Ok(serde_json::json!({ "success": true, "enabled": enabled }));
+    }
+    #[cfg(not(target_os = "windows"))]
+    Ok(serde_json::json!({
+        "success": false,
+        "enabled": false,
+        "error": "URI 协议注册当前仅支持 Windows 桌面端"
+    }))
+}
+
+#[tauri::command]
+fn is_uri_scheme_enabled() -> bool {
+    #[cfg(target_os = "windows")]
+    {
+        let key = format!(r"HKCU\Software\Classes\{}\shell\open\command", URI_SCHEME);
+        let Ok(output) = background_command("reg")
+            .args(["query", &key, "/ve"])
+            .output()
+        else {
+            return false;
+        };
+        if !output.status.success() {
+            return false;
+        }
+        let executable = std::env::current_exe()
+            .ok()
+            .map(|path| path.to_string_lossy().to_ascii_lowercase());
+        let output = String::from_utf8_lossy(&output.stdout).to_ascii_lowercase();
+        executable.is_some_and(|path| output.contains(&path))
+    }
+    #[cfg(not(target_os = "windows"))]
+    false
+}
+
+#[tauri::command]
 async fn show_main_window(app: tauri::AppHandle) -> Result<(), String> {
     app.state::<MainWindowRevealState>()
         .pending
@@ -1640,14 +1928,27 @@ async fn show_main_window(app: tauri::AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn main_window_ready(app: tauri::AppHandle) -> Result<(), String> {
+fn main_window_ready(app: tauri::AppHandle) -> Result<bool, String> {
     let state = app.state::<MainWindowRevealState>();
     state.frontend_ready.store(true, Ordering::Release);
     if state.pending.load(Ordering::Acquire) {
         app.emit("main-window-show-requested", ())
             .map_err(|error| error.to_string())?;
     }
-    Ok(())
+    let uri_state = app.state::<UriRequestState>();
+    uri_state.frontend_ready.store(true, Ordering::Release);
+    let pending = std::mem::take(
+        &mut *uri_state
+            .pending
+            .lock()
+            .map_err(|_| "URI 请求队列锁定失败".to_string())?,
+    );
+    let had_pending_uri = !pending.is_empty();
+    for uri in pending {
+        app.emit("uri-open-requested", uri)
+            .map_err(|error| error.to_string())?;
+    }
+    Ok(had_pending_uri)
 }
 
 fn show_main_window_now(app: &tauri::AppHandle) -> Result<(), String> {
@@ -1709,6 +2010,7 @@ fn create_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let arguments: Vec<String> = std::env::args().collect();
+    let launch_uri = launch_uri_from_arguments(&arguments);
     let replacing_instance = arguments
         .iter()
         .any(|argument| argument.starts_with("--cyrene-replace-pid="));
@@ -1734,7 +2036,7 @@ pub fn run() {
             let _ = request_existing_instance_exit();
         }
     }
-    let instance_listener = acquire_instance_listener(replacing_instance);
+    let instance_listener = acquire_instance_listener(replacing_instance, launch_uri.as_deref());
     tauri::Builder::default()
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_dialog::init())
@@ -1746,8 +2048,12 @@ pub fn run() {
                 .join("cyrene-data.cyrene");
             app.manage(EncryptedStore::load(data_path));
             app.manage(MainWindowRevealState::new());
+            app.manage(UriRequestState::new());
             let handle = app.handle().clone();
             start_instance_listener(instance_listener, handle.clone());
+            if let Some(uri) = launch_uri.clone() {
+                let _ = request_open_uri(&handle, uri);
+            }
             migrate_legacy_data(&handle);
             restore_window_state(&handle);
             create_tray(app)?;
@@ -1789,6 +2095,9 @@ pub fn run() {
             import_data_file,
             save_text_file,
             open_text_file,
+            plugin_select_file,
+            plugin_select_directory,
+            plugin_execute_operation,
             read_dropped_file,
             load_names,
             load_changelog,
@@ -1797,6 +2106,8 @@ pub fn run() {
             show_data_location,
             reveal_file,
             system_accent,
+            set_uri_scheme_enabled,
+            is_uri_scheme_enabled,
             set_auto_start,
             restart_elevated_for_auto_start,
             is_process_elevated,
@@ -1822,9 +2133,24 @@ pub fn run() {
 mod tests {
     use super::{
         center_floating_window, constrain_floating_window_position,
-        floating_window_position_visible, normalize_floating_window_size,
-        resize_floating_window_position,
+        floating_window_position_visible, is_cyrene_uri, launch_uri_from_arguments,
+        normalize_floating_window_size, resize_floating_window_position,
     };
+
+    #[test]
+    fn uri_arguments_only_accept_the_cyrene_scheme() {
+        let arguments = vec![
+            "CyreneNameRoller.exe".to_string(),
+            "cyrenenr://page/roller?count=6".to_string(),
+        ];
+        assert_eq!(
+            launch_uri_from_arguments(&arguments).as_deref(),
+            Some("cyrenenr://page/roller?count=6")
+        );
+        assert!(is_cyrene_uri("CYRENENR://start"));
+        assert!(!is_cyrene_uri("https://example.com"));
+        assert!(!is_cyrene_uri("cyrenenr:/start"));
+    }
 
     #[test]
     fn floating_window_size_normalizes_to_supported_steps() {

@@ -1,55 +1,20 @@
 [
   {
-    "id": 5,
-    "title": { "cn": "v26.0.5 正式版现已发布", "en": "v26.0.5 Is Now Available" },
+    "id": 6,
+    "title": {
+      "cn": "v26.1.0 已进入 Tauri 发布前测试",
+      "en": "v26.1.0 Has Entered Tauri Pre-release Testing"
+    },
     "important": true,
     "pinned": true,
-    "tag": { "cn": "版本更新", "en": "Update" },
-    "time": "2026/07/26 14:30",
+    "tag": {
+      "cn": "抢先测试",
+      "en": "Preview"
+    },
+    "time": "2026/08/01 21:10",
     "content": {
-      "cn": "v26.0.5 正式版现已发布，Web、Electron 与 Tauri 版本同步更新。\n\n本次更新包含：\n\n- 全新的抽奖模式、加权轮盘、人员奖品分配、奖品单管理与独立抽奖记录\n- 人员名单及其小组绑定支持 CSV/JSON 导入导出，导入时自动识别格式，默认导出 CSV\n- 多人点名布局与启动性能优化，大量结果保持统一行列基线并避让控制区\n- Fluent Tabs、智能自定义主题配色、Windows Fluent 主题、自动停止与多种结果强调动画\n- UUID 人员身份记录与更可靠的历史记录\n- 管理员计划任务自启动、启动到托盘、下载源选择及多项桌面稳定性修复\n\n桌面安装包可在 GitHub Releases 下载。如遇异常，请通过 GitHub Issues 反馈。",
-      "en": "v26.0.5 is now available for Web, Electron, and Tauri.\n\nThis release adds the complete lottery workflow, weighted wheel, person-to-prize assignment, prize-list management and records; automatic CSV/JSON name-list import with group bindings; improved large-result layout and startup performance; Fluent tabs and generated themes; UUID-based identity records; auto stop and result animations; elevated scheduled-task startup, startup to tray, selectable download sources, and desktop stability fixes.\n\nDesktop installers are available from GitHub Releases. Please report issues through GitHub Issues."
+      "cn": "v26.1.0 的功能开发已基本完成，当前正在进行 Tauri 安装包发布前测试。**主程序正式 Release 尚未发布**，测试确认无问题后再提供正式下载。\n\n本次更新重点包括：\n\n- 完整插件系统：在线安装、更新、卸载、依赖、纯净恢复模式与本地 `.cnrp` 调试\n- 宿主原生 Fluent 插件页面、跨平台能力桥接，以及名单、记录、统计和平衡数据只读保护\n- 官方插件模板、Fluent 组件/API Pages 与『来点音效』v1.1.0 示例插件\n- Tauri `cyrenenr` URI、Web Hash 一次性参数及指定 Roller 配置后自动开始滚动\n- 跨管理员权限单实例 IPC、双模式开机启动、启动到托盘与启动动画时序修复\n- 人员性别与 Roller 性别筛选、公平算法状态标识、新成员统计初始化策略\n- CSV/JSON/XLSX/CYRENE 智能拖入导入及名单身份信息保护\n- 正式移除 Electron 支持，后续核心版本仅维护 Web 与 Tauri\n\n详细内容可在「设置 → 更新日志」查看。测试期间如发现异常，请暂时保留 26.0.5 安装包并通过 GitHub Issues 反馈。",
+      "en": "Development for v26.1.0 is substantially complete and the Tauri installer is now in pre-release testing. **The main application Release has not been published yet.** A public download will follow after testing succeeds.\n\nHighlights include the complete plugin system and native Fluent plugin pages; cross-platform bridges with read-only protection for lists, records, statistics, and balance data; the official plugin template and Sound Effects v1.1.0; desktop URI and Web hash one-time Roller parameters; cross-elevation single-instance IPC; two startup methods and startup-to-tray fixes; gender-aware draws and fairness status; new-member statistics policies; smart CSV/JSON/XLSX/CYRENE drag-and-drop import; and the removal of Electron support.\n\nSee Settings → Changelog for details. Keep the v26.0.5 installer during testing and report issues through GitHub Issues."
     }
-  },
-  {
-    "id": 4,
-    "title": "公告：v26.0.4 已在桌面端开放",
-    "important": true,
-    "pinned": false,
-    "tag": "版本更新",
-    "time": "2026/07/19 15:00",
-    "content": "本版本的悬浮窗处于半成品状态，属于是能用但不好用，建议关闭本功能，待 **LeafS825** 后续改进修复后启用♪\n\n平衡算法优化，极差控制为2，更加公平♪\n\n新增小组模式\n\n详细更新信息请查看 设置>更新日志"
-  },
-  {
-    "id": 3,
-    "title": { "cn": "公告：v26.0.4 已在Web端开放", "en": "v26.0.4 Available on Web" },
-    "pinned": false,
-    "important": false,
-    "tag": { "cn": "版本更新", "en": "Update" },
-    "time": "2026/07/18 18:00",
-    "content": {
-      "cn": "这是一个**示例公告**，用于演示公告系统的各项特性：\n\n- 本条目同时开启了 `置顶` 与 `重要` 标记\n- 重要标记会在标题前显示 `重要` Tag\n- 下方分类标签为「版本更新」\n\n支持 Markdown 语法，例如 [链接](https://github.com/Cyrene2008/CyrenesNameRoller) 与代码块：\n\n```\nnpm install\n``` \n\n详细更新内容请查看 设置>更新日志",
-      "en": "This is a **sample announcement** demonstrating all features:\n\n- This item is both `pinned` and `important`\n- The important flag adds an `Important` tag before the title\n- The category tag below reads \"Update\"\n\nMarkdown is supported, e.g. [links](https://github.com/Cyrene2008/CyrenesNameRoller) and code:\n\n```\nnpm install\n```"
-    }
-  },
-  {
-    "id": 2,
-    "title": { "cn": "关于数据备份的提示", "en": "Tips on Data Backup" },
-    "pinned": false,
-    "important": false,
-    "tag": { "cn": "提示", "en": "Tips" },
-    "time": "2026/07/11 10:00",
-    "content": {
-      "cn": "建议定期在「设置」中导出数据备份，避免误删/重装系统等导致数据丢失。",
-      "en": "We recommend exporting your name lists from the list manager regularly to avoid accidental data loss."
-    }
-  },
-  {
-    "id": 1,
-    "title": "Cyreneの随机点名器正式发布",
-    "important": true,
-    "tag": "版本更新",
-    "time": "2026/07/09 18:00",
-    "content": "原 Cyrene's Name Roller 正式更新为 Cyreneの随机点名器 并开源，UI全面重构，修复若干已知问题♪"
   }
 ]

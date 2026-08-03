@@ -9,8 +9,9 @@
       <div
         v-for="(card, i) in cards"
         :key="card.id"
+        :ref="element => setCardRef(element, card.id)"
         class="card"
-        :class="{ show: card.visible, flipped: card.flipped }"
+        :class="{ show: card.visible, flipped: card.flipped, 'plugin-deal': card.pluginDeal }"
         :style="{ animationDelay: (i * 0.08) + 's' }"
         @click="flipCard(i)"
       >
@@ -77,10 +78,11 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch, inject } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch, inject, nextTick } from 'vue'
 import { useNamesStore } from '../stores/names'
 import { useSettingsStore } from '../stores/settings'
 import { useRecordsStore } from '../stores/records'
+import { usePluginsStore } from '../plugins/store'
 import { dataBridge } from '../utils/dataBridge'
 import { t } from '../utils/i18n'
 import FluentButton from '../components/FluentButton.vue'
@@ -92,6 +94,7 @@ import FluentSelect from '../components/FluentSelect.vue'
 const namesStore = useNamesStore()
 const settingsStore = useSettingsStore()
 const recordsStore = useRecordsStore()
+const pluginsStore = usePluginsStore()
 const showBanner = inject('banner')
 
 const lang = computed(() => settingsStore.settings.language)
@@ -105,6 +108,11 @@ const trayHistory = ref([])
 const usedNames = ref(new Set())
 let cardIdCounter = 0
 let historyIdCounter = 0
+const cardRefs = new Map()
+const pendingOperationTimers = new Set()
+let operationGeneration = 0
+let unmounted = false
+let stopNamesLoadedWatch
 
 const TRAY_KEY = 'cardTrayHistory'
 const USED_KEY = 'cardUsedNames'
@@ -115,11 +123,49 @@ const remainingCount = computed(() => allNonWL.value.length - usedNames.value.si
 const maxCards = computed(() => Math.max(1, allNonWL.value.length - usedNames.value.size))
 
 function getAvailableNames() {
-  return allNonWL.value.map(n => ({ cn: n.cn, en: n.en })).filter(n => !usedNames.value.has(n.cn))
+  return allNonWL.value.filter(person => !usedNames.value.has(person.id) && !usedNames.value.has(person.cn))
 }
 
 function getDisplayName(person) {
   return englishMode.value && person.en ? person.en : person.cn
+}
+
+function setCardRef(element, cardId) {
+  if (element) cardRefs.set(cardId, element)
+  else cardRefs.delete(cardId)
+}
+
+function cancelPendingOperations() {
+  operationGeneration += 1
+  for (const timer of pendingOperationTimers) clearTimeout(timer)
+  pendingOperationTimers.clear()
+  return operationGeneration
+}
+
+function operationIsActive(generation) {
+  return !unmounted && generation === operationGeneration
+}
+
+function scheduleOperation(generation, callback, delay) {
+  if (!operationIsActive(generation)) return null
+  const timer = setTimeout(() => {
+    pendingOperationTimers.delete(timer)
+    if (!operationIsActive(generation)) return
+    callback()
+  }, delay)
+  pendingOperationTimers.add(timer)
+  return timer
+}
+
+async function revealCard(card, generation = operationGeneration) {
+  if (!operationIsActive(generation)) return false
+  card.pluginDeal = pluginsStore.hasAnimation('card.deal')
+  card.visible = true
+  await nextTick()
+  if (!operationIsActive(generation)) return false
+  const run = pluginsStore.startAnimation('card.deal', cardRefs.get(card.id))
+  if (!run && card.pluginDeal) card.pluginDeal = false
+  return true
 }
 
 function onListChange(id) {
@@ -153,6 +199,7 @@ async function loadTrayState() {
 }
 
 function shuffle() {
+  const generation = cancelPendingOperations()
   const available = getAvailableNames()
   if (available.length === 0) {
     const hasNames = allNonWL.value.length > 0
@@ -169,22 +216,47 @@ function shuffle() {
   const chosen = []
   const copy = [...available]
   while (chosen.length < k && copy.length > 0) { const idx = Math.floor(Math.random() * copy.length); chosen.push(copy.splice(idx, 1)[0]) }
-  cards.value = chosen.map(p => ({ id: ++cardIdCounter, personId: p.id, cn: p.cn, en: p.en, displayName: getDisplayName(p), visible: false, flipped: false }))
-  cards.value.forEach((card, i) => { setTimeout(() => { card.visible = true }, i * 80) })
+  cards.value = chosen.map(p => ({ id: ++cardIdCounter, personId: p.id, cn: p.cn, en: p.en, displayName: getDisplayName(p), visible: false, flipped: false, pluginDeal: false }))
+  cards.value.forEach((card, i) => scheduleOperation(generation, () => { revealCard(card, generation) }, i * 80))
 }
 
-function flipCard(index) {
+function flipCard(index, operation = null, generation = operation?.generation ?? operationGeneration) {
+  if (!operationIsActive(generation)) return
   const card = cards.value[index]
   if (!card || card.flipped) return
   card.flipped = true
-  usedNames.value.add(card.cn)
+  nextTick(() => {
+    if (operationIsActive(generation)) pluginsStore.startAnimation('card.flip', cardRefs.get(card.id))
+  })
+  const globalState = operation?.globalState || operation
+  if (!globalState || !globalState.globalTriggered) {
+    if (globalState) globalState.globalTriggered = true
+    pluginsStore.startAnimation('global.transition', null, { variant: 'card' })
+  }
+  usedNames.value.add(card.personId || card.cn)
   trayHistory.value.unshift({ id: ++historyIdCounter, name: card.displayName })
   const personId = card.personId || namesStore.currentNames.find(person => person.cn === card.cn && (!card.en || person.en === card.en))?.id || null
   recordsStore.addRecord({ personId, listId: namesStore.currentList.id, source: 'card' })
+  const result = { id: personId || '', name: card.cn, englishName: card.en || '' }
+  pluginsStore.dispatchEvent('card:item-result', {
+    operationId: operation?.id || `card-${card.id}`,
+    index: operation?.index || 0,
+    count: operation?.count || 1,
+    listId: namesStore.currentList.id,
+    result
+  })
+  if (!operation || operation.index === operation.count - 1) {
+    pluginsStore.dispatchEvent('card:result', {
+      operationId: operation?.id || `card-${card.id}`,
+      listId: namesStore.currentList.id,
+      results: operation?.results || [result]
+    })
+  }
   saveTrayState()
 }
 
 function quickDraw() {
+  const generation = cancelPendingOperations()
   const available = getAvailableNames()
   if (available.length === 0) {
     const hasNames = allNonWL.value.length > 0
@@ -206,24 +278,41 @@ function quickDraw() {
   const chosen = []
   const copy = [...available]
   while (chosen.length < count && copy.length > 0) { const idx = Math.floor(Math.random() * copy.length); chosen.push(copy.splice(idx, 1)[0]) }
-  cards.value = chosen.map(p => ({ id: ++cardIdCounter, personId: p.id, cn: p.cn, en: p.en, displayName: getDisplayName(p), visible: false, flipped: false }))
+  cards.value = chosen.map(p => ({ id: ++cardIdCounter, personId: p.id, cn: p.cn, en: p.en, displayName: getDisplayName(p), visible: false, flipped: false, pluginDeal: false }))
+  const operationId = crypto.randomUUID?.() || `card-${Date.now()}`
+  const results = chosen.map(person => ({ id: person.id || '', name: person.cn, englishName: person.en || '' }))
+  const operation = { id: operationId, count: cards.value.length, results, globalTriggered: false, generation }
   cards.value.forEach((card, i) => {
-    setTimeout(() => { card.visible = true; setTimeout(() => flipCard(i), 300 + i * 200) }, i * 80)
+    scheduleOperation(generation, () => {
+      revealCard(card, generation)
+      scheduleOperation(generation, () => flipCard(i, { ...operation, index: i, globalState: operation }, generation), 300 + i * 200)
+    }, i * 80)
   })
 }
 
 function reset() {
+  cancelPendingOperations()
   cards.value = []
+  cardRefs.clear()
   trayHistory.value = []
   usedNames.value.clear()
   saveTrayState()
 }
 
-onMounted(async () => {
-  await loadCardSettings()
-  await loadTrayState()
-  if (namesStore.isLoaded && allNonWL.value.length > 0 && remainingCount.value >= 1) shuffle()
-  watch(() => namesStore.isLoaded, (loaded) => { if (loaded && remainingCount.value >= 1) shuffle() })
+onMounted(() => {
+  stopNamesLoadedWatch = watch(() => namesStore.isLoaded, (loaded) => {
+    if (!unmounted && loaded && remainingCount.value >= 1) shuffle()
+  })
+  Promise.all([loadCardSettings(), loadTrayState()]).then(() => {
+    if (!unmounted && namesStore.isLoaded && allNonWL.value.length > 0 && remainingCount.value >= 1) shuffle()
+  })
+})
+
+onBeforeUnmount(() => {
+  unmounted = true
+  stopNamesLoadedWatch?.()
+  cancelPendingOperations()
+  cardRefs.clear()
 })
 </script>
 
@@ -232,7 +321,8 @@ onMounted(async () => {
 .card-title { font-family: var(--font-display); font-size: 28px; font-weight: 700; color: var(--text-primary); margin-bottom: 24px; display: flex; align-items: center; gap: 10px; }
 .cards-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 20px; width: 100%; justify-items: center; flex: 1; align-content: center; padding-bottom: 24px; }
 .card { width: 140px; height: 200px; perspective: 1500px; cursor: pointer; opacity: 0; transform: translateY(30px); }
-.card.show { animation: card-deal 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+.card.show:not(.plugin-deal) { animation: card-deal 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+.card.show.plugin-deal { opacity: 1; transform: translateY(0); }
 @keyframes card-deal { to { opacity: 1; transform: translateY(0); } }
 .card-inner { position: relative; width: 100%; height: 100%; transform-style: preserve-3d; transition: transform 0.8s cubic-bezier(0.34, 1.56, 0.64, 1); }
 .card:hover .card-inner { transform: translateY(-8px); }
