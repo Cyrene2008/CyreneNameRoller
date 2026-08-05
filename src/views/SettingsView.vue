@@ -84,7 +84,7 @@
       <div v-if="isTauri()" class="setting-row"><span class="setting-label">{{ lang === 'en' ? 'Launch at sign-in' : '开机自启动' }}</span><FluentToggle :model-value="settings.autoStart" :disabled="autoStartBusy" @update:model-value="onAutoStart" /></div>
       <Transition name="toggle-expand">
         <div v-if="isTauri() && settings.autoStart" class="sub-setting">
-          <div class="setting-row"><span class="setting-label">{{ lang === 'en' ? 'Startup method' : '启动方式' }}</span><FluentSelect :model-value="settings.autoStartMode" :options="autoStartModeOptions" width="240px" :disabled="autoStartBusy" @update:model-value="onAutoStartModeChange" /></div>
+          <div v-if="isWindows" class="setting-row"><span class="setting-label">{{ lang === 'en' ? 'Startup method' : '启动方式' }}</span><FluentSelect :model-value="settings.autoStartMode" :options="autoStartModeOptions" width="240px" :disabled="autoStartBusy" @update:model-value="onAutoStartModeChange" /></div>
           <div class="setting-row"><span class="setting-label">{{ lang === 'en' ? 'Start hidden in tray' : '启动到托盘' }}</span><FluentToggle :model-value="settings.autoStartToTray" @update:model-value="update('autoStartToTray', $event)" /></div>
         </div>
       </Transition>
@@ -448,6 +448,7 @@ import { normalizeHex } from '../utils/theme'
 import { FLOATING_WINDOW_STYLES, floatingWindowImagePath, normalizeFloatingWindowStyle } from '../utils/floatingWindowStyle'
 import { normalizeFloatingWindowSize } from '../utils/floatingWindowSize'
 import { normalizeAutoStopDuration } from '../utils/autoStop.mjs'
+import { isWindowsTauri } from '../utils/desktopRuntime.js'
 
 defineProps({
   section: { type: String, default: 'general' }
@@ -463,6 +464,7 @@ const showBanner = inject('banner')
 const lang = computed(() => settingsStore.settings.language)
 const settings = computed(() => settingsStore.settings)
 const isDesktop = computed(() => isTauri())
+const isWindows = computed(() => isWindowsTauri())
 const floatingStyleOptions = computed(() => FLOATING_WINDOW_STYLES.map((value, index) => ({
   value,
   label: value === 'text'
@@ -612,11 +614,11 @@ async function onAutoStart(value) {
   await update('autoStart', value)
   const result = await tauriAPI.setAutoStart(value, mode, mode)
   if (!result || result.success === false) {
-    if (result?.requiresElevation && value && mode === 'scheduled') {
+    if (isWindows.value && result?.requiresElevation && value && mode === 'scheduled') {
       await fallbackToRegistryAutoStart({ rollbackEnabled: previousValue, rollbackMode: mode })
     } else {
       await update('autoStart', previousValue)
-      if (result?.requiresElevation) offerAutoStartElevation({ enabled: value, mode, previousMode: mode, rollbackEnabled: previousValue, rollbackMode: mode })
+      if (isWindows.value && result?.requiresElevation) offerAutoStartElevation({ enabled: value, mode, previousMode: mode, rollbackEnabled: previousValue, rollbackMode: mode })
       else showBanner({ message: result?.error || (lang.value === 'en' ? 'Startup task update failed' : '启动项更新失败'), icon: 'warning-16-regular', type: 'warning', duration: 8000 })
     }
   } else if (!result.restarting) {
@@ -666,11 +668,11 @@ async function onAutoStartModeChange(mode) {
   autoStartBusy.value = true
   const result = await tauriAPI.setAutoStart(true, mode, previousMode)
   if (!result || result.success === false) {
-    if (result?.requiresElevation && mode === 'scheduled') {
+    if (isWindows.value && result?.requiresElevation && mode === 'scheduled') {
       await fallbackToRegistryAutoStart({ rollbackEnabled: true, rollbackMode: previousMode })
     } else {
       await update('autoStartMode', previousMode)
-      if (result?.requiresElevation) offerAutoStartElevation({ enabled: true, mode, previousMode, rollbackEnabled: true, rollbackMode: previousMode })
+      if (isWindows.value && result?.requiresElevation) offerAutoStartElevation({ enabled: true, mode, previousMode, rollbackEnabled: true, rollbackMode: previousMode })
       else showBanner({ message: result?.error || (lang.value === 'en' ? 'Startup method update failed' : '启动方式更新失败'), icon: 'warning-16-regular', type: 'warning', duration: 8000 })
     }
   } else {
