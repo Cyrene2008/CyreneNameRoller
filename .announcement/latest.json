@@ -2,19 +2,37 @@
   {
     "id": 6,
     "title": {
-      "cn": "v26.1.0 已进入 Tauri 发布前测试",
-      "en": "v26.1.0 Has Entered Tauri Pre-release Testing"
+      "cn": "v26.1.0 已发布",
+      "en": "v26.1.0 Has released"
     },
     "important": true,
     "pinned": true,
     "tag": {
-      "cn": "抢先测试",
-      "en": "Preview"
+      "cn": "更新",
+      "en": "Update"
     },
-    "time": "2026/08/01 21:10",
+    "time": "2026/08/02 00:00",
     "content": {
-      "cn": "v26.1.0 的功能开发已基本完成，当前正在进行 Tauri 安装包发布前测试。**主程序正式 Release 尚未发布**，测试确认无问题后再提供正式下载。\n\n本次更新重点包括：\n\n- 完整插件系统：在线安装、更新、卸载、依赖、纯净恢复模式与本地 `.cnrp` 调试\n- 宿主原生 Fluent 插件页面、跨平台能力桥接，以及名单、记录、统计和平衡数据只读保护\n- 官方插件模板、Fluent 组件/API Pages 与『来点音效』v1.1.0 示例插件\n- Tauri `cyrenenr` URI、Web Hash 一次性参数及指定 Roller 配置后自动开始滚动\n- 跨管理员权限单实例 IPC、双模式开机启动、启动到托盘与启动动画时序修复\n- 人员性别与 Roller 性别筛选、公平算法状态标识、新成员统计初始化策略\n- CSV/JSON/XLSX/CYRENE 智能拖入导入及名单身份信息保护\n- 正式移除 Electron 支持，后续核心版本仅维护 Web 与 Tauri\n\n详细内容可在「设置 → 更新日志」查看。测试期间如发现异常，请暂时保留 26.0.5 安装包并通过 GitHub Issues 反馈。",
+      "cn": "v26.1.0 的功能开发已完成，主程序正式 Release 已提供正式下载。\n\n本次更新重点包括：\n\n- 完整插件系统：在线安装、更新、卸载、依赖、纯净恢复模式与本地 `.cnrp` 调试\n- 宿主原生 Fluent 插件页面、跨平台能力桥接，以及名单、记录、统计和平衡数据只读保护\n- 官方插件模板、Fluent 组件/API Pages 与『来点音效』v1.1.0 示例插件\n- Tauri `cyrenenr` URI、Web Hash 一次性参数及指定 Roller 配置后自动开始滚动\n- 跨管理员权限单实例 IPC、双模式开机启动、启动到托盘与启动动画时序修复\n- 人员性别与 Roller 性别筛选、公平算法状态标识、新成员统计初始化策略\n- CSV/JSON/XLSX/CYRENE 智能拖入导入及名单身份信息保护\n- 正式移除 Electron 支持，后续核心版本仅维护 Web 与 Tauri\n\n详细内容可在「设置 → 更新日志」查看。测试期间如发现异常，请暂时保留 26.0.5 安装包并通过 GitHub Issues 反馈。",
       "en": "Development for v26.1.0 is substantially complete and the Tauri installer is now in pre-release testing. **The main application Release has not been published yet.** A public download will follow after testing succeeds.\n\nHighlights include the complete plugin system and native Fluent plugin pages; cross-platform bridges with read-only protection for lists, records, statistics, and balance data; the official plugin template and Sound Effects v1.1.0; desktop URI and Web hash one-time Roller parameters; cross-elevation single-instance IPC; two startup methods and startup-to-tray fixes; gender-aware draws and fairness status; new-member statistics policies; smart CSV/JSON/XLSX/CYRENE drag-and-drop import; and the removal of Electron support.\n\nSee Settings → Changelog for details. Keep the v26.0.5 installer during testing and report issues through GitHub Issues."
+    }
+  },
+  {
+    "id": 7,
+    "title": {
+      "cn": "Linux 适配进度",
+      "en": ""
+    },
+    "important": false,
+    "pinned": false,
+    "tag": {
+      "cn": "公告",
+      "en": "Announcement"
+    },
+    "time": "2026/08/05 16:00",
+    "content": {
+      "cn": "目前正在进行 Linux 适配，尚未提交。Deb系目前已经可以正常启动程序，但是存在功能适配与性能问题，我们（或者说**人家一个人**）正在努力修复与适配，敬请期待~",
+      "en": ""
     }
   }
 ]
