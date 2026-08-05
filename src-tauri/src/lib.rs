@@ -29,6 +29,7 @@ const MIN_INSTALLER_SIZE: usize = 1024 * 1024;
 const DATA_MAGIC: &[u8] = b"CYRENE1\0";
 const DATA_NONCE_LENGTH: usize = 12;
 const DATA_TAG_LENGTH: usize = 16;
+#[cfg(target_os = "windows")]
 const STARTUP_TASK_NAME: &str = "CyreneNameRollerAutoStart";
 const FLOATING_WINDOW_SIZE: i32 = 64;
 const MIN_FLOATING_WINDOW_SIZE: i32 = 40;
@@ -44,6 +45,7 @@ fn normalize_floating_window_size(value: Option<f64>) -> i32 {
     rounded.clamp(MIN_FLOATING_WINDOW_SIZE, MAX_FLOATING_WINDOW_SIZE)
 }
 
+#[cfg(target_os = "windows")]
 const STARTUP_REGISTRY_VALUE: &str = "CyreneNameRoller";
 const INSTANCE_PORT: u16 = 47618;
 const INSTANCE_MESSAGE: &[u8] = b"CYRENE_SHOW_MAIN_V1\n";
@@ -57,7 +59,7 @@ const URI_SCHEME: &str = "cyrenenr";
 const CREATE_NO_WINDOW: u32 = 0x08000000;
 
 fn background_command<S: AsRef<OsStr>>(program: S) -> Command {
-    let mut command = Command::new(program);
+    let command = Command::new(program);
     #[cfg(target_os = "windows")]
     command.creation_flags(CREATE_NO_WINDOW);
     command
@@ -1591,6 +1593,7 @@ fn system_accent() -> String {
     "#ea5ec1".into()
 }
 
+#[cfg(target_os = "windows")]
 fn startup_task_action() -> Result<String, String> {
     let executable = std::env::current_exe().map_err(|error| error.to_string())?;
     Ok(format!(
@@ -1628,6 +1631,7 @@ fn read_dropped_file(path: String) -> Result<serde_json::Value, String> {
     }))
 }
 
+#[cfg(target_os = "windows")]
 fn startup_registry_action() -> Result<String, String> {
     startup_task_action()
 }
@@ -1852,7 +1856,7 @@ fn is_process_elevated() -> bool {
 #[tauri::command]
 async fn set_auto_start(
     enabled: bool,
-    mode: String,
+    _mode: String,
     previous_mode: String,
 ) -> Result<serde_json::Value, String> {
     #[cfg(target_os = "windows")]
@@ -1887,9 +1891,9 @@ async fn set_auto_start(
 
 #[tauri::command]
 fn restart_elevated_for_auto_start(
-    enabled: bool,
-    mode: String,
-    previous_mode: String,
+    _enabled: bool,
+    _mode: String,
+    _previous_mode: String,
 ) -> Result<serde_json::Value, String> {
     #[cfg(target_os = "windows")]
     {
