@@ -1675,7 +1675,12 @@ fn configure_startup_task(enabled: bool) -> Result<(), String> {
         });
         return Err(error.trim().to_string());
     }
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(target_os = "linux")]
+    {
+        let _ = enabled;
+        Ok(())
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "linux")))]
     Err("管理员计划任务仅支持 Windows".into())
 }
 
@@ -1719,7 +1724,12 @@ fn configure_registry_startup(enabled: bool) -> Result<(), String> {
         });
         return Err(error.trim().to_string());
     }
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(target_os = "linux")]
+    {
+        let _ = enabled;
+        Ok(())
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "linux")))]
     Err("传统启动项当前仅支持 Windows".into())
 }
 
@@ -1752,7 +1762,86 @@ fn process_is_elevated() -> bool {
         return unsafe { IsUserAnAdmin() != 0 };
     }
     #[cfg(not(target_os = "windows"))]
-    false
+    {
+        false
+    }
+}
+
+fn home_dir() -> PathBuf {
+    if cfg!(target_os = "windows") {
+        PathBuf::from(std::env::var("USERPROFILE").unwrap_or_else(|_| "C:\\Users\\Public".into()))
+    } else {
+        PathBuf::from(std::env::var("HOME").unwrap_or_else(|_| "/tmp".into()))
+    }
+}
+
+fn autostart_desktop_path() -> PathBuf {
+    home_dir().join(".config").join("autostart").join("cyrene-name-roller.desktop")
+}
+
+fn autostart_desktop_content(executable: &str) -> String {
+    format!(
+        "[Desktop Entry]\nType=Application\nName=Cyreneの随机点名器\nExec=\"{}\" --cyrene-autostart\nIcon=cyrene-name-roller\nTerminal=false\nX-GNOME-Autostart-enabled=true\n",
+        executable
+    )
+}
+
+#[cfg(target_os = "linux")]
+fn configure_autostart_desktop_entry(enabled: bool) -> Result<(), String> {
+    let path = autostart_desktop_path();
+    if !enabled {
+        if path.exists() {
+            fs::remove_file(&path).map_err(|error| error.to_string())?;
+        }
+        return Ok(());
+    }
+
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+    }
+    let executable = std::env::current_exe().map_err(|error| error.to_string())?;
+    fs::write(&path, autostart_desktop_content(&executable.to_string_lossy())).map_err(|error| error.to_string())?;
+    Ok(())
+}
+
+fn linux_applications_dir() -> PathBuf {
+    home_dir().join(".local").join("share").join("applications")
+}
+
+fn uri_desktop_path() -> PathBuf {
+    linux_applications_dir().join("cyrene-name-roller-uri.desktop")
+}
+
+fn uri_desktop_content(executable: &str) -> String {
+    format!(
+        "[Desktop Entry]\nType=Application\nName=Cyreneの随机点名器 (URI Handler)\nExec=\"{}\" \"%1\"\nIcon=cyrene-name-roller\nTerminal=false\nNoDisplay=true\nMimeType=x-scheme-handler/{};\n",
+        executable, URI_SCHEME
+    )
+}
+
+#[cfg(target_os = "linux")]
+fn configure_uri_desktop_entry(enabled: bool) -> Result<(), String> {
+    let path = uri_desktop_path();
+    if !enabled {
+        if path.exists() {
+            fs::remove_file(&path).map_err(|error| error.to_string())?;
+        }
+        return Ok(());
+    }
+
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+    }
+    let executable = std::env::current_exe().map_err(|error| error.to_string())?;
+    fs::write(&path, uri_desktop_content(&executable.to_string_lossy())).map_err(|error| error.to_string())?;
+
+    let _ = background_command("update-desktop-database")
+        .arg(linux_applications_dir())
+        .status();
+    let _ = background_command("xdg-mime")
+        .args(["default", &path.to_string_lossy(), &format!("x-scheme-handler/{}", URI_SCHEME)])
+        .status();
+    Ok(())
 }
 
 #[tauri::command]
@@ -1784,8 +1873,16 @@ async fn set_auto_start(
         .map_err(|error| error.to_string())??;
         return Ok(serde_json::json!({ "success": true, "restarting": false }));
     }
-    #[cfg(not(target_os = "windows"))]
-    Ok(serde_json::json!({ "success": false, "error": "管理员计划任务仅支持 Windows" }))
+    #[cfg(target_os = "linux")]
+    {
+        let _ = previous_mode;
+        tauri::async_runtime::spawn_blocking(move || configure_autostart_desktop_entry(enabled))
+            .await
+            .map_err(|error| error.to_string())??;
+        return Ok(serde_json::json!({ "success": true, "restarting": false }));
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "linux")))]
+    Ok(serde_json::json!({ "success": false, "error": "当前系统暂不支持开机启动设置" }))
 }
 
 #[tauri::command]
@@ -1887,11 +1984,16 @@ fn set_uri_scheme_enabled(enabled: bool) -> Result<serde_json::Value, String> {
         }
         return Ok(serde_json::json!({ "success": true, "enabled": enabled }));
     }
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(target_os = "linux")]
+    {
+        configure_uri_desktop_entry(enabled)?;
+        return Ok(serde_json::json!({ "success": true, "enabled": enabled }));
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "linux")))]
     Ok(serde_json::json!({
         "success": false,
         "enabled": false,
-        "error": "URI 协议注册当前仅支持 Windows 桌面端"
+        "error": "当前系统暂不支持 URI 协议注册"
     }))
 }
 
@@ -1915,7 +2017,15 @@ fn is_uri_scheme_enabled() -> bool {
         let output = String::from_utf8_lossy(&output.stdout).to_ascii_lowercase();
         executable.is_some_and(|path| output.contains(&path))
     }
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(target_os = "linux")]
+    {
+        let path = uri_desktop_path();
+        let Ok(content) = fs::read_to_string(&path) else {
+            return false;
+        };
+        content.contains("MimeType=x-scheme-handler/cyrenenr;")
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "linux")))]
     false
 }
 
