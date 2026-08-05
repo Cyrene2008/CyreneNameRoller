@@ -156,7 +156,7 @@ async function fetchAssets() {
 
   tagName.value = data.tag_name || ''
   publishedAt.value = data.published_at ? new Date(data.published_at).toLocaleDateString() : ''
-  assets.value = (data.assets || []).filter(a => a.name.endsWith('.exe') || a.name.endsWith('.dmg') || a.name.endsWith('.AppImage'))
+  assets.value = (data.assets || []).filter(a => a.name.endsWith('.exe') || a.name.endsWith('.dmg') || a.name.endsWith('.AppImage') || a.name.endsWith('.deb'))
   loading.value = false
 }
 
