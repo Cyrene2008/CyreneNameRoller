@@ -5,6 +5,7 @@ data/
 node_modules
 .npm-cache/
 .agents/
+pnpm-lock.yaml
 dist
 release*
 build-output
