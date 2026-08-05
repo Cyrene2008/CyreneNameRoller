@@ -23,6 +23,7 @@
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { dataBridge } from '../utils/dataBridge'
 import { isTauri, tauriAPI } from '../utils/tauriAPI'
+import { floatingWindowDragPosition } from '../utils/floatingWindowDrag.mjs'
 import { floatingWindowImagePath, normalizeFloatingWindowStyle } from '../utils/floatingWindowStyle'
 import { floatingWindowTextSize, normalizeFloatingWindowSize } from '../utils/floatingWindowSize'
 
@@ -65,10 +66,8 @@ function onPointerDown(e) {
   e.currentTarget.setPointerCapture(e.pointerId)
   pointer = {
     id: e.pointerId,
-    startScreenX: e.screenX,
-    startScreenY: e.screenY,
-    lastScreenX: e.screenX,
-    lastScreenY: e.screenY,
+    startClientX: e.clientX,
+    startClientY: e.clientY,
     dragged: false,
     moving: false,
     pending: null,
@@ -80,14 +79,14 @@ function onPointerDown(e) {
 function onPointerMove(e) {
   if (!pointer || e.pointerId !== pointer.id) return
 
-  const dx = e.screenX - pointer.startScreenX
-  const dy = e.screenY - pointer.startScreenY
+  const dx = e.clientX - pointer.startClientX
+  const dy = e.clientY - pointer.startClientY
   if (!pointer.dragged && Math.max(Math.abs(dx), Math.abs(dy)) > DRAG_THRESHOLD) {
     pointer.dragged = true
-    pointer.drag = startDrag()
+    pointer.drag = startDrag(pointer.startClientX, pointer.startClientY)
   }
 
-  if (pointer.dragged) movePointer(pointer, e.screenX, e.screenY)
+  if (pointer.dragged) movePointer(pointer, e.clientX, e.clientY)
 }
 
 async function onPointerUp(e) {
@@ -108,7 +107,7 @@ async function finishPointer(e, cancelled) {
   }
 
   if (activePointer.dragged) {
-    movePointer(activePointer, e.screenX, e.screenY)
+    movePointer(activePointer, e.clientX, e.clientY)
     await activePointer.inFlight
     const drag = await activePointer.drag
     await drag.end()
@@ -118,19 +117,20 @@ async function finishPointer(e, cancelled) {
   }
 }
 
-async function startDrag() {
+async function startDrag(anchorX, anchorY) {
   if (isTauri()) {
-    const { getCurrentWindow, LogicalPosition } = await import('@tauri-apps/api/window')
+    const { getCurrentWindow, PhysicalPosition } = await import('@tauri-apps/api/window')
     const win = getCurrentWindow()
-    const pos = await win.outerPosition()
     const scaleFactor = await win.scaleFactor()
-    let currentX = pos.x / scaleFactor
-    let currentY = pos.y / scaleFactor
     return {
-      move: async (dx, dy) => {
-        currentX += dx
-        currentY += dy
-        await win.setPosition(new LogicalPosition(Math.round(currentX), Math.round(currentY)))
+      move: async (clientX, clientY) => {
+        const position = floatingWindowDragPosition(
+          await win.outerPosition(),
+          { x: clientX, y: clientY },
+          { x: anchorX, y: anchorY },
+          scaleFactor
+        )
+        await win.setPosition(new PhysicalPosition(position.x, position.y))
       },
       end: () => tauriAPI.saveFloatingWindowPosition()
     }
@@ -139,8 +139,8 @@ async function startDrag() {
   return { move: () => Promise.resolve(), end: () => Promise.resolve() }
 }
 
-function movePointer(activePointer, screenX, screenY) {
-  activePointer.pending = { screenX, screenY }
+function movePointer(activePointer, clientX, clientY) {
+  activePointer.pending = { clientX, clientY }
   if (activePointer.moving) return
   activePointer.moving = true
   activePointer.inFlight = (async () => {
@@ -148,13 +148,7 @@ function movePointer(activePointer, screenX, screenY) {
     while (activePointer.pending) {
       const next = activePointer.pending
       activePointer.pending = null
-      const dx = next.screenX - activePointer.lastScreenX
-      const dy = next.screenY - activePointer.lastScreenY
-      if (!dx && !dy) continue
-
-      await drag.move(dx, dy)
-      activePointer.lastScreenX = next.screenX
-      activePointer.lastScreenY = next.screenY
+      await drag.move(next.clientX, next.clientY)
     }
   })().finally(() => { activePointer.moving = false })
 }

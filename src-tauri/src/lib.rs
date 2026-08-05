@@ -2056,6 +2056,9 @@ pub fn run() {
             }
             migrate_legacy_data(&handle);
             restore_window_state(&handle);
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.show();
+            }
             create_tray(app)?;
 
             if let Some(window) = app.get_webview_window("main") {
