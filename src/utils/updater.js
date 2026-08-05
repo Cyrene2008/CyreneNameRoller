@@ -2,6 +2,7 @@ import { ref } from 'vue'
 import { APP_VERSION } from './version'
 import { tauriAPI, isTauri } from './tauriAPI'
 import { useSettingsStore } from '../stores/settings'
+import { findPlatformAsset as findUpdateAsset } from './updateAsset.mjs'
 
 const GITHUB_REPO = 'StarCyrene/CyreneNameRoller'
 const GHPROXY_BASE = 'https://gh.昔涟.cn/'
@@ -29,14 +30,7 @@ export function getPlatform() {
 }
 
 export function findPlatformAsset(assets, platform = getPlatform()) {
-  const platformName = platform.startsWith('tauri') ? 'tauri' : ''
-  if (!platformName) return null
-
-  return (assets || []).find(asset => {
-    const name = String(asset?.name || '').toLowerCase()
-    const isWin64 = name.includes('win64') || name.includes('x64')
-    return name.endsWith('.exe') && name.includes(platformName) && isWin64
-  }) || null
+  return findUpdateAsset(assets, platform)
 }
 
 function normalizeVersion(v) {
