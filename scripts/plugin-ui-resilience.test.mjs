@@ -58,7 +58,7 @@ test('Web deployment recovers from stale chunks without precaching missing asset
   ])
   assert.doesNotMatch(html, /serviceWorker\.register/)
   assert.doesNotMatch(serviceWorker, /names\.json/)
-  assert.match(serviceWorker, /cyrene-v26\.1\.0-shell-2/)
+  assert.match(serviceWorker, /cyrene-v\d+\.\d+\.\d+-shell-\d+/)
   assert.match(main, /vite:preloadError/)
   assert.match(main, /window\.location\.reload\(\)/)
   assert.match(main, /import\.meta\.env\.DEV/)

@@ -1,5 +1,25 @@
 [
   {
+    "version": "26.1.1",
+    "date": "2026-08-07",
+    "logs": {
+      "zh": [
+        "【组件库】完全接入 VueFluentWidgets 官方组件库，替换全部自研 Fluent 组件",
+        "【点名上限】允许重复模式下人数不再设上限，任何分类（全部/男/女）均可抽取任意正整数人数",
+        "【点名上限】仅禁止重复模式按当前分类可用候选人数限制上限：全部为全部候选、仅男为男性候选、仅女为女性候选，小组模式按小组数量",
+        "【点名上限】切换为禁止重复时自动将人数收窄到当前分类上限；切换回允许重复时保持用户已填写的人数",
+        "【下载源】新用户默认下载源调整为 gh-proxy.com，已保存的下载源选择不受影响"
+      ],
+      "en": [
+        "[Widgets] Fully integrated with the official VueFluentWidgets component library, replacing all in-house Fluent components",
+        "[Roller Limit] No count limit when repeats are allowed; any positive integer can be drawn from any gender filter (All/Male/Female)",
+        "[Roller Limit] No-repeat mode caps the count at the current filter's available people: All uses the full pool, Male only male candidates, Female only female candidates, and group mode uses the group count",
+        "[Roller Limit] Switching to no-repeat mode auto-caps the count; switching back to repeats preserves the user-entered count",
+        "[Download Source] New users default to gh-proxy.com; previously saved download sources are preserved"
+      ]
+    }
+  },
+  {
     "version": "26.1.0",
     "date": "2026-08-03",
     "logs": {

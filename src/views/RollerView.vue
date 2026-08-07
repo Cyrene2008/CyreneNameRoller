@@ -142,11 +142,9 @@ const availableNames = computed(() => namesStore.currentNames.filter(person =>
 const nonWhiteListCount = computed(() => availableNames.value.filter(n => !n.isWhiteList).length)
 const maxPeopleCount = computed(() => {
   if (!settings.value.multiMode) return 1
+  if (!settings.value.forbidDuplicates) return Number.MAX_SAFE_INTEGER
   if (!settings.value.groupMode) return Math.max(1, nonWhiteListCount.value)
-  if (settings.value.forbidDuplicates) {
-    return Math.max(2, groupPoolCount.value)
-  }
-  return 9999
+  return Math.max(2, groupPoolCount.value)
 })
 const canStart = computed(() => {
   if (settings.value.groupMode) {
@@ -233,7 +231,9 @@ function enforceGenderAvailability() {
     return true
   }
   const currentCount = Math.max(2, settings.value.peopleCount || 2)
-  const nextCount = Math.min(currentCount, availableCount)
+  const nextCount = settings.value.forbidDuplicates
+    ? Math.min(currentCount, availableCount)
+    : currentCount
   if (nextCount !== settings.value.peopleCount) settingsStore.update('peopleCount', nextCount)
   initializeDisplays(nextCount)
   nextTick(computeNameLayout)
@@ -268,7 +268,18 @@ function onGroupModeChange(val) {
 
 function onDrawTargetChange(value) { onGroupModeChange(value === 'groups') }
 
-function onForbidDuplicatesChange(val) { settingsStore.update('forbidDuplicates', val) }
+function onForbidDuplicatesChange(val) {
+  settingsStore.update('forbidDuplicates', val)
+  if (val && settings.value.multiMode) {
+    const cap = settings.value.groupMode ? groupPoolCount.value : nonWhiteListCount.value
+    if ((settings.value.peopleCount || 2) > cap) {
+      const c = Math.max(2, cap)
+      settingsStore.update('peopleCount', c)
+      initializeDisplays(c)
+      nextTick(computeNameLayout)
+    }
+  }
+}
 function onDuplicateModeChange(value) { onForbidDuplicatesChange(value === 'unique') }
 
 function onPeopleCountChange(val) {

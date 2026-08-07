@@ -413,7 +413,7 @@
             <div class="uri-parameter-row header"><strong>{{ lang === 'en' ? 'Parameter' : '参数' }}</strong><strong>{{ lang === 'en' ? 'Values' : '可选值' }}</strong><strong>{{ lang === 'en' ? 'Meaning' : '含义' }}</strong></div>
             <div v-for="item in uriHelpParameters" :key="item.name" class="uri-parameter-row"><code>{{ item.name }}</code><code>{{ item.values }}</code><span>{{ item.label }}</span></div>
           </div>
-          <p class="uri-value-note">{{ lang === 'en' ? 'Boolean values accept 1/0 or true/false. count is clamped to 1–9999. Parameters on other pages are ignored.' : '布尔值可使用 1/0 或 true/false；count 会限制在 1–9999；其他页面会忽略这些参数。' }}</p>
+          <p class="uri-value-note">{{ lang === 'en' ? 'Boolean values accept 1/0 or true/false. count goes up to 999999. Parameters on other pages are ignored.' : '布尔值可使用 1/0 或 true/false；count 最高 999999；其他页面会忽略这些参数。' }}</p>
         </div>
       </div>
       <template #footer><FluentButton variant="primary" size="sm" @click="showUriHelp = false">{{ lang === 'en' ? 'Done' : '完成' }}</FluentButton></template>
@@ -655,7 +655,7 @@ const uriHelpParameters = computed(() => [
   { name: 'isGroupMode', values: '0 / 1', label: lang.value === 'en' ? 'Draw people or groups' : '抽取人员或抽取小组' },
   { name: 'sex', values: 'all / male / female', label: lang.value === 'en' ? 'Gender filter for people' : '人员性别筛选' },
   { name: 'multiMode', values: '0 / 1', label: lang.value === 'en' ? 'Single or multiple draw mode' : '单次或多人/多次抽取' },
-  { name: 'count', values: '1–9999', label: lang.value === 'en' ? 'Number of people or groups' : '抽取人数或小组数量' },
+  { name: 'count', values: '1–999999', label: lang.value === 'en' ? 'Number of people or groups' : '抽取人数或小组数量' },
   { name: 'noDuplication', values: '0 / 1', label: lang.value === 'en' ? 'Allow or prevent duplicate results' : '允许或禁止重复结果' }
 ])
 
