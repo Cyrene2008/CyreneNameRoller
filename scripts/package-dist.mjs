@@ -4,8 +4,10 @@ import path from 'node:path'
 
 const root = path.resolve(import.meta.dirname, '..')
 
-async function findBundleAssets() {
-  const bundleRoot = path.join(root, 'target', 'release', 'bundle')
+async function findBundleAssets(platform) {
+  const bundleRoot = platform === 'linux'
+    ? path.join(root, 'target', 'x86_64-unknown-linux-gnu', 'release', 'bundle')
+    : path.join(root, 'target', 'release', 'bundle')
   const outputs = []
   try {
     const dirs = await fs.readdir(bundleRoot)
@@ -55,7 +57,9 @@ async function main() {
   }
   console.log(`[package-dist] platform=${platform} version=${version}`)
   console.log(`[package-dist] running: tauri ${buildArgs.join(' ')}`)
-  await fs.rm(path.join(root, 'target', 'release', 'bundle'), { recursive: true, force: true })
+  await fs.rm(platform === 'linux'
+    ? path.join(root, 'target', 'x86_64-unknown-linux-gnu', 'release', 'bundle')
+    : path.join(root, 'target', 'release', 'bundle'), { recursive: true, force: true })
 
   const tauriBin = path.join(root, 'node_modules', '.bin', 'tauri' + (platform === 'win32' ? '.cmd' : ''))
   const run = spawnSync(tauriBin, buildArgs, { cwd: root, stdio: 'inherit', shell: platform === 'win32' })
@@ -64,9 +68,9 @@ async function main() {
     process.exit(run.status ?? 1)
   }
 
-  const assets = await findBundleAssets()
+  const assets = await findBundleAssets(platform)  
   if (!assets.length) {
-    console.error('[package-dist] 未找到 Tauri 产物（target/release/bundle 下无 exe/deb/appimage）')
+    console.error(`[package-dist] 未找到 Tauri 产物（${platform === 'linux' ? 'target/x86_64-unknown-linux-gnu/release/bundle' : 'target/release/bundle'} 下无 exe/deb/appimage）`)
     process.exit(1)
   }
 
