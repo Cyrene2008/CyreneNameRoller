@@ -1,0 +1,83 @@
+name: Release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            platform: win32
+            args: --platform=win32
+          - os: ubuntu-latest
+            platform: linux
+            args: --platform=linux
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf
+      - run: npm ci
+      - run: node scripts/package-dist.mjs ${{ matrix.args }}
+        env:
+          CI: true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ matrix.platform }}
+          path: dist-release/
+          if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          path: assets/
+          merge-multiple: true
+      - name: Extract version
+        id: version
+        run: echo "version=$(node -p \"require('./src-tauri/tauri.conf.json').version\")" >> "$GITHUB_OUTPUT"
+      - name: Generate changelog
+        id: changelog
+        run: |
+          TAG="v${{ steps.version.outputs.version }}"
+          PREV=$(git tag --sort=-version:refname | grep -v "^$TAG$" | head -1 || true)
+          if [ -z "$PREV" ]; then PREV=$(git rev-list --max-parents=0 HEAD); fi
+          {
+            echo "## Past release $(date +%Y-%m-%d)"
+            echo ""
+            git log --pretty='- %s' --no-merges "$PREV..HEAD"
+          } > changelog.txt
+          cat changelog.txt
+      - name: Publish release
+        run: |
+          TAG="v${{ steps.version.outputs.version }}"
+          cd assets
+          ASSETS=$(ls -1 | tr '\n' ' ')
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "==> Release $TAG exists, updating assets and appending changelog"
+            gh release upload "$TAG" $ASSETS --clobber
+            gh release edit "$TAG" --notes-file ../changelog.txt
+          else
+            echo "==> Creating release $TAG"
+            gh release create "$TAG" $ASSETS --title "Cyrene の Random Roller v${{ steps.version.outputs.version }}" --notes-file ../changelog.txt
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
