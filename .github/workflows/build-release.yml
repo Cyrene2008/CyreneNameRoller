@@ -83,7 +83,7 @@ jobs:
             gh release edit "$TAG" --notes-file ../changelog.txt
           else
             echo "==> Creating release $TAG"
-            gh release create "$TAG" $ASSETS --title "Cyrene の Random Roller v${{ steps.version.outputs.version }}" --notes-file ../changelog.txt
+            gh release create "$TAG" $ASSETS --title "Cyrenの随机点名器 v${{ steps.version.outputs.version }}" --notes-file ../changelog.txt
           fi
         env:
           GH_TOKEN: ${{ github.token }}
