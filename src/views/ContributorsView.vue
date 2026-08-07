@@ -43,9 +43,6 @@ import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useSettingsStore } from '../stores/settings'
 import { openExternal } from '../utils/openExternal'
-import FluentCard from '../components/FluentCard.vue'
-import FluentButton from '../components/FluentButton.vue'
-import FluentIcon from '../components/FluentIcon.vue'
 
 const router = useRouter()
 const settingsStore = useSettingsStore()

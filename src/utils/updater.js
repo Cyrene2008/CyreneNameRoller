@@ -29,8 +29,8 @@ export function getPlatform() {
   return getUpdatePlatformId()
 }
 
-export function findPlatformAsset(assets, platform = getPlatform()) {
-  return findUpdateAsset(assets, platform)
+export function findPlatformAsset(assets, platform = getPlatform(), version = '') {
+  return findUpdateAsset(assets, platform, version)
 }
 
 function normalizeVersion(v) {
@@ -99,7 +99,7 @@ export async function checkForUpdates(silent = true, bannerFn = null) {
   if (compareVersions(remoteVersion, currentVersion) > 0) {
     const platform = getPlatform()
     const assets = release.assets || []
-    const targetAsset = findPlatformAsset(assets, platform)
+    const targetAsset = findPlatformAsset(assets, platform, remoteVersion)
     updateState.value = {
       available: true, checking: false, downloading: false, downloadProgress: 0,
       version: release.tag_name,

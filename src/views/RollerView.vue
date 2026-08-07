@@ -85,12 +85,6 @@ import {
   DEFAULT_CYRENE_BALANCE_SETTINGS,
   normalizeCyreneBalanceSettings
 } from '../utils/cyrene-balance'
-import FluentButton from '../components/FluentButton.vue'
-import FluentIcon from '../components/FluentIcon.vue'
-import FluentToggle from '../components/FluentToggle.vue'
-import FluentSelect from '../components/FluentSelect.vue'
-import FluentInput from '../components/FluentInput.vue'
-import FluentTabs from '../components/FluentTabs.vue'
 
 const namesStore = useNamesStore()
 const settingsStore = useSettingsStore()

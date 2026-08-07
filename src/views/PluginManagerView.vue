@@ -80,11 +80,6 @@ import { useRouter } from 'vue-router'
 import { useSettingsStore } from '../stores/settings'
 import { usePluginsStore } from '../plugins/store'
 import { PLUGIN_DOWNLOAD_SOURCES } from '../plugins/constants'
-import FluentIcon from '../components/FluentIcon.vue'
-import FluentButton from '../components/FluentButton.vue'
-import FluentSelect from '../components/FluentSelect.vue'
-import FluentToggle from '../components/FluentToggle.vue'
-import FluentModal from '../components/FluentModal.vue'
 
 const settingsStore = useSettingsStore()
 const router = useRouter()

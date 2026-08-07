@@ -69,10 +69,6 @@
 import { ref, computed, onMounted } from 'vue'
 import { useSettingsStore } from '../stores/settings'
 import { isTauri, tauriAPI } from '../utils/tauriAPI'
-import FluentCard from '../components/FluentCard.vue'
-import FluentButton from '../components/FluentButton.vue'
-import FluentIcon from '../components/FluentIcon.vue'
-import FluentSelect from '../components/FluentSelect.vue'
 
 const settingsStore = useSettingsStore()
 const lang = computed(() => settingsStore.settings.language)

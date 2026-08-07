@@ -102,7 +102,10 @@ export const useSettingsStore = defineStore('settings', () => {
   }
 
   function applyDarkMode() {
-    // darkMode is applied via :class binding in AppLayout
+    const root = typeof document !== 'undefined' ? document.documentElement : null
+    if (!root) return
+    root.classList.toggle('light', !darkMode.value)
+    root.classList.toggle('dark', darkMode.value)
   }
 
   function applyUIScale() {

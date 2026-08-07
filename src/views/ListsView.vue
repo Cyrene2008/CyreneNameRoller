@@ -30,7 +30,11 @@
     <FluentCard class="person-list-card">
       <div class="person-list-header">
         <label class="select-all-label">
-          <input type="checkbox" :checked="allSelected" :indeterminate="someSelected" @change="toggleSelectAll" class="person-checkbox" />
+          <FluentCheckBox
+            :model-value="allSelected ? true : someSelected ? null : false"
+            :indeterminate="someSelected"
+            @update:model-value="toggleSelectAll"
+          />
           <span class="person-count">{{ namesStore.currentNames.length }} {{ lang === 'en' ? 'people' : '人' }}</span>
         </label>
         <Transition name="fade">
@@ -67,7 +71,7 @@
           <!-- 显示模式 -->
           <template v-else>
             <label class="person-check-label">
-              <input type="checkbox" :checked="selectedSet.has(index)" @change="toggleSelect(index)" class="person-checkbox" />
+              <FluentCheckBox :model-value="selectedSet.has(index)" @update:model-value="toggleSelect(index)" />
             </label>
             <div class="person-info">
               <div class="person-identity">
@@ -125,14 +129,6 @@ import { useNamesStore } from '../stores/names'
 import { useSettingsStore } from '../stores/settings'
 import { useStatisticsStore } from '../stores/statistics'
 import { t } from '../utils/i18n'
-import FluentCard from '../components/FluentCard.vue'
-import FluentButton from '../components/FluentButton.vue'
-import FluentIcon from '../components/FluentIcon.vue'
-import FluentSelect from '../components/FluentSelect.vue'
-import FluentInput from '../components/FluentInput.vue'
-import FluentModal from '../components/FluentModal.vue'
-import FluentToggle from '../components/FluentToggle.vue'
-import FluentTabs from '../components/FluentTabs.vue'
 
 const router = useRouter()
 const namesStore = useNamesStore()

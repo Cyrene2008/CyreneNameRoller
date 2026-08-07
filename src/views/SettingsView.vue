@@ -60,15 +60,15 @@
               <span class="setting-label">{{ lang === 'en' ? 'Floating window size' : '悬浮窗大小' }}</span>
               <span class="setting-desc">{{ floatingSizeDraft }} px</span>
             </div>
-            <input
+            <FluentSlider
+              :model-value="floatingSizeDraft"
+              :min="40"
+              :max="256"
+              :step="4"
               class="floating-size-range"
-              type="range"
-              min="40"
-              max="256"
-              step="4"
-              :value="floatingSizeDraft"
               :aria-label="lang === 'en' ? 'Floating window size' : '悬浮窗大小'"
-              @input="onFloatingWindowSizeInput"
+              :show-value="false"
+              @update:model-value="onFloatingWindowSizeInput"
               @change="onFloatingWindowSizeChange"
             />
           </div>
@@ -144,7 +144,7 @@
       <div v-if="settings.colorTheme === 'custom'" class="setting-row">
         <span class="setting-label">{{ lang === 'en' ? 'Custom color' : '自定义颜色' }}</span>
         <div class="color-picker-row">
-          <input class="color-input" type="color" :value="settings.customThemeColor" @input="onCustomColorPicker" />
+          <FluentColorPicker :model-value="settings.customThemeColor" @update:model-value="onCustomColorPicker" />
           <FluentInput v-model="customColorDraft" class="hex-color-input" placeholder="#0078d4 / rgb(0,120,212)" @enter="commitCustomColor" @blur="commitCustomColor" />
         </div>
       </div>
@@ -157,14 +157,14 @@
           <div class="setting-row">
             <span class="setting-label">{{ t('customColorLight', lang) }}</span>
             <div class="color-picker-row">
-              <input type="color" :value="settings.customNameColorLight" class="color-input" @input="update('customNameColorLight', $event.target.value)" />
+              <FluentColorPicker :model-value="settings.customNameColorLight" @update:model-value="update('customNameColorLight', $event)" />
               <span class="color-value">{{ settings.customNameColorLight }}</span>
             </div>
           </div>
           <div class="setting-row">
             <span class="setting-label">{{ t('customColorDark', lang) }}</span>
             <div class="color-picker-row">
-              <input type="color" :value="settings.customNameColorDark" class="color-input" @input="update('customNameColorDark', $event.target.value)" />
+              <FluentColorPicker :model-value="settings.customNameColorDark" @update:model-value="update('customNameColorDark', $event)" />
               <span class="color-value">{{ settings.customNameColorDark }}</span>
             </div>
           </div>
@@ -177,13 +177,14 @@
         </div>
         <div class="scale-control">
           <div class="scale-input-wrap">
-            <input
-              type="number"
-              class="scale-input"
-              min="50"
-              max="200"
-              step="1"
-              v-model.number="scaleDraft"
+            <FluentNumberBox
+              v-model="scaleDraft"
+              :min="50"
+              :max="200"
+              :step="1"
+              :show-spin-buttons="false"
+              style="flex: 1; min-width: 0"
+              aria-label="UI scale"
             />
             <span class="scale-unit">%</span>
           </div>
@@ -290,15 +291,15 @@
             </div>
             <div class="scale-control">
               <div class="scale-input-wrap" style="width: 140px">
-                <input
-                  type="number"
-                  class="scale-input"
-                  min="1"
-                  max="60"
-                  step="1"
-                  :value="settings.autoStopDuration"
+                <FluentNumberBox
+                  :model-value="settings.autoStopDuration"
+                  :min="1"
+                  :max="60"
+                  :step="1"
+                  :show-spin-buttons="false"
                   :aria-label="lang === 'en' ? 'Auto-stop duration in seconds' : '自动停止时间（秒）'"
-                  @change="onAutoStopDurationChange"
+                  style="flex: 1; min-width: 0"
+                  @update:model-value="onAutoStopDurationChange"
                 />
                 <span class="scale-unit">sec</span>
               </div>
@@ -322,7 +323,7 @@
             <span class="setting-label">{{ t('stepStopInterval', lang) }}</span>
             <div class="scale-control">
               <div class="scale-input-wrap" style="width:140px">
-                <input type="number" class="scale-input" min="0.01" max="1.00" step="0.01" v-model.number="stepIntervalDraft" />
+                <FluentNumberBox v-model="stepIntervalDraft" :min="0.01" :max="1.00" :step="0.01" :show-spin-buttons="false" style="flex: 1; min-width: 0" aria-label="Step interval" />
                 <span class="scale-unit">sec</span>
               </div>
               <FluentButton variant="secondary" size="sm" @click="confirmStepInterval">{{ lang === 'en' ? 'Apply' : '确认' }}</FluentButton>
@@ -437,13 +438,6 @@ import {
   ALGORITHM_NAME,
   ALGORITHM_VERSION
 } from '../utils/cyrene-balance'
-import FluentCard from '../components/FluentCard.vue'
-import FluentButton from '../components/FluentButton.vue'
-import FluentIcon from '../components/FluentIcon.vue'
-import FluentToggle from '../components/FluentToggle.vue'
-import FluentInput from '../components/FluentInput.vue'
-import FluentSelect from '../components/FluentSelect.vue'
-import FluentModal from '../components/FluentModal.vue'
 import { normalizeHex } from '../utils/theme'
 import { FLOATING_WINDOW_STYLES, floatingWindowImagePath, normalizeFloatingWindowStyle } from '../utils/floatingWindowStyle'
 import { normalizeFloatingWindowSize } from '../utils/floatingWindowSize'
@@ -587,8 +581,8 @@ const pwModalHint = computed(() => {
 
 function update(key, value) { return settingsStore.update(key, value) }
 
-function onAutoStopDurationChange(event) {
-  update('autoStopDuration', normalizeAutoStopDuration(event.target.value))
+function onAutoStopDurationChange(value) {
+  update('autoStopDuration', normalizeAutoStopDuration(value))
 }
 const customColorDraft = ref(settings.value.customThemeColor)
 const autoStartBusy = ref(false)
@@ -603,8 +597,8 @@ function commitCustomColor() {
   customColorDraft.value = normalized
   update('customThemeColor', normalized)
 }
-function onCustomColorPicker(event) {
-  customColorDraft.value = event.target.value
+function onCustomColorPicker(value) {
+  customColorDraft.value = value
   commitCustomColor()
 }
 async function onAutoStart(value) {
@@ -781,15 +775,15 @@ onBeforeUnmount(() => {
   waiters.forEach(resolve => resolve({ success: false, cancelled: true }))
 })
 
-function onFloatingWindowSizeInput(event) {
-  const size = normalizeFloatingWindowSize(event.target.value)
+function onFloatingWindowSizeInput(value) {
+  const size = normalizeFloatingWindowSize(value)
   floatingSizeDraft.value = size
   clearTimeout(floatingSizeTimer)
   floatingSizeTimer = setTimeout(() => { sendFloatingWindowSize(size) }, 60)
 }
 
-async function onFloatingWindowSizeChange(event) {
-  const size = normalizeFloatingWindowSize(event.target.value)
+async function onFloatingWindowSizeChange(value) {
+  const size = normalizeFloatingWindowSize(value)
   floatingSizeDraft.value = size
   clearTimeout(floatingSizeTimer)
   await update('floatingWindowSize', size)
@@ -831,7 +825,8 @@ async function doForceUpdate() {
     const release = await fetchRelease()
     if (release) {
       const assets = release.assets || []
-      const targetAsset = findPlatformAsset(assets)
+      const remoteVersion = String(release.tag_name || '').replace(/^v/i, '').trim()
+      const targetAsset = findPlatformAsset(assets, undefined, remoteVersion)
       updateState.value = {
         available: true, checking: false, downloading: false, downloadProgress: 0,
         version: release.tag_name,
@@ -975,27 +970,13 @@ function onBalanceEnabledChange(enabled) {
 .floating-style-label { max-width: 100%; font-size: 12px; line-height: 1.25; text-align: center; overflow-wrap: anywhere; }
 .floating-reset-row { padding: 4px 0; }
 .floating-size-row { align-items: center; }
-.floating-size-range { width: min(240px, 48%); accent-color: var(--accent); cursor: pointer; }
 .color-picker-row { display: flex; align-items: center; gap: 10px; }
-.color-input { width: 40px; height: 32px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); cursor: pointer; padding: 2px; background: transparent; }
 .scale-control { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .scale-input-wrap {
   display: flex; align-items: center; gap: 2px;
   width: 200px; height: 32px; padding: 0 10px;
-  border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
-  background: var(--bg-input, rgba(255, 255, 255, 0.06));
   transition: border-color .15s;
 }
-.scale-input-wrap:focus-within { border-color: var(--accent-500); }
-.scale-input {
-  flex: 1; width: 100%; min-width: 0; border: none; background: transparent;
-  color: var(--text-primary); font-size: 14px; font-family: var(--font-ui);
-  font-variant-numeric: tabular-nums; outline: none;
-}
-/* 隐藏数字输入框的上下微调箭头 */
-.scale-input::-webkit-outer-spin-button,
-.scale-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-.scale-input { -moz-appearance: textfield; }
 .scale-unit { color: var(--text-muted); font-size: 14px; }
 .scale-range { font-size: 12px; color: var(--text-muted); }
 .scale-btn-enter-active, .scale-btn-leave-active {
