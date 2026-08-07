@@ -4,6 +4,8 @@ import { addCollection } from '@iconify/vue'
 import App from './App.vue'
 import router from './router'
 import { useSettingsStore } from './stores/settings'
+import VueFluentWidgets from 'vue-fluent-widgets'
+import 'vue-fluent-widgets/style.css'
 import './assets/variables.css'
 import './assets/global.css'
 
@@ -53,6 +55,7 @@ async function bootstrap() {
   const app = createApp(App)
   app.use(pinia)
   app.use(router)
+  app.use(VueFluentWidgets)
   app.mount('#app')
 }
 

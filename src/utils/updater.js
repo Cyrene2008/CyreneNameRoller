@@ -2,6 +2,7 @@ import { ref } from 'vue'
 import { APP_VERSION } from './version'
 import { tauriAPI, isTauri } from './tauriAPI'
 import { useSettingsStore } from '../stores/settings'
+import { getUpdatePlatformId } from './desktopRuntime.js'
 import { findPlatformAsset as findUpdateAsset } from './updateAsset.mjs'
 
 const GITHUB_REPO = 'StarCyrene/CyreneNameRoller'
@@ -25,12 +26,11 @@ export const updateState = ref({
 })
 
 export function getPlatform() {
-  if (isTauri()) return 'tauri-win64'
-  return 'web'
+  return getUpdatePlatformId()
 }
 
-export function findPlatformAsset(assets, platform = getPlatform()) {
-  return findUpdateAsset(assets, platform)
+export function findPlatformAsset(assets, platform = getPlatform(), version = '') {
+  return findUpdateAsset(assets, platform, version)
 }
 
 function normalizeVersion(v) {
@@ -43,6 +43,8 @@ function getDownloadUrl(originalUrl) {
   if (source === 'github') return originalUrl
   return `${source === 'ghproxy' ? 'https://gh-proxy.com/' : GHPROXY_BASE}${originalUrl}`
 }
+
+export { getDownloadUrl }
 
 function compareVersions(a, b) {
   const pa = a.split('.').map(Number)
@@ -99,7 +101,7 @@ export async function checkForUpdates(silent = true, bannerFn = null) {
   if (compareVersions(remoteVersion, currentVersion) > 0) {
     const platform = getPlatform()
     const assets = release.assets || []
-    const targetAsset = findPlatformAsset(assets, platform)
+    const targetAsset = findPlatformAsset(assets, platform, remoteVersion)
     updateState.value = {
       available: true, checking: false, downloading: false, downloadProgress: 0,
       version: release.tag_name,
@@ -141,7 +143,7 @@ export async function downloadUpdate(bannerFn = null) {
     return
   }
 
-  if (!fileName || !fileName.toLowerCase().endsWith('.exe')) {
+  if (!fileName || !/\.(exe|deb|appimage)$/i.test(fileName)) {
     await tauriAPI.openExternal(originalUrl)
     return
   }

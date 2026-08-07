@@ -157,13 +157,6 @@ import { usePrizesStore } from '../stores/prizes'
 import { useNamesStore } from '../stores/names'
 import { useSettingsStore } from '../stores/settings'
 import { usePluginsStore } from '../plugins/store'
-import FluentTabs from '../components/FluentTabs.vue'
-import FluentCard from '../components/FluentCard.vue'
-import FluentInput from '../components/FluentInput.vue'
-import FluentButton from '../components/FluentButton.vue'
-import FluentSelect from '../components/FluentSelect.vue'
-import FluentIcon from '../components/FluentIcon.vue'
-import FluentModal from '../components/FluentModal.vue'
 
 const AUTO_STOP_DELAY = 3000
 const WHEEL_SETTLE_DELAY = 1600

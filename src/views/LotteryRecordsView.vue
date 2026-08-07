@@ -31,11 +31,6 @@ import { computed, onMounted, ref } from 'vue'
 import { usePrizesStore } from '../stores/prizes'
 import { useNamesStore } from '../stores/names'
 import { useSettingsStore } from '../stores/settings'
-import FluentCard from '../components/FluentCard.vue'
-import FluentButton from '../components/FluentButton.vue'
-import FluentIcon from '../components/FluentIcon.vue'
-import FluentSelect from '../components/FluentSelect.vue'
-import FluentModal from '../components/FluentModal.vue'
 
 const prizes = usePrizesStore()
 const names = useNamesStore()

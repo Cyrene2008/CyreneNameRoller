@@ -43,7 +43,6 @@
 import { gsap } from 'gsap'
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import FluentIcon from './FluentIcon.vue'
 import { getIndicatorDirection, getIndicatorGeometry, getIndicatorTransition } from '../utils/navigationIndicator.mjs'
 
 const props = defineProps({

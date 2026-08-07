@@ -69,10 +69,6 @@
 import { ref, computed, onMounted } from 'vue'
 import { useSettingsStore } from '../stores/settings'
 import { isTauri, tauriAPI } from '../utils/tauriAPI'
-import FluentCard from '../components/FluentCard.vue'
-import FluentButton from '../components/FluentButton.vue'
-import FluentIcon from '../components/FluentIcon.vue'
-import FluentSelect from '../components/FluentSelect.vue'
 
 const settingsStore = useSettingsStore()
 const lang = computed(() => settingsStore.settings.language)
@@ -156,7 +152,7 @@ async function fetchAssets() {
 
   tagName.value = data.tag_name || ''
   publishedAt.value = data.published_at ? new Date(data.published_at).toLocaleDateString() : ''
-  assets.value = (data.assets || []).filter(a => a.name.endsWith('.exe') || a.name.endsWith('.dmg') || a.name.endsWith('.AppImage'))
+  assets.value = (data.assets || []).filter(a => a.name.endsWith('.exe') || a.name.endsWith('.dmg') || a.name.endsWith('.AppImage') || a.name.endsWith('.deb'))
   loading.value = false
 }
 

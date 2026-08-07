@@ -1,0 +1,12 @@
+{
+  "productName": "CyreneNameRoller",
+  "mainBinaryName": "cyrene-name-roller",
+  "bundle": {
+    "targets": ["deb", "appimage"],
+    "linux": {
+      "deb": {
+        "files": {}
+      }
+    }
+  }
+}

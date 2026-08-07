@@ -82,3 +82,30 @@ export async function resolveCatalogRelease(item, { source = 'cyrene', fetchImpl
     releaseNotes: release.body || ''
   }
 }
+
+export async function fetchRepositoryOwner(item, { source = 'cyrene', fetchImpl = fetch } = {}) {
+  const slug = repositorySlug(item.repository)
+  if (!slug) return null
+  const apiUrl = `https://api.github.com/repos/${slug}`
+  let response = null
+  for (const url of pluginSourceCandidates(apiUrl, source)) {
+    try {
+      const attempt = await fetchImpl(url, {
+        cache: 'no-store',
+        headers: { Accept: 'application/vnd.github+json' }
+      })
+      if (attempt.ok) {
+        response = attempt
+        break
+      }
+    } catch (error) {
+      response = null
+    }
+  }
+  if (!response) return null
+  const repository = await response.json()
+  return {
+    author: repository.owner?.login || '',
+    icon: repository.owner?.avatar_url || ''
+  }
+}

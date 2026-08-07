@@ -60,9 +60,6 @@ import {
 } from '../utils/cyrene-balance'
 import { dataBridge } from '../utils/dataBridge'
 import { t } from '../utils/i18n'
-import FluentCard from '../components/FluentCard.vue'
-import FluentIcon from '../components/FluentIcon.vue'
-import FluentSelect from '../components/FluentSelect.vue'
 
 const namesStore = useNamesStore()
 const settingsStore = useSettingsStore()

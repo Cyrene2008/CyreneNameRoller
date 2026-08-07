@@ -2,6 +2,7 @@ import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { readFileSync, readdirSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
+import { execSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 
 const projectRoot = dirname(fileURLToPath(import.meta.url))
@@ -26,10 +27,17 @@ function fluentIconSubset() {
       if (id !== virtualId) return
       const source = JSON.parse(readFileSync(resolve(projectRoot, 'node_modules/@iconify-json/fluent/icons.json'), 'utf8'))
       const names = new Set()
-      const pattern = /['"](?:fluent:)?([a-z0-9][a-z0-9-]*(?:regular|filled))['"]/g
+      const pattern = /['"`](?:fluent:)?([a-z0-9][a-z0-9-]*(?:-16|-20|-24|-28|-32)?-(?:regular|filled))['"`]/g
       for (const file of collectSourceFiles(resolve(projectRoot, 'src'))) {
         const content = readFileSync(file, 'utf8')
         for (const match of content.matchAll(pattern)) names.add(match[1])
+      }
+      for (const file of collectSourceFiles(resolve(projectRoot, 'node_modules/vue-fluent-widgets/dist'), [])) {
+        const content = readFileSync(file, 'utf8')
+        for (const match of content.matchAll(pattern)) {
+          const name = match[1]
+          if (source.icons[name] || source.aliases?.[name]) names.add(name)
+        }
       }
       const icons = {}
       const aliases = {}
@@ -51,7 +59,15 @@ function fluentIconSubset() {
 }
 
 const now = new Date()
-const buildHash = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}${String(now.getHours()).padStart(2,'0')}`
+const fallbackBuildHash = `${String(now.getFullYear() % 100).padStart(2, '0')}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}${String(now.getHours()).padStart(2, '0')}`
+
+let buildHash = fallbackBuildHash
+try {
+  const commit = execSync('git rev-parse --short HEAD', { cwd: projectRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim()
+  if (commit) buildHash = commit
+} catch {
+  buildHash = fallbackBuildHash
+}
 
 export default defineConfig({
   base: './',

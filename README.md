@@ -6,7 +6,10 @@
 
 基于 Vue 3 + Tauri 的随机点名桌面应用，采用 Windows 11 Fluent Design 设计语言。
 
-自 v26.1 起仅提供 Web 与 Tauri 版本更新及 Tauri Release。
+> [!CAUTION]
+> 自 v26.1 起仅提供 Web 与 Tauri 版本更新及 Tauri Release
+> 本项目使用了 [Vue Fluent Widgets](https://fluent.cyrene.hk) 作为Fluent组件库，这是一个MIT协议的组件库，Copyright (C) Cyrene2008
+
 
 在线使用→ [立即使用](https://xn--web-t33et1i480d.xn--8hvv1o.cn/)
 
@@ -26,7 +29,7 @@
   - [x] Windows10+
   - [x] Web
   - [ ] Android
-  - [ ] Linux
+  - [x] Linux(早期测试阶段，不作稳定性和性能保证，Linux平台仍然建议先使用Web版)
 - [x] 悬浮窗启动
 - [ ] 更多功能正在路上♪
 

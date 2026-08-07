@@ -18,7 +18,7 @@ import {
 import { PluginRuntime } from './runtime'
 import { PluginAnimationRegistry } from './animationRegistry'
 import { PluginPlatformBridge } from './platform'
-import { repositorySlug, resolveCatalogRelease } from './catalog'
+import { repositorySlug, resolveCatalogRelease, fetchRepositoryOwner } from './catalog'
 import { commitCoreDrawTransaction, createCoreDrawQueue, validateCoreDrawArgs } from './coreDraw'
 
 const STATE_KEY = 'pluginState'
@@ -509,6 +509,17 @@ export const usePluginsStore = defineStore('plugins', () => {
         return { ...item, version: item.version || '', releaseError: error.message || String(error) }
       }
     }))
+    for (const item of list.value) {
+      if (item.icon && item.author) continue
+      Promise.resolve()
+        .then(() => fetchRepositoryOwner(item, { source: source.value }))
+        .then(owner => {
+          if (!owner) return
+          if (!item.icon) item.icon = owner.icon
+          if (!item.author) item.author = owner.author
+        })
+        .catch(() => {})
+    }
     return list.value
   }
 
