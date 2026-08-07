@@ -60,15 +60,15 @@
               <span class="setting-label">{{ lang === 'en' ? 'Floating window size' : '悬浮窗大小' }}</span>
               <span class="setting-desc">{{ floatingSizeDraft }} px</span>
             </div>
-            <input
+            <FluentSlider
+              :model-value="floatingSizeDraft"
+              :min="40"
+              :max="256"
+              :step="4"
               class="floating-size-range"
-              type="range"
-              min="40"
-              max="256"
-              step="4"
-              :value="floatingSizeDraft"
               :aria-label="lang === 'en' ? 'Floating window size' : '悬浮窗大小'"
-              @input="onFloatingWindowSizeInput"
+              :show-value="false"
+              @update:model-value="onFloatingWindowSizeInput"
               @change="onFloatingWindowSizeChange"
             />
           </div>
@@ -144,7 +144,7 @@
       <div v-if="settings.colorTheme === 'custom'" class="setting-row">
         <span class="setting-label">{{ lang === 'en' ? 'Custom color' : '自定义颜色' }}</span>
         <div class="color-picker-row">
-          <input class="color-input" type="color" :value="settings.customThemeColor" @input="onCustomColorPicker" />
+          <FluentColorPicker :model-value="settings.customThemeColor" @update:model-value="onCustomColorPicker" />
           <FluentInput v-model="customColorDraft" class="hex-color-input" placeholder="#0078d4 / rgb(0,120,212)" @enter="commitCustomColor" @blur="commitCustomColor" />
         </div>
       </div>
@@ -157,14 +157,14 @@
           <div class="setting-row">
             <span class="setting-label">{{ t('customColorLight', lang) }}</span>
             <div class="color-picker-row">
-              <input type="color" :value="settings.customNameColorLight" class="color-input" @input="update('customNameColorLight', $event.target.value)" />
+              <FluentColorPicker :model-value="settings.customNameColorLight" @update:model-value="update('customNameColorLight', $event)" />
               <span class="color-value">{{ settings.customNameColorLight }}</span>
             </div>
           </div>
           <div class="setting-row">
             <span class="setting-label">{{ t('customColorDark', lang) }}</span>
             <div class="color-picker-row">
-              <input type="color" :value="settings.customNameColorDark" class="color-input" @input="update('customNameColorDark', $event.target.value)" />
+              <FluentColorPicker :model-value="settings.customNameColorDark" @update:model-value="update('customNameColorDark', $event)" />
               <span class="color-value">{{ settings.customNameColorDark }}</span>
             </div>
           </div>
@@ -177,13 +177,14 @@
         </div>
         <div class="scale-control">
           <div class="scale-input-wrap">
-            <input
-              type="number"
-              class="scale-input"
-              min="50"
-              max="200"
-              step="1"
-              v-model.number="scaleDraft"
+            <FluentNumberBox
+              v-model="scaleDraft"
+              :min="50"
+              :max="200"
+              :step="1"
+              :show-spin-buttons="false"
+              style="flex: 1; min-width: 0"
+              aria-label="UI scale"
             />
             <span class="scale-unit">%</span>
           </div>
@@ -290,15 +291,15 @@
             </div>
             <div class="scale-control">
               <div class="scale-input-wrap" style="width: 140px">
-                <input
-                  type="number"
-                  class="scale-input"
-                  min="1"
-                  max="60"
-                  step="1"
-                  :value="settings.autoStopDuration"
+                <FluentNumberBox
+                  :model-value="settings.autoStopDuration"
+                  :min="1"
+                  :max="60"
+                  :step="1"
+                  :show-spin-buttons="false"
                   :aria-label="lang === 'en' ? 'Auto-stop duration in seconds' : '自动停止时间（秒）'"
-                  @change="onAutoStopDurationChange"
+                  style="flex: 1; min-width: 0"
+                  @update:model-value="onAutoStopDurationChange"
                 />
                 <span class="scale-unit">sec</span>
               </div>
@@ -322,7 +323,7 @@
             <span class="setting-label">{{ t('stepStopInterval', lang) }}</span>
             <div class="scale-control">
               <div class="scale-input-wrap" style="width:140px">
-                <input type="number" class="scale-input" min="0.01" max="1.00" step="0.01" v-model.number="stepIntervalDraft" />
+                <FluentNumberBox v-model="stepIntervalDraft" :min="0.01" :max="1.00" :step="0.01" :show-spin-buttons="false" style="flex: 1; min-width: 0" aria-label="Step interval" />
                 <span class="scale-unit">sec</span>
               </div>
               <FluentButton variant="secondary" size="sm" @click="confirmStepInterval">{{ lang === 'en' ? 'Apply' : '确认' }}</FluentButton>
@@ -417,6 +418,90 @@
       </div>
       <template #footer><FluentButton variant="primary" size="sm" @click="showUriHelp = false">{{ lang === 'en' ? 'Done' : '完成' }}</FluentButton></template>
     </FluentModal>
+
+    <!-- Cyreneの罗盘 推荐提示/下载列表 -->
+    <FluentModal v-model="showCompass" :title="lang === 'en' ? 'A Better Companion' : '诚挚邀请体验 Cyreneの罗盘'" max-width="560px">
+      <div v-if="compassStep === 'invite'" class="compass-invite-body">
+        <div class="compass-invite-hero">
+          <img src="/starcyrene.ico" alt="CyreneCompass" class="compass-invite-logo" />
+          <div class="compass-invite-text">
+            <h4 class="compass-invite-title">Cyreneの罗盘 <span class="compass-invite-en">CyreneCompass</span></h4>
+            <p class="compass-invite-desc">
+              {{ lang === 'en'
+                ? 'A tray resident compass launcher with far more capabilities: draggable floating ball, 3×3 compass menu, Shell integration, always-on-top, and more.'
+                : '一款托盘常驻的罗盘快捷启动器，功能更全面：可拖动悬浮球、3×3 罗盘菜单、Shell 集成、置顶显示、更多实用能力。' }}
+            </p>
+          </div>
+        </div>
+        <p class="compass-invite-slogan">
+          {{ lang === 'en' ? 'Try Cyreneの罗盘 to unlock a more complete experience.' : '开启悬浮窗快捷点名前，诚挚邀请你体验功能更全面的 Cyreneの罗盘。' }}
+        </p>
+      </div>
+
+      <div v-else class="compass-download-body">
+        <div class="compass-download-toolbar">
+          <FluentButton variant="subtle" size="sm" icon-only @click="compassStep = 'invite'">
+            <FluentIcon icon="arrow-left-16-regular" :width="16" />
+          </FluentButton>
+          <span class="compass-download-hint">
+            {{ lang === 'en' ? 'Choose a release to download. It follows your update download source.' : '请选择要下载的版本，将按你设定的更新下载源下载。' }}
+          </span>
+        </div>
+
+        <div v-if="compassLoading" class="compass-download-status">
+          <FluentProgressRing :size="20" />
+          <span>{{ lang === 'en' ? 'Loading releases…' : '正在获取发布列表…' }}</span>
+        </div>
+        <div v-else-if="compassError" class="compass-download-status compass-error">
+          <FluentIcon icon="warning-16-regular" :width="16" />
+          <span>{{ compassError }}</span>
+          <FluentButton variant="subtle" size="sm" @click="loadCompassReleases">
+            <FluentIcon icon="arrow-clockwise-16-regular" :width="14" />
+            {{ lang === 'en' ? 'Retry' : '重试' }}
+          </FluentButton>
+        </div>
+        <div v-else-if="!compassReleases.length" class="compass-download-status">
+          <span>{{ lang === 'en' ? 'No releases yet.' : '暂无发布版本。' }}</span>
+        </div>
+        <div v-else class="compass-release-list">
+          <div v-for="release in compassReleases" :key="release.id" class="compass-release">
+            <div class="compass-release-head">
+              <span class="compass-release-tag">{{ release.tag_name }}</span>
+              <span v-if="release.published_at" class="compass-release-date">{{ new Date(release.published_at).toLocaleDateString() }}</span>
+            </div>
+            <p v-if="release.name" class="compass-release-name">{{ release.name }}</p>
+            <div class="compass-asset-list">
+              <div v-for="asset in release.assets" :key="asset.id" class="compass-asset">
+                <div class="compass-asset-info">
+                  <span class="compass-asset-name" :title="asset.name">{{ asset.name }}</span>
+                  <span v-if="asset.size" class="compass-asset-size">{{ formatBytes(asset.size) }}</span>
+                </div>
+                <FluentButton
+                  variant="secondary"
+                  size="sm"
+                  :disabled="!!compassDownloading"
+                  @click="downloadCompassAsset(asset)"
+                >
+                  <FluentIcon icon="arrow-download-16-regular" :width="14" />
+                  {{ compassDownloading === asset.name ? (lang === 'en' ? 'Opening…' : '打开中…') : (lang === 'en' ? 'Download' : '下载') }}
+                </FluentButton>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <template #footer>
+        <template v-if="compassStep === 'invite'">
+          <FluentButton variant="subtle" size="sm" @click="acceptFloatingWindow">{{ lang === 'en' ? 'No, thanks' : '不了，谢谢' }}</FluentButton>
+          <FluentButton variant="primary" size="sm" @click="openCompassDownloads">
+            <FluentIcon icon="arrow-download-16-regular" :width="14" />
+            {{ lang === 'en' ? 'Download Cyreneの罗盘' : '下载 Cyreneの罗盘' }}
+          </FluentButton>
+        </template>
+        <FluentButton v-else variant="primary" size="sm" @click="acceptFloatingWindow">{{ lang === 'en' ? 'Continue' : '继续' }}</FluentButton>
+      </template>
+    </FluentModal>
   </div>
 </template>
 
@@ -429,7 +514,8 @@ import { useRecordsStore } from '../stores/records'
 import { useStatisticsStore } from '../stores/statistics'
 import { dataBridge } from '../utils/dataBridge'
 import { isTauri, tauriAPI } from '../utils/tauriAPI'
-import { updateState, checkForUpdates, downloadUpdate } from '../utils/updater'
+import { updateState, checkForUpdates, downloadUpdate, getDownloadUrl } from '../utils/updater'
+import { fetchCompassReleases, formatBytes, COMPASS_GITHUB_URL } from '../utils/compass'
 import { t } from '../utils/i18n'
 import {
   DEFAULT_CYRENE_BALANCE_SETTINGS,
@@ -437,13 +523,6 @@ import {
   ALGORITHM_NAME,
   ALGORITHM_VERSION
 } from '../utils/cyrene-balance'
-import FluentCard from '../components/FluentCard.vue'
-import FluentButton from '../components/FluentButton.vue'
-import FluentIcon from '../components/FluentIcon.vue'
-import FluentToggle from '../components/FluentToggle.vue'
-import FluentInput from '../components/FluentInput.vue'
-import FluentSelect from '../components/FluentSelect.vue'
-import FluentModal from '../components/FluentModal.vue'
 import { normalizeHex } from '../utils/theme'
 import { FLOATING_WINDOW_STYLES, floatingWindowImagePath, normalizeFloatingWindowStyle } from '../utils/floatingWindowStyle'
 import { normalizeFloatingWindowSize } from '../utils/floatingWindowSize'
@@ -546,6 +625,12 @@ const pwModalMode = ref('verify')
 const pendingAction = ref(null)
 const showImportWarning = ref(false)
 const showUriHelp = ref(false)
+const showCompass = ref(false)
+const compassStep = ref('invite')
+const compassReleases = ref([])
+const compassLoading = ref(false)
+const compassError = ref('')
+const compassDownloading = ref('')
 
 const webUrlBase = computed(() => {
   if (typeof window === 'undefined') return 'https://example.com/'
@@ -587,8 +672,8 @@ const pwModalHint = computed(() => {
 
 function update(key, value) { return settingsStore.update(key, value) }
 
-function onAutoStopDurationChange(event) {
-  update('autoStopDuration', normalizeAutoStopDuration(event.target.value))
+function onAutoStopDurationChange(value) {
+  update('autoStopDuration', normalizeAutoStopDuration(value))
 }
 const customColorDraft = ref(settings.value.customThemeColor)
 const autoStartBusy = ref(false)
@@ -603,8 +688,8 @@ function commitCustomColor() {
   customColorDraft.value = normalized
   update('customThemeColor', normalized)
 }
-function onCustomColorPicker(event) {
-  customColorDraft.value = event.target.value
+function onCustomColorPicker(value) {
+  customColorDraft.value = value
   commitCustomColor()
 }
 async function onAutoStart(value) {
@@ -728,8 +813,67 @@ function offerAutoStartElevation({ enabled, mode, previousMode, rollbackEnabled,
 
 async function onFloatingWindowToggle(val) {
   await update('floatingWindowEnabled', val)
+  if (!val) {
+    // 关闭时会话结束：重置提示状态，下次再开启会再次询问
+    await update('floatingCompassHintDismissed', false)
+    if (isTauri()) {
+      await tauriAPI.invoke('close_floating_window')
+    }
+    return
+  }
+  if (settings.value.floatingCompassHintDismissed) {
+    if (isTauri()) {
+      await tauriAPI.invoke('open_floating_window')
+    }
+    return
+  }
+  // 首次开启悬浮窗：先展示 Cyreneの罗盘 推荐提示，确认后再激活悬浮窗
+  showCompass.value = true
+  compassStep.value = 'invite'
+}
+
+async function acceptFloatingWindow() {
+  showCompass.value = false
+  await update('floatingCompassHintDismissed', true)
   if (isTauri()) {
-    await tauriAPI.invoke(val ? 'open_floating_window' : 'close_floating_window')
+    await tauriAPI.invoke('open_floating_window')
+  }
+}
+
+function openCompassDownloads() {
+  compassStep.value = 'downloads'
+  if (!compassReleases.value.length && !compassLoading.value) loadCompassReleases()
+}
+
+async function loadCompassReleases() {
+  compassLoading.value = true
+  compassError.value = ''
+  try {
+    const releases = await fetchCompassReleases()
+    compassReleases.value = releases.filter(r => Array.isArray(r.assets) && r.assets.length)
+  } catch {
+    compassError.value = '无法获取 Cyreneの罗盘 的发布列表'
+  } finally {
+    compassLoading.value = false
+  }
+}
+
+async function downloadCompassAsset(asset) {
+  if (!asset?.browser_download_url) return
+  compassDownloading.value = asset.name
+  try {
+    const url = getDownloadUrl(asset.browser_download_url)
+    if (isTauri()) {
+      await tauriAPI.openExternal(url)
+    } else {
+      window.open(url, '_blank', 'noopener')
+    }
+  } catch {
+    if (isTauri()) await tauriAPI.openExternal(COMPASS_GITHUB_URL)
+    else window.open(COMPASS_GITHUB_URL, '_blank', 'noopener')
+  } finally {
+    compassDownloading.value = ''
+    acceptFloatingWindow()
   }
 }
 
@@ -781,15 +925,15 @@ onBeforeUnmount(() => {
   waiters.forEach(resolve => resolve({ success: false, cancelled: true }))
 })
 
-function onFloatingWindowSizeInput(event) {
-  const size = normalizeFloatingWindowSize(event.target.value)
+function onFloatingWindowSizeInput(value) {
+  const size = normalizeFloatingWindowSize(value)
   floatingSizeDraft.value = size
   clearTimeout(floatingSizeTimer)
   floatingSizeTimer = setTimeout(() => { sendFloatingWindowSize(size) }, 60)
 }
 
-async function onFloatingWindowSizeChange(event) {
-  const size = normalizeFloatingWindowSize(event.target.value)
+async function onFloatingWindowSizeChange(value) {
+  const size = normalizeFloatingWindowSize(value)
   floatingSizeDraft.value = size
   clearTimeout(floatingSizeTimer)
   await update('floatingWindowSize', size)
@@ -831,7 +975,8 @@ async function doForceUpdate() {
     const release = await fetchRelease()
     if (release) {
       const assets = release.assets || []
-      const targetAsset = findPlatformAsset(assets)
+      const remoteVersion = String(release.tag_name || '').replace(/^v/i, '').trim()
+      const targetAsset = findPlatformAsset(assets, undefined, remoteVersion)
       updateState.value = {
         available: true, checking: false, downloading: false, downloadProgress: 0,
         version: release.tag_name,
@@ -975,27 +1120,13 @@ function onBalanceEnabledChange(enabled) {
 .floating-style-label { max-width: 100%; font-size: 12px; line-height: 1.25; text-align: center; overflow-wrap: anywhere; }
 .floating-reset-row { padding: 4px 0; }
 .floating-size-row { align-items: center; }
-.floating-size-range { width: min(240px, 48%); accent-color: var(--accent); cursor: pointer; }
 .color-picker-row { display: flex; align-items: center; gap: 10px; }
-.color-input { width: 40px; height: 32px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); cursor: pointer; padding: 2px; background: transparent; }
 .scale-control { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .scale-input-wrap {
   display: flex; align-items: center; gap: 2px;
   width: 200px; height: 32px; padding: 0 10px;
-  border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
-  background: var(--bg-input, rgba(255, 255, 255, 0.06));
   transition: border-color .15s;
 }
-.scale-input-wrap:focus-within { border-color: var(--accent-500); }
-.scale-input {
-  flex: 1; width: 100%; min-width: 0; border: none; background: transparent;
-  color: var(--text-primary); font-size: 14px; font-family: var(--font-ui);
-  font-variant-numeric: tabular-nums; outline: none;
-}
-/* 隐藏数字输入框的上下微调箭头 */
-.scale-input::-webkit-outer-spin-button,
-.scale-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-.scale-input { -moz-appearance: textfield; }
 .scale-unit { color: var(--text-muted); font-size: 14px; }
 .scale-range { font-size: 12px; color: var(--text-muted); }
 .scale-btn-enter-active, .scale-btn-leave-active {
@@ -1112,4 +1243,32 @@ function onBalanceEnabledChange(enabled) {
   font-family: var(--font-num);
   font-variant-numeric: tabular-nums;
 }
+
+/* Cyreneの罗盘 推荐提示 */
+.compass-invite-body { display: flex; flex-direction: column; gap: 14px; }
+.compass-invite-hero { display: flex; align-items: center; gap: 16px; }
+.compass-invite-logo { width: 72px; height: 72px; border-radius: var(--radius-lg); object-fit: contain; flex-shrink: 0; }
+.compass-invite-text { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.compass-invite-title { margin: 0; font-size: 17px; font-weight: 600; color: var(--text-primary); display: flex; align-items: baseline; gap: 8px; }
+.compass-invite-en { font-size: 12px; font-weight: 500; color: var(--text-muted); }
+.compass-invite-desc { margin: 0; font-size: 13px; line-height: 1.6; color: var(--text-secondary); }
+.compass-invite-slogan { margin: 0; font-size: 13px; line-height: 1.6; color: var(--text-secondary); padding: 10px 14px; background: var(--accent-50); border: 1px solid var(--accent-100); border-radius: var(--radius-md); }
+
+/* Cyreneの罗盘 下载列表 */
+.compass-download-body { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+.compass-download-toolbar { display: flex; align-items: center; gap: 10px; }
+.compass-download-hint { font-size: 12px; color: var(--text-muted); }
+.compass-download-status { display: flex; align-items: center; gap: 10px; padding: 24px 8px; color: var(--text-muted); font-size: 13px; justify-content: center; }
+.compass-download-status.compass-error { color: var(--text-secondary); }
+.compass-release-list { display: flex; flex-direction: column; gap: 10px; max-height: 320px; overflow-y: auto; padding-right: 4px; }
+.compass-release { padding: 12px 14px; border: 1px solid var(--border-default); border-radius: var(--radius-md); background: var(--bg-subtle); display: flex; flex-direction: column; gap: 8px; }
+.compass-release-head { display: flex; align-items: center; gap: 10px; }
+.compass-release-tag { font-family: var(--font-num); font-size: 14px; font-weight: 600; color: var(--accent); }
+.compass-release-date { font-size: 11px; color: var(--text-muted); }
+.compass-release-name { margin: 0; font-size: 13px; color: var(--text-secondary); }
+.compass-asset-list { display: flex; flex-direction: column; gap: 8px; }
+.compass-asset { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 10px; background: var(--bg-card-solid); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); }
+.compass-asset-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.compass-asset-name { font-size: 12px; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.compass-asset-size { font-size: 11px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
 </style>

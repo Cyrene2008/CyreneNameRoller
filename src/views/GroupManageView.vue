@@ -85,12 +85,6 @@ import { useRouter } from 'vue-router'
 import { useNamesStore } from '../stores/names'
 import { useSettingsStore } from '../stores/settings'
 import { t } from '../utils/i18n'
-import FluentButton from '../components/FluentButton.vue'
-import FluentIcon from '../components/FluentIcon.vue'
-import FluentSelect from '../components/FluentSelect.vue'
-import FluentInput from '../components/FluentInput.vue'
-import FluentCard from '../components/FluentCard.vue'
-import FluentModal from '../components/FluentModal.vue'
 
 const router = useRouter()
 const namesStore = useNamesStore()

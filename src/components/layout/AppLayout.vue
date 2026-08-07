@@ -119,12 +119,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { gsap } from 'gsap'
 import TitleBar from './TitleBar.vue'
 import NavigationDock from './NavigationDock.vue'
-import FluentToast from '../FluentToast.vue'
-import FluentModal from '../FluentModal.vue'
-import FluentInput from '../FluentInput.vue'
-import FluentButton from '../FluentButton.vue'
 import FullscreenToggle from '../FullscreenToggle.vue'
-import FluentIcon from '../FluentIcon.vue'
 import PluginVisualLayers from '../plugins/PluginVisualLayers.vue'
 import { useSettingsStore } from '../../stores/settings'
 import { useNamesStore } from '../../stores/names'
@@ -973,7 +968,7 @@ watch(() => settingsStore.settings.fontFamily, (val) => {
 .drop-modal-error { color: #c42b1c; font-size: 12px; }
 
 .v-prefix { font-family: var(--font-ui); font-size: 12px; }
-.v-num { font-family: var(--font-num); font-size: calc(12px * var(--font-num-scale, 1.6)); }
+.v-num { font-family: var(--font-ui); font-size: 13px; font-weight: 500; }
 .v-sep { font-family: var(--font-ui); font-size: 12px; }
 
 /* Banner Container */

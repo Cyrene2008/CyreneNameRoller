@@ -15,6 +15,31 @@
         </div>
       </div>
     </div>
+
+    <div class="splash-footer">
+      <div class="splash-footer-main">
+        <div class="footer-creator">
+          <img src="/avatars/Cyrene2008.png" alt="Cyrene2008" class="footer-avatar" />
+          <div class="footer-creator-info">
+            <div class="footer-creator-name-row">
+              <span class="footer-creator-name">Cyrene2008</span>
+              <span class="footer-role">{{ lang === 'en' ? 'Author' : '作者' }}</span>
+            </div>
+          </div>
+        </div>
+        <div class="footer-creator-sep" />
+        <div class="footer-org">
+          <img src="/starcyrene.ico" alt="StarCyrene" class="footer-org-icon" />
+          <div class="footer-org-copy">
+            <span class="footer-org-name">星海昔涟 StarCyrene</span>
+            <span class="footer-org-slogan">{{ lang === 'en' ? 'Made with Love, Starlight Ripples On♪' : '「以爱为因，星光成涟」♪' }}</span>
+          </div>
+        </div>
+      </div>
+      <div class="footer-copy">
+        Copyright &copy; 2025-2026 Cyrene2008 · All Rights Reserved.
+      </div>
+    </div>
   </div>
 </template>
 
@@ -103,6 +128,94 @@ onBeforeUnmount(() => {
 }
 .splash-root.fading {
   opacity: 0;
+}
+/* 底部 75% Alpha 作者 + 组织信息（作者在前），Copyright 位于最底部 */
+.splash-footer {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 24px 16px;
+  font-family: 'Segoe UI', 'Microsoft YaHei', 'PingFang SC', sans-serif;
+  opacity: 0.75;
+  pointer-events: none;
+  user-select: none;
+  color: #8f2d5f;
+}
+.splash-footer-main {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+  flex-wrap: wrap;
+}
+.splash-footer .footer-creator {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.splash-footer .footer-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid rgba(143, 45, 95, 0.25);
+}
+.splash-footer .footer-creator-info {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+}
+.splash-footer .footer-creator-name-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.splash-footer .footer-creator-name {
+  font-size: 13px;
+  font-weight: 600;
+}
+.splash-footer .footer-role {
+  font-size: 11px;
+  opacity: 0.7;
+}
+.splash-footer .footer-creator-sep {
+  width: 1px;
+  height: 30px;
+  background: rgba(143, 45, 95, 0.25);
+}
+.splash-footer .footer-org {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.splash-footer .footer-org-icon {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+}
+.splash-footer .footer-org-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.splash-footer .footer-org-name {
+  font-size: 13px;
+  font-weight: 600;
+}
+.splash-footer .footer-org-slogan {
+  font-size: 11px;
+  opacity: 0.7;
+}
+.splash-footer .footer-copy {
+  font-size: 11px;
+  opacity: 0.7;
+  line-height: 1.6;
 }
 /* 启动动画整体基准缩放 150%（独立于全局 --ui-scale） */
 .splash-stage {

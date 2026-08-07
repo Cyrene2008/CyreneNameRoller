@@ -123,10 +123,6 @@ import { computed, inject, nextTick, onBeforeUnmount, onMounted, reactive, ref, 
 import { useRoute, useRouter } from 'vue-router'
 import { useSettingsStore } from '../stores/settings'
 import { usePluginsStore } from '../plugins/store'
-import FluentButton from '../components/FluentButton.vue'
-import FluentIcon from '../components/FluentIcon.vue'
-import FluentSelect from '../components/FluentSelect.vue'
-import FluentToggle from '../components/FluentToggle.vue'
 
 const route = useRoute()
 const router = useRouter()

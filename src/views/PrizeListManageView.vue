@@ -65,12 +65,6 @@ import { usePrizesStore } from '../stores/prizes'
 import { useSettingsStore } from '../stores/settings'
 import { emitFileNotice, openTextFile, saveTextFile } from '../utils/desktopFiles'
 import { parsePrizeListCsv, serializePrizeListCsv } from '../utils/prizeCsv'
-import FluentCard from '../components/FluentCard.vue'
-import FluentButton from '../components/FluentButton.vue'
-import FluentIcon from '../components/FluentIcon.vue'
-import FluentInput from '../components/FluentInput.vue'
-import FluentSelect from '../components/FluentSelect.vue'
-import FluentModal from '../components/FluentModal.vue'
 
 const router = useRouter()
 const prizes = usePrizesStore()

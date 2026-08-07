@@ -59,7 +59,7 @@ const URI_SCHEME: &str = "cyrenenr";
 const CREATE_NO_WINDOW: u32 = 0x08000000;
 
 fn background_command<S: AsRef<OsStr>>(program: S) -> Command {
-    let command = Command::new(program);
+    let mut command = Command::new(program);
     #[cfg(target_os = "windows")]
     command.creation_flags(CREATE_NO_WINDOW);
     command
@@ -1856,7 +1856,7 @@ fn is_process_elevated() -> bool {
 #[tauri::command]
 async fn set_auto_start(
     enabled: bool,
-    _mode: String,
+    mode: String,
     previous_mode: String,
 ) -> Result<serde_json::Value, String> {
     #[cfg(target_os = "windows")]
@@ -1891,9 +1891,9 @@ async fn set_auto_start(
 
 #[tauri::command]
 fn restart_elevated_for_auto_start(
-    _enabled: bool,
-    _mode: String,
-    _previous_mode: String,
+    enabled: bool,
+    mode: String,
+    previous_mode: String,
 ) -> Result<serde_json::Value, String> {
     #[cfg(target_os = "windows")]
     {

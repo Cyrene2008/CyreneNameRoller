@@ -32,8 +32,6 @@ import { ref, computed, onMounted } from 'vue'
 import { useSettingsStore } from '../stores/settings'
 import { useRecordsStore } from '../stores/records'
 import { useNamesStore } from '../stores/names'
-import FluentCard from '../components/FluentCard.vue'
-import FluentIcon from '../components/FluentIcon.vue'
 
 const settingsStore = useSettingsStore()
 const recordsStore = useRecordsStore()

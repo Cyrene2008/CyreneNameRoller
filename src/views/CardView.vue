@@ -85,11 +85,6 @@ import { useRecordsStore } from '../stores/records'
 import { usePluginsStore } from '../plugins/store'
 import { dataBridge } from '../utils/dataBridge'
 import { t } from '../utils/i18n'
-import FluentButton from '../components/FluentButton.vue'
-import FluentIcon from '../components/FluentIcon.vue'
-import FluentInput from '../components/FluentInput.vue'
-import FluentToggle from '../components/FluentToggle.vue'
-import FluentSelect from '../components/FluentSelect.vue'
 
 const namesStore = useNamesStore()
 const settingsStore = useSettingsStore()

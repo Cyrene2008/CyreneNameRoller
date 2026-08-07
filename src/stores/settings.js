@@ -30,7 +30,7 @@ const DEFAULT_SETTINGS = {
   uiScale: 100,
   uiScaleVersion: 2,
   nameFontSize: 1.0,
-  fontFamily: 'HarmonyOS',
+  fontFamily: 'MiSans',
   darkMode: false,
   nameColorMode: 'gradient',
   customNameColorLight: '#d04a9d',
@@ -43,6 +43,7 @@ const DEFAULT_SETTINGS = {
   floatingWindowEnabled: false,
   floatingWindowStyle: 'text',
   floatingWindowSize: 64,
+  floatingCompassHintDismissed: false,
   autoStart: false,
   autoStartMode: 'registry',
   autoStartToTray: false,
@@ -102,7 +103,10 @@ export const useSettingsStore = defineStore('settings', () => {
   }
 
   function applyDarkMode() {
-    // darkMode is applied via :class binding in AppLayout
+    const root = typeof document !== 'undefined' ? document.documentElement : null
+    if (!root) return
+    root.classList.toggle('light', !darkMode.value)
+    root.classList.toggle('dark', darkMode.value)
   }
 
   function applyUIScale() {
