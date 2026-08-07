@@ -14,6 +14,56 @@
       <p class="app-version">{{ APP_VERSION }}</p>
       <p class="app-desc">{{ lang === 'en' ? 'A random name picker with Fluent Design' : '一个采用 Fluent Design 的随机点名器' }}</p>
 
+<div class="about-divider" />
+
+      <!-- 作者信息框 + 组织信息（同一行，作者在前） -->
+      <div class="about-identity">
+        <div class="about-creator">
+          <FluentPersonPicture :src="AUTHOR_AVATAR" :display-name="AUTHOR_NAME" :size="68" />
+          <div class="about-creator-info">
+            <div class="about-creator-name-row">
+              <span class="about-creator-name">{{ AUTHOR_NAME }}</span>
+              <span class="about-creator-role">{{ lang === 'en' ? 'Author' : '作者' }}</span>
+            </div>
+            <a href="#" class="about-github-link">
+              <FluentIcon icon="code-20-regular" :width="20" />
+              <span>GitHub</span>
+            </a>
+          </div>
+        </div>
+
+        <div class="about-identity-divider" />
+
+        <div class="about-org">
+        <img src="/starcyrene.ico" alt="StarCyrene" class="about-org-icon" />
+        <div class="about-org-copy">
+          <span class="about-org-name">星海昔涟 StarCyrene</span>
+          <span>「以爱为因，星光成涟」♪</span>
+          <span>Made with Love, Starlight Ripples On♪</span>
+          <a href="#" @click.prevent="openLink('https://cyrene.hk')" class="about-org-site">
+            <FluentIcon icon="globe-20-regular" :width="20" />
+            <span>{{ lang === 'en' ? 'Team website' : '团队官网' }} cyrene.hk</span>
+          </a>
+        </div>
+      </div>
+      </div>
+
+      <div class="about-divider" />
+
+      <!-- Powered by VueFluentWidgets -->
+      <div class="about-powered">
+        <FluentIcon icon="code-20-regular" :width="20" />
+        <div class="about-powered-copy">
+          <a href="#" @click.prevent="openLink('https://fluent.cyrene.hk')" class="about-powered-name">Powered by VueFluentWidgets</a>
+          <span>Fluent Design System for Vue · MIT License</span>
+          <span>Copyright © 2025-2026 Cyrene2008</span>
+          <a href="#" @click.prevent="openLink('https://fluent.cyrene.hk')" class="about-powered-link">
+            <FluentIcon icon="globe-20-regular" :width="20" />
+            <span>https://fluent.cyrene.hk</span>
+          </a>
+        </div>
+      </div>
+
       <div class="about-divider" />
 
       <div class="about-section about-actions">
@@ -21,11 +71,6 @@
           <FluentIcon icon="people-team-16-regular" :width="14" />
           {{ lang === 'en' ? 'Contributors' : '贡献人员' }}
         </FluentButton>
-      </div>
-
-      <div class="about-section">
-        <h3>{{ lang === 'en' ? 'Author' : '作者' }}</h3>
-        <p><a href="#" @click.prevent="openLink('https://github.com/Cyrene2008')">Cyrene2008</a></p>
       </div>
 
       <div class="about-section">
@@ -68,6 +113,9 @@ import { openExternal } from '../utils/openExternal'
 const router = useRouter()
 const settingsStore = useSettingsStore()
 const lang = computed(() => settingsStore.settings.language)
+
+const AUTHOR_NAME = 'Cyrene2008'
+const AUTHOR_AVATAR = './avatars/Cyrene2008.png'
 
 function openLink(url) { openExternal(url) }
 </script>
@@ -129,6 +177,161 @@ function openLink(url) { openExternal(url) }
   margin: 20px 0;
 }
 
+/* 作者信息框 + 组织信息 同一行 */
+.about-identity {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 32px;
+  flex-wrap: wrap;
+}
+
+.about-identity-divider {
+  width: 1px;
+  height: 64px;
+  background: var(--border-default);
+}
+
+/* 作者信息框（仿 demo Footer footer-creator） */
+.about-creator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+}
+
+.about-creator-info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.about-creator-name-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.about-creator-name {
+  font-size: 19px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.about-creator-role {
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.about-github-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  text-decoration: none;
+  color: var(--text-secondary);
+  font-size: 15px;
+  transition: color 0.2s ease;
+}
+
+.about-github-link:hover {
+  color: var(--accent);
+}
+
+/* 组织信息（仿 demo Footer footer-org） */
+.about-org {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  color: var(--text-secondary);
+  font-size: 15px;
+}
+
+.about-org-icon {
+  width: 68px;
+  height: 68px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.about-org-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+}
+
+.about-org-name {
+  color: var(--text-primary);
+  font-size: 17px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.about-org-site {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  width: fit-content;
+  margin-top: 3px;
+  color: var(--text-secondary);
+  font-size: 14px;
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.about-org-site:hover {
+  color: var(--accent);
+}
+
+/* Powered by VueFluentWidgets */
+.about-powered {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  color: var(--text-secondary);
+  font-size: 15px;
+}
+
+.about-powered-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+.about-powered-name {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--text-primary);
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.about-powered-name:hover {
+  color: var(--accent);
+}
+
+.about-powered-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  width: fit-content;
+  margin-top: 3px;
+  color: var(--text-secondary);
+  font-size: 14px;
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.about-powered-link:hover {
+  color: var(--accent);
+}
+
 .about-section {
   margin-bottom: 16px;
   text-align: center;
@@ -171,5 +374,16 @@ function openLink(url) { openExternal(url) }
 
 .about-actions {
   margin: 16px 0;
+}
+
+@media (max-width: 560px) {
+  .about-identity { flex-direction: column; gap: 16px; }
+  .about-identity-divider { width: 60px; height: 1px; }
+  .about-creator { flex-direction: row; gap: 12px; }
+  .about-creator-info { align-items: flex-start; }
+  .about-org { flex-direction: row; gap: 12px; }
+  .about-org-copy { align-items: flex-start; }
+  .about-powered { flex-direction: column; gap: 10px; }
+  .about-powered-copy { align-items: center; }
 }
 </style>

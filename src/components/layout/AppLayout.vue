@@ -968,7 +968,7 @@ watch(() => settingsStore.settings.fontFamily, (val) => {
 .drop-modal-error { color: #c42b1c; font-size: 12px; }
 
 .v-prefix { font-family: var(--font-ui); font-size: 12px; }
-.v-num { font-family: var(--font-num); font-size: calc(12px * var(--font-num-scale, 1.6)); }
+.v-num { font-family: var(--font-ui); font-size: 13px; font-weight: 500; }
 .v-sep { font-family: var(--font-ui); font-size: 12px; }
 
 /* Banner Container */

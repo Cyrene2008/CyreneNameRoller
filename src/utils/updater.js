@@ -44,6 +44,8 @@ function getDownloadUrl(originalUrl) {
   return `${source === 'ghproxy' ? 'https://gh-proxy.com/' : GHPROXY_BASE}${originalUrl}`
 }
 
+export { getDownloadUrl }
+
 function compareVersions(a, b) {
   const pa = a.split('.').map(Number)
   const pb = b.split('.').map(Number)

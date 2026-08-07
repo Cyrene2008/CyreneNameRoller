@@ -418,6 +418,90 @@
       </div>
       <template #footer><FluentButton variant="primary" size="sm" @click="showUriHelp = false">{{ lang === 'en' ? 'Done' : '完成' }}</FluentButton></template>
     </FluentModal>
+
+    <!-- Cyreneの罗盘 推荐提示/下载列表 -->
+    <FluentModal v-model="showCompass" :title="lang === 'en' ? 'A Better Companion' : '诚挚邀请体验 Cyreneの罗盘'" max-width="560px">
+      <div v-if="compassStep === 'invite'" class="compass-invite-body">
+        <div class="compass-invite-hero">
+          <img src="/starcyrene.ico" alt="CyreneCompass" class="compass-invite-logo" />
+          <div class="compass-invite-text">
+            <h4 class="compass-invite-title">Cyreneの罗盘 <span class="compass-invite-en">CyreneCompass</span></h4>
+            <p class="compass-invite-desc">
+              {{ lang === 'en'
+                ? 'A tray resident compass launcher with far more capabilities: draggable floating ball, 3×3 compass menu, Shell integration, always-on-top, and more.'
+                : '一款托盘常驻的罗盘快捷启动器，功能更全面：可拖动悬浮球、3×3 罗盘菜单、Shell 集成、置顶显示、更多实用能力。' }}
+            </p>
+          </div>
+        </div>
+        <p class="compass-invite-slogan">
+          {{ lang === 'en' ? 'Try Cyreneの罗盘 to unlock a more complete experience.' : '开启悬浮窗快捷点名前，诚挚邀请你体验功能更全面的 Cyreneの罗盘。' }}
+        </p>
+      </div>
+
+      <div v-else class="compass-download-body">
+        <div class="compass-download-toolbar">
+          <FluentButton variant="subtle" size="sm" icon-only @click="compassStep = 'invite'">
+            <FluentIcon icon="arrow-left-16-regular" :width="16" />
+          </FluentButton>
+          <span class="compass-download-hint">
+            {{ lang === 'en' ? 'Choose a release to download. It follows your update download source.' : '请选择要下载的版本，将按你设定的更新下载源下载。' }}
+          </span>
+        </div>
+
+        <div v-if="compassLoading" class="compass-download-status">
+          <FluentProgressRing :size="20" />
+          <span>{{ lang === 'en' ? 'Loading releases…' : '正在获取发布列表…' }}</span>
+        </div>
+        <div v-else-if="compassError" class="compass-download-status compass-error">
+          <FluentIcon icon="warning-16-regular" :width="16" />
+          <span>{{ compassError }}</span>
+          <FluentButton variant="subtle" size="sm" @click="loadCompassReleases">
+            <FluentIcon icon="arrow-clockwise-16-regular" :width="14" />
+            {{ lang === 'en' ? 'Retry' : '重试' }}
+          </FluentButton>
+        </div>
+        <div v-else-if="!compassReleases.length" class="compass-download-status">
+          <span>{{ lang === 'en' ? 'No releases yet.' : '暂无发布版本。' }}</span>
+        </div>
+        <div v-else class="compass-release-list">
+          <div v-for="release in compassReleases" :key="release.id" class="compass-release">
+            <div class="compass-release-head">
+              <span class="compass-release-tag">{{ release.tag_name }}</span>
+              <span v-if="release.published_at" class="compass-release-date">{{ new Date(release.published_at).toLocaleDateString() }}</span>
+            </div>
+            <p v-if="release.name" class="compass-release-name">{{ release.name }}</p>
+            <div class="compass-asset-list">
+              <div v-for="asset in release.assets" :key="asset.id" class="compass-asset">
+                <div class="compass-asset-info">
+                  <span class="compass-asset-name" :title="asset.name">{{ asset.name }}</span>
+                  <span v-if="asset.size" class="compass-asset-size">{{ formatBytes(asset.size) }}</span>
+                </div>
+                <FluentButton
+                  variant="secondary"
+                  size="sm"
+                  :disabled="!!compassDownloading"
+                  @click="downloadCompassAsset(asset)"
+                >
+                  <FluentIcon icon="arrow-download-16-regular" :width="14" />
+                  {{ compassDownloading === asset.name ? (lang === 'en' ? 'Opening…' : '打开中…') : (lang === 'en' ? 'Download' : '下载') }}
+                </FluentButton>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <template #footer>
+        <template v-if="compassStep === 'invite'">
+          <FluentButton variant="subtle" size="sm" @click="acceptFloatingWindow">{{ lang === 'en' ? 'No, thanks' : '不了，谢谢' }}</FluentButton>
+          <FluentButton variant="primary" size="sm" @click="openCompassDownloads">
+            <FluentIcon icon="arrow-download-16-regular" :width="14" />
+            {{ lang === 'en' ? 'Download Cyreneの罗盘' : '下载 Cyreneの罗盘' }}
+          </FluentButton>
+        </template>
+        <FluentButton v-else variant="primary" size="sm" @click="acceptFloatingWindow">{{ lang === 'en' ? 'Continue' : '继续' }}</FluentButton>
+      </template>
+    </FluentModal>
   </div>
 </template>
 
@@ -430,7 +514,8 @@ import { useRecordsStore } from '../stores/records'
 import { useStatisticsStore } from '../stores/statistics'
 import { dataBridge } from '../utils/dataBridge'
 import { isTauri, tauriAPI } from '../utils/tauriAPI'
-import { updateState, checkForUpdates, downloadUpdate } from '../utils/updater'
+import { updateState, checkForUpdates, downloadUpdate, getDownloadUrl } from '../utils/updater'
+import { fetchCompassReleases, formatBytes, COMPASS_GITHUB_URL } from '../utils/compass'
 import { t } from '../utils/i18n'
 import {
   DEFAULT_CYRENE_BALANCE_SETTINGS,
@@ -540,6 +625,12 @@ const pwModalMode = ref('verify')
 const pendingAction = ref(null)
 const showImportWarning = ref(false)
 const showUriHelp = ref(false)
+const showCompass = ref(false)
+const compassStep = ref('invite')
+const compassReleases = ref([])
+const compassLoading = ref(false)
+const compassError = ref('')
+const compassDownloading = ref('')
 
 const webUrlBase = computed(() => {
   if (typeof window === 'undefined') return 'https://example.com/'
@@ -722,8 +813,67 @@ function offerAutoStartElevation({ enabled, mode, previousMode, rollbackEnabled,
 
 async function onFloatingWindowToggle(val) {
   await update('floatingWindowEnabled', val)
+  if (!val) {
+    // 关闭时会话结束：重置提示状态，下次再开启会再次询问
+    await update('floatingCompassHintDismissed', false)
+    if (isTauri()) {
+      await tauriAPI.invoke('close_floating_window')
+    }
+    return
+  }
+  if (settings.value.floatingCompassHintDismissed) {
+    if (isTauri()) {
+      await tauriAPI.invoke('open_floating_window')
+    }
+    return
+  }
+  // 首次开启悬浮窗：先展示 Cyreneの罗盘 推荐提示，确认后再激活悬浮窗
+  showCompass.value = true
+  compassStep.value = 'invite'
+}
+
+async function acceptFloatingWindow() {
+  showCompass.value = false
+  await update('floatingCompassHintDismissed', true)
   if (isTauri()) {
-    await tauriAPI.invoke(val ? 'open_floating_window' : 'close_floating_window')
+    await tauriAPI.invoke('open_floating_window')
+  }
+}
+
+function openCompassDownloads() {
+  compassStep.value = 'downloads'
+  if (!compassReleases.value.length && !compassLoading.value) loadCompassReleases()
+}
+
+async function loadCompassReleases() {
+  compassLoading.value = true
+  compassError.value = ''
+  try {
+    const releases = await fetchCompassReleases()
+    compassReleases.value = releases.filter(r => Array.isArray(r.assets) && r.assets.length)
+  } catch {
+    compassError.value = '无法获取 Cyreneの罗盘 的发布列表'
+  } finally {
+    compassLoading.value = false
+  }
+}
+
+async function downloadCompassAsset(asset) {
+  if (!asset?.browser_download_url) return
+  compassDownloading.value = asset.name
+  try {
+    const url = getDownloadUrl(asset.browser_download_url)
+    if (isTauri()) {
+      await tauriAPI.openExternal(url)
+    } else {
+      window.open(url, '_blank', 'noopener')
+    }
+  } catch {
+    if (isTauri()) await tauriAPI.openExternal(COMPASS_GITHUB_URL)
+    else window.open(COMPASS_GITHUB_URL, '_blank', 'noopener')
+  } finally {
+    compassDownloading.value = ''
+    acceptFloatingWindow()
   }
 }
 
@@ -1093,4 +1243,32 @@ function onBalanceEnabledChange(enabled) {
   font-family: var(--font-num);
   font-variant-numeric: tabular-nums;
 }
+
+/* Cyreneの罗盘 推荐提示 */
+.compass-invite-body { display: flex; flex-direction: column; gap: 14px; }
+.compass-invite-hero { display: flex; align-items: center; gap: 16px; }
+.compass-invite-logo { width: 72px; height: 72px; border-radius: var(--radius-lg); object-fit: contain; flex-shrink: 0; }
+.compass-invite-text { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.compass-invite-title { margin: 0; font-size: 17px; font-weight: 600; color: var(--text-primary); display: flex; align-items: baseline; gap: 8px; }
+.compass-invite-en { font-size: 12px; font-weight: 500; color: var(--text-muted); }
+.compass-invite-desc { margin: 0; font-size: 13px; line-height: 1.6; color: var(--text-secondary); }
+.compass-invite-slogan { margin: 0; font-size: 13px; line-height: 1.6; color: var(--text-secondary); padding: 10px 14px; background: var(--accent-50); border: 1px solid var(--accent-100); border-radius: var(--radius-md); }
+
+/* Cyreneの罗盘 下载列表 */
+.compass-download-body { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+.compass-download-toolbar { display: flex; align-items: center; gap: 10px; }
+.compass-download-hint { font-size: 12px; color: var(--text-muted); }
+.compass-download-status { display: flex; align-items: center; gap: 10px; padding: 24px 8px; color: var(--text-muted); font-size: 13px; justify-content: center; }
+.compass-download-status.compass-error { color: var(--text-secondary); }
+.compass-release-list { display: flex; flex-direction: column; gap: 10px; max-height: 320px; overflow-y: auto; padding-right: 4px; }
+.compass-release { padding: 12px 14px; border: 1px solid var(--border-default); border-radius: var(--radius-md); background: var(--bg-subtle); display: flex; flex-direction: column; gap: 8px; }
+.compass-release-head { display: flex; align-items: center; gap: 10px; }
+.compass-release-tag { font-family: var(--font-num); font-size: 14px; font-weight: 600; color: var(--accent); }
+.compass-release-date { font-size: 11px; color: var(--text-muted); }
+.compass-release-name { margin: 0; font-size: 13px; color: var(--text-secondary); }
+.compass-asset-list { display: flex; flex-direction: column; gap: 8px; }
+.compass-asset { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 10px; background: var(--bg-card-solid); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); }
+.compass-asset-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.compass-asset-name { font-size: 12px; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.compass-asset-size { font-size: 11px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
 </style>
