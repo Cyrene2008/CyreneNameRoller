@@ -23,7 +23,7 @@ const DEFAULT_SETTINGS = {
   theme: 'default',
   colorTheme: 'peach',
   customThemeColor: '#0078d4',
-  downloadSource: 'cyrene',
+  downloadSource: 'ghproxy',
   particles: true,
   blur: true,
   animSpeed: 1,
