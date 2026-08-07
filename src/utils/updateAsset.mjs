@@ -1,13 +1,16 @@
-export function findPlatformAsset(assets, platform = 'tauri-win64') {
-  const platformName = platform.startsWith('tauri') ? 'tauri' : ''
-  if (!platformName) return null
+import { getUpdateAssetSignature } from './desktopRuntime.js'
 
-  const x64Installers = (assets || []).filter(asset => {
+export function findPlatformAsset(assets, platform = 'tauri-win64') {
+  if (!platform || platform === 'web') return null
+  const signature = getUpdateAssetSignature(platform)
+
+  const candidates = (assets || []).filter(asset => {
     const name = String(asset?.name || '').toLowerCase()
-    const isWin64 = name.includes('win64') || name.includes('x64') || name.includes('amd64')
-    return name.endsWith('.exe') && isWin64
+    const architectureAllowed = name.includes('x64') || name.includes('amd64') || name.includes('win64') || platform === 'tauri-macos'
+    const suffixAllowed = signature.suffixes.some(suffix => name.endsWith(suffix))
+    return architectureAllowed && suffixAllowed
   })
 
-  return x64Installers.find(asset => String(asset?.name || '').toLowerCase().includes(platformName))
-    || (x64Installers.length === 1 ? x64Installers[0] : null)
+  const preferred = candidates.find(asset => String(asset?.name || '').toLowerCase().includes(signature.tag))
+  return preferred || (candidates.length === 1 ? candidates[0] : null)
 }

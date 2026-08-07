@@ -3,13 +3,13 @@
     <button class="titlebar-hamburger" @click="toggleDock" :title="dockCollapsed ? '展开' : '收起'">
       <Icon icon="fluent:line-horizontal-3-20-regular" :width="18" />
     </button>
-    <img src="/cyrene.png" class="titlebar-logo" alt="" draggable="false" />
-    <span class="titlebar-app-title">Cyreneの随机点名器</span>
+    <img src="/cyrene.png" class="titlebar-logo" alt="" draggable="false" @mousedown="startNativeDrag" />
+    <span class="titlebar-app-title" @mousedown="startNativeDrag">Cyreneの随机点名器</span>
     <div v-if="notice.message" class="titlebar-notice" :title="notice.message">
       <div ref="noticeViewport" class="titlebar-notice-viewport"><span ref="noticeText">{{ notice.message }}</span></div>
       <button v-if="notice.path" @click="openDataLocation"><Icon icon="fluent:folder-open-16-regular" :width="14" />打开位置</button>
     </div>
-    <div class="titlebar-drag">
+    <div class="titlebar-drag" @mousedown="startNativeDrag">
     </div>
     <div class="titlebar-controls">
       <button class="titlebar-btn minimize-btn" @click="minimize" title="最小化">
@@ -63,6 +63,14 @@ function minimize() {
 
 function hideToTray() {
   if (isTauri()) import('@tauri-apps/api/core').then(m => m.invoke('hide_to_tray'))
+}
+
+async function startNativeDrag(e) {
+  if (!isTauri() || e.button !== 0) return
+  try {
+    const { getCurrentWindow } = await import('@tauri-apps/api/window')
+    await getCurrentWindow().startDragging()
+  } catch {}
 }
 async function startNoticeAnimation() {
   await nextTick()

@@ -2,6 +2,7 @@ import { ref } from 'vue'
 import { APP_VERSION } from './version'
 import { tauriAPI, isTauri } from './tauriAPI'
 import { useSettingsStore } from '../stores/settings'
+import { getUpdatePlatformId } from './desktopRuntime.js'
 import { findPlatformAsset as findUpdateAsset } from './updateAsset.mjs'
 
 const GITHUB_REPO = 'StarCyrene/CyreneNameRoller'
@@ -25,8 +26,7 @@ export const updateState = ref({
 })
 
 export function getPlatform() {
-  if (isTauri()) return 'tauri-win64'
-  return 'web'
+  return getUpdatePlatformId()
 }
 
 export function findPlatformAsset(assets, platform = getPlatform()) {
@@ -141,7 +141,7 @@ export async function downloadUpdate(bannerFn = null) {
     return
   }
 
-  if (!fileName || !fileName.toLowerCase().endsWith('.exe')) {
+  if (!fileName || !/\.(exe|deb|appimage)$/i.test(fileName)) {
     await tauriAPI.openExternal(originalUrl)
     return
   }
