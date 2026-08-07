@@ -12,13 +12,16 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: windows-latest
+- name: Windows x64
+            os: windows-latest
             platform: win32
             args: --platform=win32
-          - os: ubuntu-latest
+          - name: Linux x64
+            os: ubuntu-latest
             platform: linux
             args: --platform=linux
     runs-on: ${{ matrix.os }}
+    name: ${{ matrix.name }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
