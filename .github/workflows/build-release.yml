@@ -56,7 +56,10 @@ jobs:
           merge-multiple: true
       - name: Extract version
         id: version
-        run: echo "version=$(node -p \"require('./src-tauri/tauri.conf.json').version\")" >> "$GITHUB_OUTPUT"
+        run: |
+          set -euo pipefail
+          version=$(node -e 'process.stdout.write(require("./src-tauri/tauri.conf.json").version)')
+          echo "version=$version" >> "$GITHUB_OUTPUT"
       - name: Generate changelog
         id: changelog
         run: |
