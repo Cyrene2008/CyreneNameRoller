@@ -1,0 +1,56 @@
+{
+  "contractVersion": "1",
+  "algorithm": "cyrenenameroller-balance/v3",
+  "algorithmVersion": "3.1.1",
+  "rules": {
+    "identity": "person.id, falling back to person.cn",
+    "order": "candidate input order is preserved",
+    "random": "values are clamped to [0, 1) and consumed once per selected item",
+    "duplicates": "when false, selected identities are removed before the next draw",
+    "whitelist": "whitelist candidates do not increment local fairness counts",
+    "empty": "empty candidates or non-positive draw count produce an empty result"
+  },
+  "vectors": [
+    {
+      "id": "disabled-first",
+      "names": [{ "id": "a", "cn": "A" }, { "id": "b", "cn": "B" }, { "id": "c", "cn": "C" }],
+      "whiteList": [], "counts": {}, "settings": { "enabled": false }, "drawCount": 1, "allowDuplicates": true,
+      "random": [0], "expectedIds": ["a"]
+    },
+    {
+      "id": "disabled-last",
+      "names": [{ "id": "a", "cn": "A" }, { "id": "b", "cn": "B" }, { "id": "c", "cn": "C" }],
+      "whiteList": [], "counts": {}, "settings": { "enabled": false }, "drawCount": 1, "allowDuplicates": true,
+      "random": [1], "expectedIds": ["c"]
+    },
+    {
+      "id": "no-repeat",
+      "names": [{ "id": "a", "cn": "A" }, { "id": "b", "cn": "B" }, { "id": "c", "cn": "C" }],
+      "whiteList": [], "counts": {}, "settings": { "enabled": false }, "drawCount": 3, "allowDuplicates": false,
+      "random": [0, 0, 0], "expectedIds": ["a", "b", "c"]
+    },
+    {
+      "id": "recovery",
+      "names": [{ "id": "a", "cn": "A" }, { "id": "b", "cn": "B" }, { "id": "c", "cn": "C" }, { "id": "d", "cn": "D" }],
+      "whiteList": [], "counts": { "a": 0, "b": 5, "c": 5, "d": 5 }, "settings": { "enabled": true }, "drawCount": 2, "allowDuplicates": true,
+      "random": [0.2, 0.8], "expectedIds": ["a", "d"]
+    },
+    {
+      "id": "same-name-identities",
+      "names": [{ "id": "a", "cn": "Same" }, { "id": "b", "cn": "Same" }],
+      "whiteList": [], "counts": {}, "settings": { "enabled": false }, "drawCount": 2, "allowDuplicates": false,
+      "random": [0, 0], "expectedIds": ["a", "b"]
+    },
+    {
+      "id": "whitelist-does-not-increment",
+      "names": [{ "id": "a", "cn": "A", "isWhiteList": true }, { "id": "b", "cn": "B" }, { "id": "c", "cn": "C" }],
+      "whiteList": [{ "id": "a", "cn": "A", "isWhiteList": true }], "counts": { "b": 2, "c": 0 }, "settings": { "enabled": true }, "drawCount": 2, "allowDuplicates": true,
+      "random": [0, 0.99], "expectedIds": ["a", "c"]
+    },
+    {
+      "id": "empty",
+      "names": [], "whiteList": [], "counts": {}, "settings": { "enabled": true }, "drawCount": 2, "allowDuplicates": true,
+      "random": [0], "expectedIds": []
+    }
+  ]
+}
