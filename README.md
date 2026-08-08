@@ -8,6 +8,7 @@
 
 > [!CAUTION]
 > 自 v26.1 起仅提供 Web 与 Tauri 版本更新及 Tauri Release
+> 
 > 本项目使用了 [Vue Fluent Widgets](https://fluent.cyrene.hk) 作为Fluent组件库，这是一个MIT协议的组件库，Copyright (C) Cyrene2008
 
 
