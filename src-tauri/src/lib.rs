@@ -236,6 +236,93 @@ struct EncryptedStore {
     integrity_error: Mutex<Option<String>>,
 }
 
+struct SafeModeState {
+    status: Mutex<serde_json::Value>,
+}
+
+fn read_safe_mode_status(path: &Path) -> serde_json::Value {
+    let path_text = path.to_string_lossy().to_string();
+    let raw = match fs::read_to_string(path) {
+        Ok(raw) => raw,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return serde_json::json!({
+                "enabled": false,
+                "source": "default",
+                "stale": false,
+                "errorCode": "SAFE_MODE_CONFIG_UNAVAILABLE",
+                "diagnostic": "safemode.json 不存在，安全模式默认关闭",
+                "path": path_text
+            });
+        }
+        Err(error) => {
+            return serde_json::json!({
+                "enabled": false,
+                "source": "default",
+                "stale": true,
+                "errorCode": "SAFE_MODE_CONFIG_UNAVAILABLE",
+                "diagnostic": error.to_string(),
+                "path": path_text
+            });
+        }
+    };
+    let value = match serde_json::from_str::<serde_json::Value>(&raw) {
+        Ok(value) => value,
+        Err(error) => return serde_json::json!({
+            "enabled": true,
+            "source": "invalid",
+            "stale": false,
+            "errorCode": "SAFE_MODE_CONFIG_INVALID",
+            "diagnostic": error.to_string(),
+            "path": path_text
+        }),
+    };
+    let object = match value.as_object() {
+        Some(object) => object,
+        None => return serde_json::json!({
+            "enabled": true,
+            "source": "invalid",
+            "stale": false,
+            "errorCode": "SAFE_MODE_CONFIG_INVALID",
+            "diagnostic": "safemode.json 必须是对象",
+            "path": path_text
+        }),
+    };
+    let enabled = match object.get("enabled").and_then(serde_json::Value::as_bool) {
+        Some(enabled) => enabled,
+        None => return serde_json::json!({
+            "enabled": true,
+            "source": "invalid",
+            "stale": false,
+            "errorCode": "SAFE_MODE_CONFIG_INVALID",
+            "diagnostic": "safemode.json 必须包含布尔值 enabled",
+            "path": path_text
+        }),
+    };
+    let unknown = object.keys().find(|key| *key != "enabled" && *key != "schemaVersion");
+    if unknown.is_some() || object.get("schemaVersion").and_then(serde_json::Value::as_i64).is_some_and(|version| version != 1) {
+        return serde_json::json!({
+            "enabled": true,
+            "source": "invalid",
+            "stale": false,
+            "errorCode": "SAFE_MODE_CONFIG_INVALID",
+            "diagnostic": "safemode.json 包含未知字段或版本",
+            "path": path_text
+        });
+    }
+    serde_json::json!({ "enabled": enabled, "source": "file", "stale": false, "errorCode": "", "diagnostic": "", "path": path_text })
+}
+
+#[tauri::command]
+fn safe_mode_status(state: State<'_, SafeModeState>) -> serde_json::Value {
+    state.status.lock().map(|status| status.clone()).unwrap_or_else(|_| serde_json::json!({
+        "enabled": true,
+        "source": "invalid",
+        "stale": false,
+        "errorCode": "SAFE_MODE_CONFIG_INVALID",
+        "diagnostic": "安全模式状态锁定失败"
+    }))
+}
+
 impl EncryptedStore {
     fn load(path: PathBuf) -> Self {
         let directory_error = path
@@ -2155,6 +2242,8 @@ pub fn run() {
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_dialog::init())
         .setup(move |app| {
+            let safe_mode_path = app.path().app_config_dir()?.join("safemode.json");
+            app.manage(SafeModeState { status: Mutex::new(read_safe_mode_status(&safe_mode_path)) });
             let data_path = app
                 .path()
                 .app_data_dir()?
@@ -2206,6 +2295,7 @@ pub fn run() {
             storage_set,
             storage_delete,
             storage_clear,
+            safe_mode_status,
             export_encrypted_data,
             import_encrypted_data,
             export_data_file,

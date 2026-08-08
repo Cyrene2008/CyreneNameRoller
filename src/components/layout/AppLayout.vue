@@ -757,8 +757,18 @@ onMounted(async () => {
   await statisticsStore.initialize()
   await recordsStore.initialize()
   await prizesStore.initialize()
+  const safeModeStatus = globalThis.__CYRENE_SAFE_MODE__ || { enabled: false, source: 'default', stale: false, errorCode: '', diagnostic: '' }
+  pluginsStore.configureSafeMode(safeModeStatus)
   await pluginsStore.initialize()
   pluginsStore.setBannerHandler(showBanner)
+  if (safeModeStatus.enabled || safeModeStatus.errorCode) {
+    showBanner({
+      message: safeModeStatus.enabled
+        ? `安全模式已启用：${safeModeStatus.path || '请修改 safemode.json 后重启'}`
+        : `安全模式配置诊断：${safeModeStatus.diagnostic || safeModeStatus.errorCode}`,
+      icon: 'shield-error-24-regular', type: 'warning', duration: 0, dismissible: true
+    })
+  }
   try {
     await pluginsStore.activateEnabled()
   } catch (error) {

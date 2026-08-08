@@ -393,12 +393,14 @@ export interface PluginManifest {
     visualSurfaces?: PluginVisualSurfaceContribution[]
     appearancePacks?: PluginAppearancePackContribution[]
     componentStylePacks?: PluginComponentStylePackContribution[]
+    componentOverridePacks?: PluginComponentOverridePackContribution[]
     fonts?: PluginFontContribution[]
   }
 }
 
 export type ComponentStyleProperty = 'size' | 'scale' | 'foreground' | 'background' | 'accent' | 'fontFamily' | 'fontSize' | 'fontWeight' | 'lineHeight' | 'padding' | 'gap' | 'radius' | 'borderColor' | 'borderWidth' | 'shadow' | 'alignment' | 'density'
 export interface PluginComponentStylePackContribution { id: string; title: string; description?: string; targets: Record<string, Partial<Record<ComponentStyleProperty, string | number>>> }
+export interface PluginComponentOverridePackContribution { id: string; title: string; description?: string; targets: Record<string, { visibility?: 'visible' | 'hidden' | 'replaced'; layout?: 'collapse' | 'reserve' | 'compact' }> }
 export interface PluginFontContribution { id: string; source: string; weight?: 400 | 500 | 600 | 700 | 800; style?: 'normal' | 'italic' }
 
 export interface DrawRequest {

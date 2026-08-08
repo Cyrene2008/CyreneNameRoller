@@ -14,6 +14,7 @@
 
     <div v-if="plugins.recovering" class="recovery-banner"><FluentIcon icon="shield-error-24-regular" :width="20" /><span>{{ lang === 'en' ? 'Plugins were disabled after an unsafe startup. Review and enable them one by one.' : '上次启动插件未能安全完成，已进入纯净模式并禁用插件。请逐个检查后再启用。' }}</span></div>
     <div v-if="plugins.lastError" class="error-banner"><FluentIcon icon="warning-16-regular" :width="16" /><span>{{ plugins.lastError }}</span></div>
+    <div v-if="plugins.safeModeStatus.enabled" class="recovery-banner"><FluentIcon icon="shield-error-24-regular" :width="20" /><span>{{ lang === 'en' ? 'Safe mode is active. Plugins, styles and overrides stay disabled until safemode.json is changed and the app restarts.' : '安全模式已启用。修改 safemode.json 并重启前，插件、样式和覆盖包都不会加载。' }}</span></div>
 
     <section class="plugin-section">
       <div class="section-heading"><h2>{{ lang === 'en' ? 'Installed' : '已安装' }}</h2><span>{{ installedPlugins.length }}</span></div>
@@ -50,6 +51,25 @@
               @update:model-value="value => chooseStyle(target, value)"
             />
             <div class="style-pack-preview" :style="plugins.componentStyleStyle('roller.result')">Aa</div>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section v-if="overridePacks.length" class="plugin-section">
+      <div class="section-heading"><h2>{{ lang === 'en' ? 'Component overrides' : '组件覆盖' }}</h2><FluentButton variant="subtle" size="sm" @click="resetOverrides">{{ lang === 'en' ? 'Restore defaults' : '恢复默认界面' }}</FluentButton></div>
+      <div class="style-pack-list">
+        <article v-for="pack in overridePacks" :key="pack.value" class="style-pack-row">
+          <div class="style-pack-copy"><strong>{{ pack.title }}</strong><small>{{ pack.pluginName }} / {{ pack.id }}</small></div>
+          <div class="style-pack-controls">
+            <FluentSelect
+              v-for="target in overrideTargets"
+              :key="target"
+              :model-value="plugins.componentOverrideSelections[target] || ''"
+              :options="[{ value: '', label: lang === 'en' ? `Default: ${target}` : `默认：${target}` }, ...plugins.componentOverrideOptions(target, lang)]"
+              width="230px"
+              @update:model-value="value => chooseOverride(target, value)"
+            />
           </div>
         </article>
       </div>
@@ -125,6 +145,8 @@ let confirmResolver = null
 const installedPlugins = computed(() => Object.values(plugins.installed))
 const stylePacks = computed(() => plugins.contributedComponentStylePacks)
 const styleTargets = ['roller.result', 'roller.filters', 'roller.current-list', 'roller.primary-action']
+const overridePacks = computed(() => plugins.contributedComponentOverridePacks)
+const overrideTargets = ['app.version-badge', 'roller.filters', 'statistics.summary']
 const contributedPages = computed(() => plugins.contributedPages)
 const permissionDescriptions = {
   'draw:execute': { zh: '通过宿主 CAF 公平事务追加抽取结果', en: 'Run host-controlled CAF draws and append records', risk: 'elevated' },
@@ -157,6 +179,16 @@ async function chooseStyle(target, value) {
   } catch (error) {
     showBanner?.({ message: error.message || String(error), icon: 'warning-16-regular', type: 'warning', duration: 6000 })
   }
+}
+async function chooseOverride(target, value) {
+  try {
+    await plugins.setComponentOverrideSelection(target, value)
+  } catch (error) {
+    showBanner?.({ message: error.message || String(error), icon: 'warning-16-regular', type: 'warning', duration: 6000 })
+  }
+}
+async function resetOverrides() {
+  await plugins.resetComponentOverrides()
 }
 function compareVersion(left, right) {
   const a = String(left || '0').split('.').map(value => Number(value) || 0)

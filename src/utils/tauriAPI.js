@@ -36,6 +36,7 @@ export const tauriAPI = {
   async setUriSchemeEnabled(enabled) { return this.invoke('set_uri_scheme_enabled', { enabled }) },
   async isUriSchemeEnabled() { return this.invoke('is_uri_scheme_enabled', {}) },
   async systemAccent() { return this.invoke('system_accent', {}) },
+  async safeModeStatus() { return this.invokeStrict('safe_mode_status', {}) },
   async saveTextFile(content, defaultName, extension = 'json') { return this.invoke('save_text_file', { content, defaultName, extension }) },
   async openTextFile(extension = 'json') { return this.invoke('open_text_file', { extension }) },
   async readDroppedFile(path) { return this.invokeStrict('read_dropped_file', { path }) },

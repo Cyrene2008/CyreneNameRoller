@@ -27,28 +27,34 @@
     <span ref="probeRef" class="fit-probe" aria-hidden="true"></span>
 
     <div class="controls-center" ref="controlsCenterRef">
-      <div class="switches" :style="pluginsStore.componentStyleStyle('roller.filters')">
-        <FluentToggle class="english-mode-toggle" v-model="settings.englishMode" label="English Mode" @update:model-value="saveSetting('englishMode', $event)" />
-        <FluentTabs :model-value="settings.groupMode ? 'groups' : 'people'" :options="drawTargetOptions" @update:model-value="onDrawTargetChange" />
-        <Transition name="toggle-expand">
-          <FluentTabs v-if="!settings.groupMode" v-model="genderFilter" :options="genderFilterOptions" />
-        </Transition>
-        <FluentTabs :model-value="settings.multiMode ? 'multiple' : 'single'" :options="drawCountOptions" @update:model-value="onDrawCountChange" />
-        <Transition name="toggle-expand">
-          <FluentTabs v-if="settings.multiMode" :model-value="settings.forbidDuplicates ? 'unique' : 'repeat'" :options="duplicateOptions" @update:model-value="onDuplicateModeChange" />
-        </Transition>
-      </div>
-
-      <Transition name="toggle-expand">
-        <div v-if="settings.multiMode" class="multi-settings" :style="pluginsStore.componentStyleStyle('roller.filters')">
-          <span class="setting-label">{{ countSettingLabel }}</span>
-          <div class="count-control">
-            <FluentButton variant="secondary" size="sm" @click="changeCount(-1)"><FluentIcon icon="subtract-16-regular" :width="14" /></FluentButton>
-            <FluentInput v-model="settings.peopleCount" type="number" :min="1" :max="maxPeopleCount" class="count-input" @update:model-value="onPeopleCountChange" />
-            <FluentButton variant="secondary" size="sm" @click="changeCount(1)"><FluentIcon icon="add-16-regular" :width="14" /></FluentButton>
-          </div>
+      <template v-if="filterOverride.visibility !== 'hidden' || filtersCompactOpen">
+        <div class="switches" :style="pluginsStore.componentStyleStyle('roller.filters')">
+          <FluentToggle class="english-mode-toggle" v-model="settings.englishMode" label="English Mode" @update:model-value="saveSetting('englishMode', $event)" />
+          <FluentTabs :model-value="settings.groupMode ? 'groups' : 'people'" :options="drawTargetOptions" @update:model-value="onDrawTargetChange" />
+          <Transition name="toggle-expand">
+            <FluentTabs v-if="!settings.groupMode" v-model="genderFilter" :options="genderFilterOptions" />
+          </Transition>
+          <FluentTabs :model-value="settings.multiMode ? 'multiple' : 'single'" :options="drawCountOptions" @update:model-value="onDrawCountChange" />
+          <Transition name="toggle-expand">
+            <FluentTabs v-if="settings.multiMode" :model-value="settings.forbidDuplicates ? 'unique' : 'repeat'" :options="duplicateOptions" @update:model-value="onDuplicateModeChange" />
+          </Transition>
         </div>
-      </Transition>
+
+        <Transition name="toggle-expand">
+          <div v-if="settings.multiMode" class="multi-settings" :style="pluginsStore.componentStyleStyle('roller.filters')">
+            <span class="setting-label">{{ countSettingLabel }}</span>
+            <div class="count-control">
+              <FluentButton variant="secondary" size="sm" @click="changeCount(-1)"><FluentIcon icon="subtract-16-regular" :width="14" /></FluentButton>
+              <FluentInput v-model="settings.peopleCount" type="number" :min="1" :max="maxPeopleCount" class="count-input" @update:model-value="onPeopleCountChange" />
+              <FluentButton variant="secondary" size="sm" @click="changeCount(1)"><FluentIcon icon="add-16-regular" :width="14" /></FluentButton>
+            </div>
+          </div>
+        </Transition>
+      </template>
+      <div v-else-if="filterOverride.layout === 'reserve'" class="filters-reserved" aria-hidden="true"></div>
+      <FluentButton v-else-if="filterOverride.layout === 'compact'" variant="secondary" size="sm" class="filters-compact-entry" @click="filtersCompactOpen = true">
+        <FluentIcon icon="filter-16-regular" :width="14" />{{ lang === 'en' ? 'Show filters' : '显示筛选' }}
+      </FluentButton>
 
       <div class="list-selector-bar" :style="pluginsStore.componentStyleStyle('roller.current-list')">
         <span class="selector-label">{{ t('currentList', lang) }}</span>
@@ -96,6 +102,8 @@ const showBanner = inject('banner')
 
 const lang = computed(() => settingsStore.settings.language)
 const settings = computed(() => settingsStore.settings)
+const filterOverride = computed(() => pluginsStore.componentOverrideState('roller.filters'))
+const filtersCompactOpen = ref(false)
 const listOptions = computed(() => namesStore.allLists.map(l => ({ value: l.id, label: l.name })))
 const genderFilter = ref('all')
 const drawTargetOptions = computed(() => [
@@ -947,6 +955,8 @@ onBeforeUnmount(() => { if (intervalId) clearTimeout(intervalId); clearTimeout(a
 }
 
 .controls-center { position: absolute; bottom: 24px; right: 24px; display: flex; flex-direction: column; gap: 10px; align-items: flex-end; z-index: 10; }
+.filters-reserved { width: 280px; min-height: 120px; }
+.filters-compact-entry { min-width: 132px; }
 .switches { display: flex; flex-direction: column; gap: var(--plugin-component-roller-filters-gap, 6px); align-items: stretch; width: 280px; color: var(--plugin-component-roller-filters-foreground, inherit); background: var(--plugin-component-roller-filters-background, transparent); font-size: var(--plugin-component-roller-filters-font-size, inherit); font-weight: var(--plugin-component-roller-filters-font-weight, inherit); }
 .english-mode-toggle { align-self: flex-end; }
 .multi-settings { display: flex; align-items: center; gap: var(--plugin-component-roller-filters-gap, 12px); color: var(--plugin-component-roller-filters-foreground, inherit); background: var(--plugin-component-roller-filters-background, transparent); font-size: var(--plugin-component-roller-filters-font-size, inherit); font-weight: var(--plugin-component-roller-filters-font-weight, inherit); }

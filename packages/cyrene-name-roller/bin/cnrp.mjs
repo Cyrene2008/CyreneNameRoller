@@ -518,6 +518,21 @@ function normalizeManifest(raw) {
       ids.add(font.id)
     }
   }
+  const overrides = manifest.contributes.componentOverridePacks
+  if (overrides !== undefined) {
+    if (!manifest.permissions.includes('ui:component-overrides') || !Array.isArray(overrides) || overrides.length > 16) fail('componentOverridePacks requires ui:component-overrides and at most 16 items')
+    const ids = new Set()
+    for (const [index, pack] of overrides.entries()) {
+      if (!pack || !CONTRIBUTION_ID_PATTERN.test(pack.id || '') || ids.has(pack.id) || !pack.targets || typeof pack.targets !== 'object') fail(`componentOverridePacks[${index}] is invalid`)
+      ids.add(pack.id)
+      for (const [target, state] of Object.entries(pack.targets)) {
+        if (!state || !['visible', 'hidden', 'replaced'].includes(state.visibility || 'visible')) fail(`componentOverridePacks[${index}] visibility is invalid`)
+        if (state.layout && !['collapse', 'reserve', 'compact'].includes(state.layout)) fail(`componentOverridePacks[${index}] layout is invalid`)
+        if (state.visibility === 'replaced') fail(`componentOverridePacks[${index}] replacement is unavailable`)
+        if (['navigation.settings-entry', 'roller.current-list', 'roller.primary-action', 'roller.result', 'navigation.dock', 'app.title-bar', 'card.deck', 'card.item', 'lottery.result'].includes(target)) fail(`componentOverridePacks[${index}] cannot hide protected or required target ${target}`)
+      }
+    }
+  }
   // Keep optional contribution keys absent when unused. The host validates a present
   // array as an explicit contribution and therefore expects its matching permission.
   if (!manifest.contributes.animationPacks.length) delete manifest.contributes.animationPacks
@@ -526,9 +541,10 @@ function normalizeManifest(raw) {
   if (!manifest.contributes.appearancePacks.length) delete manifest.contributes.appearancePacks
   if (!manifest.contributes.componentStylePacks?.length) delete manifest.contributes.componentStylePacks
   if (!manifest.contributes.fonts?.length) delete manifest.contributes.fonts
+  if (!manifest.contributes.componentOverridePacks?.length) delete manifest.contributes.componentOverridePacks
   if (manifest.entry) manifest.entry = normalizePath(manifest.entry)
   if ((manifest.contributes.commands || []).length && !manifest.entry && !Object.keys(manifest.platformEntries).length) fail('commands require a Worker entry')
-  if (!manifest.entry && !Object.keys(manifest.platformEntries).length && !(manifest.contributes.pages || []).length && !(manifest.contributes.commands || []).length && !(manifest.contributes.visualSurfaces || []).length && !(manifest.contributes.appearancePacks || []).length && !(manifest.contributes.componentStylePacks || []).length && !(manifest.contributes.fonts || []).length) {
+  if (!manifest.entry && !Object.keys(manifest.platformEntries).length && !(manifest.contributes.pages || []).length && !(manifest.contributes.commands || []).length && !(manifest.contributes.visualSurfaces || []).length && !(manifest.contributes.appearancePacks || []).length && !(manifest.contributes.componentStylePacks || []).length && !(manifest.contributes.componentOverridePacks || []).length && !(manifest.contributes.fonts || []).length) {
     fail('plugin needs at least one Worker, page, visual surface or appearance pack entry (or a command contribution with a Worker)')
   }
   if (manifest.icon) manifest.icon = normalizePath(manifest.icon)

@@ -23,6 +23,7 @@ import { commitCoreDrawTransaction, createCoreDrawQueue, validateCoreDrawArgs } 
 import { getComponentTarget } from './ui/componentRegistry'
 import { styleVarsForTarget } from './ui/stylePolicy'
 import { PluginFontRegistry } from './ui/fontRegistry'
+import { overrideStateForTarget } from './ui/overridePolicy'
 
 const STATE_KEY = 'pluginState'
 const PLUGIN_DATA_KEY = 'pluginData'
@@ -74,6 +75,8 @@ export const usePluginsStore = defineStore('plugins', () => {
   const animationSelections = ref({})
   const animationDurationScales = ref({})
   const componentStyleSelections = ref({})
+  const componentOverrideSelections = ref({})
+  const safeModeStatus = ref(Object.freeze({ enabled: false, source: 'default', stale: false, errorCode: '', diagnostic: '', path: '' }))
   const fontRegistry = new PluginFontRegistry()
   const animationRegistry = new PluginAnimationRegistry()
   const platformBridge = new PluginPlatformBridge()
@@ -111,7 +114,7 @@ export const usePluginsStore = defineStore('plugins', () => {
     onFault: handleRuntimeFault
   })
 
-  const enabledPlugins = computed(() => Object.values(installed.value).filter(plugin => plugin.enabled))
+  const enabledPlugins = computed(() => safeModeStatus.value.enabled ? [] : Object.values(installed.value).filter(plugin => plugin.enabled))
   const contributedPages = computed(() => {
     pagesRevision.value
     return runtime.getContributedPages()
@@ -137,6 +140,14 @@ export const usePluginsStore = defineStore('plugins', () => {
       pluginId: plugin.manifest.id,
       pluginName: plugin.manifest.name,
       value: `${COMPONENT_STYLE_VALUE_PREFIX}${plugin.manifest.id}::${pack.id}`,
+      ...clone(pack)
+    }))
+  ))
+  const contributedComponentOverridePacks = computed(() => enabledPlugins.value.flatMap(plugin =>
+    (plugin.manifest.contributes?.componentOverridePacks || []).map(pack => ({
+      pluginId: plugin.manifest.id,
+      pluginName: plugin.manifest.name,
+      value: `plugin-component-override::${plugin.manifest.id}::${pack.id}`,
       ...clone(pack)
     }))
   ))
@@ -230,6 +241,7 @@ export const usePluginsStore = defineStore('plugins', () => {
       animationSelections.value = saved.animationSelections && typeof saved.animationSelections === 'object' ? saved.animationSelections : {}
       animationDurationScales.value = saved.animationDurationScales && typeof saved.animationDurationScales === 'object' ? saved.animationDurationScales : {}
       componentStyleSelections.value = saved.componentStyleSelections && typeof saved.componentStyleSelections === 'object' ? saved.componentStyleSelections : {}
+      componentOverrideSelections.value = saved.componentOverrideSelections && typeof saved.componentOverrideSelections === 'object' ? saved.componentOverrideSelections : {}
       source.value = PLUGIN_DOWNLOAD_SOURCES.some(item => item.value === saved.source) ? saved.source : 'cyrene'
       const crashedSession = localStorage.getItem(SESSION_MARKER_KEY) === '1'
       if (saved.pendingStartup || crashedSession) {
@@ -253,6 +265,12 @@ export const usePluginsStore = defineStore('plugins', () => {
 
   function setBannerHandler(handler) { runtime.showBanner = handler }
 
+  function configureSafeMode(status) {
+    safeModeStatus.value = Object.freeze({ ...status })
+    if (safeModeStatus.value.enabled) refreshPages()
+    return safeModeStatus.value
+  }
+
   async function saveState(pendingStartup = undefined) {
     const current = await dataBridge.load(STATE_KEY) || {}
     await dataBridge.save(STATE_KEY, {
@@ -262,6 +280,7 @@ export const usePluginsStore = defineStore('plugins', () => {
         animationSelections: animationSelections.value,
         animationDurationScales: animationDurationScales.value,
         componentStyleSelections: componentStyleSelections.value,
+        componentOverrideSelections: componentOverrideSelections.value,
         pendingStartup: pendingStartup === undefined ? !!current.pendingStartup : !!pendingStartup
     })
   }
@@ -320,6 +339,7 @@ export const usePluginsStore = defineStore('plugins', () => {
   }
 
   async function activateEnabled() {
+    if (safeModeStatus.value.enabled) return false
     const plugins = []
     for (const plugin of Object.values(installed.value).filter(item => item.enabled)) {
       const compatibility = compatibilityFor(plugin)
@@ -375,6 +395,7 @@ export const usePluginsStore = defineStore('plugins', () => {
     expectedPublisherKey = '',
     expectedPackageHash = ''
   } = {}) {
+    if (safeModeStatus.value.enabled) throw Object.assign(new Error('安全模式已启用，插件包不会被加载'), { code: 'SAFE_MODE_PLUGIN_BLOCKED' })
     const parsed = await parsePluginPackage(input, { expectedPublisherKey })
     if (expectedPackageHash && parsed.packageHash !== String(expectedPackageHash).toLowerCase()) {
       throw new Error('插件包哈希与目录登记不一致')
@@ -452,6 +473,7 @@ export const usePluginsStore = defineStore('plugins', () => {
     animationRegistry.unregisterPlugin(pluginId)
     animationRegistry.removeSelectionsForPlugin(pluginId, animationSelections.value)
     removeComponentStyleSelectionsForPlugin(pluginId)
+    removeComponentOverrideSelectionsForPlugin(pluginId)
     platformBridge.forgetPlugin(pluginId)
     delete installed.value[pluginId]
     await removePluginData(pluginId)
@@ -464,6 +486,7 @@ export const usePluginsStore = defineStore('plugins', () => {
   async function setEnabled(pluginId, value) {
     const plugin = installed.value[pluginId]
     if (!plugin) return false
+    if (safeModeStatus.value.enabled && value) throw Object.assign(new Error('安全模式已启用，重启前不会加载插件'), { code: 'SAFE_MODE_PLUGIN_BLOCKED' })
     if (!value) {
       const dependents = enabledDependents(pluginId)
       if (dependents.length) throw new Error(`请先禁用：${dependents.map(item => item.manifest.name).join('、')}`)
@@ -510,6 +533,7 @@ export const usePluginsStore = defineStore('plugins', () => {
   }
 
   async function fetchList() {
+    if (safeModeStatus.value.enabled) throw Object.assign(new Error('安全模式已启用，在线插件目录不可用'), { code: 'SAFE_MODE_PLUGIN_BLOCKED' })
     const response = await fetchFirstSuccessful(
       pluginListCandidates(source.value),
       { cache: 'no-store', headers: { Accept: 'application/json' } },
@@ -557,10 +581,12 @@ export const usePluginsStore = defineStore('plugins', () => {
   }
 
   async function inspectPackage(input, options = {}) {
+    if (safeModeStatus.value.enabled) throw Object.assign(new Error('安全模式已启用，插件包不会被解析'), { code: 'SAFE_MODE_PLUGIN_BLOCKED' })
     return parsePluginPackage(input, options)
   }
 
   async function downloadPlugin(item, trail = [], authorize = null) {
+    if (safeModeStatus.value.enabled) throw Object.assign(new Error('安全模式已启用，在线插件目录不可用'), { code: 'SAFE_MODE_PLUGIN_BLOCKED' })
     if (trail.includes(item.id)) throw new Error(`检测到插件目录依赖环：${[...trail, item.id].join(' → ')}`)
     if (item.release) {
       const resolved = await resolveCatalogRelease(item, { source: source.value })
@@ -601,6 +627,7 @@ export const usePluginsStore = defineStore('plugins', () => {
   }
 
   async function loadCatalogDetails(item) {
+    if (safeModeStatus.value.enabled) throw Object.assign(new Error('安全模式已启用，在线插件目录不可用'), { code: 'SAFE_MODE_PLUGIN_BLOCKED' })
     const details = { ...item }
     if (details.readme || details.readmeContent) return details
     if (details.readmeUrl) {
@@ -639,6 +666,7 @@ export const usePluginsStore = defineStore('plugins', () => {
   }
 
   function invokePluginCommand(pluginId, commandId, args = {}) {
+    if (safeModeStatus.value.enabled) return Promise.reject(Object.assign(new Error('安全模式已启用，插件命令不可用'), { code: 'SAFE_MODE_PLUGIN_BLOCKED' }))
     return runtime.invokeCommand(pluginId, commandId, args)
   }
 
@@ -705,6 +733,38 @@ export const usePluginsStore = defineStore('plugins', () => {
     componentStyleSelections.value = next
   }
 
+  function removeComponentOverrideSelectionsForPlugin(pluginId) {
+    const next = { ...componentOverrideSelections.value }
+    for (const [targetId, value] of Object.entries(next)) if (String(value).startsWith(`plugin-component-override::${pluginId}::`)) delete next[targetId]
+    componentOverrideSelections.value = next
+  }
+
+  function componentOverrideByValue(value) {
+    return contributedComponentOverridePacks.value.find(pack => pack.value === String(value || '')) || null
+  }
+
+  function componentOverrideOptions(targetId, language = 'zh') {
+    return contributedComponentOverridePacks.value.filter(pack => pack.targets?.[targetId]).map(pack => ({ value: pack.value, label: language === 'en' ? (pack.titleEn || pack.title) : pack.title, pluginId: pack.pluginId, pluginName: pack.pluginName }))
+  }
+
+  function componentOverrideState(targetId) {
+    return overrideStateForTarget(targetId, contributedComponentOverridePacks.value, componentOverrideSelections.value[targetId])
+  }
+
+  async function setComponentOverrideSelection(targetId, value) {
+    if (safeModeStatus.value.enabled) throw Object.assign(new Error('安全模式已启用，覆盖包不可用'), { code: 'SAFE_MODE_PLUGIN_BLOCKED' })
+    const normalized = String(value || '')
+    if (normalized && !componentOverrideByValue(normalized)?.targets?.[targetId]) throw new Error('所选覆盖包不存在或未启用')
+    componentOverrideSelections.value = { ...componentOverrideSelections.value, [targetId]: normalized }
+    await saveState(false)
+    return true
+  }
+
+  async function resetComponentOverrides() {
+    componentOverrideSelections.value = {}
+    await saveState(false)
+  }
+
   async function refreshPluginFonts() {
     fontRegistry.clear()
     for (const plugin of enabledPlugins.value) await fontRegistry.register(plugin, plugin.manifest.contributes?.fonts || [])
@@ -720,12 +780,14 @@ export const usePluginsStore = defineStore('plugins', () => {
   }
 
   function pluginPageSource(pluginId, pageId) {
+    if (safeModeStatus.value.enabled) return ''
     const plugin = pluginById(pluginId)
     const page = pageById(pluginId, pageId)
     return plugin && page ? runtime.frameSource(plugin, page) : ''
   }
 
   async function requestPlugin(pluginId, method, args = {}) {
+    if (safeModeStatus.value.enabled) throw Object.assign(new Error('安全模式已启用，插件请求不可用'), { code: 'SAFE_MODE_PLUGIN_BLOCKED' })
     return runtime.handleRpc(pluginId, method, args)
   }
 
@@ -778,10 +840,12 @@ export const usePluginsStore = defineStore('plugins', () => {
 
   async function dispatchEvent(event, payload) {
     emitPluginEvent(event, payload)
+    if (safeModeStatus.value.enabled) return
     await runtime.dispatch(event, clone(payload))
   }
 
   async function handlePluginMessage(event) {
+    if (safeModeStatus.value.enabled) return
     const message = event.data || {}
     if (!message.pluginId || message.type !== 'rpc-request') return
     if (!runtime.ownsFrameSource(event.source, message.pluginId)) return
@@ -801,6 +865,7 @@ export const usePluginsStore = defineStore('plugins', () => {
     lastError.value = `${plugin.manifest.name} 已因运行异常被禁用：${plugin.runtimeError}`
     await runtime.deactivate(pluginId)
     animationRegistry.unregisterPlugin(pluginId)
+    removeComponentOverrideSelectionsForPlugin(pluginId)
     await refreshPluginFonts()
     refreshPages()
     syncSessionMarker()
@@ -813,9 +878,9 @@ export const usePluginsStore = defineStore('plugins', () => {
   }
 
   return {
-    installed, list, source, initialized, recovering, lastError, enabledPlugins, contributedPages, contributedCommands, contributedVisualSurfaces, contributedAppearancePacks, contributedComponentStylePacks, animationSelections, animationDurationScales, componentStyleSelections,
-    initialize, setBannerHandler, saveState, activateEnabled, inspectPackage, installPackage, uninstall, setEnabled,
-    setSource, fetchList, downloadPlugin, loadCatalogDetails, pageById, appearanceByValue, appearanceOptions, resolveAppearance, componentStyleByValue, componentStyleOptions, componentStyleStyle, setComponentStyleSelection, pluginById, pluginAssetUrl,
+    installed, list, source, initialized, recovering, lastError, enabledPlugins, contributedPages, contributedCommands, contributedVisualSurfaces, contributedAppearancePacks, contributedComponentStylePacks, contributedComponentOverridePacks, animationSelections, animationDurationScales, componentStyleSelections, componentOverrideSelections, safeModeStatus,
+    initialize, configureSafeMode, setBannerHandler, saveState, activateEnabled, inspectPackage, installPackage, uninstall, setEnabled,
+    setSource, fetchList, downloadPlugin, loadCatalogDetails, pageById, appearanceByValue, appearanceOptions, resolveAppearance, componentStyleByValue, componentStyleOptions, componentStyleStyle, setComponentStyleSelection, componentOverrideByValue, componentOverrideOptions, componentOverrideState, setComponentOverrideSelection, resetComponentOverrides, pluginById, pluginAssetUrl,
     pluginPageSource, requestPlugin, invokePluginCommand, mountPageFrame, connectPageFrame, unmountPageFrame, mountVisualSurface, resizeVisualSurface, unmountVisualSurface,
     animationOptions, animationSelectionValue, setAnimationSelection, hasAnimation, startAnimation, animationDurationScale, setAnimationDurationScale, registerAnimationSurface, unregisterAnimationSurface,
     dispatchEvent, handlePluginMessage, markCleanShutdown,
