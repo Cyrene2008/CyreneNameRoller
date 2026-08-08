@@ -14,11 +14,25 @@
     "ui:component-styles",
     "ui:component-overrides",
     "ui:native-views",
-    "ui:result-presentations"
+    "ui:result-presentations",
+    "system:execute"
+  ],
+  "capabilities": {
+    "system:execute": { "required": false, "platforms": ["tauri"] }
+  },
+  "systemOperations": [
+    {
+      "id": "desktop-check",
+      "label": "Desktop check",
+      "platforms": ["windows"],
+      "command": { "program": "cmd", "args": ["/d", "/c", "ver"] },
+      "timeoutMs": 3000
+    }
   ],
   "contributes": {
     "commands": [
-      { "id": "draw-now", "title": "Draw now", "locations": ["command-palette"] }
+      { "id": "draw-now", "title": "Draw now", "locations": ["command-palette"] },
+      { "id": "desktop-check", "title": "Desktop check", "locations": ["command-palette"] }
     ],
     "componentStylePacks": [
       {
