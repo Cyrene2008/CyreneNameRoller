@@ -20,6 +20,8 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 aes-gcm = "0.10"
 base64 = "0.22"
+hmac = "0.12"
+hex = "0.4"
 sha2 = "0.10"
 reqwest = { version = "0.12", features = ["json", "rustls-tls", "stream"], default-features = false }
 tokio = { version = "1", features = ["time"] }

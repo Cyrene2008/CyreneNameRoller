@@ -5,6 +5,7 @@ import { useStatisticsStore } from '../stores/statistics.js'
 import { commitCoreStateTransaction } from '../plugins/coreDraw.js'
 import { normalizeCoreCaller, normalizeCoreDrawInput } from './protocol.js'
 import { executeCoreDrawRequest } from './web/coreService.js'
+import { isTauri, tauriAPI } from '../utils/tauriAPI.js'
 
 class CoreClient {
   constructor() {
@@ -14,6 +15,7 @@ class CoreClient {
     this.lastStateSignature = ''
     this.fallbackState = null
     this.commitQueue = Promise.resolve()
+    this.tauriGrantTokens = new Map()
   }
 
   ensureWorker() {
@@ -62,6 +64,22 @@ class CoreClient {
     const recordsStore = useRecordsStore()
     const statisticsStore = useStatisticsStore()
     await Promise.all([namesStore.initialize(), recordsStore.initialize(), statisticsStore.initialize()])
+    if (isTauri()) {
+      const principal = caller.kind === 'plugin' ? `plugin:${caller.pluginId}` : 'core-ui'
+      if (!this.tauriGrantTokens.has(principal)) this.tauriGrantTokens.set(principal, await tauriAPI.coreGrantToken(principal))
+      const value = await tauriAPI.coreDrawExecute({
+        grantToken: this.tauriGrantTokens.get(principal),
+        principal,
+        callerKind: caller.kind === 'plugin' ? 'plugin' : 'core-ui',
+        pluginId: caller.pluginId,
+        operationId: caller.operationId,
+        countStatistics: caller.countStatistics,
+        input
+      })
+      await statisticsStore.restoreState(value.statistics, { persist: false })
+      await recordsStore.restoreState(value.records, { persist: false })
+      return JSON.parse(JSON.stringify(value.receipt))
+    }
     const balance = await dataBridge.load('balance')
     const stateSignature = `${namesStore.revision}:${recordsStore.revision}:${statisticsStore.revision}:${JSON.stringify(balance || {})}`
     if (stateSignature !== this.lastStateSignature) {
@@ -87,6 +105,12 @@ class CoreClient {
     await commit
     this.lastStateSignature = `${namesStore.revision}:${recordsStore.revision}:${statisticsStore.revision}:${JSON.stringify(balance || {})}`
     return JSON.parse(JSON.stringify(value.receipt))
+  }
+
+  async revokePlugin(pluginId) {
+    const principal = `plugin:${String(pluginId || '')}`
+    this.tauriGrantTokens.delete(principal)
+    if (isTauri()) await tauriAPI.coreRevokePrincipal(principal)
   }
 }
 

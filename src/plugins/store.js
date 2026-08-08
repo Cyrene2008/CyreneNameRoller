@@ -167,6 +167,11 @@ export const usePluginsStore = defineStore('plugins', () => {
 
   function refreshPages() { pagesRevision.value += 1 }
 
+  async function deactivatePluginRuntime(pluginId) {
+    await runtime.deactivate(pluginId)
+    await coreClient.revokePlugin(pluginId).catch(() => {})
+  }
+
   async function executeCoreDraw(plugin, rawArgs = {}) {
     validateCoreDrawArgs(rawArgs)
     const receipt = await coreClient.executeDraw({ caller: { kind: 'plugin', pluginId: plugin.manifest.id }, input: rawArgs })
@@ -330,7 +335,7 @@ export const usePluginsStore = defineStore('plugins', () => {
       lastError.value = error.message || String(error)
       for (const pluginId of activated.reverse()) {
         animationRegistry.unregisterPlugin(pluginId)
-        await runtime.deactivate(pluginId)
+        await deactivatePluginRuntime(pluginId)
       }
       for (const plugin of plugins) {
         plugin.enabled = false
@@ -363,7 +368,7 @@ export const usePluginsStore = defineStore('plugins', () => {
     const wasEnabled = !!existing?.enabled
     if (existing) {
       animationRegistry.unregisterPlugin(pluginId)
-      await runtime.deactivate(pluginId)
+      await deactivatePluginRuntime(pluginId)
     }
     const candidate = {
       ...parsed,
@@ -399,7 +404,7 @@ export const usePluginsStore = defineStore('plugins', () => {
       await saveState(false)
       return candidate
     } catch (error) {
-      await runtime.deactivate(pluginId)
+      await deactivatePluginRuntime(pluginId)
       animationRegistry.unregisterPlugin(pluginId)
       if (existing) {
         installed.value[pluginId] = existing
@@ -425,7 +430,7 @@ export const usePluginsStore = defineStore('plugins', () => {
   async function uninstall(pluginId) {
     const dependents = enabledDependents(pluginId)
     if (dependents.length) throw new Error(`请先禁用依赖此插件的项目：${dependents.map(item => item.manifest.name).join('、')}`)
-    await runtime.deactivate(pluginId)
+    await deactivatePluginRuntime(pluginId)
     animationRegistry.unregisterPlugin(pluginId)
     animationRegistry.removeSelectionsForPlugin(pluginId, animationSelections.value)
     removeComponentStyleSelectionsForPlugin(pluginId)
@@ -447,7 +452,7 @@ export const usePluginsStore = defineStore('plugins', () => {
     if (!value) {
       const dependents = enabledDependents(pluginId)
       if (dependents.length) throw new Error(`请先禁用：${dependents.map(item => item.manifest.name).join('、')}`)
-      await runtime.deactivate(pluginId)
+      await deactivatePluginRuntime(pluginId)
       animationRegistry.unregisterPlugin(pluginId)
       plugin.enabled = false
       removeResultPresentationSelectionsForPlugin(pluginId)
@@ -475,7 +480,7 @@ export const usePluginsStore = defineStore('plugins', () => {
     } catch (error) {
       plugin.enabled = false
       plugin.runtimeError = error.message || String(error)
-      await runtime.deactivate(pluginId)
+      await deactivatePluginRuntime(pluginId)
       animationRegistry.unregisterPlugin(pluginId)
       refreshPages()
       syncSessionMarker()
@@ -854,7 +859,7 @@ export const usePluginsStore = defineStore('plugins', () => {
     plugin.enabled = false
     plugin.runtimeError = error.message || String(error)
     lastError.value = `${plugin.manifest.name} 已因运行异常被禁用：${plugin.runtimeError}`
-    await runtime.deactivate(pluginId)
+    await deactivatePluginRuntime(pluginId)
     animationRegistry.unregisterPlugin(pluginId)
     removeComponentOverrideSelectionsForPlugin(pluginId)
     removeResultPresentationSelectionsForPlugin(pluginId)
