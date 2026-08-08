@@ -23,7 +23,8 @@ await build({
 const { parsePluginPackage } = await import(`${pathToFileURL(parserOutput).href}?v=${Date.now()}`)
 
 test('阶段 0 freezes API, component targets and slot namespaces', async () => {
-  assert.equal(PLUGIN_API_VERSION, '1.2.0')
+  assert.equal(PLUGIN_API_VERSION, '1.3.0')
+  assert.equal(contract.legacyApiVersion, '1.2.0')
   assert.equal(contract.apiVersion, '1.3.0')
   assert.equal(contract.componentTargets.length, 13)
   assert.equal(contract.componentTargets.find(target => target.id === 'roller.filters').visibilityPolicy, 'optional')

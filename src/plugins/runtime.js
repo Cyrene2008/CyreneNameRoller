@@ -94,7 +94,6 @@ export class PluginRuntime {
     this.visualSurfaces = new Map()
     this.visualRuntimes = new Map()
     this.principals = new Map()
-    this.framePorts = new Map()
     this.legacyPrincipals = new Map()
     this.deactivatingPlugins = new Set()
     this.lifecycleSnapshots = new Map()
@@ -153,13 +152,18 @@ export class PluginRuntime {
       model: 'product-freedom-core-hosted',
       resources: Object.entries(HOST_RESOURCES).map(describe),
       transactions: Object.entries(HOST_TRANSACTIONS).map(describe),
-      contributions: ['pages', 'commands', 'animationPacks', 'visualSurfaces', 'appearancePacks'],
+      contributions: ['pages', 'commands', 'animationPacks', 'visualSurfaces', 'appearancePacks', 'fonts', 'nativeViews', 'componentStylePacks', 'componentOverridePacks', 'resultPresentations'],
       extensionPoints: {
         pages: { ownership: 'plugin', surface: 'isolated-document', locations: ['plugins', 'dock'] },
         commands: { ownership: 'plugin', invocation: 'host-brokered', locations: ['command-palette', 'page-header', 'context-menu'] },
         animationPacks: { ownership: 'host', execution: ['gsap', 'waapi'], input: 'declarative' },
         visualSurfaces: { ownership: 'plugin', surface: 'offscreen-canvas', placement: ['background'] },
-        appearancePacks: { ownership: 'host', input: 'semantic-tokens', modes: ['light', 'dark'] }
+        appearancePacks: { ownership: 'host', input: 'semantic-tokens', modes: ['light', 'dark'] },
+        fonts: { ownership: 'host', input: 'validated-woff2', namespace: 'plugin:<pluginId>/<fontId>' },
+        nativeViews: { ownership: 'host', input: 'declarative-schema', slots: [] },
+        componentStylePacks: { ownership: 'host', input: 'stable-component-ids', properties: ['size', 'scale', 'foreground', 'background', 'accent', 'fontFamily', 'fontSize', 'fontWeight', 'lineHeight', 'padding', 'gap', 'radius', 'borderColor', 'borderWidth', 'shadow', 'alignment', 'density'] },
+        componentOverridePacks: { ownership: 'host', input: 'stable-component-ids', visibility: ['visible', 'hidden', 'replaced'] },
+        resultPresentations: { ownership: 'host', input: 'verified-receipt-context' }
       },
       guarantees: {
         existingRecordsImmutable: true,

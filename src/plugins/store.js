@@ -20,6 +20,9 @@ import { PluginAnimationRegistry } from './animationRegistry'
 import { PluginPlatformBridge } from './platform'
 import { repositorySlug, resolveCatalogRelease, fetchRepositoryOwner } from './catalog'
 import { commitCoreDrawTransaction, createCoreDrawQueue, validateCoreDrawArgs } from './coreDraw'
+import { getComponentTarget } from './ui/componentRegistry'
+import { styleVarsForTarget } from './ui/stylePolicy'
+import { PluginFontRegistry } from './ui/fontRegistry'
 
 const STATE_KEY = 'pluginState'
 const PLUGIN_DATA_KEY = 'pluginData'
@@ -27,6 +30,7 @@ const SESSION_MARKER_KEY = 'cyrene-plugin-session-pending'
 const MAX_AUDIO_FILE_SIZE = 16 * 1024 * 1024
 const MAX_PLUGIN_DATA_SIZE = 96 * 1024 * 1024
 const APPEARANCE_VALUE_PREFIX = 'plugin-appearance::'
+const COMPONENT_STYLE_VALUE_PREFIX = 'plugin-component-style::'
 
 function clone(value) {
   return value === undefined ? undefined : JSON.parse(JSON.stringify(value))
@@ -69,6 +73,8 @@ export const usePluginsStore = defineStore('plugins', () => {
   const pagesRevision = ref(0)
   const animationSelections = ref({})
   const animationDurationScales = ref({})
+  const componentStyleSelections = ref({})
+  const fontRegistry = new PluginFontRegistry()
   const animationRegistry = new PluginAnimationRegistry()
   const platformBridge = new PluginPlatformBridge()
   const queueCoreDraw = createCoreDrawQueue()
@@ -123,6 +129,14 @@ export const usePluginsStore = defineStore('plugins', () => {
       pluginId: plugin.manifest.id,
       pluginName: plugin.manifest.name,
       value: `${APPEARANCE_VALUE_PREFIX}${plugin.manifest.id}::${pack.id}`,
+      ...clone(pack)
+    }))
+  ))
+  const contributedComponentStylePacks = computed(() => enabledPlugins.value.flatMap(plugin =>
+    (plugin.manifest.contributes?.componentStylePacks || []).map(pack => ({
+      pluginId: plugin.manifest.id,
+      pluginName: plugin.manifest.name,
+      value: `${COMPONENT_STYLE_VALUE_PREFIX}${plugin.manifest.id}::${pack.id}`,
       ...clone(pack)
     }))
   ))
@@ -215,6 +229,7 @@ export const usePluginsStore = defineStore('plugins', () => {
       installed.value = saved.installed || {}
       animationSelections.value = saved.animationSelections && typeof saved.animationSelections === 'object' ? saved.animationSelections : {}
       animationDurationScales.value = saved.animationDurationScales && typeof saved.animationDurationScales === 'object' ? saved.animationDurationScales : {}
+      componentStyleSelections.value = saved.componentStyleSelections && typeof saved.componentStyleSelections === 'object' ? saved.componentStyleSelections : {}
       source.value = PLUGIN_DOWNLOAD_SOURCES.some(item => item.value === saved.source) ? saved.source : 'cyrene'
       const crashedSession = localStorage.getItem(SESSION_MARKER_KEY) === '1'
       if (saved.pendingStartup || crashedSession) {
@@ -246,6 +261,7 @@ export const usePluginsStore = defineStore('plugins', () => {
         source: source.value,
         animationSelections: animationSelections.value,
         animationDurationScales: animationDurationScales.value,
+        componentStyleSelections: componentStyleSelections.value,
         pendingStartup: pendingStartup === undefined ? !!current.pendingStartup : !!pendingStartup
     })
   }
@@ -330,6 +346,7 @@ export const usePluginsStore = defineStore('plugins', () => {
         activated.push(plugin.manifest.id)
       }
       refreshPages()
+      await refreshPluginFonts()
       await saveState(false)
       syncSessionMarker()
       lastError.value = ''
@@ -399,6 +416,7 @@ export const usePluginsStore = defineStore('plugins', () => {
         animationRegistry.setDurationScale(pluginId, animationDurationScales.value[pluginId] ?? 1)
       }
       refreshPages()
+      await refreshPluginFonts()
       syncSessionMarker()
       recovering.value = false
       await saveState(false)
@@ -433,9 +451,11 @@ export const usePluginsStore = defineStore('plugins', () => {
     await runtime.deactivate(pluginId)
     animationRegistry.unregisterPlugin(pluginId)
     animationRegistry.removeSelectionsForPlugin(pluginId, animationSelections.value)
+    removeComponentStyleSelectionsForPlugin(pluginId)
     platformBridge.forgetPlugin(pluginId)
     delete installed.value[pluginId]
     await removePluginData(pluginId)
+    await refreshPluginFonts()
     refreshPages()
     syncSessionMarker()
     await saveState(false)
@@ -450,6 +470,7 @@ export const usePluginsStore = defineStore('plugins', () => {
       await runtime.deactivate(pluginId)
       animationRegistry.unregisterPlugin(pluginId)
       plugin.enabled = false
+      await refreshPluginFonts()
       refreshPages()
       syncSessionMarker()
       await saveState(false)
@@ -465,6 +486,7 @@ export const usePluginsStore = defineStore('plugins', () => {
       await runtime.activate(plugin)
       animationRegistry.registerPlugin(plugin, animationSelections.value)
       animationRegistry.setDurationScale(pluginId, animationDurationScales.value[pluginId] ?? 1)
+      await refreshPluginFonts()
       recovering.value = false
       refreshPages()
       syncSessionMarker()
@@ -643,6 +665,51 @@ export const usePluginsStore = defineStore('plugins', () => {
     return { ...pack, tokens: clone(dark ? pack.dark : pack.light) }
   }
 
+  function componentStyleByValue(value) {
+    const source = String(value || '')
+    if (!source.startsWith(COMPONENT_STYLE_VALUE_PREFIX)) return null
+    return contributedComponentStylePacks.value.find(pack => pack.value === source) || null
+  }
+
+  function componentStyleOptions(targetId, language = 'zh') {
+    const target = getComponentTarget(targetId, platformBridge.info().runtime)
+    if (!target?.available) return []
+    return contributedComponentStylePacks.value.filter(pack => pack.targets?.[targetId]).map(pack => ({
+      value: pack.value,
+      label: language === 'en' ? (pack.titleEn || pack.title) : pack.title,
+      pluginId: pack.pluginId,
+      pluginName: pack.pluginName
+    }))
+  }
+
+  function componentStyleStyle(targetId) {
+    const value = componentStyleSelections.value[targetId]
+    const pack = componentStyleByValue(value)
+    const styles = pack?.targets?.[targetId] || {}
+    return styleVarsForTarget(targetId, styles)
+  }
+
+  async function setComponentStyleSelection(targetId, value) {
+    const target = getComponentTarget(targetId, platformBridge.info().runtime)
+    if (!target?.available) throw new Error('组件目标当前平台不可用')
+    const normalized = String(value || '')
+    if (normalized && !componentStyleByValue(normalized)?.targets?.[targetId]) throw new Error('所选组件样式不存在或未启用')
+    componentStyleSelections.value = { ...componentStyleSelections.value, [targetId]: normalized }
+    await saveState(false)
+    return true
+  }
+
+  function removeComponentStyleSelectionsForPlugin(pluginId) {
+    const next = { ...componentStyleSelections.value }
+    for (const [targetId, value] of Object.entries(next)) if (String(value).startsWith(`${COMPONENT_STYLE_VALUE_PREFIX}${pluginId}::`)) delete next[targetId]
+    componentStyleSelections.value = next
+  }
+
+  async function refreshPluginFonts() {
+    fontRegistry.clear()
+    for (const plugin of enabledPlugins.value) await fontRegistry.register(plugin, plugin.manifest.contributes?.fonts || [])
+  }
+
   function pluginById(pluginId) { return installed.value[pluginId] }
 
   function pluginAssetUrl(pluginOrId, path = '') {
@@ -734,6 +801,7 @@ export const usePluginsStore = defineStore('plugins', () => {
     lastError.value = `${plugin.manifest.name} 已因运行异常被禁用：${plugin.runtimeError}`
     await runtime.deactivate(pluginId)
     animationRegistry.unregisterPlugin(pluginId)
+    await refreshPluginFonts()
     refreshPages()
     syncSessionMarker()
     await saveState(false)
@@ -745,9 +813,9 @@ export const usePluginsStore = defineStore('plugins', () => {
   }
 
   return {
-    installed, list, source, initialized, recovering, lastError, enabledPlugins, contributedPages, contributedCommands, contributedVisualSurfaces, contributedAppearancePacks, animationSelections, animationDurationScales,
+    installed, list, source, initialized, recovering, lastError, enabledPlugins, contributedPages, contributedCommands, contributedVisualSurfaces, contributedAppearancePacks, contributedComponentStylePacks, animationSelections, animationDurationScales, componentStyleSelections,
     initialize, setBannerHandler, saveState, activateEnabled, inspectPackage, installPackage, uninstall, setEnabled,
-    setSource, fetchList, downloadPlugin, loadCatalogDetails, pageById, appearanceByValue, appearanceOptions, resolveAppearance, pluginById, pluginAssetUrl,
+    setSource, fetchList, downloadPlugin, loadCatalogDetails, pageById, appearanceByValue, appearanceOptions, resolveAppearance, componentStyleByValue, componentStyleOptions, componentStyleStyle, setComponentStyleSelection, pluginById, pluginAssetUrl,
     pluginPageSource, requestPlugin, invokePluginCommand, mountPageFrame, connectPageFrame, unmountPageFrame, mountVisualSurface, resizeVisualSurface, unmountVisualSurface,
     animationOptions, animationSelectionValue, setAnimationSelection, hasAnimation, startAnimation, animationDurationScale, setAnimationDurationScale, registerAnimationSurface, unregisterAnimationSurface,
     dispatchEvent, handlePluginMessage, markCleanShutdown,

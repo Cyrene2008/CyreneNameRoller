@@ -11,7 +11,7 @@ import JavaScriptObfuscator from 'javascript-obfuscator'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const packageRoot = path.resolve(__dirname, '..')
 const MAGIC = Buffer.from('CNRP1\n', 'utf8')
-const API_VERSION = '1.2.0'
+const API_VERSION = '1.3.0'
 const MAX_FILE_COUNT = 256
 const MAX_PACKAGE_SIZE = 32 * 1024 * 1024
 const ID_PATTERN = /^[a-z0-9]+(?:[._-][a-z0-9]+)+$/
@@ -479,7 +479,7 @@ function normalizeManifest(raw) {
   if (!manifest.name || !manifest.version || !manifest.author) fail('manifest.name, version and author are required')
   if (!manifest.engine || compareVersions(API_VERSION, manifest.engine.min || '0') < 0) fail(`plugin requires API ${manifest.engine?.min || 'unknown'}`)
   manifest.permissions = [...new Set(manifest.permissions || [])]
-  const permissions = new Set(['storage:read', 'storage:write', 'events:draw', 'events:lifecycle', 'draw:execute', 'ui:animations', 'ui:visual-surfaces', 'ui:appearance', 'notifications:show', 'audio:select', 'audio:play', 'names:read', 'records:read', 'statistics:read', 'balance:read'])
+  const permissions = new Set(['storage:read', 'storage:write', 'events:draw', 'events:lifecycle', 'draw:execute', 'ui:animations', 'ui:visual-surfaces', 'ui:appearance', 'ui:component-styles', 'ui:component-overrides', 'ui:native-views', 'ui:result-presentations', 'ui:fonts', 'notifications:show', 'audio:select', 'audio:play', 'names:read', 'records:read', 'statistics:read', 'balance:read'])
   for (const permission of ['system:open-url', 'system:select-file', 'system:select-directory', 'system:clipboard-read', 'system:clipboard-write', 'system:reveal-file', 'system:execute']) permissions.add(permission)
   const unknown = manifest.permissions.find(permission => !permissions.has(permission))
   if (unknown) fail(`unknown permission: ${unknown}`)
@@ -494,15 +494,41 @@ function normalizeManifest(raw) {
   manifest.contributes.animationPacks = normalizeAnimationPacks(manifest.contributes.animationPacks, manifest.permissions)
   manifest.contributes.visualSurfaces = normalizeVisualSurfaces(manifest.contributes.visualSurfaces, manifest.permissions)
   manifest.contributes.appearancePacks = normalizeAppearancePacks(manifest.contributes.appearancePacks, manifest.permissions)
+  const stylePacks = manifest.contributes.componentStylePacks
+  if (stylePacks !== undefined) {
+    if (!manifest.permissions.includes('ui:component-styles') || !Array.isArray(stylePacks) || stylePacks.length > 16) fail('componentStylePacks requires ui:component-styles and at most 16 items')
+    const ids = new Set()
+    for (const [index, pack] of stylePacks.entries()) {
+      if (!pack || !CONTRIBUTION_ID_PATTERN.test(pack.id || '') || ids.has(pack.id) || !pack.targets || typeof pack.targets !== 'object') fail(`componentStylePacks[${index}] is invalid`)
+      ids.add(pack.id)
+      for (const [target, styles] of Object.entries(pack.targets)) {
+        if (!/^[a-z][a-z0-9.-]{1,63}$/.test(target) || !styles || typeof styles !== 'object') fail(`componentStylePacks[${index}] target is invalid`)
+        for (const [property, value] of Object.entries(styles)) {
+          if (['selector', 'css', 'cssFile', 'display', 'visibility', 'content', 'position', 'zIndex', 'pointerEvents', 'overflow', 'transform', 'opacity'].includes(property) || /url\s*\(|var\s*\(|calc\s*\(|env\s*\(/i.test(String(value))) fail(`componentStylePacks[${index}] contains a forbidden style`)
+        }
+      }
+    }
+  }
+  const fonts = manifest.contributes.fonts
+  if (fonts !== undefined) {
+    if (!manifest.permissions.includes('ui:fonts') || !Array.isArray(fonts) || fonts.length > 8) fail('fonts requires ui:fonts and at most 8 items')
+    const ids = new Set()
+    for (const [index, font] of fonts.entries()) {
+      if (!font || !/^[a-z][a-z0-9._-]{0,63}$/.test(font.id || '') || ids.has(font.id) || !String(font.source || '').toLowerCase().endsWith('.woff2')) fail(`fonts[${index}] must reference a unique .woff2 file`)
+      ids.add(font.id)
+    }
+  }
   // Keep optional contribution keys absent when unused. The host validates a present
   // array as an explicit contribution and therefore expects its matching permission.
   if (!manifest.contributes.animationPacks.length) delete manifest.contributes.animationPacks
   if (!manifest.contributes.commands.length) delete manifest.contributes.commands
   if (!manifest.contributes.visualSurfaces.length) delete manifest.contributes.visualSurfaces
   if (!manifest.contributes.appearancePacks.length) delete manifest.contributes.appearancePacks
+  if (!manifest.contributes.componentStylePacks?.length) delete manifest.contributes.componentStylePacks
+  if (!manifest.contributes.fonts?.length) delete manifest.contributes.fonts
   if (manifest.entry) manifest.entry = normalizePath(manifest.entry)
   if ((manifest.contributes.commands || []).length && !manifest.entry && !Object.keys(manifest.platformEntries).length) fail('commands require a Worker entry')
-  if (!manifest.entry && !Object.keys(manifest.platformEntries).length && !(manifest.contributes.pages || []).length && !(manifest.contributes.commands || []).length && !(manifest.contributes.visualSurfaces || []).length && !(manifest.contributes.appearancePacks || []).length) {
+  if (!manifest.entry && !Object.keys(manifest.platformEntries).length && !(manifest.contributes.pages || []).length && !(manifest.contributes.commands || []).length && !(manifest.contributes.visualSurfaces || []).length && !(manifest.contributes.appearancePacks || []).length && !(manifest.contributes.componentStylePacks || []).length && !(manifest.contributes.fonts || []).length) {
     fail('plugin needs at least one Worker, page, visual surface or appearance pack entry (or a command contribution with a Worker)')
   }
   if (manifest.icon) manifest.icon = normalizePath(manifest.icon)
@@ -576,11 +602,20 @@ async function validateDirectory(directory) {
     manifest.readme,
     ...(manifest.contributes.pages || []).flatMap(page => [page.entry, ...Object.values(page.platformEntries || {})]),
     ...(manifest.contributes.animationPacks || []).map(pack => pack.source),
+    ...(manifest.contributes.fonts || []).map(font => font.source),
     ...(manifest.contributes.visualSurfaces || []).flatMap(surface => [surface.entry, ...Object.values(surface.platformEntries || {})])
   ].filter(Boolean)
   for (const required of requiredFiles) {
     if (!files.has(required)) fail(`manifest references missing file: ${required}`)
   }
+  let fontTotal = 0
+  for (const font of manifest.contributes.fonts || []) {
+    const bytes = await fs.readFile(path.join(directory, font.source))
+    if (bytes.byteLength > 2 * 1024 * 1024) fail(`font exceeds 2 MiB: ${font.source}`)
+    if (bytes.length < 4 || bytes[0] !== 0x77 || bytes[1] !== 0x4f || bytes[2] !== 0x46 || bytes[3] !== 0x32) fail(`font is not a WOFF2 file: ${font.source}`)
+    fontTotal += bytes.byteLength
+  }
+  if (fontTotal > 8 * 1024 * 1024) fail('fonts exceed 8 MiB in total')
   const animationPacks = []
   for (const declaration of manifest.contributes.animationPacks || []) {
     let raw

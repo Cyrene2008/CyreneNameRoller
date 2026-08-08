@@ -35,6 +35,26 @@
       <div v-else class="empty-state"><FluentIcon icon="plug-disconnected-24-regular" :width="28" /><span>{{ lang === 'en' ? 'No plugins installed.' : '尚未安装插件。' }}</span></div>
     </section>
 
+    <section v-if="stylePacks.length" class="plugin-section component-style-section">
+      <div class="section-heading"><h2>{{ lang === 'en' ? 'Component styles' : '组件样式' }}</h2><span>{{ stylePacks.length }}</span></div>
+      <div class="style-pack-list">
+        <article v-for="pack in stylePacks" :key="pack.value" class="style-pack-row">
+          <div class="style-pack-copy"><strong>{{ pack.title }}</strong><small>{{ pack.pluginName }} / {{ pack.id }}</small><span v-if="pack.description">{{ pack.description }}</span></div>
+          <div class="style-pack-controls">
+            <FluentSelect
+              v-for="target in styleTargets"
+              :key="target"
+              :model-value="plugins.componentStyleSelections[target] || ''"
+              :options="[{ value: '', label: lang === 'en' ? `Default: ${target}` : `默认：${target}` }, ...plugins.componentStyleOptions(target, lang)]"
+              width="230px"
+              @update:model-value="value => chooseStyle(target, value)"
+            />
+            <div class="style-pack-preview" :style="plugins.componentStyleStyle('roller.result')">Aa</div>
+          </div>
+        </article>
+      </div>
+    </section>
+
     <section class="plugin-section">
       <div class="section-heading"><h2>{{ lang === 'en' ? 'Plugin catalog' : '插件列表' }}</h2><span v-if="listUpdated">{{ listUpdated }}</span></div>
       <div v-if="plugins.list.length" class="plugin-grid">
@@ -103,6 +123,8 @@ const confirmManifest = ref(null)
 const confirmPlugin = ref(null)
 let confirmResolver = null
 const installedPlugins = computed(() => Object.values(plugins.installed))
+const stylePacks = computed(() => plugins.contributedComponentStylePacks)
+const styleTargets = ['roller.result', 'roller.filters', 'roller.current-list', 'roller.primary-action']
 const contributedPages = computed(() => plugins.contributedPages)
 const permissionDescriptions = {
   'draw:execute': { zh: '通过宿主 CAF 公平事务追加抽取结果', en: 'Run host-controlled CAF draws and append records', risk: 'elevated' },
@@ -129,6 +151,13 @@ function permissionInfo(permission) {
 }
 
 function installedVersion(id) { return plugins.installed[id]?.manifest?.version || '' }
+async function chooseStyle(target, value) {
+  try {
+    await plugins.setComponentStyleSelection(target, value)
+  } catch (error) {
+    showBanner?.({ message: error.message || String(error), icon: 'warning-16-regular', type: 'warning', duration: 6000 })
+  }
+}
 function compareVersion(left, right) {
   const a = String(left || '0').split('.').map(value => Number(value) || 0)
   const b = String(right || '0').split('.').map(value => Number(value) || 0)
@@ -238,6 +267,13 @@ onMounted(async () => { await plugins.initialize(); plugins.setBannerHandler(sho
 .plugin-pages { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0 -4px; padding: 10px 4px 0; border-top: 1px solid color-mix(in srgb, var(--accent) 26%, var(--border-subtle)); color: var(--text-secondary); font-size: 12px; font-weight: 600; }
 .plugin-page-links { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
 .plugin-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: auto; }
+.style-pack-list { display: grid; gap: 10px; }
+.style-pack-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 14px; border: 1px solid var(--border-default); border-radius: var(--radius-md); background: var(--bg-card); }
+.style-pack-copy { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.style-pack-copy strong { color: var(--text-primary); font-size: 13px; }
+.style-pack-copy small, .style-pack-copy span { color: var(--text-muted); font-size: 11px; }
+.style-pack-controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.style-pack-preview { width: 42px; height: 32px; display: grid; place-items: center; border: 1px solid var(--border-default); border-radius: var(--radius-sm); color: var(--plugin-component-roller-result-foreground, var(--text-primary)); background: var(--plugin-component-roller-result-background, var(--bg-hover)); font-family: var(--plugin-component-roller-result-font-family, var(--font-display)); }
 .empty-state { display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 120px; color: var(--text-muted); border: 1px dashed var(--border-default); border-radius: var(--radius-md); }
 .details-body { max-height: 62vh; overflow-y: auto; color: var(--text-secondary); line-height: 1.65; font-size: 13px; }
 .readme :deep(h1), .readme :deep(h2), .readme :deep(h3) { color: var(--text-primary); margin: 10px 0 6px; }
@@ -271,5 +307,5 @@ onMounted(async () => { await plugins.initialize(); plugins.setBannerHandler(sho
 .confirm-list li .risk-high { color: var(--danger); background: color-mix(in srgb, var(--danger) 11%, transparent); }
 .confirm-warning { padding: 9px 11px; border: 1px solid color-mix(in srgb, var(--danger) 35%, var(--border-default)); border-radius: var(--radius-sm); background: color-mix(in srgb, var(--danger) 7%, var(--bg-card)); }
 .confirm-warning.limited { color: var(--warning); border-color: color-mix(in srgb, var(--warning) 35%, var(--border-default)); background: color-mix(in srgb, var(--warning) 7%, var(--bg-card)); }
-@media (max-width: 760px) { .page-header { flex-direction: column; } .header-actions { justify-content: flex-start; } .plugins-view { padding: 20px 14px; } }
+@media (max-width: 760px) { .page-header { flex-direction: column; } .header-actions { justify-content: flex-start; } .plugins-view { padding: 20px 14px; } .style-pack-row { align-items: flex-start; flex-direction: column; } .style-pack-controls { justify-content: flex-start; } }
 </style>

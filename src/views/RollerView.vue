@@ -9,6 +9,7 @@
     <div
       class="display-container"
       ref="displayRef"
+      :style="pluginsStore.componentStyleStyle('roller.result')"
     >
       <div
         v-for="(display, i) in nameDisplays"
@@ -26,7 +27,7 @@
     <span ref="probeRef" class="fit-probe" aria-hidden="true"></span>
 
     <div class="controls-center" ref="controlsCenterRef">
-      <div class="switches">
+      <div class="switches" :style="pluginsStore.componentStyleStyle('roller.filters')">
         <FluentToggle class="english-mode-toggle" v-model="settings.englishMode" label="English Mode" @update:model-value="saveSetting('englishMode', $event)" />
         <FluentTabs :model-value="settings.groupMode ? 'groups' : 'people'" :options="drawTargetOptions" @update:model-value="onDrawTargetChange" />
         <Transition name="toggle-expand">
@@ -39,7 +40,7 @@
       </div>
 
       <Transition name="toggle-expand">
-        <div v-if="settings.multiMode" class="multi-settings">
+        <div v-if="settings.multiMode" class="multi-settings" :style="pluginsStore.componentStyleStyle('roller.filters')">
           <span class="setting-label">{{ countSettingLabel }}</span>
           <div class="count-control">
             <FluentButton variant="secondary" size="sm" @click="changeCount(-1)"><FluentIcon icon="subtract-16-regular" :width="14" /></FluentButton>
@@ -49,12 +50,12 @@
         </div>
       </Transition>
 
-      <div class="list-selector-bar">
+      <div class="list-selector-bar" :style="pluginsStore.componentStyleStyle('roller.current-list')">
         <span class="selector-label">{{ t('currentList', lang) }}</span>
         <FluentSelect :model-value="namesStore.currentListId" :options="listOptions" @update:model-value="namesStore.switchList" />
       </div>
 
-      <FluentButton :variant="isRunning ? 'danger' : 'primary'" size="lg" class="start-btn" :class="{ 'btn-dimmed': !canStart && !isRunning }" @click="toggleRoll">
+      <FluentButton :variant="isRunning ? 'danger' : 'primary'" size="lg" class="start-btn" :style="pluginsStore.componentStyleStyle('roller.primary-action')" :class="{ 'btn-dimmed': !canStart && !isRunning }" @click="toggleRoll">
         <FluentIcon :icon="isRunning ? 'stop-24-filled' : 'play-24-filled'" :width="18" />
         {{ isRunning ? t('stop', lang) : t('start', lang) }}
         <span
@@ -895,9 +896,15 @@ onBeforeUnmount(() => { if (intervalId) clearTimeout(intervalId); clearTimeout(a
   bottom: 24px;
   overflow: hidden;
   pointer-events: none;
+  color: var(--plugin-component-roller-result-foreground, var(--text-primary));
+  background: var(--plugin-component-roller-result-background, transparent);
+  border: var(--plugin-component-roller-result-border-width, 0) solid var(--plugin-component-roller-result-border-color, transparent);
+  border-radius: var(--plugin-component-roller-result-radius, 0);
+  padding: var(--plugin-component-roller-result-padding, 0);
+  box-shadow: var(--plugin-component-roller-result-shadow, none);
 }
 
-.name-display { position: absolute; white-space: nowrap; overflow: visible; font-family: var(--font-display); font-weight: 700; color: var(--text-primary); line-height: 1.05; letter-spacing: 0.5px; transition: left 0.3s ease, top 0.3s ease, width 0.3s ease, font-size 0.3s ease, opacity 0.3s ease; text-shadow: 0 4px 20px rgba(234, 94, 193, 0.15); z-index: 5; }
+.name-display { position: absolute; white-space: nowrap; overflow: visible; font-family: var(--font-display); font-weight: 700; color: var(--plugin-component-roller-result-foreground, var(--text-primary)); line-height: 1.05; letter-spacing: 0.5px; transition: left 0.3s ease, top 0.3s ease, width 0.3s ease, font-size 0.3s ease, opacity 0.3s ease; text-shadow: 0 4px 20px rgba(234, 94, 193, 0.15); z-index: 5; }
 .name-display::before { content: ''; position: absolute; inset: -4px; background: var(--accent); border-radius: var(--radius-sm); z-index: -1; opacity: 0; transition: opacity 0.3s ease; }
 .name-display.rainbow {
   background: linear-gradient(90deg, #ff6ad9, #72afec, #ff6ad9, #72afec, #ff6ad9, #72afec, #ff6ad9, #72afec, #ff6ad9);
@@ -940,18 +947,18 @@ onBeforeUnmount(() => { if (intervalId) clearTimeout(intervalId); clearTimeout(a
 }
 
 .controls-center { position: absolute; bottom: 24px; right: 24px; display: flex; flex-direction: column; gap: 10px; align-items: flex-end; z-index: 10; }
-.switches { display: flex; flex-direction: column; gap: 6px; align-items: stretch; width: 280px; }
+.switches { display: flex; flex-direction: column; gap: var(--plugin-component-roller-filters-gap, 6px); align-items: stretch; width: 280px; color: var(--plugin-component-roller-filters-foreground, inherit); background: var(--plugin-component-roller-filters-background, transparent); font-size: var(--plugin-component-roller-filters-font-size, inherit); font-weight: var(--plugin-component-roller-filters-font-weight, inherit); }
 .english-mode-toggle { align-self: flex-end; }
-.multi-settings { display: flex; align-items: center; gap: 12px; }
+.multi-settings { display: flex; align-items: center; gap: var(--plugin-component-roller-filters-gap, 12px); color: var(--plugin-component-roller-filters-foreground, inherit); background: var(--plugin-component-roller-filters-background, transparent); font-size: var(--plugin-component-roller-filters-font-size, inherit); font-weight: var(--plugin-component-roller-filters-font-weight, inherit); }
 .setting-label { font-size: 14px; color: var(--text-secondary); }
 .count-control { display: flex; align-items: center; gap: 8px; }
 .count-input { width: 60px; text-align: center; }
 .count-input :deep(input) { text-align: center; -moz-appearance: textfield; }
 .count-input :deep(input)::-webkit-inner-spin-button,
 .count-input :deep(input)::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
-.list-selector-bar { display: flex; align-items: center; gap: 12px; background: var(--bg-card); backdrop-filter: blur(20px); padding: 8px 16px; border-radius: var(--radius-lg); border: 1px solid var(--border-default); box-shadow: var(--shadow-4); width: 100%; justify-content: center; }
+.list-selector-bar { display: flex; align-items: center; gap: var(--plugin-component-roller-current-list-gap, 12px); background: var(--plugin-component-roller-current-list-background, var(--bg-card)); color: var(--plugin-component-roller-current-list-foreground, inherit); backdrop-filter: blur(20px); padding: var(--plugin-component-roller-current-list-padding, 8px 16px); border-radius: var(--radius-lg); border: 1px solid var(--border-default); box-shadow: var(--shadow-4); width: 100%; justify-content: center; font-size: var(--plugin-component-roller-current-list-font-size, inherit); font-weight: var(--plugin-component-roller-current-list-font-weight, inherit); }
 .selector-label { font-size: 14px; font-weight: 600; color: var(--text-secondary); white-space: nowrap; }
-.start-btn { min-width: 280px; font-size: 16px; min-height: 48px; margin-top: 8px; position: relative; overflow: hidden; }
+.start-btn { min-width: 280px; font-size: var(--plugin-component-roller-primary-action-font-size, 16px); font-weight: var(--plugin-component-roller-primary-action-font-weight, inherit); min-height: 48px; margin-top: 8px; position: relative; overflow: hidden; color: var(--plugin-component-roller-primary-action-foreground, inherit); background: var(--plugin-component-roller-primary-action-background, var(--accent)); border-radius: var(--plugin-component-roller-primary-action-radius, var(--radius)); }
 .start-btn-countdown { position: absolute; left: 0; right: auto; bottom: 0; height: 3px; background: #ffd6e8; box-shadow: 0 0 8px rgba(255, 214, 232, 0.75); pointer-events: none; transition: width 0.05s linear; }
 .btn-dimmed { opacity: 0.45; cursor: not-allowed; }
 
