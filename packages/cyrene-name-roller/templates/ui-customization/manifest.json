@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 1,
+  "id": "cn.example.cyrene.ui-customization",
+  "name": "Cyrene UI Customization",
+  "version": "1.0.0",
+  "author": "Your Name",
+  "description": "Constrained API 1.3 component styles, optional UI and native slot view.",
+  "engine": { "min": "1.3.0", "max": "1.3.0" },
+  "entry": "src/worker.js",
+  "readme": "README.md",
+  "permissions": [
+    "draw:execute",
+    "statistics:read",
+    "ui:component-styles",
+    "ui:component-overrides",
+    "ui:native-views",
+    "ui:result-presentations"
+  ],
+  "contributes": {
+    "commands": [
+      { "id": "draw-now", "title": "Draw now", "locations": ["command-palette"] }
+    ],
+    "componentStylePacks": [
+      {
+        "id": "focused",
+        "title": "Focused",
+        "targets": {
+          "roller.primary-action": { "size": "large", "fontWeight": 700, "radius": 8 },
+          "roller.result": { "alignment": "center", "padding": "comfortable", "gap": "comfortable" }
+        }
+      }
+    ],
+    "componentOverridePacks": [
+      {
+        "id": "focus-mode",
+        "title": "Focus mode",
+        "targets": {
+          "app.version-badge": { "visibility": "hidden", "layout": "collapse" },
+          "roller.filters": { "visibility": "hidden", "layout": "compact" }
+        }
+      }
+    ],
+    "nativeViews": [
+      {
+        "id": "roller-stats",
+        "title": "Roller statistics",
+        "slot": "slot:roller.side-panel",
+        "source": "views/roller-stats.json",
+        "uses": ["statistics:read"],
+        "order": 200
+      }
+    ],
+    "resultPresentations": [
+      {
+        "id": "spotlight",
+        "title": "Spotlight",
+        "targets": ["roller.result"],
+        "layout": "spotlight",
+        "style": { "size": "large", "alignment": "center", "showAlgorithm": true, "showOperationId": true }
+      }
+    ]
+  }
+}

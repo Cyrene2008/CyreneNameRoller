@@ -21,3 +21,7 @@ See [Development Guide](./plugin-development.md) for the manifest, permissions, 
 The guide also defines the cross-platform bridge for browser and Tauri plugins. Optional native capabilities return structured unsupported results on Web, while required capabilities prevent activation until the user moves to a compatible host.
 
 API 1.2 defines a composable extension kernel: capability discovery, read-only resource queries, host-owned transactions, arbitrary Dock pages, plugin-owned commands, host-run GSAP/WAAPI animations, semantic appearance packs and isolated Canvas/WebGL visual surfaces. These primitives provide large-feature freedom while keeping draw results, existing records, statistics and fairness parameters under host control.
+
+The package is now API `1.3.0`. New constrained UI contributions include stable component style/visibility packs, declarative native views in fixed `slot:` locations, and host-bound `VerifiedResult` presentation. These contributions are validated by the host and cannot alter authoritative names, results, statistics, records, errors or integrity state. Web draws run through the Core Worker; Tauri draws and core persistence run through the Rust authority transaction.
+
+Existing API `1.2.0` plugins remain frozen compatibility samples and do not need to be repackaged. For a contribution migration, read [API 1.2 to 1.3](./api-1.2-to-1.3.md) and run the repository release regression before publishing.

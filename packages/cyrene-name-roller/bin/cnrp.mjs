@@ -741,7 +741,9 @@ async function packDirectory(directory, outFile, options = {}) {
 }
 
 async function createTemplate(directory, kind = 'basic') {
-  const templateName = ['sound', 'sound-effects'].includes(kind) ? 'sound-effects' : 'basic'
+  const templateName = ['sound', 'sound-effects'].includes(kind)
+    ? 'sound-effects'
+    : ['ui', 'ui-customization'].includes(kind) ? 'ui-customization' : 'basic'
   const templateDirectory = path.join(packageRoot, 'templates', templateName)
   await fs.access(path.join(templateDirectory, 'manifest.json'))
   await fs.mkdir(directory, { recursive: true })
@@ -754,7 +756,7 @@ async function main() {
   const { positional, options } = parseArgs(process.argv.slice(2))
   const command = positional[0] || 'help'
   if (command === 'help' || options.help) {
-    console.log('cnrp create <dir> [--template basic|sound-effects]')
+    console.log('cnrp create <dir> [--template basic|sound-effects|ui-customization]')
     console.log('cnrp validate <dir>')
     console.log('cnrp pack <dir> --out <file.cnrp> [--private-key key.pem]')
     return
