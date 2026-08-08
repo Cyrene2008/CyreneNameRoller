@@ -121,13 +121,18 @@ function createWeightMap(names, whiteList, countsMap, rawSettings) {
   const midpoint = (rawMin + rawMax) / 2
   const halfLogRange = Math.log(INTERNAL_MAX_RATIO) / 2
   const minCount = Math.min(...counts)
+  const maxCount = Math.max(...counts)
+  const minCountOccurrences = counts.reduce((total, count) => total + (count === minCount ? 1 : 0), 0)
+  const secondMinCount = counts.reduce((second, count) => count > minCount && count < second ? count : second, Number.POSITIVE_INFINITY)
 
   regularNames.forEach((name, index) => {
     const centered = rawLogWeights[index] - midpoint
     const bounded = clamp(centered, -halfLogRange, halfLogRange)
-    const projectedCounts = counts.slice()
-    projectedCounts[index] += 1
-    const projectedGap = Math.max(...projectedCounts) - Math.min(...projectedCounts)
+    const projectedCount = counts[index] + 1
+    const projectedMin = counts[index] === minCount && minCountOccurrences === 1
+      ? Math.min(projectedCount, secondMinCount)
+      : minCount
+    const projectedGap = Math.max(maxCount, projectedCount) - projectedMin
 
     let guard = 1
     if (gap > TARGET_GAP && counts[index] > minCount) {

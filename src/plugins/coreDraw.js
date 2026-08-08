@@ -34,3 +34,20 @@ export async function commitCoreDrawTransaction({ statisticsStore, recordsStore,
     throw error
   }
 }
+
+export async function commitCoreStateTransaction({ statisticsStore, recordsStore, nextStatistics, nextRecords }) {
+  const statisticsSnapshot = statisticsStore.snapshotState()
+  const recordsSnapshot = recordsStore.snapshotState()
+  try {
+    await statisticsStore.restoreState(nextStatistics, { persist: false })
+    await recordsStore.restoreState(nextRecords, { persist: false })
+    const persistence = await Promise.allSettled([statisticsStore.save(), recordsStore.save()])
+    const failed = persistence.find(result => result.status === 'rejected')
+    if (failed) throw failed.reason
+  } catch (error) {
+    await statisticsStore.restoreState(statisticsSnapshot, { persist: false })
+    await recordsStore.restoreState(recordsSnapshot, { persist: false })
+    await Promise.allSettled([statisticsStore.save(), recordsStore.save()])
+    throw Object.assign(error instanceof Error ? error : new Error(String(error)), { code: 'CORE_TRANSACTION_ROLLED_BACK' })
+  }
+}

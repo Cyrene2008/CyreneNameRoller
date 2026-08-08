@@ -17,6 +17,7 @@ export const useNamesStore = defineStore('names', () => {
   const currentListId = ref(DEFAULT_LIST_ID)
   const defaultNamesData = ref({ names: [] })
   const isLoaded = ref(false)
+  const revision = ref(0)
   let saveQueue = Promise.resolve()
 
   const currentList = computed(() => {
@@ -97,6 +98,7 @@ export const useNamesStore = defineStore('names', () => {
   }
 
   function save() {
+    revision.value += 1
     const listsSnapshot = JSON.parse(JSON.stringify(nameLists.value))
     const currentIdSnapshot = currentListId.value
     const task = saveQueue.catch(() => {}).then(async () => {
@@ -298,6 +300,7 @@ export const useNamesStore = defineStore('names', () => {
     currentWhiteList,
     allLists,
     isLoaded,
+    revision,
     initialize,
     save,
     switchList,

@@ -8,6 +8,7 @@ export const useStatisticsStore = defineStore('statistics', () => {
   const counts = ref({})
   const totalCount = ref(0)
   const isLoaded = ref(false)
+  const revision = ref(0)
 
   async function initialize() {
     if (isLoaded.value) return
@@ -89,6 +90,7 @@ export const useStatisticsStore = defineStore('statistics', () => {
     }
     if (incremented === 0) return Promise.resolve()
     totalCount.value += incremented
+    revision.value += 1
     return persist ? save() : Promise.resolve()
   }
 
@@ -102,6 +104,7 @@ export const useStatisticsStore = defineStore('statistics', () => {
   function restoreState(snapshot, { persist = true } = {}) {
     counts.value = { ...(snapshot?.counts || {}) }
     totalCount.value = Math.max(0, Number(snapshot?.totalCount) || 0)
+    revision.value += 1
     return persist ? save() : Promise.resolve()
   }
 
@@ -123,6 +126,7 @@ export const useStatisticsStore = defineStore('statistics', () => {
 
     counts.value[key] = initialCount
     totalCount.value += initialCount
+    revision.value += 1
     await save()
     return initialCount
   }
@@ -130,6 +134,7 @@ export const useStatisticsStore = defineStore('statistics', () => {
   function clearAll() {
     counts.value = {}
     totalCount.value = 0
+    revision.value += 1
     save()
   }
 
@@ -161,6 +166,7 @@ export const useStatisticsStore = defineStore('statistics', () => {
     counts,
     totalCount,
     isLoaded,
+    revision,
     initialize,
     save,
     incrementCount,

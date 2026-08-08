@@ -6,6 +6,7 @@ import { useNamesStore } from './names'
 export const useRecordsStore = defineStore('records', () => {
   const records = ref([])
   const isLoaded = ref(false)
+  const revision = ref(0)
 
   async function initialize() {
     if (isLoaded.value) return
@@ -64,6 +65,7 @@ export const useRecordsStore = defineStore('records', () => {
     }))
     if (!normalized.length) return Promise.resolve()
     records.value.unshift(...normalized)
+    revision.value += 1
     if (records.value.length > 500) {
       records.value = records.value.slice(0, 500)
     }
@@ -76,6 +78,7 @@ export const useRecordsStore = defineStore('records', () => {
 
   function restoreState(snapshot, { persist = true } = {}) {
     records.value = Array.isArray(snapshot) ? snapshot.map(record => ({ ...record })) : []
+    revision.value += 1
     return persist ? save() : Promise.resolve()
   }
 
@@ -85,12 +88,14 @@ export const useRecordsStore = defineStore('records', () => {
 
   function clearAll() {
     records.value = []
+    revision.value += 1
     save()
   }
 
   return {
     records,
     isLoaded,
+    revision,
     initialize,
     save,
     addRecord,

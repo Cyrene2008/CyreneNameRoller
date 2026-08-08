@@ -4,7 +4,8 @@ import { dataBridge } from '../utils/dataBridge'
 import { useNamesStore } from '../stores/names'
 import { useRecordsStore } from '../stores/records'
 import { useStatisticsStore } from '../stores/statistics'
-import { ALGORITHM_NAME, ALGORITHM_VERSION, DEFAULT_CYRENE_BALANCE_SETTINGS, TARGET_GAP, normalizeCyreneBalanceSettings, pickCyreneBatch, secureRandom } from '../utils/cyrene-balance'
+import { ALGORITHM_NAME, ALGORITHM_VERSION, DEFAULT_CYRENE_BALANCE_SETTINGS, TARGET_GAP, normalizeCyreneBalanceSettings } from '../utils/cyrene-balance'
+import { getCoreClient } from '../core/client'
 import { emitPluginEvent } from './eventBus'
 import {
   parsePluginPackage,
@@ -19,7 +20,7 @@ import { PluginRuntime } from './runtime'
 import { PluginAnimationRegistry } from './animationRegistry'
 import { PluginPlatformBridge } from './platform'
 import { repositorySlug, resolveCatalogRelease, fetchRepositoryOwner } from './catalog'
-import { commitCoreDrawTransaction, createCoreDrawQueue, validateCoreDrawArgs } from './coreDraw'
+import { validateCoreDrawArgs } from './coreDraw'
 import { getComponentTarget } from './ui/componentRegistry'
 import { styleVarsForTarget } from './ui/stylePolicy'
 import { PluginFontRegistry } from './ui/fontRegistry'
@@ -81,7 +82,7 @@ export const usePluginsStore = defineStore('plugins', () => {
   const fontRegistry = new PluginFontRegistry()
   const animationRegistry = new PluginAnimationRegistry()
   const platformBridge = new PluginPlatformBridge()
-  const queueCoreDraw = createCoreDrawQueue()
+  const coreClient = getCoreClient()
 
   const runtime = new PluginRuntime({
     getPlugin: pluginId => installed.value[pluginId],
@@ -166,102 +167,20 @@ export const usePluginsStore = defineStore('plugins', () => {
 
   function refreshPages() { pagesRevision.value += 1 }
 
-  async function performCoreDraw({ pluginId, source, rawArgs = {}, operationId: suppliedOperationId, countStatistics = true }) {
-      const namesStore = useNamesStore()
-      const recordsStore = useRecordsStore()
-      const statisticsStore = useStatisticsStore()
-      await Promise.all([namesStore.initialize(), recordsStore.initialize(), statisticsStore.initialize()])
-
-      const listId = String(rawArgs.listId || namesStore.currentListId || '')
-      const list = namesStore.nameLists[listId]
-      if (!list) throw new Error('抽取名单不存在')
-      const target = rawArgs.target === 'groups' ? 'groups' : 'people'
-      const requestedCount = Math.max(1, Math.min(100, Math.floor(Number(rawArgs.count) || 1)))
-      const allowDuplicates = rawArgs.allowDuplicates === true
-      const gender = ['male', 'female'].includes(rawArgs.gender) ? rawArgs.gender : 'all'
-      const operationId = suppliedOperationId || crypto.randomUUID?.() || `draw-${Date.now()}-${Math.random().toString(36).slice(2)}`
-      const committedAt = Date.now()
-      let picks = []
-
-      if (target === 'groups') {
-        const groups = (list.groups || []).map(group => ({ id: group.id, cn: group.name, en: group.enName || '', isGroup: true }))
-        if ((list.names || []).some(person => !person.groupId)) groups.push({ id: '__unassigned__', cn: '未分组', en: 'Unassigned', isGroup: true })
-        if (!groups.length) throw new Error('所选名单没有可抽取小组')
-        const count = allowDuplicates ? requestedCount : Math.min(requestedCount, groups.length)
-        const available = [...groups]
-        for (let index = 0; index < count; index += 1) {
-          const pool = allowDuplicates ? groups : available
-          const selectedIndex = Math.min(pool.length - 1, Math.floor(secureRandom() * pool.length))
-          picks.push(pool[selectedIndex])
-          if (!allowDuplicates) available.splice(selectedIndex, 1)
-        }
-      } else {
-        const people = (list.names || []).filter(person =>
-          person.cn && person.cn !== '再来一次' && (gender === 'all' || person.gender === gender)
-        )
-        if (!people.length) throw new Error('所选名单没有符合条件的人员')
-        const count = allowDuplicates ? requestedCount : Math.min(requestedCount, people.length)
-        const balance = normalizeCyreneBalanceSettings(await dataBridge.load('balance'))
-        picks = pickCyreneBatch(people, people.filter(person => person.isWhiteList), statisticsStore.counts, balance, count, allowDuplicates)
-      }
-
-      const records = picks.map(pick => ({
-        personId: pick.isGroup ? null : (pick.id || null),
-        listId,
-        groupId: pick.isGroup ? pick.id : null,
-        source,
-        pluginId: pluginId === 'core' ? '' : pluginId,
-        operationId,
-        time: committedAt
-      }))
-      await commitCoreDrawTransaction({
-        statisticsStore,
-        recordsStore,
-        picks,
-        records,
-        countStatistics: countStatistics && target === 'people'
-      })
-      const results = picks.map(pick => ({
-        id: pick.id || '', name: pick.cn || '', englishName: pick.en || '',
-        isGroup: !!pick.isGroup, isWhiteList: !!pick.isWhiteList
-      }))
-      const receipt = {
-        operationId, pluginId, listId, target, count: results.length,
-        allowDuplicates, gender, algorithm: target === 'people' ? ALGORITHM_NAME : 'host-random/groups',
-        algorithmVersion: target === 'people' ? ALGORITHM_VERSION : '1', committedAt, results
-      }
-      if (pluginId !== 'core') {
-        for (let index = 0; index < results.length; index += 1) {
-          await runtime.dispatch('draw:item-result', { ...receipt, index, result: results[index], results: undefined })
-        }
-        await runtime.dispatch('draw:result', receipt)
-      }
-      return clone(receipt)
-  }
-
-  function executeCoreDraw(plugin, rawArgs = {}) {
-    return queueCoreDraw(async () => {
-      validateCoreDrawArgs(rawArgs)
-      return performCoreDraw({
-        pluginId: plugin.manifest.id,
-        source: `plugin:${plugin.manifest.id}`,
-        rawArgs
-      })
-    })
+  async function executeCoreDraw(plugin, rawArgs = {}) {
+    validateCoreDrawArgs(rawArgs)
+    const receipt = await coreClient.executeDraw({ caller: { kind: 'plugin', pluginId: plugin.manifest.id }, input: rawArgs })
+    for (let index = 0; index < receipt.results.length; index += 1) {
+      await runtime.dispatch('draw:item-result', { ...receipt, index, result: receipt.results[index], results: undefined })
+    }
+    await runtime.dispatch('draw:result', receipt)
+    return receipt
   }
 
   function executeRollerDraw(rawArgs = {}) {
-    return queueCoreDraw(async () => {
-      const { operationId, countStatistics, ...drawArgs } = rawArgs || {}
-      validateCoreDrawArgs(drawArgs)
-      return performCoreDraw({
-        pluginId: 'core',
-        source: 'roller',
-        rawArgs: drawArgs,
-        operationId,
-        countStatistics: countStatistics !== false
-      })
-    })
+    const { operationId, countStatistics, ...drawArgs } = rawArgs || {}
+    validateCoreDrawArgs(drawArgs)
+    return coreClient.executeDraw({ caller: { kind: 'core-ui', pluginId: 'core', operationId, countStatistics }, input: drawArgs })
   }
   function syncSessionMarker() {
     if (Object.values(installed.value).some(plugin => plugin.enabled)) localStorage.setItem(SESSION_MARKER_KEY, '1')
