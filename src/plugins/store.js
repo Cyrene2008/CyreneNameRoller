@@ -704,6 +704,7 @@ export const usePluginsStore = defineStore('plugins', () => {
 
   function mountPageFrame(frame, pluginId, pageId) { runtime.mountFrame(frame, pluginId, pageId) }
   function unmountPageFrame(pluginId, pageId) { runtime.unmountFrame(pluginId, pageId) }
+  function connectPageFrame(frame, pluginId, pageId) { return runtime.connectFrame(frame, pluginId, pageId) }
   function mountVisualSurface(canvas, pluginId, surfaceId, viewport) { return runtime.mountVisualSurface(canvas, pluginId, surfaceId, viewport) }
   function resizeVisualSurface(pluginId, surfaceId, viewport) { runtime.resizeVisualSurface(pluginId, surfaceId, viewport) }
   function unmountVisualSurface(pluginId, surfaceId) { runtime.unmountVisualSurface(pluginId, surfaceId) }
@@ -721,7 +722,7 @@ export const usePluginsStore = defineStore('plugins', () => {
       const result = await runtime.handleRpc(message.pluginId, message.method, message.args)
       event.source?.postMessage({ type: 'rpc-response', id: message.id, result: clone(result) }, '*')
     } catch (error) {
-      event.source?.postMessage({ type: 'rpc-response', id: message.id, error: error.message || String(error) }, '*')
+      event.source?.postMessage({ type: 'rpc-response', id: message.id, code: error.code, error: error.message || String(error) }, '*')
     }
   }
 
@@ -747,7 +748,7 @@ export const usePluginsStore = defineStore('plugins', () => {
     installed, list, source, initialized, recovering, lastError, enabledPlugins, contributedPages, contributedCommands, contributedVisualSurfaces, contributedAppearancePacks, animationSelections, animationDurationScales,
     initialize, setBannerHandler, saveState, activateEnabled, inspectPackage, installPackage, uninstall, setEnabled,
     setSource, fetchList, downloadPlugin, loadCatalogDetails, pageById, appearanceByValue, appearanceOptions, resolveAppearance, pluginById, pluginAssetUrl,
-    pluginPageSource, requestPlugin, invokePluginCommand, mountPageFrame, unmountPageFrame, mountVisualSurface, resizeVisualSurface, unmountVisualSurface,
+    pluginPageSource, requestPlugin, invokePluginCommand, mountPageFrame, connectPageFrame, unmountPageFrame, mountVisualSurface, resizeVisualSurface, unmountVisualSurface,
     animationOptions, animationSelectionValue, setAnimationSelection, hasAnimation, startAnimation, animationDurationScale, setAnimationDurationScale, registerAnimationSurface, unregisterAnimationSurface,
     dispatchEvent, handlePluginMessage, markCleanShutdown,
     compatibilityFor, platform: platformBridge.info(), platformCapabilities: platformBridge.capabilities()

@@ -1,6 +1,14 @@
 import { decodePluginFile } from './package'
 import { resolvePlatformEntry } from './platform'
 import { PLUGIN_API_VERSION } from './constants'
+import {
+  assertActivePrincipal,
+  createLegacyPrincipal,
+  createPluginPrincipal,
+  describePrincipal,
+  hasPrincipalPermission,
+  revokePrincipal
+} from './ui/principal.js'
 
 function dataUrlFromBase64(base64, mime = 'application/octet-stream') {
   return `data:${mime};base64,${base64}`
@@ -11,7 +19,7 @@ function mimeFor(path) {
   return {
     html: 'text/html', js: 'text/javascript', css: 'text/css', json: 'application/json',
     mp3: 'audio/mpeg', m4a: 'audio/mp4', wav: 'audio/wav', flac: 'audio/flac', ogg: 'audio/ogg',
-    png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', svg: 'image/svg+xml'
+    png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', svg: 'image/svg+xml', woff2: 'font/woff2'
   }[extension] || 'application/octet-stream'
 }
 
@@ -26,6 +34,13 @@ function storageKey(value) {
 function transferableValue(value) {
   if (value === undefined) return undefined
   return JSON.parse(JSON.stringify(value))
+}
+
+function runtimeError(code, message, details) {
+  const error = new Error(message)
+  error.code = code
+  if (details !== undefined) error.details = details
+  return error
 }
 
 function isDrawEvent(event) {
@@ -78,16 +93,63 @@ export class PluginRuntime {
     this.commands = new Map()
     this.visualSurfaces = new Map()
     this.visualRuntimes = new Map()
+    this.principals = new Map()
+    this.framePorts = new Map()
+    this.legacyPrincipals = new Map()
     this.deactivatingPlugins = new Set()
     this.lifecycleSnapshots = new Map()
   }
 
-  describeHost(plugin) {
+  createPrincipal(plugin, kind, contributionId, instanceId = '') {
+    const principal = createPluginPrincipal({
+      pluginId: plugin.manifest.id,
+      instanceId: instanceId || `${kind}:${plugin.manifest.id}:${contributionId}`,
+      kind,
+      contributionId,
+      grants: plugin.manifest.permissions || [],
+      platform: this.platformBridge.info()?.runtime
+    })
+    this.principals.set(principal.instanceId, principal)
+    return principal
+  }
+
+  getLegacyPrincipal(plugin) {
+    const pluginId = plugin?.manifest?.id
+    if (!pluginId) return null
+    const existing = this.legacyPrincipals.get(pluginId)
+    if (existing?.active) return existing
+    const principal = createLegacyPrincipal(plugin, this.platformBridge.info()?.runtime)
+    this.legacyPrincipals.set(pluginId, principal)
+    this.principals.set(principal.instanceId, principal)
+    return principal
+  }
+
+  revokePluginPrincipals(pluginId) {
+    for (const [instanceId, principal] of this.principals) {
+      if (principal.pluginId !== pluginId) continue
+      revokePrincipal(principal)
+      this.principals.delete(instanceId)
+    }
+    this.legacyPrincipals.delete(pluginId)
+  }
+
+  principalForFrame(pluginId, pageId) {
+    const record = this.frames.get(`${pluginId}:${pageId}`)
+    return record?.principal || null
+  }
+
+  isApi13Plugin(plugin) {
+    const minimum = String(plugin?.manifest?.engine?.min || '0').split('.').map(Number)
+    return (minimum[0] || 0) > 1 || ((minimum[0] || 0) === 1 && (minimum[1] || 0) >= 3)
+  }
+
+  describeHost(plugin, principal = null) {
     const granted = new Set(plugin?.manifest?.permissions || [])
     const describe = ([id, definition]) => ({ id, ...definition, available: granted.has(definition.permission) })
     return {
       schemaVersion: 1,
       apiVersion: PLUGIN_API_VERSION,
+      principal: describePrincipal(principal),
       model: 'product-freedom-core-hosted',
       resources: Object.entries(HOST_RESOURCES).map(describe),
       transactions: Object.entries(HOST_TRANSACTIONS).map(describe),
@@ -126,8 +188,8 @@ export class PluginRuntime {
   }
 
   unregisterFrames(pluginId) {
-    for (const key of this.frames.keys()) {
-      if (key.startsWith(`${pluginId}:`)) this.frames.delete(key)
+    for (const key of [...this.frames.keys()]) {
+      if (key.startsWith(`${pluginId}:`)) this.unmountFrame(...key.split(':'))
     }
   }
 
@@ -187,6 +249,8 @@ export class PluginRuntime {
     runtime.resizeHandle = null
     runtime.pendingViewport = null
     try { runtime.worker.terminate() } catch {}
+    revokePrincipal(runtime.principal)
+    this.principals.delete(runtime.principal?.instanceId)
     if (runtime.workerUrl) URL.revokeObjectURL(runtime.workerUrl)
     if (this.visualRuntimes.get(key) === runtime) this.visualRuntimes.delete(key)
   }
@@ -227,6 +291,7 @@ export class PluginRuntime {
       ${source}
       const pending = new Map();
       let pluginModule = null;
+      let activeCommandId = null;
       const freezePayload = value => {
         if (!value || typeof value !== 'object' || Object.isFrozen(value)) return value;
         Object.freeze(value);
@@ -236,7 +301,7 @@ export class PluginRuntime {
       const request = (method, args = {}) => new Promise((resolve, reject) => {
         const id = (crypto.randomUUID && crypto.randomUUID()) || ('rpc-' + Date.now() + '-' + Math.random());
         pending.set(id, { resolve, reject });
-        self.postMessage({ type: 'rpc-request', id, method, args });
+        self.postMessage({ type: 'rpc-request', id, method, args, commandId: activeCommandId });
       });
       self.onmessage = async event => {
         const message = event.data || {};
@@ -250,12 +315,13 @@ export class PluginRuntime {
             await pluginModule.onEvent(message.event, freezePayload(message.payload));
           } else if (message.type === 'command') {
             if (typeof pluginModule?.onCommand !== 'function') throw new Error('插件未实现 onCommand()');
+            activeCommandId = message.id;
             try {
               const result = await pluginModule.onCommand(message.commandId, freezePayload(message.args || {}));
               self.postMessage({ type: 'command-result', id: message.id, result });
             } catch (error) {
               self.postMessage({ type: 'command-result', id: message.id, error: String(error?.message || error) });
-            }
+            } finally { activeCommandId = null; }
           } else if (message.type === 'deactivate') {
             await pluginModule?.deactivate?.();
             self.postMessage({ type: 'deactivated' });
@@ -263,13 +329,14 @@ export class PluginRuntime {
             const task = pending.get(message.id);
             if (!task) return;
             pending.delete(message.id);
-            message.error ? task.reject(new Error(message.error)) : task.resolve(message.result);
+            message.error ? task.reject(Object.assign(new Error(message.error), { code: message.code })) : task.resolve(message.result);
           }
         } catch (error) {
           self.postMessage({ type: 'host-error', error: String(error?.stack || error) });
         }
       };
     `
+    const workerPrincipal = this.createPrincipal(plugin, 'worker', 'worker', `worker:${plugin.manifest.id}`)
     const workerUrl = URL.createObjectURL(new Blob([workerSource], { type: 'text/javascript' }))
     const worker = new Worker(workerUrl)
     let activatedResolve
@@ -283,10 +350,13 @@ export class PluginRuntime {
       const message = event.data || {}
       if (message.type === 'rpc-request') {
         try {
-          const result = await this.handleRpc(plugin.manifest.id, message.method, message.args)
+          const commandPrincipal = message.commandId
+            ? this.workers.get(plugin.manifest.id)?.commandRequests?.get(message.commandId)?.principal
+            : null
+          const result = await this.handleRpc(commandPrincipal || workerPrincipal, message.method, message.args)
           worker.postMessage({ type: 'rpc-response', id: message.id, result: transferableValue(result) })
         } catch (error) {
-          worker.postMessage({ type: 'rpc-response', id: message.id, error: error.message || String(error) })
+          worker.postMessage({ type: 'rpc-response', id: message.id, code: error.code, error: error.message || String(error) })
         }
       } else if (message.type === 'activated') activatedResolve()
       else if (message.type === 'deactivated') deactivatedResolve()
@@ -295,29 +365,34 @@ export class PluginRuntime {
         if (!task) return
         commandRequests.delete(message.id)
         clearTimeout(task.timeout)
+        revokePrincipal(task.principal)
+        this.principals.delete(task.principal.instanceId)
         message.error ? task.reject(new Error(message.error)) : task.resolve(transferableValue(message.result))
       }
       else if (message.type === 'host-error') {
         const error = new Error(message.error || '插件 Worker 执行失败')
+        revokePrincipal(workerPrincipal)
         if (activationComplete) this.onFault?.(plugin.manifest.id, error)
         else activatedReject(error)
       }
     }
     worker.onerror = event => {
       const error = new Error(event.message || '插件 Worker 崩溃')
+      revokePrincipal(workerPrincipal)
       if (activationComplete) this.onFault?.(plugin.manifest.id, error)
       else activatedReject(error)
     }
     const context = {
       plugin: { id: plugin.manifest.id, version: plugin.manifest.version },
+      principal: describePrincipal(workerPrincipal),
       permissions: transferableValue(plugin.manifest.permissions || []),
       platform: transferableValue(this.platformBridge.info()),
       capabilities: transferableValue(this.platformBridge.capabilities()),
-      host: transferableValue(this.describeHost(plugin)),
+      host: transferableValue(this.describeHost(plugin, workerPrincipal)),
       request: true
     }
     const commandRequests = new Map()
-    this.workers.set(plugin.manifest.id, { worker, workerUrl, deactivated, commandRequests })
+    this.workers.set(plugin.manifest.id, { worker, workerUrl, deactivated, commandRequests, principal: workerPrincipal })
     worker.postMessage({ type: 'activate', context })
     try {
       await activated
@@ -327,6 +402,8 @@ export class PluginRuntime {
       this.registerVisualSurfaces(plugin)
     } catch (error) {
       worker.terminate()
+      revokePrincipal(workerPrincipal)
+      this.principals.delete(workerPrincipal.instanceId)
       URL.revokeObjectURL(workerUrl)
       this.workers.delete(plugin.manifest.id)
       this.unregisterPages(plugin.manifest.id)
@@ -345,12 +422,16 @@ export class PluginRuntime {
       if (runtime) {
         for (const task of runtime.commandRequests?.values() || []) {
           clearTimeout(task.timeout)
+          revokePrincipal(task.principal)
+          this.principals.delete(task.principal?.instanceId)
           task.reject(new Error('插件已停止，命令已取消'))
         }
         runtime.commandRequests?.clear()
         try { runtime.worker.postMessage({ type: 'deactivate' }) } catch {}
         await Promise.race([runtime.deactivated, wait(RUNTIME_DEACTIVATE_GRACE_MS)])
         runtime.worker.terminate()
+        revokePrincipal(runtime.principal)
+        this.principals.delete(runtime.principal?.instanceId)
         if (runtime.workerUrl) URL.revokeObjectURL(runtime.workerUrl)
         this.workers.delete(pluginId)
       }
@@ -361,6 +442,7 @@ export class PluginRuntime {
         .filter(key => key.startsWith(`${pluginId}:`))
         .map(key => this.unmountVisualSurface(...key.split(':'))))
       this.unregisterVisualSurfaces(pluginId)
+      this.revokePluginPrincipals(pluginId)
     } finally {
       this.deactivatingPlugins.delete(pluginId)
     }
@@ -378,7 +460,7 @@ export class PluginRuntime {
       const pluginId = key.split(':')[0]
       const plugin = this.getPlugin(pluginId)
       if (!canReceiveEvent(plugin, event)) continue
-      try { frame.contentWindow?.postMessage({ type: 'event', event, payload: transferredPayload }, '*') } catch {}
+      try { this.postFrameMessage(frame, { type: 'event', event, payload: transferredPayload }) } catch {}
     }
     for (const [key, runtime] of this.visualRuntimes) {
       if (!runtime.activationComplete || runtime.cancelled || runtime.finalized) continue
@@ -398,17 +480,22 @@ export class PluginRuntime {
     const runtime = this.workers.get(pluginId)
     if (!runtime) throw new Error('插件命令需要可用的 Worker 入口')
     const id = globalThis.crypto?.randomUUID?.() || `command-${Date.now()}-${Math.random()}`
+    const principal = this.createPrincipal(plugin, 'command', commandId, `command:${pluginId}:${id}`)
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
         runtime.commandRequests.delete(id)
+        revokePrincipal(principal)
+        this.principals.delete(principal.instanceId)
         reject(new Error(`插件命令执行超时：${command.title}`))
       }, RUNTIME_COMMAND_TIMEOUT_MS)
-      runtime.commandRequests.set(id, { resolve, reject, timeout })
+      runtime.commandRequests.set(id, { resolve, reject, timeout, principal })
       try {
         runtime.worker.postMessage({ type: 'command', id, commandId, args: transferableValue(args) })
       } catch (error) {
         clearTimeout(timeout)
         runtime.commandRequests.delete(id)
+        revokePrincipal(principal)
+        this.principals.delete(principal.instanceId)
         reject(error)
       }
     })
@@ -440,6 +527,7 @@ export class PluginRuntime {
     if (!plugin.manifest.permissions.includes('ui:visual-surfaces')) throw new Error('插件未获授权：ui:visual-surfaces')
     if (!canvas?.transferControlToOffscreen) throw new Error('当前环境不支持插件 Canvas 视觉层')
     await this.unmountVisualSurface(pluginId, surfaceId)
+    const visualPrincipal = this.createPrincipal(plugin, 'visual', surfaceId, `visual:${pluginId}:${surfaceId}`)
     const source = decodePluginFile(plugin, surface.entry)
     const workerSource = `
       'use strict';
@@ -520,7 +608,7 @@ export class PluginRuntime {
             const task = pending.get(message.id);
             if (!task) return;
             pending.delete(message.id);
-            message.error ? task.reject(new Error(message.error)) : task.resolve(message.result);
+            message.error ? task.reject(Object.assign(new Error(message.error), { code: message.code })) : task.resolve(message.result);
           }
         } catch (error) {
           self.postMessage({ type: 'host-error', error: String(error?.stack || error) });
@@ -539,6 +627,7 @@ export class PluginRuntime {
     const timeout = setTimeout(() => rejectActivation(new Error(`${plugin.manifest.name} 视觉层激活超时`)), 10000)
     const runtime = {
       worker, workerUrl, pluginId, surfaceId, hostCanvas: canvas,
+      principal: visualPrincipal,
       rejectActivation, deactivated, resolveDeactivated,
       activationComplete: false, cancelled: false, finalized: false,
       pendingViewport: null, resizeHandle: null, resizeHandleType: ''
@@ -547,10 +636,10 @@ export class PluginRuntime {
       const message = event.data || {}
       if (message.type === 'rpc-request') {
         try {
-          const result = await this.handleRpc(pluginId, message.method, message.args)
+          const result = await this.handleRpc(visualPrincipal, message.method, message.args)
           worker.postMessage({ type: 'rpc-response', id: message.id, result: transferableValue(result) })
         } catch (error) {
-          worker.postMessage({ type: 'rpc-response', id: message.id, error: error.message || String(error) })
+          worker.postMessage({ type: 'rpc-response', id: message.id, code: error.code, error: error.message || String(error) })
         }
       } else if (message.type === 'activated') {
         if (runtime.cancelled) rejectActivation(visualCancellationError())
@@ -575,6 +664,7 @@ export class PluginRuntime {
       viewport: transferableValue(viewport),
       context: {
         plugin: { id: plugin.manifest.id, version: plugin.manifest.version },
+        principal: describePrincipal(visualPrincipal),
         surface: { id: surface.id, placement: surface.placement },
         permissions: transferableValue(plugin.manifest.permissions || []),
         platform: transferableValue(this.platformBridge.info()),
@@ -643,7 +733,7 @@ export class PluginRuntime {
     try { worker?.worker.postMessage({ type: 'event', event, payload: transferredPayload }) } catch {}
     for (const [key, frame] of this.frames) {
       if (!key.startsWith(`${pluginId}:`)) continue
-      try { frame.contentWindow?.postMessage({ type: 'event', event, payload: transferredPayload }, '*') } catch {}
+      try { this.postFrameMessage(frame, { type: 'event', event, payload: transferredPayload }) } catch {}
     }
     for (const [key, runtime] of this.visualRuntimes) {
       if (!key.startsWith(`${pluginId}:`)) continue
@@ -655,9 +745,18 @@ export class PluginRuntime {
   }
 
   async handleRpc(pluginId, method, args = {}) {
+    if (pluginId && typeof pluginId === 'object') return this.handleRpcPrincipal(pluginId, method, args)
     const plugin = this.getPlugin(pluginId)
     if (!plugin) throw new Error('插件不存在')
-    if (plugin.enabled === false || this.deactivatingPlugins.has(pluginId)) throw new Error('插件已禁用')
+    return this.handleRpcPrincipal(this.getLegacyPrincipal(plugin), method, args)
+  }
+
+  async handleRpcPrincipal(principal, method, args = {}) {
+    assertActivePrincipal(principal)
+    const pluginId = principal.pluginId
+    const plugin = this.getPlugin(pluginId)
+    if (!plugin) throw new Error('插件不存在')
+    if (plugin.enabled === false || this.deactivatingPlugins.has(pluginId)) throw runtimeError('PLUGIN_INSTANCE_REVOKED', '插件已禁用')
     const resource = method === 'resources.query' ? HOST_RESOURCES[String(args.resource || '')] : null
     const transaction = method === 'transactions.execute' ? HOST_TRANSACTIONS[String(args.transaction || args.id || '')] : null
     if (method === 'resources.query' && !resource) throw new Error(`未知宿主资源：${String(args.resource || '')}`)
@@ -674,7 +773,7 @@ export class PluginRuntime {
       'system.reveal-file': 'system:reveal-file', 'system.execute': 'system:execute'
     }[method] || resource?.permission || transaction?.permission)
     const permission = permissionFor(method)
-    if (permission && !plugin.manifest.permissions.includes(permission)) throw new Error(`插件未获授权：${permission}`)
+    if (permission && !hasPrincipalPermission(principal, permission)) throw runtimeError('PLUGIN_PERMISSION_DENIED', `插件未获授权：${permission}`, { permission })
     switch (method) {
       case 'runtime.platform': return this.platformBridge.info()
       case 'runtime.capabilities': return this.platformBridge.capabilities()
@@ -735,7 +834,9 @@ export class PluginRuntime {
     const csp = `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' data:; style-src 'unsafe-inline' data:; img-src data:; media-src data:; font-src data:; connect-src 'none'; form-action 'none'; base-uri 'none'; object-src 'none'">`
     const platform = this.platformBridge.info()
     const capabilities = this.platformBridge.capabilities()
-    const host = this.describeHost(plugin)
+    const principal = this.principalForFrame(plugin.manifest.id, page.id)
+    const host = this.describeHost(plugin, principal)
+    const useMessageChannel = this.isApi13Plugin(plugin)
     const initialTheme = this.lifecycleSnapshots.get('app:theme-changed') || {}
     const fluentBase = `<style id="cyrene-plugin-fluent-base">
       :root { color-scheme: light dark; --accent:#ea5ec1; --bg-base:#fff7fc; --bg-card-solid:#fff; --bg-hover:#f8eaf3; --text-primary:#2a1723; --text-secondary:#654356; --text-muted:#8a6d7d; --border-default:rgba(234,94,193,.18); --radius:8px; --radius-lg:12px; --font-ui:'Segoe UI Variable','Segoe UI',system-ui,sans-serif; }
@@ -760,6 +861,15 @@ export class PluginRuntime {
         const host = Object.freeze(${JSON.stringify(host)});
         const initialTheme = ${JSON.stringify(initialTheme)};
         const pending = new Map();
+        let rpcPort = null;
+        const useMessageChannel = ${useMessageChannel ? 'true' : 'false'};
+        const handleRpcMessage = message => {
+          if (message.type !== 'rpc-response') return;
+          const task = pending.get(message.id);
+          if (!task) return;
+          pending.delete(message.id);
+          message.error ? task.reject(Object.assign(new Error(message.error), { code: message.code })) : task.resolve(message.result);
+        };
         const applyTheme = payload => {
           const theme = payload && typeof payload === 'object' ? payload : {};
           document.documentElement.classList.toggle('dark', theme.dark === true);
@@ -771,17 +881,19 @@ export class PluginRuntime {
         const request = (method, args = {}) => new Promise((resolve, reject) => {
           const id = (crypto.randomUUID && crypto.randomUUID()) || ('rpc-' + Date.now() + '-' + Math.random());
           pending.set(id, { resolve, reject });
-          parent.postMessage({ type: 'rpc-request', pluginId, id, method, args }, '*');
+          if (rpcPort) rpcPort.postMessage({ type: 'rpc-request', id, method, args });
+          else parent.postMessage({ type: 'rpc-request', pluginId, id, method, args }, '*');
         });
         window.CyrenePlugin = Object.freeze({ pluginId, platform, capabilities, host, request });
         applyTheme(initialTheme);
         addEventListener('message', event => {
           const message = event.data || {};
-          if (message.type === 'rpc-response') {
-            const task = pending.get(message.id);
-            if (!task) return;
-            pending.delete(message.id);
-            message.error ? task.reject(new Error(message.error)) : task.resolve(message.result);
+          if (useMessageChannel && message.type === 'cyrene-plugin-connect' && event.ports?.[0]) {
+            rpcPort = event.ports[0];
+            rpcPort.onmessage = portEvent => handleRpcMessage(portEvent.data || {});
+            rpcPort.start?.();
+          } else if (message.type === 'rpc-response') {
+            handleRpcMessage(message);
           } else if (message.type === 'event') {
             if (message.event === 'app:theme-changed') applyTheme(message.payload);
             dispatchEvent(new CustomEvent('cyrene-plugin-event', { detail: message }));
@@ -794,16 +906,58 @@ export class PluginRuntime {
       : `${csp}${fluentBase}${bootstrap}${html}`
   }
 
-  mountFrame(frame, pluginId, pageId) {
-    const key = `${pluginId}:${pageId}`
-    this.frames.set(key, frame)
+  postFrameMessage(record, message) {
+    const frame = record?.frame || record
+    if (record?.port) return record.port.postMessage(message)
+    return frame?.contentWindow?.postMessage(message, '*')
   }
 
-  unmountFrame(pluginId, pageId) { this.frames.delete(`${pluginId}:${pageId}`) }
+  mountFrame(frame, pluginId, pageId) {
+    const key = `${pluginId}:${pageId}`
+    if (this.frames.has(key)) this.unmountFrame(pluginId, pageId)
+    const plugin = this.getPlugin(pluginId)
+    const principal = plugin ? this.createPrincipal(plugin, 'page', pageId, `page:${pluginId}:${pageId}`) : null
+    this.frames.set(key, { frame, principal, port: null })
+  }
+
+  connectFrame(frame, pluginId, pageId) {
+    const key = `${pluginId}:${pageId}`
+    const record = this.frames.get(key)
+    const plugin = this.getPlugin(pluginId)
+    if (!record || !plugin || !this.isApi13Plugin(plugin)) return false
+    if (typeof MessageChannel !== 'function') throw new Error('当前环境不支持 MessageChannel')
+    record.port?.close?.()
+    const channel = new MessageChannel()
+    record.port = channel.port1
+    record.principal.port = channel.port1
+    channel.port1.onmessage = async event => {
+      const message = event.data || {}
+      if (message.type !== 'rpc-request') return
+      try {
+        const result = await this.handleRpc(record.principal, message.method, message.args)
+        channel.port1.postMessage({ type: 'rpc-response', id: message.id, result: transferableValue(result) })
+      } catch (error) {
+        channel.port1.postMessage({ type: 'rpc-response', id: message.id, code: error.code, error: error.message || String(error) })
+      }
+    }
+    channel.port1.start?.()
+    record.frame?.contentWindow?.postMessage({ type: 'cyrene-plugin-connect' }, '*', [channel.port2])
+    return true
+  }
+
+  unmountFrame(pluginId, pageId) {
+    const key = `${pluginId}:${pageId}`
+    const record = this.frames.get(key)
+    record?.port?.close?.()
+    revokePrincipal(record?.principal)
+    this.principals.delete(record?.principal?.instanceId)
+    this.frames.delete(key)
+  }
 
   ownsFrameSource(source, pluginId) {
     if (!source || !pluginId) return false
-    for (const [key, frame] of this.frames) {
+    for (const [key, record] of this.frames) {
+      const frame = record?.frame || record
       if (key.startsWith(`${pluginId}:`) && frame.contentWindow === source) return true
     }
     return false
