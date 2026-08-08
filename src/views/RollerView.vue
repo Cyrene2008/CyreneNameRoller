@@ -20,7 +20,8 @@
         :class="{ rainbow: settings.nameColorMode === 'gradient', final: display.animating, [`final-${settings.finishAnimation || 'spotlight'}`]: display.animating }"
         :style="getNameStyle(display, i)"
       >
-        {{ display.text }}
+        <VerifiedResult v-if="currentReceipt && revealed[i]" :receipt="currentReceipt" :index="i" :presentation="resultPresentation" />
+        <template v-else>{{ display.text }}</template>
       </div>
     </div>
 
@@ -62,7 +63,7 @@
         <FluentSelect :model-value="namesStore.currentListId" :options="listOptions" @update:model-value="namesStore.switchList" />
       </div>
 
-      <FluentButton :variant="isRunning ? 'danger' : 'primary'" size="lg" class="start-btn" :style="pluginsStore.componentStyleStyle('roller.primary-action')" :class="{ 'btn-dimmed': !canStart && !isRunning }" @click="toggleRoll">
+      <FluentButton :variant="isRunning ? 'danger' : 'primary'" size="lg" class="start-btn" :style="pluginsStore.componentStyleStyle('roller.primary-action')" :class="{ 'btn-dimmed': !canStart && !isRunning }" :disabled="isFinishing" @click="toggleRoll">
         <FluentIcon :icon="isRunning ? 'stop-24-filled' : 'play-24-filled'" :width="18" />
         {{ isRunning ? t('stop', lang) : t('start', lang) }}
         <span
@@ -83,15 +84,14 @@ import { useNamesStore } from '../stores/names'
 import { useSettingsStore } from '../stores/settings'
 import { useStatisticsStore } from '../stores/statistics'
 import { t } from '../utils/i18n'
-import { useRecordsStore } from '../stores/records'
 import { usePluginsStore } from '../plugins/store'
 import PluginSlot from '../components/plugins/PluginSlot.vue'
+import VerifiedResult from '../components/roller/VerifiedResult.vue'
 import { dataBridge } from '../utils/dataBridge'
 import { consumePendingUriNavigation } from '../utils/uriNavigation'
 import { getAutoStopProgress, normalizeAutoStopDuration } from '../utils/autoStop.mjs'
 import {
   pickCyreneBalanced,
-  pickCyreneBatch,
   DEFAULT_CYRENE_BALANCE_SETTINGS,
   normalizeCyreneBalanceSettings
 } from '../utils/cyrene-balance'
@@ -99,7 +99,6 @@ import {
 const namesStore = useNamesStore()
 const settingsStore = useSettingsStore()
 const statisticsStore = useStatisticsStore()
-const recordsStore = useRecordsStore()
 const pluginsStore = usePluginsStore()
 const showBanner = inject('banner')
 
@@ -171,6 +170,9 @@ const canStart = computed(() => {
 
 const nameDisplays = reactive([])
 const isRunning = ref(false)
+const isFinishing = ref(false)
+const currentReceipt = ref(null)
+const resultPresentation = computed(() => pluginsStore.resultPresentationForTarget('roller.result'))
 const lastPickedNames = ref([])
 const sessionCounts = ref({})
 let intervalId = null
@@ -405,7 +407,7 @@ function stopRoll() {
   autoStopInterval = null
   autoStopRemaining.value = 0
   isRunning.value = false
-  finishRoll()
+  void finishRoll()
 }
 
 function startAutoStopCountdown() {
@@ -420,6 +422,7 @@ function startAutoStopCountdown() {
 }
 
 function toggleRoll() {
+  if (isFinishing.value) return
   if (isRunning.value) { stopRoll(); return }
   pendingTimers.forEach(id => clearTimeout(id)); pendingTimers.length = 0
   if (!canStart.value) {
@@ -433,6 +436,7 @@ function toggleRoll() {
     return
   }
   isRunning.value = true
+  currentReceipt.value = null
   drawOperationId = crypto.randomUUID?.() || `roller-${Date.now()}`
   pluginsStore.dispatchEvent('roller:start', {
     operationId: drawOperationId,
@@ -511,93 +515,52 @@ async function applyUriNavigation(event) {
   }
 }
 
-function finishRoll() {
+async function finishRoll() {
+  isFinishing.value = true
   const count = settings.value.multiMode ? (settings.value.peopleCount || 2) : 1
-  const names = availableNames.value
-  const wl = names.filter(n => n.isWhiteList)
   const forbidDup = settings.value.multiMode && settings.value.forbidDuplicates
-  lastPickedNames.value = []
-  let finalPicks = []
-  if (settings.value.groupMode) {
-    for (let i = 0; i < count; i++) {
-      const ex = lastPickedNames.value.filter(n => n)
-      const pool = getCurrentPool()
-      if (forbidDup) {
-        const avail = pool.filter(p => !ex.includes(p.id))
-        const pick = avail.length ? avail[Math.floor(Math.random() * avail.length)] : pool[Math.floor(Math.random() * pool.length)]
-        finalPicks.push(pick)
-        lastPickedNames.value.push(pick.id)
-      } else {
-        const pick = pool[Math.floor(Math.random() * pool.length)]
-        finalPicks.push(pick)
-        lastPickedNames.value.push(pick.id)
-      }
-    }
-  } else {
-    finalPicks = pickCyreneBatch(
-      names,
-      wl,
-      statisticsStore.counts,
-      balanceSettings.value,
-      count,
-      !forbidDup
-    )
-    lastPickedNames.value = finalPicks.map(pick => pick.id || pick.cn)
-  }
   const shouldRecordCounts = settings.value.recordCounts || balanceSettings.value.enabled
-  if (shouldRecordCounts) {
-    statisticsStore.incrementCounts(finalPicks.filter(pick => !pick.isWhiteList))
+  let receipt
+  try {
+    receipt = await pluginsStore.executeRollerDraw({
+      listId: namesStore.currentList.id,
+      target: settings.value.groupMode ? 'groups' : 'people',
+      count,
+      allowDuplicates: !forbidDup,
+      gender: settings.value.groupMode ? 'all' : genderFilter.value,
+      operationId: drawOperationId,
+      countStatistics: shouldRecordCounts
+    })
+  } catch (error) {
+    currentReceipt.value = null
+    showBanner({ message: error?.message || (lang.value === 'en' ? 'Draw could not be committed' : '抽签结果保存失败'), icon: 'warning-16-regular', type: 'warning', duration: 8000 })
+    isFinishing.value = false
+    return
   }
-  for (let i = 0; i < finalPicks.length; i++) {
-    const pick = finalPicks[i]
-    recordsStore.addRecord({ personId: pick.isGroup ? null : (pick.id || null), listId: namesStore.currentList.id, groupId: pick.isGroup ? pick.id : null, source: 'roller' })
-  }
+  currentReceipt.value = receipt
+  lastPickedNames.value = receipt.results.map(result => result.id)
+  const finalPicks = receipt.results
   nextTick(computeNameLayout)
 
   const useStepStop = settings.value.multiMode && settings.value.multiStepStop
   const stagger = useStepStop ? Math.round((settings.value.stepStopInterval || 0.15) * 1000) : 0
-  revealed.value = new Array(count).fill(false)
+  revealed.value = new Array(finalPicks.length).fill(false)
   pluginsStore.startAnimation('global.transition', null, { variant: 'roller' })
-  for (let i = 0; i < count; i++) {
+  for (let i = 0; i < finalPicks.length; i++) {
     const tid = setTimeout(() => {
       revealed.value[i] = true
-      const pick = finalPicks[i]
-      nameDisplays[i].text = getDisplayName(pick)
+      const result = finalPicks[i]
+      nameDisplays[i].text = settings.value.englishMode && result.englishName ? result.englishName : result.name
       nameDisplays[i].opacity = 1
-      nameDisplays[i].isWhiteList = !!pick.isWhiteList
+      nameDisplays[i].isWhiteList = !!result.isWhiteList
       emphasize(i)
-      const result = {
-        id: pick.id || '',
-        name: pick.cn || '',
-        englishName: pick.en || '',
-        isGroup: !!pick.isGroup,
-        isWhiteList: !!pick.isWhiteList
-      }
-      pluginsStore.dispatchEvent('roller:item-result', {
-        operationId: drawOperationId,
-        index: i,
-        count: finalPicks.length,
-        listId: namesStore.currentList.id,
-        result
-      })
-      if (i === finalPicks.length - 1) {
-        pluginsStore.dispatchEvent('roller:result', {
-          operationId: drawOperationId,
-          listId: namesStore.currentList.id,
-          target: settings.value.groupMode ? 'groups' : 'people',
-          results: finalPicks.map(item => ({
-            id: item.id || '',
-            name: item.cn || '',
-            englishName: item.en || '',
-            isGroup: !!item.isGroup,
-            isWhiteList: !!item.isWhiteList
-          }))
-        })
-      }
+      pluginsStore.dispatchEvent('roller:item-result', { ...receipt, index: i, result })
+      if (i === finalPicks.length - 1) pluginsStore.dispatchEvent('roller:result', receipt)
     }, i * stagger)
     pendingTimers.push(tid)
   }
-  if (settings.value.multiMode) windDownLoop(count, useStepStop ? stagger : 0)
+  if (settings.value.multiMode) windDownLoop(finalPicks.length, useStepStop ? stagger : 0)
+  isFinishing.value = false
 }
 
 function windDownLoop(count, stagger) {

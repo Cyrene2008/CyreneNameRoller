@@ -142,7 +142,7 @@ export interface HostExtensionDescriptor {
     nativeViews: { ownership: 'host'; input: 'declarative-schema'; slots: Array<'slot:roller.side-panel' | 'slot:roller.below-result' | 'slot:records.toolbar'> }
     componentStylePacks: { ownership: 'host'; input: 'stable-component-ids'; properties: readonly string[] }
     componentOverridePacks: { ownership: 'host'; input: 'stable-component-ids'; visibility: readonly string[] }
-    resultPresentations: { ownership: 'host'; input: 'verified-receipt-context' }
+    resultPresentations: { ownership: 'host'; input: 'verified-receipt-context'; targets: Array<'roller.result'> }
   }
   guarantees: {
     existingRecordsImmutable: true
@@ -396,6 +396,7 @@ export interface PluginManifest {
     componentStylePacks?: PluginComponentStylePackContribution[]
     componentOverridePacks?: PluginComponentOverridePackContribution[]
     nativeViews?: PluginNativeViewContribution[]
+    resultPresentations?: PluginResultPresentationContribution[]
     fonts?: PluginFontContribution[]
   }
 }
@@ -404,6 +405,7 @@ export type ComponentStyleProperty = 'size' | 'scale' | 'foreground' | 'backgrou
 export interface PluginComponentStylePackContribution { id: string; title: string; description?: string; targets: Record<string, Partial<Record<ComponentStyleProperty, string | number>>> }
 export interface PluginComponentOverridePackContribution { id: string; title: string; description?: string; targets: Record<string, { visibility?: 'visible' | 'hidden' | 'replaced'; layout?: 'collapse' | 'reserve' | 'compact' }> }
 export interface PluginNativeViewContribution { id: string; title: string; titleEn?: string; description?: string; slot: 'slot:roller.side-panel' | 'slot:roller.below-result' | 'slot:records.toolbar'; source: string; uses?: PluginPermission[]; order?: number }
+export interface PluginResultPresentationContribution { id: string; title: string; titleEn?: string; description?: string; targets: Array<'roller.result'>; layout: 'single' | 'list' | 'grid' | 'spotlight'; style?: { size?: 'small' | 'medium' | 'large'; alignment?: 'start' | 'center' | 'end'; showAlgorithm?: boolean; showOperationId?: boolean; showEnglishName?: boolean } }
 export interface PluginFontContribution { id: string; source: string; weight?: 400 | 500 | 600 | 700 | 800; style?: 'normal' | 'italic' }
 
 export interface DrawRequest {
@@ -433,6 +435,9 @@ export interface DrawReceipt {
   readonly algorithm: string
   readonly algorithmVersion: string
   readonly committedAt: number
+  readonly sequence?: number
+  readonly previousHash?: string
+  readonly receiptHash?: string
   readonly results: readonly DrawResultItem[]
 }
 

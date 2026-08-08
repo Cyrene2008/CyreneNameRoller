@@ -12,6 +12,7 @@ import { normalizeComponentStylePacks } from './ui/stylePolicy'
 import { normalizeFonts, validateFontFiles } from './ui/fontRegistry'
 import { normalizeComponentOverridePacks } from './ui/overridePolicy'
 import { normalizeNativeViews, normalizeNativeViewDocument } from './ui/nativeViewPolicy'
+import { normalizeResultPresentations } from './ui/resultPresentationPolicy'
 
 const MAX_PLUGIN_SIZE = 32 * 1024 * 1024
 const MAX_FILE_COUNT = 256
@@ -572,6 +573,7 @@ export function normalizePluginManifest(raw) {
   manifest.contributes.fonts = normalizeFonts(manifest.contributes.fonts, manifest.permissions, { pluginId: manifest.id })
   manifest.contributes.componentOverridePacks = normalizeComponentOverridePacks(manifest.contributes.componentOverridePacks, manifest.permissions)
   manifest.contributes.nativeViews = normalizeNativeViews(manifest.contributes.nativeViews, manifest.permissions)
+  manifest.contributes.resultPresentations = normalizeResultPresentations(manifest.contributes.resultPresentations, manifest.permissions)
   manifest.supportedPlatforms = normalizePlatforms(manifest.supportedPlatforms, 'supportedPlatforms')
   manifest.platformEntries = normalizePlatformEntries(manifest.platformEntries, 'platformEntries')
   manifest.capabilities = normalizeCapabilities(manifest.capabilities, manifest.permissions)
@@ -581,7 +583,7 @@ export function normalizePluginManifest(raw) {
   if (manifest.contributes.commands.length && !manifest.entry && !Object.keys(manifest.platformEntries).length) {
     throw new Error('commands 需要插件 Worker 入口')
   }
-  if (!manifest.entry && !Object.keys(manifest.platformEntries).length && !(manifest.contributes.pages || []).length && !manifest.contributes.commands.length && !manifest.contributes.visualSurfaces.length && !manifest.contributes.appearancePacks.length && !manifest.contributes.componentStylePacks.length && !manifest.contributes.componentOverridePacks.length && !manifest.contributes.nativeViews.length && !manifest.contributes.fonts.length) {
+  if (!manifest.entry && !Object.keys(manifest.platformEntries).length && !(manifest.contributes.pages || []).length && !manifest.contributes.commands.length && !manifest.contributes.visualSurfaces.length && !manifest.contributes.appearancePacks.length && !manifest.contributes.componentStylePacks.length && !manifest.contributes.componentOverridePacks.length && !manifest.contributes.nativeViews.length && !manifest.contributes.resultPresentations.length && !manifest.contributes.fonts.length) {
     throw new Error('插件至少需要一个 Worker、页面、视觉层或外观包入口')
   }
   if (manifest.icon) manifest.icon = validatePath(manifest.icon)

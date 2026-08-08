@@ -543,6 +543,25 @@ function normalizeManifest(raw) {
       if (!['slot:roller.side-panel', 'slot:roller.below-result', 'slot:records.toolbar'].includes(view.slot)) fail(`nativeViews[${index}] slot is unavailable`)
     }
   }
+  const resultPresentations = manifest.contributes.resultPresentations
+  if (resultPresentations !== undefined) {
+    if (!manifest.permissions.includes('ui:result-presentations') || !Array.isArray(resultPresentations) || resultPresentations.length > 16) fail('resultPresentations requires ui:result-presentations and at most 16 items')
+    const ids = new Set()
+    for (const [index, presentation] of resultPresentations.entries()) {
+      if (!presentation || !CONTRIBUTION_ID_PATTERN.test(presentation.id || '') || ids.has(presentation.id)) fail(`resultPresentations[${index}] is invalid`)
+      ids.add(presentation.id)
+      if (!Array.isArray(presentation.targets) || !presentation.targets.length || presentation.targets.some(target => target !== 'roller.result')) fail(`resultPresentations[${index}] target is unavailable`)
+      if (presentation.layout && !['single', 'list', 'grid', 'spotlight'].includes(presentation.layout)) fail(`resultPresentations[${index}] layout is invalid`)
+      const style = presentation.style
+      if (style !== undefined) {
+        if (!style || typeof style !== 'object' || Array.isArray(style)) fail(`resultPresentations[${index}] style is invalid`)
+        for (const key of Object.keys(style)) if (!['size', 'alignment', 'showAlgorithm', 'showOperationId', 'showEnglishName'].includes(key)) fail(`resultPresentations[${index}] style contains an unknown property`)
+        if (style.size && !['small', 'medium', 'large'].includes(style.size)) fail(`resultPresentations[${index}] style.size is invalid`)
+        if (style.alignment && !['start', 'center', 'end'].includes(style.alignment)) fail(`resultPresentations[${index}] style.alignment is invalid`)
+        for (const key of ['showAlgorithm', 'showOperationId', 'showEnglishName']) if (style[key] !== undefined && typeof style[key] !== 'boolean') fail(`resultPresentations[${index}] ${key} must be boolean`)
+      }
+    }
+  }
   // Keep optional contribution keys absent when unused. The host validates a present
   // array as an explicit contribution and therefore expects its matching permission.
   if (!manifest.contributes.animationPacks.length) delete manifest.contributes.animationPacks
@@ -553,9 +572,10 @@ function normalizeManifest(raw) {
   if (!manifest.contributes.fonts?.length) delete manifest.contributes.fonts
   if (!manifest.contributes.componentOverridePacks?.length) delete manifest.contributes.componentOverridePacks
   if (!manifest.contributes.nativeViews?.length) delete manifest.contributes.nativeViews
+  if (!manifest.contributes.resultPresentations?.length) delete manifest.contributes.resultPresentations
   if (manifest.entry) manifest.entry = normalizePath(manifest.entry)
   if ((manifest.contributes.commands || []).length && !manifest.entry && !Object.keys(manifest.platformEntries).length) fail('commands require a Worker entry')
-  if (!manifest.entry && !Object.keys(manifest.platformEntries).length && !(manifest.contributes.pages || []).length && !(manifest.contributes.commands || []).length && !(manifest.contributes.visualSurfaces || []).length && !(manifest.contributes.appearancePacks || []).length && !(manifest.contributes.componentStylePacks || []).length && !(manifest.contributes.componentOverridePacks || []).length && !(manifest.contributes.nativeViews || []).length && !(manifest.contributes.fonts || []).length) {
+  if (!manifest.entry && !Object.keys(manifest.platformEntries).length && !(manifest.contributes.pages || []).length && !(manifest.contributes.commands || []).length && !(manifest.contributes.visualSurfaces || []).length && !(manifest.contributes.appearancePacks || []).length && !(manifest.contributes.componentStylePacks || []).length && !(manifest.contributes.componentOverridePacks || []).length && !(manifest.contributes.nativeViews || []).length && !(manifest.contributes.resultPresentations || []).length && !(manifest.contributes.fonts || []).length) {
     fail('plugin needs at least one Worker, page, visual surface or appearance pack entry (or a command contribution with a Worker)')
   }
   if (manifest.icon) manifest.icon = normalizePath(manifest.icon)

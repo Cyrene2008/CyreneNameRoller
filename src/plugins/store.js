@@ -76,6 +76,7 @@ export const usePluginsStore = defineStore('plugins', () => {
   const animationDurationScales = ref({})
   const componentStyleSelections = ref({})
   const componentOverrideSelections = ref({})
+  const resultPresentationSelections = ref({})
   const safeModeStatus = ref(Object.freeze({ enabled: false, source: 'default', stale: false, errorCode: '', diagnostic: '', path: '' }))
   const fontRegistry = new PluginFontRegistry()
   const animationRegistry = new PluginAnimationRegistry()
@@ -154,12 +155,18 @@ export const usePluginsStore = defineStore('plugins', () => {
   const contributedNativeViews = computed(() => enabledPlugins.value.flatMap(plugin =>
     (plugin.nativeViews || []).map(view => ({ ...clone(view), pluginId: plugin.manifest.id, pluginName: plugin.manifest.name, sourceLabel: '由插件提供' }))
   ).sort((left, right) => (left.order || 500) - (right.order || 500)))
+  const contributedResultPresentations = computed(() => enabledPlugins.value.flatMap(plugin =>
+    (plugin.manifest.contributes?.resultPresentations || []).map(presentation => ({
+      pluginId: plugin.manifest.id,
+      pluginName: plugin.manifest.name,
+      value: `plugin-result-presentation::${plugin.manifest.id}::${presentation.id}`,
+      ...clone(presentation)
+    }))
+  ))
 
   function refreshPages() { pagesRevision.value += 1 }
 
-  function executeCoreDraw(plugin, rawArgs = {}) {
-    return queueCoreDraw(async () => {
-      validateCoreDrawArgs(rawArgs)
+  async function performCoreDraw({ pluginId, source, rawArgs = {}, operationId: suppliedOperationId, countStatistics = true }) {
       const namesStore = useNamesStore()
       const recordsStore = useRecordsStore()
       const statisticsStore = useStatisticsStore()
@@ -172,7 +179,7 @@ export const usePluginsStore = defineStore('plugins', () => {
       const requestedCount = Math.max(1, Math.min(100, Math.floor(Number(rawArgs.count) || 1)))
       const allowDuplicates = rawArgs.allowDuplicates === true
       const gender = ['male', 'female'].includes(rawArgs.gender) ? rawArgs.gender : 'all'
-      const operationId = crypto.randomUUID?.() || `plugin-draw-${Date.now()}-${Math.random().toString(36).slice(2)}`
+      const operationId = suppliedOperationId || crypto.randomUUID?.() || `draw-${Date.now()}-${Math.random().toString(36).slice(2)}`
       const committedAt = Date.now()
       let picks = []
 
@@ -198,13 +205,12 @@ export const usePluginsStore = defineStore('plugins', () => {
         picks = pickCyreneBatch(people, people.filter(person => person.isWhiteList), statisticsStore.counts, balance, count, allowDuplicates)
       }
 
-      const source = `plugin:${plugin.manifest.id}`
       const records = picks.map(pick => ({
         personId: pick.isGroup ? null : (pick.id || null),
         listId,
         groupId: pick.isGroup ? pick.id : null,
         source,
-        pluginId: plugin.manifest.id,
+        pluginId: pluginId === 'core' ? '' : pluginId,
         operationId,
         time: committedAt
       }))
@@ -213,22 +219,48 @@ export const usePluginsStore = defineStore('plugins', () => {
         recordsStore,
         picks,
         records,
-        countStatistics: target === 'people'
+        countStatistics: countStatistics && target === 'people'
       })
       const results = picks.map(pick => ({
         id: pick.id || '', name: pick.cn || '', englishName: pick.en || '',
         isGroup: !!pick.isGroup, isWhiteList: !!pick.isWhiteList
       }))
       const receipt = {
-        operationId, pluginId: plugin.manifest.id, listId, target, count: results.length,
+        operationId, pluginId, listId, target, count: results.length,
         allowDuplicates, gender, algorithm: target === 'people' ? ALGORITHM_NAME : 'host-random/groups',
         algorithmVersion: target === 'people' ? ALGORITHM_VERSION : '1', committedAt, results
       }
-      for (let index = 0; index < results.length; index += 1) {
-        await runtime.dispatch('draw:item-result', { ...receipt, index, result: results[index], results: undefined })
+      if (pluginId !== 'core') {
+        for (let index = 0; index < results.length; index += 1) {
+          await runtime.dispatch('draw:item-result', { ...receipt, index, result: results[index], results: undefined })
+        }
+        await runtime.dispatch('draw:result', receipt)
       }
-      await runtime.dispatch('draw:result', receipt)
       return clone(receipt)
+  }
+
+  function executeCoreDraw(plugin, rawArgs = {}) {
+    return queueCoreDraw(async () => {
+      validateCoreDrawArgs(rawArgs)
+      return performCoreDraw({
+        pluginId: plugin.manifest.id,
+        source: `plugin:${plugin.manifest.id}`,
+        rawArgs
+      })
+    })
+  }
+
+  function executeRollerDraw(rawArgs = {}) {
+    return queueCoreDraw(async () => {
+      const { operationId, countStatistics, ...drawArgs } = rawArgs || {}
+      validateCoreDrawArgs(drawArgs)
+      return performCoreDraw({
+        pluginId: 'core',
+        source: 'roller',
+        rawArgs: drawArgs,
+        operationId,
+        countStatistics: countStatistics !== false
+      })
     })
   }
   function syncSessionMarker() {
@@ -245,6 +277,7 @@ export const usePluginsStore = defineStore('plugins', () => {
       animationDurationScales.value = saved.animationDurationScales && typeof saved.animationDurationScales === 'object' ? saved.animationDurationScales : {}
       componentStyleSelections.value = saved.componentStyleSelections && typeof saved.componentStyleSelections === 'object' ? saved.componentStyleSelections : {}
       componentOverrideSelections.value = saved.componentOverrideSelections && typeof saved.componentOverrideSelections === 'object' ? saved.componentOverrideSelections : {}
+      resultPresentationSelections.value = saved.resultPresentationSelections && typeof saved.resultPresentationSelections === 'object' ? saved.resultPresentationSelections : {}
       source.value = PLUGIN_DOWNLOAD_SOURCES.some(item => item.value === saved.source) ? saved.source : 'cyrene'
       const crashedSession = localStorage.getItem(SESSION_MARKER_KEY) === '1'
       if (saved.pendingStartup || crashedSession) {
@@ -284,6 +317,7 @@ export const usePluginsStore = defineStore('plugins', () => {
         animationDurationScales: animationDurationScales.value,
         componentStyleSelections: componentStyleSelections.value,
         componentOverrideSelections: componentOverrideSelections.value,
+        resultPresentationSelections: resultPresentationSelections.value,
         pendingStartup: pendingStartup === undefined ? !!current.pendingStartup : !!pendingStartup
     })
   }
@@ -477,6 +511,7 @@ export const usePluginsStore = defineStore('plugins', () => {
     animationRegistry.removeSelectionsForPlugin(pluginId, animationSelections.value)
     removeComponentStyleSelectionsForPlugin(pluginId)
     removeComponentOverrideSelectionsForPlugin(pluginId)
+    removeResultPresentationSelectionsForPlugin(pluginId)
     platformBridge.forgetPlugin(pluginId)
     delete installed.value[pluginId]
     await removePluginData(pluginId)
@@ -496,6 +531,7 @@ export const usePluginsStore = defineStore('plugins', () => {
       await runtime.deactivate(pluginId)
       animationRegistry.unregisterPlugin(pluginId)
       plugin.enabled = false
+      removeResultPresentationSelectionsForPlugin(pluginId)
       await refreshPluginFonts()
       refreshPages()
       syncSessionMarker()
@@ -742,6 +778,12 @@ export const usePluginsStore = defineStore('plugins', () => {
     componentOverrideSelections.value = next
   }
 
+  function removeResultPresentationSelectionsForPlugin(pluginId) {
+    const next = { ...resultPresentationSelections.value }
+    for (const [target, value] of Object.entries(next)) if (String(value).startsWith(`plugin-result-presentation::${pluginId}::`)) delete next[target]
+    resultPresentationSelections.value = next
+  }
+
   function componentOverrideByValue(value) {
     return contributedComponentOverridePacks.value.find(pack => pack.value === String(value || '')) || null
   }
@@ -753,6 +795,28 @@ export const usePluginsStore = defineStore('plugins', () => {
   function nativeViewsForSlot(slot) {
     if (!String(slot || '').startsWith('slot:')) return []
     return contributedNativeViews.value.filter(view => view.slot === slot)
+  }
+
+  function resultPresentationByValue(value) {
+    return contributedResultPresentations.value.find(presentation => presentation.value === String(value || '')) || null
+  }
+
+  function resultPresentationOptions(target = 'roller.result', language = 'zh') {
+    return contributedResultPresentations.value.filter(presentation => presentation.targets?.includes(target)).map(presentation => ({ value: presentation.value, label: language === 'en' ? (presentation.titleEn || presentation.title) : presentation.title, pluginId: presentation.pluginId, pluginName: presentation.pluginName }))
+  }
+
+  function resultPresentationForTarget(target = 'roller.result') {
+    const value = resultPresentationSelections.value[target]
+    const presentation = resultPresentationByValue(value)
+    return presentation?.targets?.includes(target) ? presentation : null
+  }
+
+  async function setResultPresentationSelection(target, value) {
+    const normalized = String(value || '')
+    if (normalized && !resultPresentationByValue(normalized)?.targets?.includes(target)) throw new Error('所选结果呈现不存在或未启用')
+    resultPresentationSelections.value = { ...resultPresentationSelections.value, [target]: normalized }
+    await saveState(false)
+    return true
   }
 
   function componentOverrideState(targetId) {
@@ -874,6 +938,7 @@ export const usePluginsStore = defineStore('plugins', () => {
     await runtime.deactivate(pluginId)
     animationRegistry.unregisterPlugin(pluginId)
     removeComponentOverrideSelectionsForPlugin(pluginId)
+    removeResultPresentationSelectionsForPlugin(pluginId)
     await refreshPluginFonts()
     refreshPages()
     syncSessionMarker()
@@ -886,10 +951,10 @@ export const usePluginsStore = defineStore('plugins', () => {
   }
 
   return {
-    installed, list, source, initialized, recovering, lastError, enabledPlugins, contributedPages, contributedCommands, contributedVisualSurfaces, contributedAppearancePacks, contributedComponentStylePacks, contributedComponentOverridePacks, contributedNativeViews, animationSelections, animationDurationScales, componentStyleSelections, componentOverrideSelections, safeModeStatus,
+    installed, list, source, initialized, recovering, lastError, enabledPlugins, contributedPages, contributedCommands, contributedVisualSurfaces, contributedAppearancePacks, contributedComponentStylePacks, contributedComponentOverridePacks, contributedNativeViews, contributedResultPresentations, animationSelections, animationDurationScales, componentStyleSelections, componentOverrideSelections, resultPresentationSelections, safeModeStatus,
     initialize, configureSafeMode, setBannerHandler, saveState, activateEnabled, inspectPackage, installPackage, uninstall, setEnabled,
-    setSource, fetchList, downloadPlugin, loadCatalogDetails, pageById, appearanceByValue, appearanceOptions, resolveAppearance, componentStyleByValue, componentStyleOptions, componentStyleStyle, setComponentStyleSelection, componentOverrideByValue, componentOverrideOptions, nativeViewsForSlot, componentOverrideState, setComponentOverrideSelection, resetComponentOverrides, pluginById, pluginAssetUrl,
-    pluginPageSource, requestPlugin, invokePluginCommand, mountPageFrame, connectPageFrame, unmountPageFrame, mountVisualSurface, resizeVisualSurface, unmountVisualSurface,
+    setSource, fetchList, downloadPlugin, loadCatalogDetails, pageById, appearanceByValue, appearanceOptions, resolveAppearance, componentStyleByValue, componentStyleOptions, componentStyleStyle, setComponentStyleSelection, componentOverrideByValue, componentOverrideOptions, nativeViewsForSlot, resultPresentationByValue, resultPresentationOptions, resultPresentationForTarget, setResultPresentationSelection, componentOverrideState, setComponentOverrideSelection, resetComponentOverrides, pluginById, pluginAssetUrl,
+    pluginPageSource, requestPlugin, invokePluginCommand, executeRollerDraw, mountPageFrame, connectPageFrame, unmountPageFrame, mountVisualSurface, resizeVisualSurface, unmountVisualSurface,
     animationOptions, animationSelectionValue, setAnimationSelection, hasAnimation, startAnimation, animationDurationScale, setAnimationDurationScale, registerAnimationSurface, unregisterAnimationSurface,
     dispatchEvent, handlePluginMessage, markCleanShutdown,
     compatibilityFor, platform: platformBridge.info(), platformCapabilities: platformBridge.capabilities()

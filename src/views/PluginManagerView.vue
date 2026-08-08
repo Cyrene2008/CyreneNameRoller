@@ -75,6 +75,18 @@
       </div>
     </section>
 
+    <section v-if="resultPresentations.length" class="plugin-section">
+      <div class="section-heading"><h2>{{ lang === 'en' ? 'Verified result presentation' : '权威结果呈现' }}</h2><span>{{ resultPresentations.length }}</span></div>
+      <div class="style-pack-controls">
+        <FluentSelect
+          :model-value="plugins.resultPresentationSelections['roller.result'] || ''"
+          :options="[{ value: '', label: lang === 'en' ? 'Default Roller result' : '默认点名结果' }, ...plugins.resultPresentationOptions('roller.result', lang)]"
+          width="280px"
+          @update:model-value="chooseResultPresentation"
+        />
+      </div>
+    </section>
+
     <section class="plugin-section">
       <div class="section-heading"><h2>{{ lang === 'en' ? 'Plugin catalog' : '插件列表' }}</h2><span v-if="listUpdated">{{ listUpdated }}</span></div>
       <div v-if="plugins.list.length" class="plugin-grid">
@@ -147,6 +159,7 @@ const stylePacks = computed(() => plugins.contributedComponentStylePacks)
 const styleTargets = ['roller.result', 'roller.filters', 'roller.current-list', 'roller.primary-action']
 const overridePacks = computed(() => plugins.contributedComponentOverridePacks)
 const overrideTargets = ['app.version-badge', 'roller.filters', 'statistics.summary']
+const resultPresentations = computed(() => plugins.contributedResultPresentations)
 const contributedPages = computed(() => plugins.contributedPages)
 const permissionDescriptions = {
   'draw:execute': { zh: '通过宿主 CAF 公平事务追加抽取结果', en: 'Run host-controlled CAF draws and append records', risk: 'elevated' },
@@ -183,6 +196,13 @@ async function chooseStyle(target, value) {
 async function chooseOverride(target, value) {
   try {
     await plugins.setComponentOverrideSelection(target, value)
+  } catch (error) {
+    showBanner?.({ message: error.message || String(error), icon: 'warning-16-regular', type: 'warning', duration: 6000 })
+  }
+}
+async function chooseResultPresentation(value) {
+  try {
+    await plugins.setResultPresentationSelection('roller.result', value)
   } catch (error) {
     showBanner?.({ message: error.message || String(error), icon: 'warning-16-regular', type: 'warning', duration: 6000 })
   }
