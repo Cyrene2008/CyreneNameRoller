@@ -151,6 +151,9 @@ export const usePluginsStore = defineStore('plugins', () => {
       ...clone(pack)
     }))
   ))
+  const contributedNativeViews = computed(() => enabledPlugins.value.flatMap(plugin =>
+    (plugin.nativeViews || []).map(view => ({ ...clone(view), pluginId: plugin.manifest.id, pluginName: plugin.manifest.name, sourceLabel: '由插件提供' }))
+  ).sort((left, right) => (left.order || 500) - (right.order || 500)))
 
   function refreshPages() { pagesRevision.value += 1 }
 
@@ -747,6 +750,11 @@ export const usePluginsStore = defineStore('plugins', () => {
     return contributedComponentOverridePacks.value.filter(pack => pack.targets?.[targetId]).map(pack => ({ value: pack.value, label: language === 'en' ? (pack.titleEn || pack.title) : pack.title, pluginId: pack.pluginId, pluginName: pack.pluginName }))
   }
 
+  function nativeViewsForSlot(slot) {
+    if (!String(slot || '').startsWith('slot:')) return []
+    return contributedNativeViews.value.filter(view => view.slot === slot)
+  }
+
   function componentOverrideState(targetId) {
     return overrideStateForTarget(targetId, contributedComponentOverridePacks.value, componentOverrideSelections.value[targetId])
   }
@@ -878,9 +886,9 @@ export const usePluginsStore = defineStore('plugins', () => {
   }
 
   return {
-    installed, list, source, initialized, recovering, lastError, enabledPlugins, contributedPages, contributedCommands, contributedVisualSurfaces, contributedAppearancePacks, contributedComponentStylePacks, contributedComponentOverridePacks, animationSelections, animationDurationScales, componentStyleSelections, componentOverrideSelections, safeModeStatus,
+    installed, list, source, initialized, recovering, lastError, enabledPlugins, contributedPages, contributedCommands, contributedVisualSurfaces, contributedAppearancePacks, contributedComponentStylePacks, contributedComponentOverridePacks, contributedNativeViews, animationSelections, animationDurationScales, componentStyleSelections, componentOverrideSelections, safeModeStatus,
     initialize, configureSafeMode, setBannerHandler, saveState, activateEnabled, inspectPackage, installPackage, uninstall, setEnabled,
-    setSource, fetchList, downloadPlugin, loadCatalogDetails, pageById, appearanceByValue, appearanceOptions, resolveAppearance, componentStyleByValue, componentStyleOptions, componentStyleStyle, setComponentStyleSelection, componentOverrideByValue, componentOverrideOptions, componentOverrideState, setComponentOverrideSelection, resetComponentOverrides, pluginById, pluginAssetUrl,
+    setSource, fetchList, downloadPlugin, loadCatalogDetails, pageById, appearanceByValue, appearanceOptions, resolveAppearance, componentStyleByValue, componentStyleOptions, componentStyleStyle, setComponentStyleSelection, componentOverrideByValue, componentOverrideOptions, nativeViewsForSlot, componentOverrideState, setComponentOverrideSelection, resetComponentOverrides, pluginById, pluginAssetUrl,
     pluginPageSource, requestPlugin, invokePluginCommand, mountPageFrame, connectPageFrame, unmountPageFrame, mountVisualSurface, resizeVisualSurface, unmountVisualSurface,
     animationOptions, animationSelectionValue, setAnimationSelection, hasAnimation, startAnimation, animationDurationScale, setAnimationDurationScale, registerAnimationSurface, unregisterAnimationSurface,
     dispatchEvent, handlePluginMessage, markCleanShutdown,

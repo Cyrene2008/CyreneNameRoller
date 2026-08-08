@@ -4,6 +4,7 @@
       <FluentIcon icon="history-24-regular" :width="28" />
       {{ lang === 'en' ? 'Extraction Records' : '抽取记录' }}
     </h1>
+    <PluginSlot class="records-plugin-toolbar" slot="slot:records.toolbar" />
 
     <FluentCard class="records-card">
       <div class="records-header">
@@ -32,6 +33,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useSettingsStore } from '../stores/settings'
 import { useRecordsStore } from '../stores/records'
 import { useNamesStore } from '../stores/names'
+import PluginSlot from '../components/plugins/PluginSlot.vue'
 
 const settingsStore = useSettingsStore()
 const recordsStore = useRecordsStore()
@@ -67,6 +69,7 @@ onMounted(() => {
 .records-view {
   padding: 32px;
 }
+.records-plugin-toolbar { margin: 0 0 16px; max-width: 720px; }
 
 .page-title {
   font-family: var(--font-display);

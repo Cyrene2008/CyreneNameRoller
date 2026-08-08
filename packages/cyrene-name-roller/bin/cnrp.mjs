@@ -533,6 +533,16 @@ function normalizeManifest(raw) {
       }
     }
   }
+  const nativeViews = manifest.contributes.nativeViews
+  if (nativeViews !== undefined) {
+    if (!manifest.permissions.includes('ui:native-views') || !Array.isArray(nativeViews) || nativeViews.length > 16) fail('nativeViews requires ui:native-views and at most 16 items')
+    const ids = new Set()
+    for (const [index, view] of nativeViews.entries()) {
+      if (!view || !CONTRIBUTION_ID_PATTERN.test(view.id || '') || ids.has(view.id) || !String(view.source || '').toLowerCase().endsWith('.json')) fail(`nativeViews[${index}] is invalid`)
+      ids.add(view.id)
+      if (!['slot:roller.side-panel', 'slot:roller.below-result', 'slot:records.toolbar'].includes(view.slot)) fail(`nativeViews[${index}] slot is unavailable`)
+    }
+  }
   // Keep optional contribution keys absent when unused. The host validates a present
   // array as an explicit contribution and therefore expects its matching permission.
   if (!manifest.contributes.animationPacks.length) delete manifest.contributes.animationPacks
@@ -542,9 +552,10 @@ function normalizeManifest(raw) {
   if (!manifest.contributes.componentStylePacks?.length) delete manifest.contributes.componentStylePacks
   if (!manifest.contributes.fonts?.length) delete manifest.contributes.fonts
   if (!manifest.contributes.componentOverridePacks?.length) delete manifest.contributes.componentOverridePacks
+  if (!manifest.contributes.nativeViews?.length) delete manifest.contributes.nativeViews
   if (manifest.entry) manifest.entry = normalizePath(manifest.entry)
   if ((manifest.contributes.commands || []).length && !manifest.entry && !Object.keys(manifest.platformEntries).length) fail('commands require a Worker entry')
-  if (!manifest.entry && !Object.keys(manifest.platformEntries).length && !(manifest.contributes.pages || []).length && !(manifest.contributes.commands || []).length && !(manifest.contributes.visualSurfaces || []).length && !(manifest.contributes.appearancePacks || []).length && !(manifest.contributes.componentStylePacks || []).length && !(manifest.contributes.componentOverridePacks || []).length && !(manifest.contributes.fonts || []).length) {
+  if (!manifest.entry && !Object.keys(manifest.platformEntries).length && !(manifest.contributes.pages || []).length && !(manifest.contributes.commands || []).length && !(manifest.contributes.visualSurfaces || []).length && !(manifest.contributes.appearancePacks || []).length && !(manifest.contributes.componentStylePacks || []).length && !(manifest.contributes.componentOverridePacks || []).length && !(manifest.contributes.nativeViews || []).length && !(manifest.contributes.fonts || []).length) {
     fail('plugin needs at least one Worker, page, visual surface or appearance pack entry (or a command contribution with a Worker)')
   }
   if (manifest.icon) manifest.icon = normalizePath(manifest.icon)
@@ -619,6 +630,7 @@ async function validateDirectory(directory) {
     ...(manifest.contributes.pages || []).flatMap(page => [page.entry, ...Object.values(page.platformEntries || {})]),
     ...(manifest.contributes.animationPacks || []).map(pack => pack.source),
     ...(manifest.contributes.fonts || []).map(font => font.source),
+    ...(manifest.contributes.nativeViews || []).map(view => view.source),
     ...(manifest.contributes.visualSurfaces || []).flatMap(surface => [surface.entry, ...Object.values(surface.platformEntries || {})])
   ].filter(Boolean)
   for (const required of requiredFiles) {

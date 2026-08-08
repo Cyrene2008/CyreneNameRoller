@@ -139,6 +139,7 @@ export interface HostExtensionDescriptor {
     visualSurfaces: { ownership: 'plugin'; surface: 'offscreen-canvas'; placement: Array<'background'> }
     appearancePacks: { ownership: 'host'; input: 'semantic-tokens'; modes: Array<'light' | 'dark'> }
     fonts: { ownership: 'host'; input: 'validated-woff2'; namespace: 'plugin:<pluginId>/<fontId>' }
+    nativeViews: { ownership: 'host'; input: 'declarative-schema'; slots: Array<'slot:roller.side-panel' | 'slot:roller.below-result' | 'slot:records.toolbar'> }
     componentStylePacks: { ownership: 'host'; input: 'stable-component-ids'; properties: readonly string[] }
     componentOverridePacks: { ownership: 'host'; input: 'stable-component-ids'; visibility: readonly string[] }
     resultPresentations: { ownership: 'host'; input: 'verified-receipt-context' }
@@ -394,6 +395,7 @@ export interface PluginManifest {
     appearancePacks?: PluginAppearancePackContribution[]
     componentStylePacks?: PluginComponentStylePackContribution[]
     componentOverridePacks?: PluginComponentOverridePackContribution[]
+    nativeViews?: PluginNativeViewContribution[]
     fonts?: PluginFontContribution[]
   }
 }
@@ -401,6 +403,7 @@ export interface PluginManifest {
 export type ComponentStyleProperty = 'size' | 'scale' | 'foreground' | 'background' | 'accent' | 'fontFamily' | 'fontSize' | 'fontWeight' | 'lineHeight' | 'padding' | 'gap' | 'radius' | 'borderColor' | 'borderWidth' | 'shadow' | 'alignment' | 'density'
 export interface PluginComponentStylePackContribution { id: string; title: string; description?: string; targets: Record<string, Partial<Record<ComponentStyleProperty, string | number>>> }
 export interface PluginComponentOverridePackContribution { id: string; title: string; description?: string; targets: Record<string, { visibility?: 'visible' | 'hidden' | 'replaced'; layout?: 'collapse' | 'reserve' | 'compact' }> }
+export interface PluginNativeViewContribution { id: string; title: string; titleEn?: string; description?: string; slot: 'slot:roller.side-panel' | 'slot:roller.below-result' | 'slot:records.toolbar'; source: string; uses?: PluginPermission[]; order?: number }
 export interface PluginFontContribution { id: string; source: string; weight?: 400 | 500 | 600 | 700 | 800; style?: 'normal' | 'italic' }
 
 export interface DrawRequest {

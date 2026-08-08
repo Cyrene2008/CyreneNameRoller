@@ -5,6 +5,7 @@
       <FluentIcon :icon="balanceSettings.enabled ? 'fluent:shield-checkmark-24-regular' : 'fluent:shield-error-24-regular'" :width="18" />
       <span>{{ balanceSettings.enabled ? (lang === 'en' ? 'Balance enabled' : '平衡算法已启用') : (lang === 'en' ? 'Balance disabled' : '平衡算法未启用') }}</span>
     </div>
+    <PluginSlot class="roller-plugin-side-panel" slot="slot:roller.side-panel" />
 
     <div
       class="display-container"
@@ -72,6 +73,7 @@
         ></span>
       </FluentButton>
     </div>
+    <PluginSlot class="roller-plugin-below-result" slot="slot:roller.below-result" />
   </div>
 </template>
 
@@ -83,6 +85,7 @@ import { useStatisticsStore } from '../stores/statistics'
 import { t } from '../utils/i18n'
 import { useRecordsStore } from '../stores/records'
 import { usePluginsStore } from '../plugins/store'
+import PluginSlot from '../components/plugins/PluginSlot.vue'
 import { dataBridge } from '../utils/dataBridge'
 import { consumePendingUriNavigation } from '../utils/uriNavigation'
 import { getAutoStopProgress, normalizeAutoStopDuration } from '../utils/autoStop.mjs'
@@ -955,6 +958,8 @@ onBeforeUnmount(() => { if (intervalId) clearTimeout(intervalId); clearTimeout(a
 }
 
 .controls-center { position: absolute; bottom: 24px; right: 24px; display: flex; flex-direction: column; gap: 10px; align-items: flex-end; z-index: 10; }
+.roller-plugin-side-panel { position: absolute; top: 96px; left: 24px; width: min(300px, calc(100% - 48px)); z-index: 9; }
+.roller-plugin-below-result { position: absolute; left: 24px; right: 24px; bottom: 24px; max-width: 520px; }
 .filters-reserved { width: 280px; min-height: 120px; }
 .filters-compact-entry { min-width: 132px; }
 .switches { display: flex; flex-direction: column; gap: var(--plugin-component-roller-filters-gap, 6px); align-items: stretch; width: 280px; color: var(--plugin-component-roller-filters-foreground, inherit); background: var(--plugin-component-roller-filters-background, transparent); font-size: var(--plugin-component-roller-filters-font-size, inherit); font-weight: var(--plugin-component-roller-filters-font-weight, inherit); }
