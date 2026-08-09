@@ -13,6 +13,7 @@ const read = relative => fs.readFile(path.join(root, relative), 'utf8')
 test('API 1.3 release metadata is synchronized', async () => {
   const packageJson = JSON.parse(await read('packages/cyrene-name-roller/package.json'))
   assert.equal(packageJson.version, '1.3.0')
+  assert.equal(packageJson.bin.cnrp, 'bin/cnrp.mjs')
   assert.match(await read('src/plugins/constants.js'), /PLUGIN_API_VERSION = '1\.3\.0'/)
   assert.match(await read('packages/cyrene-name-roller/src/plugin-sdk.mjs'), /PLUGIN_API_VERSION = '1\.3\.0'/)
   assert.match(await read('packages/cyrene-name-roller/src/plugin-sdk.d.ts'), /PLUGIN_API_VERSION: '1\.3\.0'/)

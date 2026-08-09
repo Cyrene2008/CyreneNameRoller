@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       publish_package:
-        description: Publish @starcyrene/cyrene-name-roller to GitHub Packages
+        description: Publish @starcyrene/cyrene-name-roller to package registries
         required: true
         type: boolean
         default: true
@@ -45,7 +45,6 @@ jobs:
         if: >-
           (github.event_name == 'workflow_dispatch' && inputs.publish_package) ||
           (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/plugin-sdk-v'))
-        working-directory: packages/cyrene-name-roller
         env:
           NODE_AUTH_TOKEN: ${{ github.token }}
         run: npm publish --registry=https://npm.pkg.github.com --access public
