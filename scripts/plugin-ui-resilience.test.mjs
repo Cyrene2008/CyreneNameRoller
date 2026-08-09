@@ -6,6 +6,14 @@ import path from 'node:path'
 const root = path.resolve(import.meta.dirname, '..')
 const read = file => fs.readFile(path.join(root, file), 'utf8')
 
+test('startup decides the splash before mounting plugin-owning layout', async () => {
+  const app = await read('src/App.vue')
+  assert.match(app, /const initialSplash = !isFloatingRoute\.value && settingsStore\.settings\.disableSplash !== true/)
+  assert.match(app, /const showSplash = ref\(initialSplash\)/)
+  assert.match(app, /const splashPlayed = ref\(initialSplash\)/)
+  assert.doesNotMatch(app, /const showSplash = ref\(false\)/)
+})
+
 test('Web overlays keep their own fixed positions and Toasts stack from the top', async () => {
   const [layout, fullscreen, widgetCss] = await Promise.all([
     read('src/components/layout/AppLayout.vue'),

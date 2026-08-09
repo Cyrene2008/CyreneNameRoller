@@ -139,9 +139,14 @@ test('unrepacked API 1.2 basic plugin activates, receives events and cleans prin
   const calls = { storage: [], storageReads: [], banners: [], draws: [], faults: [] }
   const runtime = createRuntime(plugin, calls)
 
-  await runtime.activate(plugin)
+  const firstActivation = runtime.activate(plugin)
+  const repeatedActivation = runtime.activate(plugin)
+  await Promise.all([firstActivation, repeatedActivation])
   assert.ok(runtime.workers.has(plugin.manifest.id))
   assert.equal(runtime.legacyPrincipals.has(plugin.manifest.id), false)
+  const activeWorker = runtime.workers.get(plugin.manifest.id).worker
+  await runtime.activate(plugin)
+  assert.equal(runtime.workers.get(plugin.manifest.id).worker, activeWorker)
 
   const legacySnapshot = await runtime.handleRpc(plugin.manifest.id, 'storage.read', { key: 'settings' })
   assert.deepEqual(legacySnapshot, { fixture: true })

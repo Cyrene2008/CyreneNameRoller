@@ -17,8 +17,9 @@ const settingsStore = useSettingsStore()
 const route = useRoute()
 const router = useRouter()
 const isFloatingRoute = computed(() => route.path === '/floating')
-const showSplash = ref(false)
-const splashPlayed = ref(false)
+const initialSplash = !isFloatingRoute.value && settingsStore.settings.disableSplash !== true
+const showSplash = ref(initialSplash)
+const splashPlayed = ref(initialSplash)
 let unlistenMainShown
 let unlistenUriOpen
 

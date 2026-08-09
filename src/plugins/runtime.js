@@ -301,6 +301,8 @@ export class PluginRuntime {
   async activate(plugin) {
     const compatibility = this.platformBridge.compatibility(plugin.manifest)
     if (!compatibility.compatible) throw new Error(compatibility.reason)
+    const existingRuntime = this.workers.get(plugin.manifest.id)
+    if (existingRuntime) return existingRuntime.activated
     const entry = resolvePlatformEntry(plugin.manifest, compatibility.platform)
     if (!entry) {
       try {
@@ -424,7 +426,7 @@ export class PluginRuntime {
       request: true
     }
     const commandRequests = new Map()
-    this.workers.set(plugin.manifest.id, { worker, workerUrl, deactivated, commandRequests, principal: workerPrincipal })
+    this.workers.set(plugin.manifest.id, { worker, workerUrl, activated, deactivated, commandRequests, principal: workerPrincipal })
     worker.postMessage({ type: 'activate', context })
     try {
       await activated
