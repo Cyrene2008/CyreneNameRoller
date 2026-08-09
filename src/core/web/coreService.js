@@ -125,9 +125,13 @@ export function executeCoreMaintenanceRequest({ input: rawInput, caller: rawCall
       const existingCounts = people
         .filter(item => String(item?.id || '') !== input.personId && !item?.isWhiteList && item?.cn)
         .map(item => Number(nextStatistics.counts[String(item.id || '')]) || 0)
-      const initialCount = input.mode === 'zero' || existingCounts.length === 0
-        ? 0
-        : Math.round((Math.min(...existingCounts) + Math.max(...existingCounts)) / 2)
+      let minCount = Number.POSITIVE_INFINITY
+      let maxCount = Number.NEGATIVE_INFINITY
+      for (const count of existingCounts) {
+        minCount = Math.min(minCount, count)
+        maxCount = Math.max(maxCount, count)
+      }
+      const initialCount = input.mode === 'zero' || existingCounts.length === 0 ? 0 : Math.round((minCount + maxCount) / 2)
       nextStatistics.counts[input.personId] = initialCount
       nextStatistics.totalCount = Math.max(0, Number(nextStatistics.totalCount) || 0) + initialCount
     }

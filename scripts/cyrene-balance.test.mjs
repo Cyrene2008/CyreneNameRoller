@@ -40,6 +40,13 @@ test('fairness probability cap remains active for heavily skewed counts', () => 
   assert.ok(Math.max(...Object.values(probabilities)) <= 30 + 1e-9)
 })
 
+test('large candidate pools avoid spread-based argument limits', () => {
+  assert.doesNotMatch(source, /Math\.(?:min|max)\(\.\.\.(?:counts|rawLogWeights)\)/)
+  const people = Array.from({ length: 100000 }, (_, index) => ({ id: `person-${index}`, cn: `Person ${index}` }))
+  const probabilities = computeCyreneBalanceProbability(people, [], {}, { enabled: true })
+  assert.equal(Object.keys(probabilities).length, people.length)
+})
+
 test('no-repeat batches keep same-name people independent', () => {
   const people = [
     { id: 'person-a', cn: '同名', en: 'A' },

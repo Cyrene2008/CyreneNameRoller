@@ -113,24 +113,36 @@ function createWeightMap(names, whiteList, countsMap, rawSettings) {
 
   if (!settings.enabled || regularNames.length === 0) return weights
 
-  const counts = regularNames.map(name => getCount(countsMap, name))
-  const totalDraws = counts.reduce((sum, count) => sum + count, 0)
+  const counts = new Array(regularNames.length)
+  let totalDraws = 0
+  let minCount = Number.POSITIVE_INFINITY
+  let maxCount = Number.NEGATIVE_INFINITY
+  for (let index = 0; index < regularNames.length; index++) {
+    const count = getCount(countsMap, regularNames[index])
+    counts[index] = count
+    totalDraws += count
+    minCount = Math.min(minCount, count)
+    maxCount = Math.max(maxCount, count)
+  }
   const expectedCount = totalDraws / regularNames.length
-  const gap = Math.max(...counts) - Math.min(...counts)
+  const gap = maxCount - minCount
 
   // Statistical feedback stays mild; the fixed soft-gap guard below provides
   // the strong correction needed near and beyond the target gap.
   const warmup = clamp(totalDraws / (regularNames.length * COLD_START_ROUNDS), 0, 1)
   const gapPressure = clamp(gap / TARGET_GAP, 0, 2)
   const adaptiveGain = INTERNAL_SENSITIVITY * (0.35 + 0.65 * gapPressure)
-  const rawLogWeights = counts.map(count => -adaptiveGain * (count - expectedCount))
-
-  const rawMin = Math.min(...rawLogWeights)
-  const rawMax = Math.max(...rawLogWeights)
+  const rawLogWeights = new Array(counts.length)
+  let rawMin = Number.POSITIVE_INFINITY
+  let rawMax = Number.NEGATIVE_INFINITY
+  for (let index = 0; index < counts.length; index++) {
+    const weight = -adaptiveGain * (counts[index] - expectedCount)
+    rawLogWeights[index] = weight
+    rawMin = Math.min(rawMin, weight)
+    rawMax = Math.max(rawMax, weight)
+  }
   const midpoint = (rawMin + rawMax) / 2
   const halfLogRange = Math.log(INTERNAL_MAX_RATIO) / 2
-  const minCount = Math.min(...counts)
-  const maxCount = Math.max(...counts)
   const minCountOccurrences = counts.reduce((total, count) => total + (count === minCount ? 1 : 0), 0)
   const secondMinCount = counts.reduce((second, count) => count > minCount && count < second ? count : second, Number.POSITIVE_INFINITY)
 
