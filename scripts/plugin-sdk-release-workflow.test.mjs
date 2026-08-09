@@ -12,8 +12,8 @@ test('SDK release workflow keeps package publication separate from GitHub Releas
   assert.match(workflow, /npm publish build-output\/plugin-sdk\/cyrene-name-roller-plugin-sdk-\*\.tgz --registry=https:\/\/npm\.pkg\.github\.com/)
   assert.match(workflow, /npm publish build-output\/plugin-sdk\/cyrene-name-roller-plugin-sdk-\*\.tgz --registry=https:\/\/registry\.npmjs\.org/)
   assert.doesNotMatch(workflow, /working-directory:\s+packages\/cyrene-name-roller/)
-  assert.match(workflow, /provenance/)  // 改为检查 provenance，这是 OIDC 的标志
-  assert.match(workflow, /secrets\.NPM_TOKEN/)
+  assert.match(workflow, /provenance/)  // 检查 provenance，这是 OIDC 的标志
+  assert.match(workflow, /id-token:\s+write/)  // 检查 OIDC 权限配置
   assert.doesNotMatch(workflow, /publish_failed=true/)
   assert.doesNotMatch(workflow, /exit 0/)
 })
