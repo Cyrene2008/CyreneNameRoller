@@ -3,7 +3,7 @@ import os from 'node:os'
 import { performance } from 'node:perf_hooks'
 import { createCoreWorkerHandler } from '../src/core/web/core.worker.js'
 
-const iterations = Math.max(1000, Number(process.env.CORE_BENCH_ITERATIONS || 1000))
+const iterations = Math.max(1, Number(process.env.CORE_BENCH_ITERATIONS || 1000))
 const sizes = String(process.env.CORE_BENCH_SIZES || '100,10000,100000').split(',').map(Number).filter(Number.isFinite)
 const makeState = size => ({
   names: { currentListId: 'list', lists: { list: { id: 'list', groups: [], names: Array.from({ length: size }, (_, index) => ({ id: `person-${index}`, cn: `姓名${index}`, en: `Name ${index}`, gender: 'male', isWhiteList: false })) } } },
@@ -12,7 +12,14 @@ const makeState = size => ({
 
 async function runCase(candidates, count, allowDuplicates) {
   const replies = new Map()
-  const handler = createCoreWorkerHandler(message => replies.get(message.requestId)?.(message))
+  let handler
+  handler = createCoreWorkerHandler(message => {
+    if (message.type === 'commit.request') {
+      handler({ data: { type: 'commit.resolve', requestId: message.requestId } })
+      return
+    }
+    replies.get(message.requestId)?.(message)
+  })
   let sequence = 0
   const send = message => new Promise((resolve, reject) => {
     const requestId = `bench-${++sequence}`
@@ -45,7 +52,7 @@ const result = {
   runtime: `node ${process.version}`,
   platform: `${os.platform()} ${os.arch()}`,
   iterations,
-  notes: ['Core Worker 协议端到端基线：包含 state.sync、请求 ID、串行队列和结果回传；不包含浏览器 Worker 创建成本。'],
+  notes: ['Core Worker 协议处理器基线：包含 state.sync、请求 ID、串行队列、宿主持久化确认握手和结果回传；不包含真实浏览器跨线程调度、持久化 I/O 或 Worker 创建成本。'],
   cases: []
 }
 for (const candidates of sizes) {

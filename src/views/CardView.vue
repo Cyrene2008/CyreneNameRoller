@@ -14,7 +14,11 @@
         data-plugin-component="card.item"
         :class="{ show: card.visible, flipped: card.flipped, 'plugin-deal': card.pluginDeal }"
         :style="[pluginsStore.componentStyleStyle('card.item'), { animationDelay: (i * 0.08) + 's' }]"
+        role="button"
+        tabindex="0"
+        :aria-label="`${lang === 'en' ? 'Card' : '牌子'} ${i + 1}${card.flipped ? (lang === 'en' ? ', revealed' : '，已翻开') : ''}`"
         @click="flipCard(i)"
+        @keydown.enter.space.prevent="flipCard(i)"
       >
         <div class="card-inner">
           <div class="card-face card-back">
@@ -47,9 +51,9 @@
           <span class="control-sep" />
           <span class="control-label">{{ t('cardsLabel', lang) }}:</span>
           <div class="count-control">
-            <FluentButton variant="secondary" size="sm" icon-only @click="cardCount = Math.max(1, cardCount - 1); saveCardSettings()"><FluentIcon icon="subtract-16-regular" :width="14" /></FluentButton>
-            <FluentInput v-model="cardCount" type="number" :min="1" :max="maxCards" style="width: 60px; text-align: center;" @update:model-value="saveCardSettings" />
-            <FluentButton variant="secondary" size="sm" icon-only @click="cardCount = Math.min(maxCards, cardCount + 1); saveCardSettings()"><FluentIcon icon="add-16-regular" :width="14" /></FluentButton>
+            <FluentButton :aria-label="lang === 'en' ? 'Decrease card count' : '减少牌子数量'" variant="secondary" size="sm" icon-only @click="cardCount = Math.max(1, cardCount - 1); saveCardSettings()"><FluentIcon icon="subtract-16-regular" :width="14" /></FluentButton>
+            <FluentInput v-model="cardCount" type="number" :min="1" :max="maxCards" :aria-label="lang === 'en' ? 'Card count' : '牌子数量'" style="width: 60px; text-align: center;" @update:model-value="saveCardSettings" />
+            <FluentButton :aria-label="lang === 'en' ? 'Increase card count' : '增加牌子数量'" variant="secondary" size="sm" icon-only @click="cardCount = Math.min(maxCards, cardCount + 1); saveCardSettings()"><FluentIcon icon="add-16-regular" :width="14" /></FluentButton>
           </div>
           <FluentButton variant="primary" @click="shuffle">
             <FluentIcon icon="arrow-shuffle-24-regular" :width="16" />
@@ -59,9 +63,9 @@
         <div class="ctrl-row">
           <span class="control-label">{{ t('quickDraw', lang) }}:</span>
           <div class="count-control">
-            <FluentButton variant="secondary" size="sm" icon-only @click="quickCount = Math.max(2, quickCount - 1); saveCardSettings()"><FluentIcon icon="subtract-16-regular" :width="14" /></FluentButton>
-            <FluentInput v-model="quickCount" type="number" :min="2" :max="maxCards" style="width: 60px; text-align: center;" @update:model-value="saveCardSettings" />
-            <FluentButton variant="secondary" size="sm" icon-only @click="quickCount = Math.min(maxCards, quickCount + 1); saveCardSettings()"><FluentIcon icon="add-16-regular" :width="14" /></FluentButton>
+            <FluentButton :aria-label="lang === 'en' ? 'Decrease quick draw count' : '减少一键多抽数量'" variant="secondary" size="sm" icon-only @click="quickCount = Math.max(2, quickCount - 1); saveCardSettings()"><FluentIcon icon="subtract-16-regular" :width="14" /></FluentButton>
+            <FluentInput v-model="quickCount" type="number" :min="2" :max="maxCards" :aria-label="lang === 'en' ? 'Quick draw count' : '一键多抽数量'" style="width: 60px; text-align: center;" @update:model-value="saveCardSettings" />
+            <FluentButton :aria-label="lang === 'en' ? 'Increase quick draw count' : '增加一键多抽数量'" variant="secondary" size="sm" icon-only @click="quickCount = Math.min(maxCards, quickCount + 1); saveCardSettings()"><FluentIcon icon="add-16-regular" :width="14" /></FluentButton>
           </div>
           <FluentButton variant="secondary" @click="quickDraw">
             <FluentIcon icon="flash-24-regular" :width="16" />
