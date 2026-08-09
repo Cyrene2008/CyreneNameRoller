@@ -1,6 +1,6 @@
-import { isTauri, tauriAPI } from './tauriAPI'
-import { decryptCyreneData, encryptCyreneData } from './cyreneCrypto'
-import { emitFileNotice } from './desktopFiles'
+import { isTauri, tauriAPI } from './tauriAPI.js'
+import { decryptCyreneData, encryptCyreneData } from './cyreneCrypto.js'
+import { emitFileNotice } from './desktopFiles.js'
 
 const TAURI_CORE_INPUT_KEYS = new Set(['lists', 'currentListId', 'balance'])
 
@@ -37,7 +37,12 @@ export const dataBridge = {
     }
 
     // Browser fallback
-    try { localStorage.setItem(key, JSON.stringify(data)) } catch {}
+    try {
+      localStorage.setItem(key, JSON.stringify(data))
+      return true
+    } catch (error) {
+      throw Object.assign(new Error(`Web save failed for "${key}": ${error?.message || String(error)}`), { code: 'CORE_TRANSACTION_REJECTED' })
+    }
   },
 
   async clearAll() {

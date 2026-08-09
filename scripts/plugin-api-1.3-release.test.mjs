@@ -60,8 +60,10 @@ test('frozen API 1.2 fixtures retain their byte hashes', async () => {
 })
 
 test('core write boundaries remain present for the release gate', async () => {
-  const [client, tauri, bridge, rust] = await Promise.all([
+  const [client, worker, coreDraw, tauri, bridge, rust] = await Promise.all([
     read('src/core/client.js'),
+    read('src/core/web/core.worker.js'),
+    read('src/plugins/coreDraw.js'),
     read('src/utils/tauriAPI.js'),
     read('src/utils/dataBridge.js'),
     read('src-tauri/src/lib.rs')
@@ -69,6 +71,11 @@ test('core write boundaries remain present for the release gate', async () => {
   assert.match(client, /coreDrawExecute/)
   assert.match(client, /coreCardCommit/)
   assert.match(client, /coreMaintenanceExecute/)
+  assert.match(client, /message\.type === 'commit\.request'/)
+  assert.match(client, /type: 'commit\.resolve'/)
+  assert.match(worker, /await requestCommit/)
+  assert.match(worker, /coreState = \{ \.\.\.coreState, statistics: value\.nextStatistics, records: value\.nextRecords \}/)
+  assert.doesNotMatch(coreDraw, /commitCoreDrawTransaction|createCoreDrawQueue/)
   assert.doesNotMatch(client, /executeCoreDrawRequest|fallbackState/)
   assert.match(tauri, /coreDrawExecute/)
   assert.match(tauri, /coreCardCommit/)

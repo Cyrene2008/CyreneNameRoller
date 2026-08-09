@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { dataBridge } from '../utils/dataBridge'
+import { dataBridge } from '../utils/dataBridge.js'
 
 const DEFAULT_LIST_ID = 'default'
 
