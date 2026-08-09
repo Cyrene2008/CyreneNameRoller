@@ -6,9 +6,9 @@
         <p class="page-subtitle">{{ lang === 'en' ? 'Extend CyreneNameRoller with optional, permissioned modules.' : '安装可选功能模块，插件始终通过权限化接口访问程序能力。' }}</p>
       </div>
       <div class="header-actions">
-        <FluentSelect :model-value="plugins.source" :options="sourceOptions" width="170px" @update:model-value="changeSource" />
-        <FluentButton variant="secondary" size="sm" @click="importLocal"><FluentIcon icon="arrow-upload-16-regular" :width="14" />{{ lang === 'en' ? 'Import .cnrp' : '导入 .cnrp' }}</FluentButton>
-        <FluentButton variant="primary" size="sm" @click="refreshList" :disabled="loading"><FluentIcon icon="arrow-sync-16-regular" :width="14" />{{ lang === 'en' ? 'Refresh' : '刷新列表' }}</FluentButton>
+        <FluentSelect :model-value="plugins.source" :options="sourceOptions" width="170px" :disabled="plugins.safeModeStatus.enabled" @update:model-value="changeSource" />
+        <FluentButton variant="secondary" size="sm" :disabled="plugins.safeModeStatus.enabled" @click="importLocal"><FluentIcon icon="arrow-upload-16-regular" :width="14" />{{ lang === 'en' ? 'Import .cnrp' : '导入 .cnrp' }}</FluentButton>
+        <FluentButton variant="primary" size="sm" @click="refreshList" :disabled="loading || plugins.safeModeStatus.enabled"><FluentIcon icon="arrow-sync-16-regular" :width="14" />{{ lang === 'en' ? 'Refresh' : '刷新列表' }}</FluentButton>
       </div>
     </div>
 
@@ -23,7 +23,7 @@
           <div class="plugin-card-header">
             <div class="plugin-icon"><img v-if="pluginIcon(plugin)" :src="pluginIcon(plugin)" alt="" /><FluentIcon v-else icon="plug-connected-24-regular" :width="24" /></div>
             <div class="plugin-heading"><h3>{{ plugin.manifest.name }}</h3><small>{{ plugin.manifest.id }} · v{{ plugin.manifest.version }}</small></div>
-            <FluentToggle :model-value="plugin.enabled" @update:model-value="togglePlugin(plugin, $event)" />
+            <FluentToggle :model-value="plugin.enabled" :disabled="plugins.safeModeStatus.enabled" @update:model-value="togglePlugin(plugin, $event)" />
           </div>
           <p class="plugin-description">{{ plugin.manifest.description || (lang === 'en' ? 'No description.' : '暂无说明。') }}</p>
           <div v-if="!pluginCompatibility(plugin).compatible" class="compatibility-warning"><FluentIcon icon="warning-16-regular" :width="14" /><span>{{ pluginCompatibility(plugin).reason }}</span></div>
@@ -224,7 +224,7 @@ function catalogAction(item) {
   if (!installed) return ''
   return compareVersion(item.version, installed) > 0 ? `${lang.value === 'en' ? 'Update available' : '可更新'} · v${installed}` : `v${installed}`
 }
-function catalogInstallDisabled(item) { return downloading.value === item.id || !item.version || !!item.releaseError || (!!installedVersion(item.id) && compareVersion(item.version, installedVersion(item.id)) <= 0) }
+function catalogInstallDisabled(item) { return plugins.safeModeStatus.enabled || downloading.value === item.id || !item.version || !!item.releaseError || (!!installedVersion(item.id) && compareVersion(item.version, installedVersion(item.id)) <= 0) }
 function catalogButtonLabel(item) {
   if (downloading.value === item.id) return '...'
   if (!item.version || item.releaseError) return lang.value === 'en' ? 'Unavailable' : '暂不可用'

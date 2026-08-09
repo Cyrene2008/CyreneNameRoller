@@ -136,13 +136,17 @@ test('安全模式初始化不读取插件状态、不创建 Worker、不注册�
 })
 
 test('安全模式检查早于应用和插件初始化，Service Worker 不缓存配置', async () => {
-  const [main, serviceWorker, config] = await Promise.all([
+  const [main, serviceWorker, config, pluginManager] = await Promise.all([
     fs.readFile(path.join(root, 'src/main.js'), 'utf8'),
     fs.readFile(path.join(root, 'public/sw.js'), 'utf8'),
-    fs.readFile(path.join(root, 'public/safemode.json'), 'utf8')
+    fs.readFile(path.join(root, 'public/safemode.json'), 'utf8'),
+    fs.readFile(path.join(root, 'src/views/PluginManagerView.vue'), 'utf8')
   ])
   assert.ok(main.indexOf('await loadSafeModeStatus') < main.indexOf('createPinia()'))
   assert.match(serviceWorker, /safemode\.json/)
   assert.match(serviceWorker, /cache:\s*'no-store'/)
+  assert.match(pluginManager, /:disabled="plugins\.safeModeStatus\.enabled" @click="importLocal"/)
+  assert.match(pluginManager, /:disabled="loading \|\| plugins\.safeModeStatus\.enabled"/)
+  assert.match(pluginManager, /function catalogInstallDisabled\(item\) \{ return plugins\.safeModeStatus\.enabled \|\|/)
   assert.deepEqual(JSON.parse(config), { enable: false })
 })
