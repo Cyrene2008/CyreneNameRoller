@@ -28,6 +28,7 @@ jobs:
           node-version: 22
           cache: npm
           scope: '@starcyrene'
+          registry-url: 'https://npm.pkg.github.com'  # ← 添加这一行
 
       - run: npm ci
       - run: npm test
