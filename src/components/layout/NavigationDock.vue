@@ -1,5 +1,5 @@
 <template>
-  <nav ref="dockRef" class="dock" :class="{ collapsed: dockCollapsed, 'secondary-open': Boolean(activeSecondaryMenu) }">
+  <nav ref="dockRef" class="dock" data-plugin-component="navigation.dock" :class="{ collapsed: dockCollapsed, 'secondary-open': Boolean(activeSecondaryMenu) }" :style="pluginsStore.componentStyleStyle('navigation.dock')">
     <div
       v-show="indicatorVisible"
       ref="indicatorRef"
@@ -116,6 +116,7 @@
         <button
           type="button"
           class="dock-item dock-parent"
+          data-plugin-component="navigation.settings-entry"
           :class="{ active: route.path.startsWith('/settings') }"
           :title="lang === 'en' ? 'Settings' : '设置'"
           :aria-expanded="activeSecondaryMenu === 'settings'"
@@ -412,11 +413,15 @@ onBeforeUnmount(() => {
   display: flex;
   flex-shrink: 0;
   flex-direction: column;
-  width: var(--dock-width);
+  width: var(--plugin-component-navigation-dock-size, var(--dock-width));
   height: 100%;
   overflow: hidden;
   border-right: 1px solid var(--border-subtle);
-  background: var(--bg-acrylic);
+  background: var(--plugin-component-navigation-dock-background, var(--bg-acrylic));
+  color: var(--plugin-component-navigation-dock-foreground, var(--text-secondary));
+  font-family: var(--plugin-component-navigation-dock-font-family, var(--font-ui));
+  font-size: var(--plugin-component-navigation-dock-font-size, inherit);
+  font-weight: var(--plugin-component-navigation-dock-font-weight, inherit);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   transition: width var(--duration-normal) var(--ease-standard);
@@ -480,7 +485,7 @@ onBeforeUnmount(() => {
   flex-direction: column;
   gap: 2px;
   min-height: 0;
-  padding: 8px 6px;
+  padding: var(--plugin-component-navigation-dock-density, 8px) 6px;
   overflow-x: hidden;
   overflow-y: auto;
 }
@@ -497,9 +502,10 @@ onBeforeUnmount(() => {
   border: none;
   border-radius: var(--radius-md);
   background: transparent;
-  color: var(--text-secondary);
-  font-family: var(--font-ui);
-  font-size: 13px;
+  color: var(--plugin-component-navigation-dock-foreground, var(--text-secondary));
+  font-family: var(--plugin-component-navigation-dock-font-family, var(--font-ui));
+  font-size: var(--plugin-component-navigation-dock-font-size, 13px);
+  font-weight: var(--plugin-component-navigation-dock-font-weight, inherit);
   text-decoration: none;
   cursor: pointer;
   transition: background var(--duration-fast) ease, color var(--duration-fast) ease, transform var(--duration-fast) ease;
@@ -523,7 +529,7 @@ onBeforeUnmount(() => {
   flex-shrink: 0;
   flex-direction: column;
   gap: 2px;
-  padding: 8px 6px;
+  padding: var(--plugin-component-navigation-dock-density, 8px) 6px;
   overflow: hidden;
   border-top: 1px solid var(--border-subtle);
 }

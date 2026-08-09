@@ -11,16 +11,28 @@ const root = new URL('../', import.meta.url)
 const read = path => fs.readFile(new URL(path, root), 'utf8')
 const contract = JSON.parse(await read('scripts/fixtures/plugin-ui-api-1.3-contract.json'))
 const parserOutput = path.resolve(import.meta.dirname, '../build-output/plugin-phase0-contract/parser.mjs')
+const runtimeOutput = path.resolve(import.meta.dirname, '../build-output/plugin-phase0-contract/runtime.mjs')
 await fs.mkdir(path.dirname(parserOutput), { recursive: true })
-await build({
+await Promise.all([
+  build({
   entryPoints: [path.resolve(import.meta.dirname, '../src/plugins/package.js')],
   bundle: true,
   write: true,
   outfile: parserOutput,
   platform: 'browser',
   format: 'esm'
-})
+  }),
+  build({
+    entryPoints: [path.resolve(import.meta.dirname, '../src/plugins/runtime.js')],
+    bundle: true,
+    write: true,
+    outfile: runtimeOutput,
+    platform: 'browser',
+    format: 'esm'
+  })
+])
 const { parsePluginPackage } = await import(`${pathToFileURL(parserOutput).href}?v=${Date.now()}`)
+const { PluginRuntime } = await import(`${pathToFileURL(runtimeOutput).href}?v=${Date.now()}`)
 
 test('阶段 0 freezes API, component targets and slot namespaces', async () => {
   assert.equal(PLUGIN_API_VERSION, '1.3.0')
@@ -33,6 +45,31 @@ test('阶段 0 freezes API, component targets and slot namespaces', async () => 
   assert.deepEqual(contract.slots.filter(slot => slot.available).map(slot => slot.id), [
     'slot:roller.side-panel', 'slot:roller.below-result', 'slot:records.toolbar'
   ])
+
+  const hostRuntime = new PluginRuntime({
+    getPlugin: () => null,
+    savePluginData: async () => {},
+    loadPluginData: async () => null,
+    showBanner: () => {},
+    getCoreSnapshot: () => ({}),
+    executeCoreDraw: async () => ({}),
+    selectFile: async () => null,
+    playAudio: async () => {},
+    platformBridge: {
+      info: () => ({ runtime: 'web', os: 'unknown', desktop: false }),
+      capabilities: () => ({}),
+      request: async () => ({ ok: false })
+    },
+    onFault: () => {}
+  })
+  const host = hostRuntime.describeHost({ manifest: { permissions: [] } })
+  assert.equal(host.platform, 'web')
+  assert.equal(host.security.runtime, 'plugin-isolated')
+  assert.equal(host.componentTargets.length, 13)
+  assert.equal(host.componentTargets.find(target => target.id === 'app.title-bar').available, false)
+  assert.equal(host.componentTargets.find(target => target.id === 'roller.filters').visibilityPolicy, 'optional')
+  assert.equal(host.slots.find(slot => slot.id === 'slot:app.command-palette').available, false)
+  assert.equal(host.slots.find(slot => slot.id === 'slot:roller.side-panel').available, true)
 
   const sourceChecks = new Map([
     ['src/components/layout/TitleBar.vue', ['class="titlebar"', 'isDesktopApp']],

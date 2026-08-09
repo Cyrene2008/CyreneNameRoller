@@ -1,5 +1,5 @@
 import { ALGORITHM_NAME, ALGORITHM_VERSION, normalizeCyreneBalanceSettings, personKey, pickCyreneBatch, secureRandom } from '../../utils/cyrene-balance.js'
-import { normalizeCoreCaller, normalizeCoreDrawInput } from '../protocol.js'
+import { normalizeCoreCaller, normalizeCoreCardInput, normalizeCoreDrawInput } from '../protocol.js'
 
 function coreError(code, message) { return Object.assign(new Error(message), { code }) }
 
@@ -70,4 +70,32 @@ export function executeCoreDrawRequest({ input: rawInput, caller: rawCaller, sta
   }))
   const nextRecords = [...appended, ...(Array.isArray(state.records) ? state.records : [])].slice(0, 500)
   return { receipt, nextStatistics, nextRecords }
+}
+
+export function executeCoreCardRequest({ input: rawInput, caller: rawCaller, state }) {
+  const input = normalizeCoreCardInput(rawInput)
+  const caller = normalizeCoreCaller(rawCaller)
+  if (caller.kind !== 'core-ui') throw coreError('PLUGIN_PERMISSION_DENIED', 'card.commit 仅允许宿主界面调用')
+  if (!state || typeof state !== 'object' || Array.isArray(state)) throw coreError('CORE_TRANSACTION_REJECTED', 'Core 状态无效')
+  const list = state.names?.lists?.[input.listId]
+  if (!list) throw coreError('CORE_TRANSACTION_REJECTED', '卡牌名单不存在')
+  const people = Array.isArray(list.names) ? list.names : []
+  const byId = new Map(people.map(person => [String(person?.id || ''), person]))
+  const selected = input.personIds.map(id => byId.get(id))
+  if (selected.some(person => !person || person.isWhiteList)) throw coreError('CORE_TRANSACTION_REJECTED', '卡牌结果不属于当前可抽取名单')
+  const operationId = caller.operationId || crypto.randomUUID?.() || `card-${Date.now()}-${Math.random().toString(36).slice(2)}`
+  const committedAt = Date.now()
+  const results = selected.map(person => ({ id: String(person.id), name: String(person.cn || ''), englishName: String(person.en || '') }))
+  const receipt = { kind: 'card', operationId, pluginId: caller.pluginId, listId: input.listId, count: results.length, committedAt, results }
+  const appended = results.map(result => ({
+    personId: result.id,
+    listId: input.listId,
+    groupId: null,
+    source: 'card',
+    pluginId: '',
+    operationId,
+    time: committedAt
+  }))
+  const nextRecords = [...appended, ...(Array.isArray(state.records) ? state.records : [])].slice(0, 500)
+  return { receipt, nextStatistics: { ...(state.statistics || { counts: {}, totalCount: 0 }), counts: { ...(state.statistics?.counts || {}) } }, nextRecords }
 }

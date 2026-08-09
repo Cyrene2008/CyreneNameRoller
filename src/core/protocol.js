@@ -1,4 +1,5 @@
 const DRAW_INPUT_FIELDS = new Set(['listId', 'target', 'count', 'allowDuplicates', 'gender'])
+const CARD_INPUT_FIELDS = new Set(['listId', 'personIds'])
 
 function coreError(code, message) { return Object.assign(new Error(message), { code }) }
 
@@ -28,4 +29,17 @@ export function normalizeCoreCaller(raw = {}) {
   }
 }
 
+export function normalizeCoreCardInput(raw = {}) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw coreError('CORE_TRANSACTION_REJECTED', 'card.commit input must be an object')
+  const unsupported = Object.keys(raw).find(key => !CARD_INPUT_FIELDS.has(key))
+  if (unsupported) throw coreError('CORE_TRANSACTION_REJECTED', `card.commit does not allow field ${unsupported}`)
+  const personIds = Array.isArray(raw.personIds) ? [...new Set(raw.personIds.map(value => String(value || '')).filter(Boolean))] : []
+  if (!personIds.length || personIds.length > 100) throw coreError('CORE_TRANSACTION_REJECTED', 'card.commit requires 1 to 100 person IDs')
+  return {
+    listId: String(raw.listId || ''),
+    personIds
+  }
+}
+
 export const CORE_DRAW_INPUT_FIELDS = Object.freeze([...DRAW_INPUT_FIELDS])
+export const CORE_CARD_INPUT_FIELDS = Object.freeze([...CARD_INPUT_FIELDS])

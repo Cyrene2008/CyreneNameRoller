@@ -112,6 +112,19 @@ pub fn parse(values: &Value, key: &[u8; 32]) -> Result<CoreStateEnvelope, String
     Ok(envelope)
 }
 
+pub fn normalize_values(values: &Value, key: &[u8; 32]) -> Result<Value, String> {
+    let envelope = parse(values, key)?;
+    let mut normalized = values.clone();
+    let object = normalized.as_object_mut().ok_or_else(|| "CORE_TRANSACTION_REJECTED".to_string())?;
+    object.insert(CORE_STATE_KEY.into(), to_value(&envelope)?);
+    object.insert("lists".into(), envelope.state.names.get("lists").cloned().unwrap_or_else(|| json!({})));
+    object.insert("currentListId".into(), envelope.state.names.get("currentListId").cloned().unwrap_or_else(|| json!("default")));
+    object.insert("balance".into(), envelope.state.balance.clone());
+    object.insert("statistics".into(), envelope.state.statistics.clone());
+    object.insert("records".into(), envelope.state.records.clone());
+    Ok(normalized)
+}
+
 pub fn to_value(envelope: &CoreStateEnvelope) -> Result<Value, String> {
     serde_json::to_value(envelope).map_err(|error| error.to_string())
 }
@@ -151,5 +164,20 @@ mod tests {
         envelope = seal(envelope, &key).unwrap();
         let values = json!({ CORE_STATE_KEY: envelope });
         assert_eq!(parse(&values, &key).unwrap_err(), "CORE_INTEGRITY_CHECK_FAILED");
+    }
+
+    #[test]
+    fn normalize_values_rebinds_legacy_and_top_level_core_fields_to_the_envelope() {
+        let key = [3u8; 32];
+        let values = json!({
+            "lists": { "list-1": { "id": "list-1", "names": [] } },
+            "currentListId": "list-1",
+            "statistics": { "counts": { "person-1": 1 }, "totalCount": 1 },
+            "records": [{ "operationId": "op-1" }]
+        });
+        let normalized = normalize_values(&values, &key).unwrap();
+        assert!(normalized.get(CORE_STATE_KEY).is_some());
+        assert_eq!(normalized["statistics"]["totalCount"], 1);
+        assert_eq!(normalized["records"][0]["operationId"], "op-1");
     }
 }

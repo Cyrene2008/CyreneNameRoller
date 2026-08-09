@@ -194,6 +194,16 @@ export const usePluginsStore = defineStore('plugins', () => {
 
   async function initialize() {
     if (initialized.value) return
+    if (safeModeStatus.value.enabled) {
+      installed.value = {}
+      animationSelections.value = {}
+      animationDurationScales.value = {}
+      componentStyleSelections.value = {}
+      componentOverrideSelections.value = {}
+      resultPresentationSelections.value = {}
+      initialized.value = true
+      return
+    }
     const saved = await dataBridge.load(STATE_KEY)
     if (saved && typeof saved === 'object') {
       installed.value = saved.installed || {}

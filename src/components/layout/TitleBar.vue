@@ -1,5 +1,5 @@
 <template>
-  <div v-if="isDesktopApp" class="titlebar">
+  <div v-if="isDesktopApp" class="titlebar" data-plugin-component="app.title-bar" :style="pluginsStore.componentStyleStyle('app.title-bar')">
     <button class="titlebar-hamburger" @click="toggleDock" :title="dockCollapsed ? '展开' : '收起'">
       <Icon icon="fluent:line-horizontal-3-20-regular" :width="18" />
     </button>
@@ -40,9 +40,11 @@ import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { Icon } from '@iconify/vue'
 import { isTauri } from '../../utils/tauriAPI'
 import { useSettingsStore } from '../../stores/settings'
+import { usePluginsStore } from '../../plugins/store'
 import { revealFile } from '../../utils/desktopFiles'
 
 const settingsStore = useSettingsStore()
+const pluginsStore = usePluginsStore()
 const isMaximized = ref(false)
 const dockCollapsed = computed(() => settingsStore.settings.dockCollapsed || false)
 const notice = ref({ message: '', path: '' })
@@ -128,11 +130,15 @@ onBeforeUnmount(() => { window.removeEventListener('cyrene:data-saved', onDataSa
 
 <style scoped>
 .titlebar {
-  height: 40px;
+  height: var(--plugin-component-app-title-bar-density, 40px);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: var(--bg-acrylic);
+  background: var(--plugin-component-app-title-bar-background, var(--bg-acrylic));
+  color: var(--plugin-component-app-title-bar-foreground, var(--text-primary));
+  font-family: var(--plugin-component-app-title-bar-font-family, var(--font-ui));
+  font-size: var(--plugin-component-app-title-bar-font-size, inherit);
+  font-weight: var(--plugin-component-app-title-bar-font-weight, inherit);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border-bottom: 1px solid var(--border-subtle);
@@ -179,9 +185,9 @@ onBeforeUnmount(() => { window.removeEventListener('cyrene:data-saved', onDataSa
 }
 
 .titlebar-app-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-secondary);
+  font-size: var(--plugin-component-app-title-bar-font-size, 14px);
+  font-weight: var(--plugin-component-app-title-bar-font-weight, 600);
+  color: var(--plugin-component-app-title-bar-foreground, var(--text-secondary));
   -webkit-app-region: drag;
   white-space: nowrap;
   margin-right: 8px;

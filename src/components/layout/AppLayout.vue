@@ -14,7 +14,13 @@
       </main>
     </div>
     <FullscreenToggle />
-    <div class="version-badge">
+    <div
+      v-if="versionBadgeOverride.visibility !== 'hidden'"
+      class="version-badge"
+      data-plugin-component="app.version-badge"
+      :class="{ 'plugin-reserved': versionBadgeOverride.layout === 'reserve' }"
+      :style="pluginsStore.componentStyleStyle('app.version-badge')"
+    >
       <span class="v-prefix">{{ APP_VERSION_PREFIX }}</span><span class="v-num">{{ APP_VERSION }}</span>
       <span class="v-sep">build:</span><span class="v-num">{{ APP_BUILD }}</span><span class="v-sep">-{{ APP_PLATFORM }}</span>
     </div>
@@ -152,6 +158,7 @@ const reducedMotion = ref(!!reducedMotionQuery?.matches)
 let removeAccentListener
 let removeReducedMotionListener
 const selectedAppearance = computed(() => pluginsStore.resolveAppearance(settingsStore.settings.colorTheme, settingsStore.darkMode))
+const versionBadgeOverride = computed(() => pluginsStore.componentOverrideState('app.version-badge'))
 const themeClass = computed(() => ['peach', 'fluent', 'custom'].includes(settingsStore.settings.colorTheme) ? settingsStore.settings.colorTheme : 'plugin-appearance')
 const resolvedThemeTokens = computed(() => {
   const settings = settingsStore.settings
@@ -932,8 +939,13 @@ watch(() => settingsStore.settings.fontFamily, (val) => {
   position: fixed;
   bottom: 0px;
   right: 24px;
-  font-size: 12px;
-  color: var(--text-muted);
+  font-size: var(--plugin-component-app-version-badge-font-size, 12px);
+  font-weight: var(--plugin-component-app-version-badge-font-weight, inherit);
+  font-family: var(--plugin-component-app-version-badge-font-family, var(--font-ui));
+  color: var(--plugin-component-app-version-badge-foreground, var(--text-muted));
+  background: var(--plugin-component-app-version-badge-background, transparent);
+  padding: var(--plugin-component-app-version-badge-padding, 0);
+  gap: var(--plugin-component-app-version-badge-gap, 0);
   opacity: 0.5;
   pointer-events: none;
   z-index: 999999;
@@ -941,6 +953,7 @@ watch(() => settingsStore.settings.fontFamily, (val) => {
   align-items: baseline;
   gap: 3px;
 }
+.version-badge.plugin-reserved { visibility: hidden; }
 
 .file-drop-overlay {
   position: fixed;

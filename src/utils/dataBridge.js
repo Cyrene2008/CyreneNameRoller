@@ -2,15 +2,18 @@ import { isTauri, tauriAPI } from './tauriAPI'
 import { decryptCyreneData, encryptCyreneData } from './cyreneCrypto'
 import { emitFileNotice } from './desktopFiles'
 
+const TAURI_CORE_INPUT_KEYS = new Set(['lists', 'currentListId', 'balance'])
+
 export const dataBridge = {
   async load(key) {
     // Tauri
     if (isTauri()) {
       try {
         const val = await tauriAPI.storageGet(key)
-        if (val !== null && val !== undefined) return val
+        return val ?? null
       } catch (e) {
         console.warn(`[dataBridge] Tauri load failed for "${key}":`, e)
+        return null
       }
     }
 
@@ -26,11 +29,11 @@ export const dataBridge = {
   async save(key, data) {
     // Tauri
     if (isTauri()) {
-      try {
-        await tauriAPI.storageSet(key, data)
-      } catch (e) {
-        console.warn(`[dataBridge] Tauri save failed for "${key}":`, e)
-      }
+      const result = TAURI_CORE_INPUT_KEYS.has(key)
+        ? await tauriAPI.coreStateSet(key, data)
+        : await tauriAPI.storageSet(key, data)
+      if (result === true || result?.success === true) return result
+      throw Object.assign(new Error(result?.error || `Tauri save failed for "${key}"`), { code: result?.code || 'CORE_TRANSACTION_REJECTED' })
     }
 
     // Browser fallback
@@ -39,7 +42,7 @@ export const dataBridge = {
 
   async clearAll() {
     if (isTauri()) {
-      try { await tauriAPI.storageClear() } catch {}
+      return tauriAPI.storageClear()
     }
     try { localStorage.clear() } catch {}
   },

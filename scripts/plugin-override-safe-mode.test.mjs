@@ -32,10 +32,11 @@ test('覆盖包应用是原子且撤销后恢复默认', () => {
 })
 
 test('Safe Mode 配置损坏强制启用，离线沿用历史并标记 stale', async () => {
-  assert.equal(safeMode.parseSafeModeConfig({ enabled: true }).enabled, true)
-  assert.equal(safeMode.parseSafeModeConfig({ enabled: 'yes' }).errorCode, 'SAFE_MODE_CONFIG_INVALID')
-  const values = new Map([['cyrene:safemode:last', JSON.stringify({ enabled: true })]])
+  assert.equal(safeMode.parseSafeModeConfig({ enable: true }).enabled, true)
+  assert.equal(safeMode.parseSafeModeConfig({ enable: 'yes' }).errorCode, 'SAFE_MODE_CONFIG_INVALID')
+  const values = new Map()
   const storage = { getItem(key) { return values.get(key) }, setItem(key, value) { values.set(key, value) } }
+  await safeMode.loadSafeModeStatus({ fetchImpl: async () => ({ ok: true, status: 200, json: async () => ({ enable: true }) }), storage, baseUrl: './' })
   const status = await safeMode.loadSafeModeStatus({ fetchImpl: async () => { throw new Error('offline') }, storage, baseUrl: './' })
   assert.equal(status.enabled, true)
   assert.equal(status.stale, true)

@@ -57,6 +57,24 @@ const ENUMS = {
   alignment: new Set(['start', 'center', 'end']), density: new Set(['compact', 'normal', 'comfortable'])
 }
 
+const TARGET_SIZE_VALUES = Object.freeze({
+  'navigation.dock': { small: '200px', medium: '240px', large: '280px' },
+  'roller.current-list': { small: '280px', medium: '360px', large: '480px' },
+  'roller.filters': { small: '240px', medium: '280px', large: '340px' },
+  'roller.primary-action': { small: '240px', medium: '280px', large: '340px' },
+  'roller.result': { small: '44px', medium: '64px', large: '88px' },
+  'card.controls': { small: '64px', medium: '80px', large: '96px' },
+  'card.deck': { small: '120px', medium: '140px', large: '170px' },
+  'card.item': { small: '120px', medium: '140px', large: '170px' },
+  'lottery.result': { small: '32px', medium: '48px', large: '72px' },
+  'statistics.summary': { small: '64px', medium: '80px', large: '96px' }
+})
+
+const TARGET_DENSITY_VALUES = Object.freeze({
+  'app.title-bar': { compact: '34px', normal: '40px', comfortable: '48px' },
+  'navigation.dock': { compact: '6px', normal: '8px', comfortable: '12px' }
+})
+
 function normalizeProperty(property, value, descriptor, label, pluginId = '') {
   if (FORBIDDEN_PROPERTIES.has(property) || !COMPONENT_STYLE_PROPERTIES.includes(property)) fail('PLUGIN_UI_PROPERTY_NOT_ALLOWED', `${label}.${property} 不允许`)
   if (!descriptor.allowedStyles.includes(property)) fail(descriptor.visibilityPolicy === 'protected' ? 'PLUGIN_UI_PROTECTED_TARGET' : 'PLUGIN_UI_PROPERTY_NOT_ALLOWED', `${label}.${property} 不允许用于目标 ${descriptor.id}`)
@@ -136,6 +154,8 @@ export function styleVarsForTarget(targetId, styles = {}) {
     if (!map[key]) continue
     let normalized = value
     if (['padding', 'gap'].includes(key)) normalized = semantic[value] || value
+    if (key === 'size') normalized = TARGET_SIZE_VALUES[targetId]?.[value] || value
+    if (key === 'density') normalized = TARGET_DENSITY_VALUES[targetId]?.[value] || semantic[value] || value
     if (key === 'shadow') normalized = shadows[value] || 'none'
     if (key === 'fontFamily') normalized = value === 'host:ui' ? 'var(--font-ui)' : value === 'host:display' ? 'var(--font-display)' : value === 'host:numeric' ? 'var(--font-num)' : `'${String(value).replace(/'/g, '')}'`
     if (key === 'scale') normalized = String(value)

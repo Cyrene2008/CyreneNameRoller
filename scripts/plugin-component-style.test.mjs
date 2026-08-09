@@ -19,6 +19,30 @@ test('组件注册表冻结 13 个目标并报告 Web 标题栏不可用', async
   assert.deepEqual(registry.getComponentTarget('roller.filters', 'web').selector, ['.switches', '.multi-settings'])
 })
 
+test('13 个首批目标都有真实宿主边界和受限样式挂接', async () => {
+  const registry = await import(`${pathToFileURL(path.resolve(import.meta.dirname, '../src/plugins/ui/componentRegistry.js')).href}?v=${Date.now()}-mapping`)
+  const files = await Promise.all([
+    'src/components/layout/TitleBar.vue',
+    'src/components/layout/AppLayout.vue',
+    'src/components/layout/NavigationDock.vue',
+    'src/views/RollerView.vue',
+    'src/views/CardView.vue',
+    'src/views/LotteryView.vue',
+    'src/views/StatisticsView.vue'
+  ].map(file => import('node:fs/promises').then(fs => fs.readFile(path.resolve(import.meta.dirname, '..', file), 'utf8'))))
+  const source = files.join('\n')
+  const escapeRegExp = value => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  for (const id of [
+    'app.title-bar', 'app.version-badge', 'navigation.dock', 'navigation.settings-entry',
+    'roller.current-list', 'roller.filters', 'roller.primary-action', 'roller.result',
+    'card.controls', 'card.deck', 'card.item', 'lottery.result', 'statistics.summary'
+  ]) assert.match(source, new RegExp(`data-plugin-component=["']${escapeRegExp(id)}`), id)
+  const resultStyles = registry.COMPONENT_TARGETS['roller.result'].allowedStyles
+  assert.ok(resultStyles.includes('size'))
+  assert.ok(resultStyles.includes('fontWeight'))
+  assert.equal(policy.styleVarsForTarget('roller.result', { size: 'large' })['--plugin-component-roller-result-size'], '88px')
+})
+
 test('组件样式包拒绝未知目标、选择器、变量和低对比度', () => {
   const permissions = ['ui:component-styles']
   assert.throws(() => policy.normalizeComponentStylePacks([{ id: 'x', targets: { 'unknown.target': { foreground: '#000' } } }], permissions, { pluginId: 'cn.example.x' }), error => error.code === 'PLUGIN_UI_UNKNOWN_TARGET')

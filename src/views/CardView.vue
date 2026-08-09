@@ -5,14 +5,15 @@
       {{ t('cardMode', lang) }}
     </h1>
 
-    <div class="cards-grid">
+    <div class="cards-grid" data-plugin-component="card.deck" :style="pluginsStore.componentStyleStyle('card.deck')">
       <div
         v-for="(card, i) in cards"
         :key="card.id"
         :ref="element => setCardRef(element, card.id)"
         class="card"
+        data-plugin-component="card.item"
         :class="{ show: card.visible, flipped: card.flipped, 'plugin-deal': card.pluginDeal }"
-        :style="{ animationDelay: (i * 0.08) + 's' }"
+        :style="[pluginsStore.componentStyleStyle('card.item'), { animationDelay: (i * 0.08) + 's' }]"
         @click="flipCard(i)"
       >
         <div class="card-inner">
@@ -37,7 +38,7 @@
         </div>
       </div>
 
-      <div class="card-controls">
+      <div class="card-controls" data-plugin-component="card.controls" :style="pluginsStore.componentStyleStyle('card.controls')">
         <div class="ctrl-row">
           <FluentToggle v-model="englishMode" label="English Mode" />
           <span class="control-sep" />
@@ -81,15 +82,15 @@
 import { ref, computed, onMounted, onBeforeUnmount, watch, inject, nextTick } from 'vue'
 import { useNamesStore } from '../stores/names'
 import { useSettingsStore } from '../stores/settings'
-import { useRecordsStore } from '../stores/records'
 import { usePluginsStore } from '../plugins/store'
+import { getCoreClient } from '../core/client'
 import { dataBridge } from '../utils/dataBridge'
 import { t } from '../utils/i18n'
 
 const namesStore = useNamesStore()
 const settingsStore = useSettingsStore()
-const recordsStore = useRecordsStore()
 const pluginsStore = usePluginsStore()
+const coreClient = getCoreClient()
 const showBanner = inject('banner')
 
 const lang = computed(() => settingsStore.settings.language)
@@ -215,7 +216,7 @@ function shuffle() {
   cards.value.forEach((card, i) => scheduleOperation(generation, () => { revealCard(card, generation) }, i * 80))
 }
 
-function flipCard(index, operation = null, generation = operation?.generation ?? operationGeneration) {
+async function flipCard(index, operation = null, generation = operation?.generation ?? operationGeneration) {
   if (!operationIsActive(generation)) return
   const card = cards.value[index]
   if (!card || card.flipped) return
@@ -228,10 +229,20 @@ function flipCard(index, operation = null, generation = operation?.generation ??
     if (globalState) globalState.globalTriggered = true
     pluginsStore.startAnimation('global.transition', null, { variant: 'card' })
   }
+  const personId = card.personId || namesStore.currentNames.find(person => person.cn === card.cn && (!card.en || person.en === card.en))?.id || null
+  try {
+    await coreClient.commitCard({
+      listId: namesStore.currentList.id,
+      personIds: [personId],
+      operationId: operation?.id || `card-${card.id}`
+    })
+  } catch (error) {
+    card.flipped = false
+    showBanner({ message: error?.message || '卡牌记录保存失败', icon: 'warning-16-regular', type: 'warning', duration: 8000 })
+    return
+  }
   usedNames.value.add(card.personId || card.cn)
   trayHistory.value.unshift({ id: ++historyIdCounter, name: card.displayName })
-  const personId = card.personId || namesStore.currentNames.find(person => person.cn === card.cn && (!card.en || person.en === card.en))?.id || null
-  recordsStore.addRecord({ personId, listId: namesStore.currentList.id, source: 'card' })
   const result = { id: personId || '', name: card.cn, englishName: card.en || '' }
   pluginsStore.dispatchEvent('card:item-result', {
     operationId: operation?.id || `card-${card.id}`,
@@ -314,18 +325,18 @@ onBeforeUnmount(() => {
 <style scoped>
 .card-view { padding: 32px; display: flex; flex-direction: column; align-items: center; min-height: 100%; }
 .card-title { font-family: var(--font-display); font-size: 28px; font-weight: 700; color: var(--text-primary); margin-bottom: 24px; display: flex; align-items: center; gap: 10px; }
-.cards-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 20px; width: 100%; justify-items: center; flex: 1; align-content: center; padding-bottom: 24px; }
-.card { width: 140px; height: 200px; perspective: 1500px; cursor: pointer; opacity: 0; transform: translateY(30px); }
+.cards-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(var(--plugin-component-card-deck-size, 140px), 1fr)); gap: var(--plugin-component-card-deck-gap, 20px); width: 100%; justify-items: center; flex: 1; align-content: center; padding: 0 var(--plugin-component-card-deck-padding, 0) 24px; background: var(--plugin-component-card-deck-background, transparent); color: var(--plugin-component-card-deck-foreground, inherit); }
+.card { width: var(--plugin-component-card-item-size, 140px); aspect-ratio: 7 / 10; height: auto; perspective: 1500px; cursor: pointer; opacity: 0; transform: translateY(30px); }
 .card.show:not(.plugin-deal) { animation: card-deal 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
 .card.show.plugin-deal { opacity: 1; transform: translateY(0); }
 @keyframes card-deal { to { opacity: 1; transform: translateY(0); } }
 .card-inner { position: relative; width: 100%; height: 100%; transform-style: preserve-3d; transition: transform 0.8s cubic-bezier(0.34, 1.56, 0.64, 1); }
 .card:hover .card-inner { transform: translateY(-8px); }
 .card.flipped .card-inner { transform: rotateY(180deg); }
-.card-face { position: absolute; inset: 0; backface-visibility: hidden; border-radius: var(--radius-xl); overflow: hidden; display: flex; align-items: center; justify-content: center; border: 2px solid var(--border-default); box-shadow: var(--shadow-8); }
-.card-back { background: linear-gradient(135deg, var(--bg-card-solid), var(--bg-hover)); }
+.card-face { position: absolute; inset: 0; backface-visibility: hidden; border-radius: var(--plugin-component-card-item-radius, var(--radius-xl)); overflow: hidden; display: flex; align-items: center; justify-content: center; border: 2px solid var(--plugin-component-card-item-border-color, var(--border-default)); box-shadow: var(--plugin-component-card-item-shadow, var(--shadow-8)); color: var(--plugin-component-card-item-foreground, inherit); }
+.card-back { background: var(--plugin-component-card-item-background, linear-gradient(135deg, var(--bg-card-solid), var(--bg-hover))); }
 .card-q-icon { color: var(--accent); opacity: 0.3; }
-.card-front { transform: rotateY(180deg); background: var(--bg-card-solid); font-family: var(--font-display); font-weight: 700; font-size: calc(20px * var(--name-font-factor, 1)); color: var(--accent); padding: 12px; text-align: center; border-color: var(--accent); text-shadow: 0 0 12px rgba(234, 94, 193, 0.3); }
+.card-front { transform: rotateY(180deg); background: var(--plugin-component-card-item-background, var(--bg-card-solid)); font-family: var(--plugin-component-card-item-font-family, var(--font-display)); font-weight: var(--plugin-component-card-item-font-weight, 700); font-size: var(--plugin-component-card-item-font-size, calc(20px * var(--name-font-factor, 1))); color: var(--plugin-component-card-item-foreground, var(--accent)); padding: var(--plugin-component-card-item-padding, 12px); text-align: center; border-color: var(--plugin-component-card-item-border-color, var(--accent)); text-shadow: 0 0 12px rgba(234, 94, 193, 0.3); }
 
 .bottom-section { width: 100%; margin-top: auto; }
 .tray { margin-bottom: 12px; }
@@ -336,7 +347,7 @@ onBeforeUnmount(() => {
 .tray-item-leave-active { animation: slide-in 0.2s ease-in reverse; }
 @keyframes slide-in { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
 
-.card-controls { background: var(--bg-card); backdrop-filter: blur(20px); padding: 12px 20px; border-radius: var(--radius-lg); border: 1px solid var(--border-default); box-shadow: var(--shadow-4); display: flex; flex-direction: column; gap: 8px; }
+.card-controls { min-height: var(--plugin-component-card-controls-size, 0); background: var(--plugin-component-card-controls-background, var(--bg-card)); color: var(--plugin-component-card-controls-foreground, inherit); font-family: var(--plugin-component-card-controls-font-family, var(--font-ui)); font-size: var(--plugin-component-card-controls-font-size, inherit); font-weight: var(--plugin-component-card-controls-font-weight, inherit); backdrop-filter: blur(20px); padding: var(--plugin-component-card-controls-padding, 12px 20px); border-radius: var(--radius-lg); border: 1px solid var(--border-default); box-shadow: var(--shadow-4); display: flex; flex-direction: column; gap: var(--plugin-component-card-controls-gap, 8px); }
 .ctrl-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
 .control-label { font-size: 14px; color: var(--text-secondary); font-weight: 500; }
 .control-sep { width: 1px; height: 24px; background: var(--border-default); }

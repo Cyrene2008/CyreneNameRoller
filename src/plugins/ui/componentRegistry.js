@@ -14,11 +14,11 @@ export const COMPONENT_TARGETS = Object.freeze({
   'roller.current-list': target('roller.current-list', 'required', ['size', 'foreground', 'background', 'fontSize', 'fontWeight', 'fontFamily', 'padding', 'gap'], { selector: '.list-selector-bar', identity: true }),
   'roller.filters': target('roller.filters', 'optional', ['size', 'foreground', 'background', 'fontSize', 'fontWeight', 'fontFamily', 'padding', 'gap'], { selector: ['.switches', '.multi-settings'], allowedLayouts: ['collapse', 'reserve', 'compact'], allowPluginFonts: true }),
   'roller.primary-action': target('roller.primary-action', 'required', ['size', 'foreground', 'background', 'accent', 'fontSize', 'fontWeight', 'fontFamily', 'radius'], { selector: '.start-btn' }),
-  'roller.result': target('roller.result', 'protected', ['foreground', 'background', 'accent', 'fontFamily', 'padding', 'gap', 'radius', 'borderColor', 'borderWidth', 'shadow', 'alignment'], { selector: ['.display-container', '.name-display'], authoritativeText: true, allowPluginFonts: false }),
+  'roller.result': target('roller.result', 'protected', ['size', 'foreground', 'background', 'accent', 'fontFamily', 'fontSize', 'fontWeight', 'padding', 'gap', 'radius', 'borderColor', 'borderWidth', 'shadow', 'alignment'], { selector: ['.display-container', '.name-display'], authoritativeText: true, allowPluginFonts: false }),
   'card.controls': target('card.controls', 'replaceable', ['size', 'foreground', 'background', 'fontSize', 'fontWeight', 'fontFamily', 'padding', 'gap'], { selector: '.card-controls' }),
   'card.deck': target('card.deck', 'required', ['size', 'padding', 'gap', 'foreground', 'background'], { selector: '.cards-grid' }),
   'card.item': target('card.item', 'required', ['size', 'foreground', 'background', 'fontSize', 'fontWeight', 'fontFamily', 'radius', 'shadow'], { selector: ['.card', '.card-face'] }),
-  'lottery.result': target('lottery.result', 'protected', ['foreground', 'background', 'accent', 'fontFamily', 'padding', 'gap', 'radius', 'borderColor', 'borderWidth', 'shadow', 'alignment'], { selector: ['.roller-result', '.wheel-result'], authoritativeText: true, allowPluginFonts: false }),
+  'lottery.result': target('lottery.result', 'protected', ['size', 'foreground', 'background', 'accent', 'fontFamily', 'fontSize', 'fontWeight', 'padding', 'gap', 'radius', 'borderColor', 'borderWidth', 'shadow', 'alignment'], { selector: ['.roller-result', '.wheel-result'], authoritativeText: true, allowPluginFonts: false }),
   'statistics.summary': target('statistics.summary', 'optional', ['size', 'foreground', 'background', 'fontSize', 'fontWeight', 'fontFamily', 'padding', 'gap'], { selector: '.stats-summary' })
 })
 

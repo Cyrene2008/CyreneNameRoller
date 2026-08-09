@@ -129,6 +129,21 @@ export interface HostExtensionDescriptor {
   schemaVersion: 1
   apiVersion: string
   model: 'product-freedom-core-hosted'
+  platform?: 'web' | 'tauri'
+  security?: { runtime: 'plugin-isolated' | 'backend-authoritative' }
+  componentTargets?: Array<{
+    id: string
+    platform?: 'all' | 'web' | 'tauri'
+    available: boolean
+    visibilityPolicy: 'protected' | 'required' | 'replaceable' | 'optional'
+    allowedStyles: readonly string[]
+    allowPluginFonts?: boolean
+  }>
+  slots?: Array<{
+    id: `slot:${string}`
+    available: boolean
+    platform: 'web' | 'tauri'
+  }>
   resources: HostExtensionCapability[]
   transactions: HostExtensionCapability[]
   contributions: string[]

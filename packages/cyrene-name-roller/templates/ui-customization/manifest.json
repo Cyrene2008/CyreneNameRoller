@@ -39,8 +39,26 @@
         "id": "focused",
         "title": "Focused",
         "targets": {
-          "roller.primary-action": { "size": "large", "fontWeight": 700, "radius": 8 },
-          "roller.result": { "alignment": "center", "padding": "comfortable", "gap": "comfortable" }
+          "roller.primary-action": {
+            "size": "large",
+            "foreground": "#ffffff",
+            "background": "#005a9e",
+            "fontFamily": "host:ui",
+            "fontSize": 18,
+            "fontWeight": 700,
+            "radius": 8
+          },
+          "roller.result": {
+            "size": "large",
+            "foreground": "#172033",
+            "background": "#ffffff",
+            "fontFamily": "host:display",
+            "fontSize": 72,
+            "fontWeight": 700,
+            "alignment": "center",
+            "padding": "comfortable",
+            "gap": "comfortable"
+          }
         }
       }
     ],

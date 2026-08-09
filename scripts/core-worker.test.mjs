@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { createCoreWorkerHandler } from '../src/core/web/core.worker.js'
-import { executeCoreDrawRequest } from '../src/core/web/coreService.js'
-import { normalizeCoreDrawInput } from '../src/core/protocol.js'
+import { executeCoreCardRequest, executeCoreDrawRequest } from '../src/core/web/coreService.js'
+import { normalizeCoreCardInput, normalizeCoreDrawInput } from '../src/core/protocol.js'
 import { commitCoreStateTransaction } from '../src/plugins/coreDraw.js'
 
 const state = {
@@ -100,4 +100,6 @@ test('Core Client 源码串行化主线程统计和记录提交', async () => {
   const source = await import('node:fs/promises').then(fs => fs.readFile(new URL('../src/core/client.js', import.meta.url), 'utf8'))
   assert.match(source, /this\.commitQueue\s*=\s*Promise\.resolve\(\)/)
   assert.match(source, /this\.commitQueue\.catch\(\(\)\s*=>\s*\{\}\)\.then\(/)
+  assert.doesNotMatch(source, /executeCoreDrawRequest|fallbackState/)
+  assert.match(source, /Core Worker 不可用/)
 })

@@ -23,6 +23,8 @@
               :key="resultNonce"
               ref="rollerResultRef"
               class="roller-result"
+              data-plugin-component="lottery.result"
+              :style="pluginsStore.componentStyleStyle('lottery.result')"
               :class="resultPrize && !rolling && !pluginFinishEnabled ? `finish-${settingsStore.settings.finishAnimation || 'spotlight'}` : ''"
             >
               <span class="result-quality">{{ visiblePrize?.quality || (lang === 'en' ? 'READY' : '等待抽取') }}</span>
@@ -49,6 +51,8 @@
               :key="resultNonce"
               ref="wheelResultRef"
               class="wheel-result"
+              data-plugin-component="lottery.result"
+              :style="pluginsStore.componentStyleStyle('lottery.result')"
               :class="resultPrize && !rolling && !settling && !pluginFinishEnabled ? `finish-${settingsStore.settings.finishAnimation || 'spotlight'}` : ''"
             >
               <span>{{ resultPrize ? (lang === 'en' ? 'Selected prize' : '抽取结果') : (lang === 'en' ? 'Weighted wheel' : '加权转盘') }}</span>
@@ -407,8 +411,8 @@ onBeforeUnmount(() => { clearDrawTimers(); clearTimeout(settleTimer) })
 .style-tabs { width: 100%; margin: 0; }
 .draw-stage { flex: 1; min-height: 330px; border-top: 1px solid var(--border-subtle); border-bottom: 1px solid var(--border-subtle); display: grid; place-items: center; overflow: hidden; }
 .roller-experience { width: 100%; height: 100%; min-height: 330px; display: grid; place-items: center; }
-.roller-result { min-width: min(720px, 86%); max-width: 92%; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 12px; }
-.roller-result strong { max-width: 100%; color: var(--text-primary); font-family: var(--font-display); font-size: clamp(48px, 7vh, 82px); line-height: 1.08; overflow-wrap: anywhere; }
+.roller-result { min-width: min(720px, 86%); max-width: 92%; text-align: center; display: flex; flex-direction: column; align-items: center; gap: var(--plugin-component-lottery-result-gap, 12px); color: var(--plugin-component-lottery-result-foreground, inherit); background: var(--plugin-component-lottery-result-background, transparent); padding: var(--plugin-component-lottery-result-padding, 0); border: var(--plugin-component-lottery-result-border-width, 0) solid var(--plugin-component-lottery-result-border-color, transparent); border-radius: var(--plugin-component-lottery-result-radius, 0); box-shadow: var(--plugin-component-lottery-result-shadow, none); }
+.roller-result strong { max-width: 100%; color: var(--plugin-component-lottery-result-foreground, var(--text-primary)); font-family: var(--plugin-component-lottery-result-font-family, var(--font-display)); font-size: min(var(--plugin-component-lottery-result-font-size, var(--plugin-component-lottery-result-size, 82px)), clamp(48px, 7vh, 82px)); font-weight: var(--plugin-component-lottery-result-font-weight, 700); line-height: 1.08; overflow-wrap: anywhere; }
 .result-quality { color: var(--accent); font-size: 13px; font-weight: 700; letter-spacing: 0; text-transform: uppercase; }
 .result-stock { min-height: 20px; color: var(--text-muted); font-size: 13px; }
 .wheel-experience { width: min(820px, 100%); min-height: 430px; padding: 18px 24px 14px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; }
@@ -417,9 +421,9 @@ onBeforeUnmount(() => { clearDrawTimers(); clearTimeout(settleTimer) })
 .prize-wheel { position: absolute; inset: 18px 10px 10px; border-radius: 50%; border: 5px solid var(--bg-card-solid); box-shadow: 0 0 0 1px var(--border-strong), inset 0 0 0 2px rgba(255, 255, 255, 0.5); overflow: hidden; will-change: transform; }
 .wheel-label { position: absolute; z-index: 1; top: 50%; left: 50%; width: 34%; color: #fff; font-size: clamp(10px, 1.1vw, 14px); font-weight: 700; line-height: 1.2; text-align: center; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.72); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; transform-origin: center; }
 .wheel-hub { position: absolute; z-index: 2; inset: 38%; border-radius: 50%; display: grid; place-items: center; color: var(--accent); background: var(--bg-card-solid); border: 1px solid var(--border-strong); box-shadow: var(--shadow-8); }
-.wheel-result { width: min(560px, 92%); min-height: 92px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; text-align: center; }
+.wheel-result { width: min(560px, 92%); min-height: 92px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--plugin-component-lottery-result-gap, 6px); text-align: center; color: var(--plugin-component-lottery-result-foreground, inherit); background: var(--plugin-component-lottery-result-background, transparent); padding: var(--plugin-component-lottery-result-padding, 0); border: var(--plugin-component-lottery-result-border-width, 0) solid var(--plugin-component-lottery-result-border-color, transparent); border-radius: var(--plugin-component-lottery-result-radius, 0); box-shadow: var(--plugin-component-lottery-result-shadow, none); }
 .wheel-result > span { color: var(--accent); font-size: 13px; font-weight: 600; }
-.wheel-result strong { color: var(--text-primary); font-family: var(--font-display); font-size: clamp(28px, 3.5vw, 48px); line-height: 1.08; overflow-wrap: anywhere; }
+.wheel-result strong { color: var(--plugin-component-lottery-result-foreground, var(--text-primary)); font-family: var(--plugin-component-lottery-result-font-family, var(--font-display)); font-size: min(var(--plugin-component-lottery-result-font-size, var(--plugin-component-lottery-result-size, 48px)), clamp(28px, 3.5vw, 48px)); font-weight: var(--plugin-component-lottery-result-font-weight, 700); line-height: 1.08; overflow-wrap: anywhere; }
 .wheel-result small { color: var(--text-muted); font-size: 13px; }
 .draw-actions { flex: 0 0 auto; padding: 16px 0 8px; display: flex; flex-direction: column; align-items: center; gap: 8px; }
 .primary-action { width: min(300px, 100%); justify-content: center; }

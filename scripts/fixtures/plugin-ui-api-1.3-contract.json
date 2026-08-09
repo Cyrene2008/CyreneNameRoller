@@ -30,7 +30,7 @@
   "safeMode": {
     "file": { "tauri": "<appConfigDir>/safemode.json", "web": "import.meta.env.BASE_URL + safemode.json" },
     "cache": "no-store",
-    "invalid": { "enabled": true, "source": "invalid", "errorCode": "SAFE_MODE_CONFIG_INVALID" },
+    "invalid": { "enable": true, "source": "invalid", "errorCode": "SAFE_MODE_CONFIG_INVALID" },
     "offline": { "history": "stale", "noHistory": "disabled-with-diagnostic", "errorCode": "SAFE_MODE_CONFIG_UNAVAILABLE" },
     "startupBefore": ["plugin-package-parse", "plugin-worker", "plugin-iframe", "plugin-command", "plugin-font", "plugin-contribution"]
   },

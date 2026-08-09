@@ -9,6 +9,7 @@
 
     <div
       class="display-container"
+      data-plugin-component="roller.result"
       ref="displayRef"
       :style="pluginsStore.componentStyleStyle('roller.result')"
     >
@@ -30,7 +31,7 @@
 
     <div class="controls-center" ref="controlsCenterRef">
       <template v-if="filterOverride.visibility !== 'hidden' || filtersCompactOpen">
-        <div class="switches" :style="pluginsStore.componentStyleStyle('roller.filters')">
+        <div class="switches" data-plugin-component="roller.filters" :style="pluginsStore.componentStyleStyle('roller.filters')">
           <FluentToggle class="english-mode-toggle" v-model="settings.englishMode" label="English Mode" @update:model-value="saveSetting('englishMode', $event)" />
           <FluentTabs :model-value="settings.groupMode ? 'groups' : 'people'" :options="drawTargetOptions" @update:model-value="onDrawTargetChange" />
           <Transition name="toggle-expand">
@@ -43,7 +44,7 @@
         </div>
 
         <Transition name="toggle-expand">
-          <div v-if="settings.multiMode" class="multi-settings" :style="pluginsStore.componentStyleStyle('roller.filters')">
+          <div v-if="settings.multiMode" class="multi-settings" data-plugin-component="roller.filters" :style="pluginsStore.componentStyleStyle('roller.filters')">
             <span class="setting-label">{{ countSettingLabel }}</span>
             <div class="count-control">
               <FluentButton variant="secondary" size="sm" @click="changeCount(-1)"><FluentIcon icon="subtract-16-regular" :width="14" /></FluentButton>
@@ -58,12 +59,12 @@
         <FluentIcon icon="filter-16-regular" :width="14" />{{ lang === 'en' ? 'Show filters' : '显示筛选' }}
       </FluentButton>
 
-      <div class="list-selector-bar" :style="pluginsStore.componentStyleStyle('roller.current-list')">
+      <div class="list-selector-bar" data-plugin-component="roller.current-list" :style="pluginsStore.componentStyleStyle('roller.current-list')">
         <span class="selector-label">{{ t('currentList', lang) }}</span>
         <FluentSelect :model-value="namesStore.currentListId" :options="listOptions" @update:model-value="namesStore.switchList" />
       </div>
 
-      <FluentButton :variant="isRunning ? 'danger' : 'primary'" size="lg" class="start-btn" :style="pluginsStore.componentStyleStyle('roller.primary-action')" :class="{ 'btn-dimmed': !canStart && !isRunning }" :disabled="isFinishing" @click="toggleRoll">
+      <FluentButton :variant="isRunning ? 'danger' : 'primary'" size="lg" class="start-btn" data-plugin-component="roller.primary-action" :style="pluginsStore.componentStyleStyle('roller.primary-action')" :class="{ 'btn-dimmed': !canStart && !isRunning }" :disabled="isFinishing" @click="toggleRoll">
         <FluentIcon :icon="isRunning ? 'stop-24-filled' : 'play-24-filled'" :width="18" />
         {{ isRunning ? t('stop', lang) : t('start', lang) }}
         <span
@@ -220,7 +221,8 @@ function getNameStyle(display, i) {
     style.top = layout.y + 'px'
     style.width = gridParams.cellW + 'px'
     style.textAlign = 'center'
-    style.fontSize = (nameFontSize.value * (settings.value.nameFontSize || 1)) + 'px'
+    const fittedFontSize = nameFontSize.value * (settings.value.nameFontSize || 1)
+    style.fontSize = `min(var(--plugin-component-roller-result-font-size, var(--plugin-component-roller-result-size, ${fittedFontSize}px)), ${fittedFontSize}px)`
     style['--reveal-scale'] = gridParams.revealScale
   }
   if (settings.value.nameColorMode === 'custom') {
@@ -871,6 +873,8 @@ onBeforeUnmount(() => { if (intervalId) clearTimeout(intervalId); clearTimeout(a
   overflow: hidden;
   pointer-events: none;
   color: var(--plugin-component-roller-result-foreground, var(--text-primary));
+  font-family: var(--plugin-component-roller-result-font-family, var(--font-display));
+  font-weight: var(--plugin-component-roller-result-font-weight, inherit);
   background: var(--plugin-component-roller-result-background, transparent);
   border: var(--plugin-component-roller-result-border-width, 0) solid var(--plugin-component-roller-result-border-color, transparent);
   border-radius: var(--plugin-component-roller-result-radius, 0);
@@ -878,7 +882,7 @@ onBeforeUnmount(() => { if (intervalId) clearTimeout(intervalId); clearTimeout(a
   box-shadow: var(--plugin-component-roller-result-shadow, none);
 }
 
-.name-display { position: absolute; white-space: nowrap; overflow: visible; font-family: var(--font-display); font-weight: 700; color: var(--plugin-component-roller-result-foreground, var(--text-primary)); line-height: 1.05; letter-spacing: 0.5px; transition: left 0.3s ease, top 0.3s ease, width 0.3s ease, font-size 0.3s ease, opacity 0.3s ease; text-shadow: 0 4px 20px rgba(234, 94, 193, 0.15); z-index: 5; }
+.name-display { position: absolute; white-space: nowrap; overflow: visible; font-family: var(--plugin-component-roller-result-font-family, var(--font-display)); font-weight: var(--plugin-component-roller-result-font-weight, 700); color: var(--plugin-component-roller-result-foreground, var(--text-primary)); line-height: 1.05; letter-spacing: 0.5px; transition: left 0.3s ease, top 0.3s ease, width 0.3s ease, font-size 0.3s ease, opacity 0.3s ease; text-shadow: 0 4px 20px rgba(234, 94, 193, 0.15); z-index: 5; }
 .name-display::before { content: ''; position: absolute; inset: -4px; background: var(--accent); border-radius: var(--radius-sm); z-index: -1; opacity: 0; transition: opacity 0.3s ease; }
 .name-display.rainbow {
   background: linear-gradient(90deg, #ff6ad9, #72afec, #ff6ad9, #72afec, #ff6ad9, #72afec, #ff6ad9, #72afec, #ff6ad9);
@@ -936,7 +940,7 @@ onBeforeUnmount(() => { if (intervalId) clearTimeout(intervalId); clearTimeout(a
 .count-input :deep(input)::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 .list-selector-bar { display: flex; align-items: center; gap: var(--plugin-component-roller-current-list-gap, 12px); background: var(--plugin-component-roller-current-list-background, var(--bg-card)); color: var(--plugin-component-roller-current-list-foreground, inherit); backdrop-filter: blur(20px); padding: var(--plugin-component-roller-current-list-padding, 8px 16px); border-radius: var(--radius-lg); border: 1px solid var(--border-default); box-shadow: var(--shadow-4); width: 100%; justify-content: center; font-size: var(--plugin-component-roller-current-list-font-size, inherit); font-weight: var(--plugin-component-roller-current-list-font-weight, inherit); }
 .selector-label { font-size: 14px; font-weight: 600; color: var(--text-secondary); white-space: nowrap; }
-.start-btn { min-width: 280px; font-size: var(--plugin-component-roller-primary-action-font-size, 16px); font-weight: var(--plugin-component-roller-primary-action-font-weight, inherit); min-height: 48px; margin-top: 8px; position: relative; overflow: hidden; color: var(--plugin-component-roller-primary-action-foreground, inherit); background: var(--plugin-component-roller-primary-action-background, var(--accent)); border-radius: var(--plugin-component-roller-primary-action-radius, var(--radius)); }
+.start-btn { min-width: var(--plugin-component-roller-primary-action-size, 280px); font-family: var(--plugin-component-roller-primary-action-font-family, var(--font-ui)); font-size: var(--plugin-component-roller-primary-action-font-size, 16px); font-weight: var(--plugin-component-roller-primary-action-font-weight, inherit); min-height: 48px; margin-top: 8px; position: relative; overflow: hidden; color: var(--plugin-component-roller-primary-action-foreground, inherit); background: var(--plugin-component-roller-primary-action-background, var(--accent)); border-radius: var(--plugin-component-roller-primary-action-radius, var(--radius)); }
 .start-btn-countdown { position: absolute; left: 0; right: auto; bottom: 0; height: 3px; background: #ffd6e8; box-shadow: 0 0 8px rgba(255, 214, 232, 0.75); pointer-events: none; transition: width 0.05s linear; }
 .btn-dimmed { opacity: 0.45; cursor: not-allowed; }
 

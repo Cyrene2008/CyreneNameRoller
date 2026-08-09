@@ -9,6 +9,17 @@ import {
   hasPrincipalPermission,
   revokePrincipal
 } from './ui/principal.js'
+import { listComponentTargets } from './ui/componentRegistry.js'
+import { NATIVE_VIEW_SLOTS } from './ui/nativeViewPolicy.js'
+
+const RESERVED_NATIVE_VIEW_SLOTS = Object.freeze([
+  'slot:app.command-palette',
+  'slot:roller.toolbar',
+  'slot:card.footer',
+  'slot:lottery.side-panel',
+  'slot:statistics.section',
+  'slot:settings.plugin-section'
+])
 
 function dataUrlFromBase64(base64, mime = 'application/octet-stream') {
   return `data:${mime};base64,${base64}`
@@ -145,10 +156,27 @@ export class PluginRuntime {
   describeHost(plugin, principal = null) {
     const granted = new Set(plugin?.manifest?.permissions || [])
     const describe = ([id, definition]) => ({ id, ...definition, available: granted.has(definition.permission) })
+    const platform = this.platformBridge.info()
+    const componentTargets = listComponentTargets(platform.runtime).map(({ id, platform: targetPlatform, available, visibilityPolicy, allowedStyles, allowPluginFonts }) => ({
+      id,
+      platform: targetPlatform,
+      available,
+      visibilityPolicy,
+      allowedStyles: [...allowedStyles],
+      ...(allowPluginFonts === true ? { allowPluginFonts: true } : {})
+    }))
+    const slots = [
+      ...NATIVE_VIEW_SLOTS.map(id => ({ id, available: true, platform: platform.runtime })),
+      ...RESERVED_NATIVE_VIEW_SLOTS.map(id => ({ id, available: false, platform: platform.runtime }))
+    ]
     return {
       schemaVersion: 1,
       apiVersion: PLUGIN_API_VERSION,
       principal: describePrincipal(principal),
+      platform: platform.runtime,
+      security: { runtime: platform.runtime === 'tauri' ? 'backend-authoritative' : 'plugin-isolated' },
+      componentTargets,
+      slots,
       model: 'product-freedom-core-hosted',
       resources: Object.entries(HOST_RESOURCES).map(describe),
       transactions: Object.entries(HOST_TRANSACTIONS).map(describe),

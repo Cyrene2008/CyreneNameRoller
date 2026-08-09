@@ -262,7 +262,7 @@ impl CoreAuthorityState {
     }
 
     fn issue(&self, principal: &str) -> Result<String, String> {
-        if principal.is_empty() { return Err("PLUGIN_PERMISSION_DENIED".into()); }
+        if !valid_core_principal(principal) { return Err("PLUGIN_PERMISSION_DENIED".into()); }
         let mut bytes = [0u8; 32];
         OsRng.fill_bytes(&mut bytes);
         let token = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(bytes);
@@ -316,7 +316,105 @@ struct RustDrawRequest {
     input: RustDrawInput,
 }
 
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct RustCardInput {
+    list_id: String,
+    person_ids: Vec<String>,
+}
+
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct RustCardCommitRequest {
+    grant_token: String,
+    principal: String,
+    caller_kind: String,
+    plugin_id: String,
+    operation_id: String,
+    input: RustCardInput,
+}
+
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct CoreStateSetRequest {
+    grant_token: String,
+    principal: String,
+    key: String,
+    value: serde_json::Value,
+}
+
 fn default_true() -> bool { true }
+
+fn valid_core_principal(principal: &str) -> bool {
+    if principal == "core-ui" { return true; }
+    principal.strip_prefix("plugin:").is_some_and(|plugin_id| {
+        !plugin_id.is_empty()
+            && plugin_id.len() <= 128
+            && plugin_id.chars().all(|character| character.is_ascii_alphanumeric() || matches!(character, '.' | '-' | '_'))
+    })
+}
+
+fn validate_core_caller(request: &RustDrawRequest) -> Result<(), String> {
+    match request.caller_kind.as_str() {
+        "core-ui" if request.principal == "core-ui" && (request.plugin_id.is_empty() || request.plugin_id == "core") => Ok(()),
+        "plugin" if !request.plugin_id.is_empty() && request.principal == format!("plugin:{}", request.plugin_id) => Ok(()),
+        _ => Err("PLUGIN_PERMISSION_DENIED".into()),
+    }
+}
+
+fn validate_core_card_caller(request: &RustCardCommitRequest) -> Result<(), String> {
+    if request.caller_kind == "core-ui"
+        && request.principal == "core-ui"
+        && (request.plugin_id.is_empty() || request.plugin_id == "core")
+    {
+        Ok(())
+    } else {
+        Err("PLUGIN_PERMISSION_DENIED".into())
+    }
+}
+
+fn apply_core_state_update(
+    old_values: &Value,
+    state_key: &str,
+    value: Value,
+    mac_key: &[u8; 32],
+) -> Result<Value, String> {
+    let mut next_values = old_values.clone();
+    let mut envelope = core_state::parse(old_values, mac_key)?;
+    match state_key {
+        "lists" => {
+            if !value.is_object() { return Err("CORE_TRANSACTION_REJECTED".into()); }
+            next_values["lists"] = value.clone();
+            envelope.state.names["lists"] = value;
+        }
+        "currentListId" => {
+            if value.as_str().map_or(true, str::is_empty) { return Err("CORE_TRANSACTION_REJECTED".into()); }
+            next_values["currentListId"] = value.clone();
+            envelope.state.names["currentListId"] = value;
+        }
+        "balance" => {
+            let object = value.as_object().ok_or_else(|| "CORE_TRANSACTION_REJECTED".to_string())?;
+            if object.keys().any(|key| key != "enabled" && key != "algorithm")
+                || object.get("enabled").is_some_and(|value| !value.is_boolean())
+                || object.get("algorithm").is_some_and(|value| value.as_str() != Some(core_state::ALGORITHM_NAME))
+            {
+                return Err("CORE_TRANSACTION_REJECTED".into());
+            }
+            let balance = json!({
+                "enabled": object.get("enabled").and_then(Value::as_bool).unwrap_or(true),
+                "algorithm": core_state::ALGORITHM_NAME
+            });
+            next_values["balance"] = balance.clone();
+            envelope.state.balance = balance;
+        }
+        _ => return Err("PLUGIN_PERMISSION_DENIED".into()),
+    }
+    let envelope = core_state::seal(envelope, mac_key)?;
+    next_values[core_state::CORE_STATE_KEY] = core_state::to_value(&envelope)?;
+    next_values["statistics"] = envelope.state.statistics.clone();
+    next_values["records"] = envelope.state.records.clone();
+    Ok(next_values)
+}
 
 #[tauri::command]
 fn core_grant_token(state: State<'_, CoreAuthorityState>, principal: String) -> Result<String, String> {
@@ -332,14 +430,36 @@ fn core_revoke_principal(state: State<'_, CoreAuthorityState>, principal: String
 }
 
 #[tauri::command]
+fn core_state_set(
+    store: State<'_, EncryptedStore>,
+    authority: State<'_, CoreAuthorityState>,
+    request: CoreStateSetRequest,
+) -> Result<bool, String> {
+    if request.principal != "core-ui" { return Err("PLUGIN_PERMISSION_DENIED".into()); }
+    authority.authorize(&request.grant_token, &request.principal)?;
+    let _transaction = authority.transaction.lock().map_err(|_| "CORE_TRANSACTION_REJECTED".to_string())?;
+    let key = core_data_key()?;
+    let old_values = store.values.lock().map_err(|_| "CORE_TRANSACTION_REJECTED".to_string())?.clone();
+    let next_values = apply_core_state_update(&old_values, &request.key, request.value, &key)?;
+    *store.values.lock().map_err(|_| "CORE_TRANSACTION_REJECTED".to_string())? = next_values;
+    if let Err(error) = store.persist() {
+        *store.values.lock().map_err(|_| "CORE_TRANSACTION_ROLLED_BACK".to_string())? = old_values;
+        let _ = store.persist();
+        return Err(format!("CORE_TRANSACTION_ROLLED_BACK: {}", error));
+    }
+    Ok(true)
+}
+
+#[tauri::command]
 fn core_draw_execute(
     store: State<'_, EncryptedStore>,
     authority: State<'_, CoreAuthorityState>,
     request: RustDrawRequest,
 ) -> Result<serde_json::Value, String> {
+    validate_core_caller(&request)?;
     authority.authorize(&request.grant_token, &request.principal)?;
     let _transaction = authority.transaction.lock().map_err(|_| "CORE_TRANSACTION_REJECTED".to_string())?;
-    let key = data_key();
+    let key = core_data_key()?;
     let old_values = store.values.lock().map_err(|_| "CORE_TRANSACTION_REJECTED".to_string())?.clone();
     let mut envelope = match core_state::parse(&old_values, &key) {
         Ok(envelope) => envelope,
@@ -444,6 +564,133 @@ fn core_draw_execute(
     Ok(json!({ "receipt": receipt, "statistics": statistics, "records": records, "sequence": next_envelope.state.sequence }))
 }
 
+#[tauri::command]
+fn core_card_commit(
+    store: State<'_, EncryptedStore>,
+    authority: State<'_, CoreAuthorityState>,
+    request: RustCardCommitRequest,
+) -> Result<serde_json::Value, String> {
+    validate_core_card_caller(&request)?;
+    authority.authorize(&request.grant_token, &request.principal)?;
+    if request.input.person_ids.is_empty() || request.input.person_ids.len() > 100 {
+        return Err("CORE_TRANSACTION_REJECTED".into());
+    }
+    let mut unique_ids = Vec::new();
+    for person_id in &request.input.person_ids {
+        if person_id.is_empty() || unique_ids.contains(person_id) {
+            return Err("CORE_TRANSACTION_REJECTED".into());
+        }
+        unique_ids.push(person_id.clone());
+    }
+    let _transaction = authority.transaction.lock().map_err(|_| "CORE_TRANSACTION_REJECTED".to_string())?;
+    let key = core_data_key()?;
+    let old_values = store.values.lock().map_err(|_| "CORE_TRANSACTION_REJECTED".to_string())?.clone();
+    let mut envelope = match core_state::parse(&old_values, &key) {
+        Ok(envelope) => envelope,
+        Err(error) => {
+            authority.readonly.store(true, Ordering::Release);
+            return Err(error);
+        }
+    };
+    envelope.state.names = json!({
+        "currentListId": old_values.get("currentListId").cloned().unwrap_or_else(|| json!("default")),
+        "lists": old_values.get("lists").cloned().unwrap_or_else(|| json!({}))
+    });
+    envelope.state.balance = old_values.get("balance").cloned().unwrap_or_else(|| json!({ "enabled": true }));
+    let list_id = if request.input.list_id.is_empty() {
+        envelope.state.names.get("currentListId").and_then(Value::as_str).unwrap_or("default").to_string()
+    } else {
+        request.input.list_id.clone()
+    };
+    let names = envelope.state.names.get("lists")
+        .and_then(|lists| lists.get(&list_id))
+        .and_then(|list| list.get("names"))
+        .and_then(Value::as_array)
+        .ok_or_else(|| "CORE_TRANSACTION_REJECTED".to_string())?;
+    let mut results = Vec::new();
+    for person_id in &unique_ids {
+        let person = names.iter().find(|person| person.get("id").and_then(Value::as_str) == Some(person_id.as_str()))
+            .ok_or_else(|| "CORE_TRANSACTION_REJECTED".to_string())?;
+        if person.get("isWhiteList").and_then(Value::as_bool).unwrap_or(false) {
+            return Err("CORE_TRANSACTION_REJECTED".into());
+        }
+        results.push(json!({
+            "id": person_id,
+            "name": person.get("cn").and_then(Value::as_str).unwrap_or(""),
+            "englishName": person.get("en").and_then(Value::as_str).unwrap_or("")
+        }));
+    }
+    let operation_id = if request.operation_id.is_empty() {
+        format!("card-{}", envelope.state.sequence + 1)
+    } else {
+        request.operation_id.clone()
+    };
+    let committed_at = chrono_like_now();
+    let mut receipt = json!({
+        "kind": "card",
+        "operationId": operation_id,
+        "pluginId": "core",
+        "listId": list_id,
+        "count": results.len(),
+        "committedAt": committed_at,
+        "results": results
+    });
+    let previous_hash = core_state::hash_state(&envelope)?;
+    receipt["sequence"] = json!(envelope.state.sequence + 1);
+    receipt["previousHash"] = json!(previous_hash.clone());
+    let receipt_hash = core_state::receipt_hash(&receipt)?;
+    let mut records = envelope.state.records.as_array().cloned().unwrap_or_default();
+    for result in receipt["results"].as_array().unwrap_or(&Vec::new()) {
+        records.insert(0, json!({
+            "personId": result["id"],
+            "listId": receipt["listId"],
+            "groupId": Value::Null,
+            "source": "card",
+            "pluginId": "",
+            "operationId": receipt["operationId"],
+            "time": committed_at
+        }));
+    }
+    records.truncate(500);
+    let next_state = core_state::CoreState {
+        schema_version: core_state::CORE_SCHEMA_VERSION,
+        sequence: envelope.state.sequence + 1,
+        previous_hash,
+        receipt_hash: receipt_hash.clone(),
+        algorithm: core_state::ALGORITHM_NAME.into(),
+        algorithm_version: core_state::ALGORITHM_VERSION.into(),
+        names: envelope.state.names.clone(),
+        balance: envelope.state.balance.clone(),
+        statistics: envelope.state.statistics.clone(),
+        records: Value::Array(records.clone()),
+    };
+    let next_envelope = core_state::seal(core_state::CoreStateEnvelope {
+        schema_version: core_state::CORE_SCHEMA_VERSION,
+        state: next_state,
+        state_mac: String::new(),
+    }, &key)?;
+    receipt["receiptHash"] = json!(receipt_hash);
+    let mut next_values = old_values.clone();
+    next_values.as_object_mut().ok_or_else(|| "CORE_TRANSACTION_REJECTED".to_string())?
+        .insert(core_state::CORE_STATE_KEY.into(), core_state::to_value(&next_envelope)?);
+    next_values["statistics"] = next_envelope.state.statistics.clone();
+    next_values["records"] = Value::Array(records.clone());
+    *store.values.lock().map_err(|_| "CORE_TRANSACTION_REJECTED".to_string())? = next_values;
+    if let Err(error) = store.persist() {
+        if let Ok(mut values) = store.values.lock() {
+            *values = old_values;
+        }
+        let _ = store.persist();
+        return Err(format!("CORE_TRANSACTION_ROLLED_BACK: {}", error));
+    }
+    Ok(json!({
+        "receipt": receipt,
+        "statistics": next_envelope.state.statistics,
+        "records": records,
+        "sequence": next_envelope.state.sequence
+    }))
+}
+
 fn chrono_like_now() -> u64 {
     std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|duration| duration.as_millis() as u64).unwrap_or(0)
 }
@@ -453,20 +700,22 @@ fn read_safe_mode_status(path: &Path) -> serde_json::Value {
     let raw = match fs::read_to_string(path) {
         Ok(raw) => raw,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            let created = path.parent().map(fs::create_dir_all).transpose()
+                .and_then(|_| fs::write(path, "{\n  \"enable\": false\n}\n"));
             return serde_json::json!({
                 "enabled": false,
-                "source": "default",
+                "source": "missing",
                 "stale": false,
-                "errorCode": "SAFE_MODE_CONFIG_UNAVAILABLE",
-                "diagnostic": "safemode.json 不存在，安全模式默认关闭",
+                "errorCode": if created.is_ok() { "" } else { "SAFE_MODE_CONFIG_UNAVAILABLE" },
+                "diagnostic": if created.is_ok() { "safemode.json 不存在，已创建默认配置".to_string() } else { format!("safemode.json 不存在且默认配置创建失败：{}", created.unwrap_err()) },
                 "path": path_text
             });
         }
         Err(error) => {
             return serde_json::json!({
-                "enabled": false,
-                "source": "default",
-                "stale": true,
+                "enabled": true,
+                "source": "unavailable",
+                "stale": false,
                 "errorCode": "SAFE_MODE_CONFIG_UNAVAILABLE",
                 "diagnostic": error.to_string(),
                 "path": path_text
@@ -495,29 +744,36 @@ fn read_safe_mode_status(path: &Path) -> serde_json::Value {
             "path": path_text
         }),
     };
-    let enabled = match object.get("enabled").and_then(serde_json::Value::as_bool) {
+    let enabled = match object.get("enable").and_then(serde_json::Value::as_bool) {
         Some(enabled) => enabled,
         None => return serde_json::json!({
             "enabled": true,
             "source": "invalid",
             "stale": false,
             "errorCode": "SAFE_MODE_CONFIG_INVALID",
-            "diagnostic": "safemode.json 必须包含布尔值 enabled",
+            "diagnostic": "safemode.json 必须包含布尔值 enable",
             "path": path_text
         }),
     };
-    let unknown = object.keys().find(|key| *key != "enabled" && *key != "schemaVersion");
-    if unknown.is_some() || object.get("schemaVersion").and_then(serde_json::Value::as_i64).is_some_and(|version| version != 1) {
+    if object.get("schemaVersion").is_some_and(|version| version.as_u64().map_or(true, |version| version == 0)) {
         return serde_json::json!({
             "enabled": true,
             "source": "invalid",
             "stale": false,
             "errorCode": "SAFE_MODE_CONFIG_INVALID",
-            "diagnostic": "safemode.json 包含未知字段或版本",
+            "diagnostic": "safemode.json 的 schemaVersion 必须是正整数",
             "path": path_text
         });
     }
-    serde_json::json!({ "enabled": enabled, "source": "file", "stale": false, "errorCode": "", "diagnostic": "", "path": path_text })
+    let unknown: Vec<_> = object.keys().filter(|key| *key != "enable" && *key != "schemaVersion").cloned().collect();
+    serde_json::json!({
+        "enabled": enabled,
+        "source": "file",
+        "stale": false,
+        "errorCode": "",
+        "diagnostic": if unknown.is_empty() { String::new() } else { format!("safemode.json 已忽略未知字段：{}", unknown.join(", ")) },
+        "path": path_text
+    })
 }
 
 #[tauri::command]
@@ -550,11 +806,18 @@ impl EncryptedStore {
             for candidate in candidates {
                 match fs::read(&candidate) {
                     Ok(bytes) => match decrypt_data(&bytes) {
-                        Ok(values) => {
+                        Ok(mut values) => {
                             if values.get(core_state::CORE_STATE_KEY).is_some() {
                                 let key = match core_data_key() {
                                     Ok(key) => key,
                                     Err(error) => { last_error = Some(error); continue; }
+                                };
+                                values = match core_state::normalize_values(&values, &key) {
+                                    Ok(values) => values,
+                                    Err(_) => {
+                                        last_error = Some("CORE_INTEGRITY_CHECK_FAILED".into());
+                                        continue;
+                                    }
                                 };
                                 if core_state::parse(&values, &key).is_err() {
                                     last_error = Some("CORE_INTEGRITY_CHECK_FAILED".into());
@@ -1125,6 +1388,16 @@ fn storage_get(store: State<'_, EncryptedStore>, key: String) -> Option<serde_js
         .and_then(|values| values.get(&key).cloned())
 }
 
+fn is_core_storage_key(key: &str) -> bool {
+    matches!(key, "lists" | "currentListId" | "balance" | "statistics" | "records" | core_state::CORE_STATE_KEY)
+}
+
+fn clear_non_core_values(values: &mut Value) -> bool {
+    let Some(object) = values.as_object_mut() else { return false; };
+    object.retain(|key, _| is_core_storage_key(key));
+    true
+}
+
 fn migrate_legacy_data(app: &tauri::AppHandle) {
     let store = app.state::<EncryptedStore>();
     if store.path.exists() || store.is_healthy().is_err() {
@@ -1204,8 +1477,8 @@ fn storage_set(
     key: String,
     value: serde_json::Value,
 ) -> serde_json::Value {
-    if matches!(key.as_str(), "statistics" | "records" | core_state::CORE_STATE_KEY) {
-        return serde_json::json!({ "success": false, "code": "PLUGIN_PERMISSION_DENIED", "error": "核心统计和记录必须通过权威事务写入" });
+    if is_core_storage_key(&key) {
+        return serde_json::json!({ "success": false, "code": "PLUGIN_PERMISSION_DENIED", "error": "核心名单、算法设置、统计和记录必须通过权威事务写入" });
     }
     if store.is_healthy().is_err() {
         return serde_json::json!({ "success": false, "error": "数据文件完整性检查失败" });
@@ -1227,6 +1500,9 @@ fn storage_set(
 
 #[tauri::command]
 fn storage_delete(store: State<'_, EncryptedStore>, key: String) -> bool {
+    if is_core_storage_key(&key) {
+        return false;
+    }
     if store.is_healthy().is_err() {
         return false;
     }
@@ -1248,7 +1524,9 @@ fn storage_clear(store: State<'_, EncryptedStore>) -> bool {
         return false;
     }
     if let Ok(mut values) = store.values.lock() {
-        *values = serde_json::json!({});
+        if !clear_non_core_values(&mut values) {
+            return false;
+        }
     } else {
         return false;
     }
@@ -1267,16 +1545,22 @@ fn import_encrypted_data(
     store: State<'_, EncryptedStore>,
     encoded_data: String,
 ) -> Result<bool, String> {
+    store.is_healthy()?;
     let bytes = base64::engine::general_purpose::STANDARD
         .decode(encoded_data)
         .map_err(|_| "导入文件编码无效".to_string())?;
-    let values = decrypt_data(&bytes)?;
+    let values = core_state::normalize_values(&decrypt_data(&bytes)?, &core_data_key()?)?;
+    let old_values = store.values.lock().map_err(|_| "数据锁定失败".to_string())?.clone();
     if let Ok(mut current_values) = store.values.lock() {
         *current_values = values;
     } else {
         return Err("数据锁定失败".into());
     }
-    store.persist()?;
+    if let Err(error) = store.persist() {
+        *store.values.lock().map_err(|_| "数据锁定失败".to_string())? = old_values;
+        let _ = store.persist();
+        return Err(format!("CORE_TRANSACTION_ROLLED_BACK: {}", error));
+    }
     Ok(true)
 }
 
@@ -1556,12 +1840,15 @@ async fn import_data_file(
     };
     let path = selected.into_path().map_err(|error| error.to_string())?;
     let bytes = fs::read(&path).map_err(|error| error.to_string())?;
-    let values = decrypt_data(&bytes)?;
-    *store
-        .values
-        .lock()
-        .map_err(|_| "数据锁定失败".to_string())? = values;
-    store.persist()?;
+    store.is_healthy()?;
+    let values = core_state::normalize_values(&decrypt_data(&bytes)?, &core_data_key()?)?;
+    let old_values = store.values.lock().map_err(|_| "数据锁定失败".to_string())?.clone();
+    *store.values.lock().map_err(|_| "数据锁定失败".to_string())? = values;
+    if let Err(error) = store.persist() {
+        *store.values.lock().map_err(|_| "数据锁定失败".to_string())? = old_values;
+        let _ = store.persist();
+        return Err(format!("CORE_TRANSACTION_ROLLED_BACK: {}", error));
+    }
     Ok(serde_json::json!({ "success": true, "filePath": path.to_string_lossy() }))
 }
 
@@ -2570,7 +2857,9 @@ pub fn run() {
             safe_mode_status,
             core_grant_token,
             core_revoke_principal,
+            core_state_set,
             core_draw_execute,
+            core_card_commit,
             export_encrypted_data,
             import_encrypted_data,
             export_data_file,
@@ -2614,10 +2903,14 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::{
-        center_floating_window, constrain_floating_window_position,
+        apply_core_state_update, center_floating_window, clear_non_core_values, constrain_floating_window_position,
         floating_window_position_visible, is_cyrene_uri, launch_uri_from_arguments,
-        normalize_floating_window_size, resize_floating_window_position, core_data_key_for, data_key, EncryptedStore,
+        normalize_floating_window_size, read_safe_mode_status, resize_floating_window_position,
+        core_data_key_for, data_key, is_core_storage_key, valid_core_principal,
+        validate_core_card_caller, validate_core_caller, EncryptedStore, RustCardCommitRequest,
+        RustCardInput, RustDrawInput, RustDrawRequest,
     };
+    use serde_json::json;
 
     #[test]
     fn uri_arguments_only_accept_the_cyrene_scheme() {
@@ -2721,6 +3014,90 @@ mod tests {
             constrain_floating_window_position(-20, 1070, 128, 0, 40, 1920, 1040),
             (0, 952)
         );
+    }
+
+    #[test]
+    fn core_principal_is_bound_to_caller_kind_and_plugin_id() {
+        assert!(valid_core_principal("core-ui"));
+        assert!(valid_core_principal("plugin:cn.example.test"));
+        assert!(!valid_core_principal("plugin:"));
+        assert!(!valid_core_principal("plugin:bad id"));
+
+        let input = RustDrawInput { list_id: "list-1".into(), target: "people".into(), count: 1, allow_duplicates: false, gender: "all".into() };
+        let plugin = RustDrawRequest {
+            grant_token: "secret".into(),
+            principal: "plugin:cn.example.test".into(),
+            caller_kind: "plugin".into(),
+            plugin_id: "cn.example.test".into(),
+            operation_id: "op-1".into(),
+            count_statistics: true,
+            input,
+        };
+        assert!(validate_core_caller(&plugin).is_ok());
+        let spoofed = RustDrawRequest { plugin_id: "cn.example.other".into(), ..plugin };
+        assert_eq!(validate_core_caller(&spoofed).unwrap_err(), "PLUGIN_PERMISSION_DENIED");
+
+        let card = RustCardCommitRequest {
+            grant_token: "secret".into(),
+            principal: "core-ui".into(),
+            caller_kind: "core-ui".into(),
+            plugin_id: "core".into(),
+            operation_id: "card-1".into(),
+            input: RustCardInput { list_id: "list-1".into(), person_ids: vec!["person-1".into()] },
+        };
+        assert!(validate_core_card_caller(&card).is_ok());
+        let spoofed_card = RustCardCommitRequest { caller_kind: "plugin".into(), ..card };
+        assert_eq!(validate_core_card_caller(&spoofed_card).unwrap_err(), "PLUGIN_PERMISSION_DENIED");
+    }
+
+    #[test]
+    fn core_state_updates_are_authenticated_and_generic_clear_preserves_them() {
+        let key = data_key();
+        let envelope = super::core_state::seal(super::core_state::genesis(&json!({
+            "lists": { "list-1": { "id": "list-1", "names": [] } },
+            "currentListId": "list-1",
+            "statistics": { "counts": { "person-1": 2 }, "totalCount": 2 },
+            "records": [{ "operationId": "op-1" }]
+        })), &key).unwrap();
+        let mut values = json!({
+            super::core_state::CORE_STATE_KEY: envelope,
+            "statistics": { "counts": { "tampered": 99 }, "totalCount": 99 },
+            "records": [],
+            "pluginState": { "enabled": true }
+        });
+        values = apply_core_state_update(&values, "balance", json!({ "enabled": false, "algorithm": super::core_state::ALGORITHM_NAME }), &key).unwrap();
+        let verified = super::core_state::parse(&values, &key).unwrap();
+        assert_eq!(verified.state.balance["enabled"], false);
+        assert_eq!(values["statistics"], verified.state.statistics);
+        assert_eq!(values["records"], verified.state.records);
+        assert!(apply_core_state_update(&values, "balance", json!({ "enabled": false, "weight": 2 }), &key).is_err());
+
+        assert!(is_core_storage_key("lists"));
+        assert!(is_core_storage_key("balance"));
+        assert!(is_core_storage_key("statistics"));
+        assert!(clear_non_core_values(&mut values));
+        assert!(values.get("pluginState").is_none());
+        assert!(values.get(super::core_state::CORE_STATE_KEY).is_some());
+        assert!(values.get("statistics").is_some());
+        assert!(values.get("records").is_some());
+    }
+
+    #[test]
+    fn tauri_safe_mode_uses_enable_and_fails_closed_for_invalid_config() {
+        let directory = std::env::temp_dir().join(format!("cyrene-safe-mode-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&directory);
+        let path = directory.join("safemode.json");
+        let missing = read_safe_mode_status(&path);
+        assert_eq!(missing["enabled"], false);
+        assert_eq!(serde_json::from_str::<serde_json::Value>(&std::fs::read_to_string(&path).unwrap()).unwrap(), json!({ "enable": false }));
+
+        std::fs::write(&path, r#"{"enable":true}"#).unwrap();
+        assert_eq!(read_safe_mode_status(&path)["enabled"], true);
+        std::fs::write(&path, r#"{"enabled":false}"#).unwrap();
+        let invalid = read_safe_mode_status(&path);
+        assert_eq!(invalid["enabled"], true);
+        assert_eq!(invalid["errorCode"], "SAFE_MODE_CONFIG_INVALID");
+        let _ = std::fs::remove_dir_all(directory);
     }
 
     #[test]
