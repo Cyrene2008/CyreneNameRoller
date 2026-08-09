@@ -1,4 +1,4 @@
-import { isTauri, tauriAPI } from './tauriAPI'
+import { isTauri, tauriAPI } from './tauriAPI.js'
 
 export function emitFileNotice(message, path = '') {
   if (typeof window === 'undefined') return

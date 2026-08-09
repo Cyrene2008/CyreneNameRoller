@@ -1,6 +1,6 @@
 {
   "name": "cyrene-name-roller",
-  "version": "26.1.0",
+  "version": "26.2.0",
   "description": "随机点名器 - 支持多人模式、平衡算法、翻牌模式的桌面端点名应用",
   "author": "Cyrene2008 <https://github.com/Cyrene2008>",
   "scripts": {
@@ -9,6 +9,9 @@
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
+    "package:dist": "node scripts/package-dist.mjs",
+    "package:win": "node scripts/package-dist.mjs --platform=win32",
+    "package:linux": "node scripts/package-dist.mjs --platform=linux",
     "preview": "vite preview",
     "test": "node --test scripts/*.test.js scripts/*.test.mjs",
     "plugin:create": "node packages/cyrene-name-roller/bin/cnrp.mjs create",
@@ -25,8 +28,8 @@
     "gsap": "^3.15.0",
     "jszip": "^3.10.1",
     "pinia": "^3.0.3",
-    "pnpm": "^11.18.0",
     "vue": "^3.5.17",
+    "vue-fluent-widgets": "^1.0.0",
     "vue-router": "^4.5.1",
     "xlsx": "^0.18.5"
   },

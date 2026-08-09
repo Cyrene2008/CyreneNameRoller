@@ -1,4 +1,4 @@
-export const APP_VERSION = '26.1.0'
+export const APP_VERSION = '26.2.0'
 export const APP_VERSION_PREFIX = 'v'
 
 function getBuildNumber() {
@@ -14,9 +14,9 @@ function getBuildNumber() {
 function getPlatformSuffix() {
   if (typeof window !== 'undefined' && window.__TAURI_INTERNALS__) {
     const agent = typeof navigator !== 'undefined' ? `${navigator.userAgentData?.platform || ''} ${navigator.platform || ''} ${navigator.userAgent || ''}`.toLowerCase() : ''
-    if (agent.includes('linux') || agent.includes('x11')) return 'tauri-linux-x64'
-    if (agent.includes('mac')) return 'tauri-macos'
-    return 'tauri-win64'
+    if (agent.includes('linux') || agent.includes('x11')) return 'linux-x64'
+    if (agent.includes('mac')) return 'macos'
+    return 'win64'
   }
   return 'web'
 }

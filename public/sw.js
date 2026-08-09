@@ -1,4 +1,4 @@
-const CACHE_NAME = 'cyrene-v26.1.0-shell-2'
+const CACHE_NAME = 'cyrene-v26.2.0-shell-1'
 const ASSETS = [
   '/',
   '/index.html',
@@ -27,6 +27,11 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return
+  const requestUrl = new URL(event.request.url)
+  if (requestUrl.pathname.endsWith('/safemode.json')) {
+    event.respondWith(fetch(event.request, { cache: 'no-store' }).catch(() => Response.error()))
+    return
+  }
   const isNavigation = event.request.mode === 'navigate'
   event.respondWith(fetch(event.request).then((response) => {
     if (response.ok && (!isNavigation || response.type === 'basic')) {

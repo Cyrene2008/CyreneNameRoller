@@ -8,6 +8,11 @@ import {
   PLUGIN_PLATFORM_CAPABILITIES,
   PLUGIN_PLATFORM_IDS
 } from './constants'
+import { normalizeComponentStylePacks } from './ui/stylePolicy'
+import { normalizeFonts, validateFontFiles } from './ui/fontRegistry'
+import { normalizeComponentOverridePacks } from './ui/overridePolicy'
+import { normalizeNativeViews, normalizeNativeViewDocument } from './ui/nativeViewPolicy'
+import { normalizeResultPresentations } from './ui/resultPresentationPolicy'
 
 const MAX_PLUGIN_SIZE = 32 * 1024 * 1024
 const MAX_FILE_COUNT = 256
@@ -321,6 +326,8 @@ function normalizeAppearanceColor(value, label) {
   return source.replace(/\s+/g, ' ')
 }
 
+export { normalizeAppearanceColor, normalizeAppearanceShadow, opaqueRgb, contrastRatio }
+
 function normalizeAppearanceShadow(value, label) {
   const source = String(value || '').trim()
   if (source === 'none') return source
@@ -562,6 +569,11 @@ export function normalizePluginManifest(raw) {
   manifest.contributes.animationPacks = normalizeAnimationPacks(manifest.contributes.animationPacks, manifest.permissions)
   manifest.contributes.visualSurfaces = normalizeVisualSurfaces(manifest.contributes.visualSurfaces, manifest.permissions)
   manifest.contributes.appearancePacks = normalizeAppearancePacks(manifest.contributes.appearancePacks, manifest.permissions)
+  manifest.contributes.componentStylePacks = normalizeComponentStylePacks(manifest.contributes.componentStylePacks, manifest.permissions, { pluginId: manifest.id })
+  manifest.contributes.fonts = normalizeFonts(manifest.contributes.fonts, manifest.permissions, { pluginId: manifest.id })
+  manifest.contributes.componentOverridePacks = normalizeComponentOverridePacks(manifest.contributes.componentOverridePacks, manifest.permissions)
+  manifest.contributes.nativeViews = normalizeNativeViews(manifest.contributes.nativeViews, manifest.permissions)
+  manifest.contributes.resultPresentations = normalizeResultPresentations(manifest.contributes.resultPresentations, manifest.permissions)
   manifest.supportedPlatforms = normalizePlatforms(manifest.supportedPlatforms, 'supportedPlatforms')
   manifest.platformEntries = normalizePlatformEntries(manifest.platformEntries, 'platformEntries')
   manifest.capabilities = normalizeCapabilities(manifest.capabilities, manifest.permissions)
@@ -571,7 +583,7 @@ export function normalizePluginManifest(raw) {
   if (manifest.contributes.commands.length && !manifest.entry && !Object.keys(manifest.platformEntries).length) {
     throw new Error('commands 需要插件 Worker 入口')
   }
-  if (!manifest.entry && !Object.keys(manifest.platformEntries).length && !(manifest.contributes.pages || []).length && !manifest.contributes.commands.length && !manifest.contributes.visualSurfaces.length && !manifest.contributes.appearancePacks.length) {
+  if (!manifest.entry && !Object.keys(manifest.platformEntries).length && !(manifest.contributes.pages || []).length && !manifest.contributes.commands.length && !manifest.contributes.visualSurfaces.length && !manifest.contributes.appearancePacks.length && !manifest.contributes.componentStylePacks.length && !manifest.contributes.componentOverridePacks.length && !manifest.contributes.nativeViews.length && !manifest.contributes.resultPresentations.length && !manifest.contributes.fonts.length) {
     throw new Error('插件至少需要一个 Worker、页面、视觉层或外观包入口')
   }
   if (manifest.icon) manifest.icon = validatePath(manifest.icon)
@@ -686,14 +698,24 @@ export async function parsePluginPackage(input, { expectedPublisherKey = '' } = 
     manifest.readme,
     ...(manifest.contributes.pages || []).flatMap(page => [page.entry, ...Object.values(page.platformEntries || {})]),
     ...(manifest.contributes.animationPacks || []).map(pack => pack.source),
+    ...(manifest.contributes.fonts || []).map(font => font.source),
+    ...(manifest.contributes.nativeViews || []).map(view => view.source),
     ...(manifest.contributes.visualSurfaces || []).flatMap(surface => [surface.entry, ...Object.values(surface.platformEntries || {})])
   ].filter(Boolean)
   for (const name of requiredFiles) if (!files[name]) throw new Error(`插件清单引用的文件不存在：${name}`)
-
+  validateFontFiles(manifest.contributes.fonts || [], files)
   const integrity = manifest.integrity || {}
   for (const name of fileNames) {
     if (name !== 'manifest.json' && !Object.hasOwn(integrity, name)) throw new Error(`完整性清单未覆盖文件：${name}`)
   }
+  const nativeViews = (manifest.contributes.nativeViews || []).map(declaration => {
+    try {
+      return { ...declaration, document: normalizeNativeViewDocument(JSON.parse(decodePluginFile({ files }, declaration.source)), `nativeView ${declaration.id}`) }
+    } catch (error) {
+      if (error?.code) throw error
+      throw new Error(`原生视图 ${declaration.id} 无法解析：${error.message || error}`)
+    }
+  })
   for (const [name, expected] of Object.entries(integrity)) {
     const encoded = files[validatePath(name)]
     if (!encoded) throw new Error(`完整性清单文件缺失：${name}`)
@@ -714,6 +736,7 @@ export async function parsePluginPackage(input, { expectedPublisherKey = '' } = 
     manifest,
     files,
     animationPacks,
+    nativeViews,
     packageHash,
     packageSignature: envelope.signature || '',
     publisherKey: publisher.publisherKey,

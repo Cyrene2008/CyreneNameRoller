@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "root": {
+    "type": "Stack",
+    "props": { "gap": 12, "padding": 12 },
+    "children": [
+      { "type": "Text", "props": { "text": "Draw statistics" } },
+      { "type": "Text", "bindings": { "text": "$resource.statistics.totalCount" } },
+      { "type": "Button", "props": { "label": "Draw now" }, "action": { "command": "draw-now", "args": {} } }
+    ]
+  }
+}

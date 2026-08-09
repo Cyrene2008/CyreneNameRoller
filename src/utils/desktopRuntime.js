@@ -39,19 +39,19 @@ export function isMacTauri(platform = getDesktopPlatform()) {
 
 export function getUpdatePlatformId(platform = getDesktopPlatform()) {
   if (platform.runtime !== 'tauri') return 'web'
-  if (platform.os === 'linux') return 'tauri-linux-x64'
-  if (platform.os === 'macos') return 'tauri-macos'
-  return 'tauri-win64'
+  if (platform.os === 'linux') return 'linux-x64'
+  if (platform.os === 'macos') return 'macos'
+  return 'win64'
 }
 
 export function getUpdateAssetSignature(platformId = getUpdatePlatformId()) {
-  if (platformId === 'tauri-linux-x64') {
+  if (platformId === 'linux-x64') {
     return { suffixes: ['.deb', '.appimage'], tag: 'linux' }
   }
-  if (platformId === 'tauri-macos') {
+  if (platformId === 'macos') {
     return { suffixes: ['.dmg'], tag: 'macos' }
   }
-  return { suffixes: ['.exe'], tag: 'tauri' }
+  return { suffixes: ['.exe'], tag: 'win64' }
 }
 
 export function describePlatform(platform = getDesktopPlatform()) {

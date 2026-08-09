@@ -6,11 +6,33 @@ import path from 'node:path'
 const root = path.resolve(import.meta.dirname, '..')
 const read = file => fs.readFile(path.join(root, file), 'utf8')
 
+test('startup decides the splash before mounting plugin-owning layout', async () => {
+  const app = await read('src/App.vue')
+  assert.match(app, /const initialSplash = !isFloatingRoute\.value && settingsStore\.settings\.disableSplash !== true/)
+  assert.match(app, /const showSplash = ref\(initialSplash\)/)
+  assert.match(app, /const splashPlayed = ref\(initialSplash\)/)
+  assert.doesNotMatch(app, /const showSplash = ref\(false\)/)
+})
+
+test('settings controls collapse within narrow scaled layouts', async () => {
+  const settings = await read('src/views/SettingsView.vue')
+  assert.match(settings, /@media \(max-width: 720px\) \{[\s\S]*?\.setting-row \{[^}]*flex-direction: column;/)
+  assert.match(settings, /\.setting-row:has\(> \.fluent-toggle\) \{[^}]*flex-direction: row;/)
+  assert.match(settings, /\.setting-row :deep\(\.fluent-select\) \{[^}]*width: 100% !important;[^}]*min-width: 0 !important;/)
+  assert.match(settings, /\.scale-input-wrap, \.hex-color-input \{[^}]*max-width: 100%;/)
+})
+
+test('roller balance status clears the title on narrow layouts', async () => {
+  const roller = await read('src/views/RollerView.vue')
+  assert.match(roller, /@media \(max-width: 720px\) \{[\s\S]*?\.balance-status \{[^}]*top: 84px;[^}]*left: 50%;[^}]*transform: translateX\(-50%\);/)
+  assert.match(roller, /@media \(max-width: 720px\) \{[\s\S]*?\.display-container \{[^}]*top: 128px;/)
+})
+
 test('Web overlays keep their own fixed positions and Toasts stack from the top', async () => {
-  const [layout, fullscreen, toast] = await Promise.all([
+  const [layout, fullscreen, widgetCss] = await Promise.all([
     read('src/components/layout/AppLayout.vue'),
     read('src/components/FullscreenToggle.vue'),
-    read('src/components/FluentToast.vue')
+    read('node_modules/vue-fluent-widgets/dist/vue-fluent-widgets.css')
   ])
   assert.doesNotMatch(layout, /\.app-layout\s*>[^{]+\{\s*position:\s*relative/)
   assert.match(layout, /\.app-foreground-layer\s*\{\s*position:\s*relative;\s*z-index:\s*1;/)
@@ -19,7 +41,7 @@ test('Web overlays keep their own fixed positions and Toasts stack from the top'
   assert.match(layout, /\.banner-container\s*\{[\s\S]*?position:\s*fixed;[\s\S]*?top:\s*0;[\s\S]*?left:\s*var\(--dock-width\);/)
   assert.match(fullscreen, /<Teleport to="body">/)
   assert.match(fullscreen, /position:\s*fixed;[\s\S]*?top:\s*8px;[\s\S]*?right:\s*8px;/)
-  assert.match(toast, /\.fluent-toast-container\s*\{[\s\S]*?top:\s*24px;[\s\S]*?flex-direction:\s*column;/)
+  assert.match(widgetCss, /\.fluent-toast-container(?:\[data-v-[a-f0-9]+\])?\s*\{[\s\S]*?top:\s*24px;[\s\S]*?flex-direction:\s*column;/)
 })
 
 test('page animations never control Vue route lifecycle and use a host-owned visual stage', async () => {
@@ -58,7 +80,7 @@ test('Web deployment recovers from stale chunks without precaching missing asset
   ])
   assert.doesNotMatch(html, /serviceWorker\.register/)
   assert.doesNotMatch(serviceWorker, /names\.json/)
-  assert.match(serviceWorker, /cyrene-v26\.1\.0-shell-2/)
+  assert.match(serviceWorker, /cyrene-v\d+\.\d+\.\d+-shell-\d+/)
   assert.match(main, /vite:preloadError/)
   assert.match(main, /window\.location\.reload\(\)/)
   assert.match(main, /import\.meta\.env\.DEV/)

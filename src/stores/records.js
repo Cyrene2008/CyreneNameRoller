@@ -1,11 +1,12 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { dataBridge } from '../utils/dataBridge'
-import { useNamesStore } from './names'
+import { dataBridge } from '../utils/dataBridge.js'
+import { useNamesStore } from './names.js'
 
 export const useRecordsStore = defineStore('records', () => {
   const records = ref([])
   const isLoaded = ref(false)
+  const revision = ref(0)
 
   async function initialize() {
     if (isLoaded.value) return
@@ -51,52 +52,23 @@ export const useRecordsStore = defineStore('records', () => {
     await dataBridge.save('records', records.value)
   }
 
-  function appendRecords(items = [], { persist = true } = {}) {
-    const now = Date.now()
-    const normalized = items.map((record, index) => ({
-      personId: record.personId || null,
-      listId: record.listId || null,
-      groupId: record.groupId || null,
-      source: record.source || 'roller',
-      operationId: record.operationId || '',
-      pluginId: record.pluginId || '',
-      time: record.time || now + index
-    }))
-    if (!normalized.length) return Promise.resolve()
-    records.value.unshift(...normalized)
-    if (records.value.length > 500) {
-      records.value = records.value.slice(0, 500)
-    }
-    return persist ? save() : Promise.resolve()
-  }
-
   function snapshotState() {
     return records.value.map(record => ({ ...record }))
   }
 
   function restoreState(snapshot, { persist = true } = {}) {
     records.value = Array.isArray(snapshot) ? snapshot.map(record => ({ ...record })) : []
+    revision.value += 1
     return persist ? save() : Promise.resolve()
-  }
-
-  function addRecord(record) {
-    return appendRecords([record])
-  }
-
-  function clearAll() {
-    records.value = []
-    save()
   }
 
   return {
     records,
     isLoaded,
+    revision,
     initialize,
     save,
-    addRecord,
-    appendRecords,
     snapshotState,
-    restoreState,
-    clearAll
+    restoreState
   }
 })

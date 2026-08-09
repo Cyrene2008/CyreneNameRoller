@@ -4,7 +4,8 @@ import { dataBridge } from '../utils/dataBridge'
 import { useNamesStore } from '../stores/names'
 import { useRecordsStore } from '../stores/records'
 import { useStatisticsStore } from '../stores/statistics'
-import { ALGORITHM_NAME, ALGORITHM_VERSION, DEFAULT_CYRENE_BALANCE_SETTINGS, TARGET_GAP, normalizeCyreneBalanceSettings, pickCyreneBatch, secureRandom } from '../utils/cyrene-balance'
+import { ALGORITHM_NAME, ALGORITHM_VERSION, DEFAULT_CYRENE_BALANCE_SETTINGS, TARGET_GAP, normalizeCyreneBalanceSettings } from '../utils/cyrene-balance'
+import { getCoreClient } from '../core/client'
 import { emitPluginEvent } from './eventBus'
 import {
   parsePluginPackage,
@@ -18,8 +19,12 @@ import {
 import { PluginRuntime } from './runtime'
 import { PluginAnimationRegistry } from './animationRegistry'
 import { PluginPlatformBridge } from './platform'
-import { repositorySlug, resolveCatalogRelease } from './catalog'
-import { commitCoreDrawTransaction, createCoreDrawQueue, validateCoreDrawArgs } from './coreDraw'
+import { repositorySlug, resolveCatalogRelease, fetchRepositoryOwner } from './catalog'
+import { validateCoreDrawArgs } from './coreDraw'
+import { getComponentTarget } from './ui/componentRegistry'
+import { styleVarsForTarget } from './ui/stylePolicy'
+import { PluginFontRegistry } from './ui/fontRegistry'
+import { overrideStateForTarget } from './ui/overridePolicy'
 
 const STATE_KEY = 'pluginState'
 const PLUGIN_DATA_KEY = 'pluginData'
@@ -27,6 +32,7 @@ const SESSION_MARKER_KEY = 'cyrene-plugin-session-pending'
 const MAX_AUDIO_FILE_SIZE = 16 * 1024 * 1024
 const MAX_PLUGIN_DATA_SIZE = 96 * 1024 * 1024
 const APPEARANCE_VALUE_PREFIX = 'plugin-appearance::'
+const COMPONENT_STYLE_VALUE_PREFIX = 'plugin-component-style::'
 
 function clone(value) {
   return value === undefined ? undefined : JSON.parse(JSON.stringify(value))
@@ -69,9 +75,14 @@ export const usePluginsStore = defineStore('plugins', () => {
   const pagesRevision = ref(0)
   const animationSelections = ref({})
   const animationDurationScales = ref({})
+  const componentStyleSelections = ref({})
+  const componentOverrideSelections = ref({})
+  const resultPresentationSelections = ref({})
+  const safeModeStatus = ref(Object.freeze({ enabled: false, source: 'default', stale: false, errorCode: '', diagnostic: '', path: '' }))
+  const fontRegistry = new PluginFontRegistry()
   const animationRegistry = new PluginAnimationRegistry()
   const platformBridge = new PluginPlatformBridge()
-  const queueCoreDraw = createCoreDrawQueue()
+  const coreClient = getCoreClient()
 
   const runtime = new PluginRuntime({
     getPlugin: pluginId => installed.value[pluginId],
@@ -105,7 +116,7 @@ export const usePluginsStore = defineStore('plugins', () => {
     onFault: handleRuntimeFault
   })
 
-  const enabledPlugins = computed(() => Object.values(installed.value).filter(plugin => plugin.enabled))
+  const enabledPlugins = computed(() => safeModeStatus.value.enabled ? [] : Object.values(installed.value).filter(plugin => plugin.enabled))
   const contributedPages = computed(() => {
     pagesRevision.value
     return runtime.getContributedPages()
@@ -126,82 +137,55 @@ export const usePluginsStore = defineStore('plugins', () => {
       ...clone(pack)
     }))
   ))
+  const contributedComponentStylePacks = computed(() => enabledPlugins.value.flatMap(plugin =>
+    (plugin.manifest.contributes?.componentStylePacks || []).map(pack => ({
+      pluginId: plugin.manifest.id,
+      pluginName: plugin.manifest.name,
+      value: `${COMPONENT_STYLE_VALUE_PREFIX}${plugin.manifest.id}::${pack.id}`,
+      ...clone(pack)
+    }))
+  ))
+  const contributedComponentOverridePacks = computed(() => enabledPlugins.value.flatMap(plugin =>
+    (plugin.manifest.contributes?.componentOverridePacks || []).map(pack => ({
+      pluginId: plugin.manifest.id,
+      pluginName: plugin.manifest.name,
+      value: `plugin-component-override::${plugin.manifest.id}::${pack.id}`,
+      ...clone(pack)
+    }))
+  ))
+  const contributedNativeViews = computed(() => enabledPlugins.value.flatMap(plugin =>
+    (plugin.nativeViews || []).map(view => ({ ...clone(view), pluginId: plugin.manifest.id, pluginName: plugin.manifest.name, sourceLabel: '由插件提供' }))
+  ).sort((left, right) => (left.order || 500) - (right.order || 500)))
+  const contributedResultPresentations = computed(() => enabledPlugins.value.flatMap(plugin =>
+    (plugin.manifest.contributes?.resultPresentations || []).map(presentation => ({
+      pluginId: plugin.manifest.id,
+      pluginName: plugin.manifest.name,
+      value: `plugin-result-presentation::${plugin.manifest.id}::${presentation.id}`,
+      ...clone(presentation)
+    }))
+  ))
 
   function refreshPages() { pagesRevision.value += 1 }
 
-  function executeCoreDraw(plugin, rawArgs = {}) {
-    return queueCoreDraw(async () => {
-      validateCoreDrawArgs(rawArgs)
-      const namesStore = useNamesStore()
-      const recordsStore = useRecordsStore()
-      const statisticsStore = useStatisticsStore()
-      await Promise.all([namesStore.initialize(), recordsStore.initialize(), statisticsStore.initialize()])
+  async function deactivatePluginRuntime(pluginId) {
+    await runtime.deactivate(pluginId)
+    await coreClient.revokePlugin(pluginId).catch(() => {})
+  }
 
-      const listId = String(rawArgs.listId || namesStore.currentListId || '')
-      const list = namesStore.nameLists[listId]
-      if (!list) throw new Error('抽取名单不存在')
-      const target = rawArgs.target === 'groups' ? 'groups' : 'people'
-      const requestedCount = Math.max(1, Math.min(100, Math.floor(Number(rawArgs.count) || 1)))
-      const allowDuplicates = rawArgs.allowDuplicates === true
-      const gender = ['male', 'female'].includes(rawArgs.gender) ? rawArgs.gender : 'all'
-      const operationId = crypto.randomUUID?.() || `plugin-draw-${Date.now()}-${Math.random().toString(36).slice(2)}`
-      const committedAt = Date.now()
-      let picks = []
+  async function executeCoreDraw(plugin, rawArgs = {}) {
+    validateCoreDrawArgs(rawArgs)
+    const receipt = await coreClient.executeDraw({ caller: { kind: 'plugin', pluginId: plugin.manifest.id }, input: rawArgs })
+    for (let index = 0; index < receipt.results.length; index += 1) {
+      await runtime.dispatch('draw:item-result', { ...receipt, index, result: receipt.results[index], results: undefined })
+    }
+    await runtime.dispatch('draw:result', receipt)
+    return receipt
+  }
 
-      if (target === 'groups') {
-        const groups = (list.groups || []).map(group => ({ id: group.id, cn: group.name, en: group.enName || '', isGroup: true }))
-        if ((list.names || []).some(person => !person.groupId)) groups.push({ id: '__unassigned__', cn: '未分组', en: 'Unassigned', isGroup: true })
-        if (!groups.length) throw new Error('所选名单没有可抽取小组')
-        const count = allowDuplicates ? requestedCount : Math.min(requestedCount, groups.length)
-        const available = [...groups]
-        for (let index = 0; index < count; index += 1) {
-          const pool = allowDuplicates ? groups : available
-          const selectedIndex = Math.min(pool.length - 1, Math.floor(secureRandom() * pool.length))
-          picks.push(pool[selectedIndex])
-          if (!allowDuplicates) available.splice(selectedIndex, 1)
-        }
-      } else {
-        const people = (list.names || []).filter(person =>
-          person.cn && person.cn !== '再来一次' && (gender === 'all' || person.gender === gender)
-        )
-        if (!people.length) throw new Error('所选名单没有符合条件的人员')
-        const count = allowDuplicates ? requestedCount : Math.min(requestedCount, people.length)
-        const balance = normalizeCyreneBalanceSettings(await dataBridge.load('balance'))
-        picks = pickCyreneBatch(people, people.filter(person => person.isWhiteList), statisticsStore.counts, balance, count, allowDuplicates)
-      }
-
-      const source = `plugin:${plugin.manifest.id}`
-      const records = picks.map(pick => ({
-        personId: pick.isGroup ? null : (pick.id || null),
-        listId,
-        groupId: pick.isGroup ? pick.id : null,
-        source,
-        pluginId: plugin.manifest.id,
-        operationId,
-        time: committedAt
-      }))
-      await commitCoreDrawTransaction({
-        statisticsStore,
-        recordsStore,
-        picks,
-        records,
-        countStatistics: target === 'people'
-      })
-      const results = picks.map(pick => ({
-        id: pick.id || '', name: pick.cn || '', englishName: pick.en || '',
-        isGroup: !!pick.isGroup, isWhiteList: !!pick.isWhiteList
-      }))
-      const receipt = {
-        operationId, pluginId: plugin.manifest.id, listId, target, count: results.length,
-        allowDuplicates, gender, algorithm: target === 'people' ? ALGORITHM_NAME : 'host-random/groups',
-        algorithmVersion: target === 'people' ? ALGORITHM_VERSION : '1', committedAt, results
-      }
-      for (let index = 0; index < results.length; index += 1) {
-        await runtime.dispatch('draw:item-result', { ...receipt, index, result: results[index], results: undefined })
-      }
-      await runtime.dispatch('draw:result', receipt)
-      return clone(receipt)
-    })
+  function executeRollerDraw(rawArgs = {}) {
+    const { operationId, countStatistics, ...drawArgs } = rawArgs || {}
+    validateCoreDrawArgs(drawArgs)
+    return coreClient.executeDraw({ caller: { kind: 'core-ui', pluginId: 'core', operationId, countStatistics }, input: drawArgs })
   }
   function syncSessionMarker() {
     if (Object.values(installed.value).some(plugin => plugin.enabled)) localStorage.setItem(SESSION_MARKER_KEY, '1')
@@ -210,11 +194,24 @@ export const usePluginsStore = defineStore('plugins', () => {
 
   async function initialize() {
     if (initialized.value) return
+    if (safeModeStatus.value.enabled) {
+      installed.value = {}
+      animationSelections.value = {}
+      animationDurationScales.value = {}
+      componentStyleSelections.value = {}
+      componentOverrideSelections.value = {}
+      resultPresentationSelections.value = {}
+      initialized.value = true
+      return
+    }
     const saved = await dataBridge.load(STATE_KEY)
     if (saved && typeof saved === 'object') {
       installed.value = saved.installed || {}
       animationSelections.value = saved.animationSelections && typeof saved.animationSelections === 'object' ? saved.animationSelections : {}
       animationDurationScales.value = saved.animationDurationScales && typeof saved.animationDurationScales === 'object' ? saved.animationDurationScales : {}
+      componentStyleSelections.value = saved.componentStyleSelections && typeof saved.componentStyleSelections === 'object' ? saved.componentStyleSelections : {}
+      componentOverrideSelections.value = saved.componentOverrideSelections && typeof saved.componentOverrideSelections === 'object' ? saved.componentOverrideSelections : {}
+      resultPresentationSelections.value = saved.resultPresentationSelections && typeof saved.resultPresentationSelections === 'object' ? saved.resultPresentationSelections : {}
       source.value = PLUGIN_DOWNLOAD_SOURCES.some(item => item.value === saved.source) ? saved.source : 'cyrene'
       const crashedSession = localStorage.getItem(SESSION_MARKER_KEY) === '1'
       if (saved.pendingStartup || crashedSession) {
@@ -238,6 +235,12 @@ export const usePluginsStore = defineStore('plugins', () => {
 
   function setBannerHandler(handler) { runtime.showBanner = handler }
 
+  function configureSafeMode(status) {
+    safeModeStatus.value = Object.freeze({ ...status })
+    if (safeModeStatus.value.enabled) refreshPages()
+    return safeModeStatus.value
+  }
+
   async function saveState(pendingStartup = undefined) {
     const current = await dataBridge.load(STATE_KEY) || {}
     await dataBridge.save(STATE_KEY, {
@@ -246,6 +249,9 @@ export const usePluginsStore = defineStore('plugins', () => {
         source: source.value,
         animationSelections: animationSelections.value,
         animationDurationScales: animationDurationScales.value,
+        componentStyleSelections: componentStyleSelections.value,
+        componentOverrideSelections: componentOverrideSelections.value,
+        resultPresentationSelections: resultPresentationSelections.value,
         pendingStartup: pendingStartup === undefined ? !!current.pendingStartup : !!pendingStartup
     })
   }
@@ -304,6 +310,7 @@ export const usePluginsStore = defineStore('plugins', () => {
   }
 
   async function activateEnabled() {
+    if (safeModeStatus.value.enabled) return false
     const plugins = []
     for (const plugin of Object.values(installed.value).filter(item => item.enabled)) {
       const compatibility = compatibilityFor(plugin)
@@ -330,6 +337,7 @@ export const usePluginsStore = defineStore('plugins', () => {
         activated.push(plugin.manifest.id)
       }
       refreshPages()
+      await refreshPluginFonts()
       await saveState(false)
       syncSessionMarker()
       lastError.value = ''
@@ -337,7 +345,7 @@ export const usePluginsStore = defineStore('plugins', () => {
       lastError.value = error.message || String(error)
       for (const pluginId of activated.reverse()) {
         animationRegistry.unregisterPlugin(pluginId)
-        await runtime.deactivate(pluginId)
+        await deactivatePluginRuntime(pluginId)
       }
       for (const plugin of plugins) {
         plugin.enabled = false
@@ -358,6 +366,7 @@ export const usePluginsStore = defineStore('plugins', () => {
     expectedPublisherKey = '',
     expectedPackageHash = ''
   } = {}) {
+    if (safeModeStatus.value.enabled) throw Object.assign(new Error('安全模式已启用，插件包不会被加载'), { code: 'SAFE_MODE_PLUGIN_BLOCKED' })
     const parsed = await parsePluginPackage(input, { expectedPublisherKey })
     if (expectedPackageHash && parsed.packageHash !== String(expectedPackageHash).toLowerCase()) {
       throw new Error('插件包哈希与目录登记不一致')
@@ -369,7 +378,7 @@ export const usePluginsStore = defineStore('plugins', () => {
     const wasEnabled = !!existing?.enabled
     if (existing) {
       animationRegistry.unregisterPlugin(pluginId)
-      await runtime.deactivate(pluginId)
+      await deactivatePluginRuntime(pluginId)
     }
     const candidate = {
       ...parsed,
@@ -399,12 +408,13 @@ export const usePluginsStore = defineStore('plugins', () => {
         animationRegistry.setDurationScale(pluginId, animationDurationScales.value[pluginId] ?? 1)
       }
       refreshPages()
+      await refreshPluginFonts()
       syncSessionMarker()
       recovering.value = false
       await saveState(false)
       return candidate
     } catch (error) {
-      await runtime.deactivate(pluginId)
+      await deactivatePluginRuntime(pluginId)
       animationRegistry.unregisterPlugin(pluginId)
       if (existing) {
         installed.value[pluginId] = existing
@@ -430,12 +440,16 @@ export const usePluginsStore = defineStore('plugins', () => {
   async function uninstall(pluginId) {
     const dependents = enabledDependents(pluginId)
     if (dependents.length) throw new Error(`请先禁用依赖此插件的项目：${dependents.map(item => item.manifest.name).join('、')}`)
-    await runtime.deactivate(pluginId)
+    await deactivatePluginRuntime(pluginId)
     animationRegistry.unregisterPlugin(pluginId)
     animationRegistry.removeSelectionsForPlugin(pluginId, animationSelections.value)
+    removeComponentStyleSelectionsForPlugin(pluginId)
+    removeComponentOverrideSelectionsForPlugin(pluginId)
+    removeResultPresentationSelectionsForPlugin(pluginId)
     platformBridge.forgetPlugin(pluginId)
     delete installed.value[pluginId]
     await removePluginData(pluginId)
+    await refreshPluginFonts()
     refreshPages()
     syncSessionMarker()
     await saveState(false)
@@ -444,12 +458,15 @@ export const usePluginsStore = defineStore('plugins', () => {
   async function setEnabled(pluginId, value) {
     const plugin = installed.value[pluginId]
     if (!plugin) return false
+    if (safeModeStatus.value.enabled && value) throw Object.assign(new Error('安全模式已启用，重启前不会加载插件'), { code: 'SAFE_MODE_PLUGIN_BLOCKED' })
     if (!value) {
       const dependents = enabledDependents(pluginId)
       if (dependents.length) throw new Error(`请先禁用：${dependents.map(item => item.manifest.name).join('、')}`)
-      await runtime.deactivate(pluginId)
+      await deactivatePluginRuntime(pluginId)
       animationRegistry.unregisterPlugin(pluginId)
       plugin.enabled = false
+      removeResultPresentationSelectionsForPlugin(pluginId)
+      await refreshPluginFonts()
       refreshPages()
       syncSessionMarker()
       await saveState(false)
@@ -465,6 +482,7 @@ export const usePluginsStore = defineStore('plugins', () => {
       await runtime.activate(plugin)
       animationRegistry.registerPlugin(plugin, animationSelections.value)
       animationRegistry.setDurationScale(pluginId, animationDurationScales.value[pluginId] ?? 1)
+      await refreshPluginFonts()
       recovering.value = false
       refreshPages()
       syncSessionMarker()
@@ -472,7 +490,7 @@ export const usePluginsStore = defineStore('plugins', () => {
     } catch (error) {
       plugin.enabled = false
       plugin.runtimeError = error.message || String(error)
-      await runtime.deactivate(pluginId)
+      await deactivatePluginRuntime(pluginId)
       animationRegistry.unregisterPlugin(pluginId)
       refreshPages()
       syncSessionMarker()
@@ -488,6 +506,7 @@ export const usePluginsStore = defineStore('plugins', () => {
   }
 
   async function fetchList() {
+    if (safeModeStatus.value.enabled) throw Object.assign(new Error('安全模式已启用，在线插件目录不可用'), { code: 'SAFE_MODE_PLUGIN_BLOCKED' })
     const response = await fetchFirstSuccessful(
       pluginListCandidates(source.value),
       { cache: 'no-store', headers: { Accept: 'application/json' } },
@@ -509,6 +528,17 @@ export const usePluginsStore = defineStore('plugins', () => {
         return { ...item, version: item.version || '', releaseError: error.message || String(error) }
       }
     }))
+    for (const item of list.value) {
+      if (item.icon && item.author) continue
+      Promise.resolve()
+        .then(() => fetchRepositoryOwner(item, { source: source.value }))
+        .then(owner => {
+          if (!owner) return
+          if (!item.icon) item.icon = owner.icon
+          if (!item.author) item.author = owner.author
+        })
+        .catch(() => {})
+    }
     return list.value
   }
 
@@ -524,10 +554,12 @@ export const usePluginsStore = defineStore('plugins', () => {
   }
 
   async function inspectPackage(input, options = {}) {
+    if (safeModeStatus.value.enabled) throw Object.assign(new Error('安全模式已启用，插件包不会被解析'), { code: 'SAFE_MODE_PLUGIN_BLOCKED' })
     return parsePluginPackage(input, options)
   }
 
   async function downloadPlugin(item, trail = [], authorize = null) {
+    if (safeModeStatus.value.enabled) throw Object.assign(new Error('安全模式已启用，在线插件目录不可用'), { code: 'SAFE_MODE_PLUGIN_BLOCKED' })
     if (trail.includes(item.id)) throw new Error(`检测到插件目录依赖环：${[...trail, item.id].join(' → ')}`)
     if (item.release) {
       const resolved = await resolveCatalogRelease(item, { source: source.value })
@@ -568,6 +600,7 @@ export const usePluginsStore = defineStore('plugins', () => {
   }
 
   async function loadCatalogDetails(item) {
+    if (safeModeStatus.value.enabled) throw Object.assign(new Error('安全模式已启用，在线插件目录不可用'), { code: 'SAFE_MODE_PLUGIN_BLOCKED' })
     const details = { ...item }
     if (details.readme || details.readmeContent) return details
     if (details.readmeUrl) {
@@ -606,6 +639,7 @@ export const usePluginsStore = defineStore('plugins', () => {
   }
 
   function invokePluginCommand(pluginId, commandId, args = {}) {
+    if (safeModeStatus.value.enabled) return Promise.reject(Object.assign(new Error('安全模式已启用，插件命令不可用'), { code: 'SAFE_MODE_PLUGIN_BLOCKED' }))
     return runtime.invokeCommand(pluginId, commandId, args)
   }
 
@@ -632,6 +666,116 @@ export const usePluginsStore = defineStore('plugins', () => {
     return { ...pack, tokens: clone(dark ? pack.dark : pack.light) }
   }
 
+  function componentStyleByValue(value) {
+    const source = String(value || '')
+    if (!source.startsWith(COMPONENT_STYLE_VALUE_PREFIX)) return null
+    return contributedComponentStylePacks.value.find(pack => pack.value === source) || null
+  }
+
+  function componentStyleOptions(targetId, language = 'zh') {
+    const target = getComponentTarget(targetId, platformBridge.info().runtime)
+    if (!target?.available) return []
+    return contributedComponentStylePacks.value.filter(pack => pack.targets?.[targetId]).map(pack => ({
+      value: pack.value,
+      label: language === 'en' ? (pack.titleEn || pack.title) : pack.title,
+      pluginId: pack.pluginId,
+      pluginName: pack.pluginName
+    }))
+  }
+
+  function componentStyleStyle(targetId) {
+    const value = componentStyleSelections.value[targetId]
+    const pack = componentStyleByValue(value)
+    const styles = pack?.targets?.[targetId] || {}
+    return styleVarsForTarget(targetId, styles)
+  }
+
+  async function setComponentStyleSelection(targetId, value) {
+    const target = getComponentTarget(targetId, platformBridge.info().runtime)
+    if (!target?.available) throw new Error('组件目标当前平台不可用')
+    const normalized = String(value || '')
+    if (normalized && !componentStyleByValue(normalized)?.targets?.[targetId]) throw new Error('所选组件样式不存在或未启用')
+    componentStyleSelections.value = { ...componentStyleSelections.value, [targetId]: normalized }
+    await saveState(false)
+    return true
+  }
+
+  function removeComponentStyleSelectionsForPlugin(pluginId) {
+    const next = { ...componentStyleSelections.value }
+    for (const [targetId, value] of Object.entries(next)) if (String(value).startsWith(`${COMPONENT_STYLE_VALUE_PREFIX}${pluginId}::`)) delete next[targetId]
+    componentStyleSelections.value = next
+  }
+
+  function removeComponentOverrideSelectionsForPlugin(pluginId) {
+    const next = { ...componentOverrideSelections.value }
+    for (const [targetId, value] of Object.entries(next)) if (String(value).startsWith(`plugin-component-override::${pluginId}::`)) delete next[targetId]
+    componentOverrideSelections.value = next
+  }
+
+  function removeResultPresentationSelectionsForPlugin(pluginId) {
+    const next = { ...resultPresentationSelections.value }
+    for (const [target, value] of Object.entries(next)) if (String(value).startsWith(`plugin-result-presentation::${pluginId}::`)) delete next[target]
+    resultPresentationSelections.value = next
+  }
+
+  function componentOverrideByValue(value) {
+    return contributedComponentOverridePacks.value.find(pack => pack.value === String(value || '')) || null
+  }
+
+  function componentOverrideOptions(targetId, language = 'zh') {
+    return contributedComponentOverridePacks.value.filter(pack => pack.targets?.[targetId]).map(pack => ({ value: pack.value, label: language === 'en' ? (pack.titleEn || pack.title) : pack.title, pluginId: pack.pluginId, pluginName: pack.pluginName }))
+  }
+
+  function nativeViewsForSlot(slot) {
+    if (!String(slot || '').startsWith('slot:')) return []
+    return contributedNativeViews.value.filter(view => view.slot === slot)
+  }
+
+  function resultPresentationByValue(value) {
+    return contributedResultPresentations.value.find(presentation => presentation.value === String(value || '')) || null
+  }
+
+  function resultPresentationOptions(target = 'roller.result', language = 'zh') {
+    return contributedResultPresentations.value.filter(presentation => presentation.targets?.includes(target)).map(presentation => ({ value: presentation.value, label: language === 'en' ? (presentation.titleEn || presentation.title) : presentation.title, pluginId: presentation.pluginId, pluginName: presentation.pluginName }))
+  }
+
+  function resultPresentationForTarget(target = 'roller.result') {
+    const value = resultPresentationSelections.value[target]
+    const presentation = resultPresentationByValue(value)
+    return presentation?.targets?.includes(target) ? presentation : null
+  }
+
+  async function setResultPresentationSelection(target, value) {
+    const normalized = String(value || '')
+    if (normalized && !resultPresentationByValue(normalized)?.targets?.includes(target)) throw new Error('所选结果呈现不存在或未启用')
+    resultPresentationSelections.value = { ...resultPresentationSelections.value, [target]: normalized }
+    await saveState(false)
+    return true
+  }
+
+  function componentOverrideState(targetId) {
+    return overrideStateForTarget(targetId, contributedComponentOverridePacks.value, componentOverrideSelections.value[targetId])
+  }
+
+  async function setComponentOverrideSelection(targetId, value) {
+    if (safeModeStatus.value.enabled) throw Object.assign(new Error('安全模式已启用，覆盖包不可用'), { code: 'SAFE_MODE_PLUGIN_BLOCKED' })
+    const normalized = String(value || '')
+    if (normalized && !componentOverrideByValue(normalized)?.targets?.[targetId]) throw new Error('所选覆盖包不存在或未启用')
+    componentOverrideSelections.value = { ...componentOverrideSelections.value, [targetId]: normalized }
+    await saveState(false)
+    return true
+  }
+
+  async function resetComponentOverrides() {
+    componentOverrideSelections.value = {}
+    await saveState(false)
+  }
+
+  async function refreshPluginFonts() {
+    fontRegistry.clear()
+    for (const plugin of enabledPlugins.value) await fontRegistry.register(plugin, plugin.manifest.contributes?.fonts || [])
+  }
+
   function pluginById(pluginId) { return installed.value[pluginId] }
 
   function pluginAssetUrl(pluginOrId, path = '') {
@@ -642,12 +786,14 @@ export const usePluginsStore = defineStore('plugins', () => {
   }
 
   function pluginPageSource(pluginId, pageId) {
+    if (safeModeStatus.value.enabled) return ''
     const plugin = pluginById(pluginId)
     const page = pageById(pluginId, pageId)
     return plugin && page ? runtime.frameSource(plugin, page) : ''
   }
 
   async function requestPlugin(pluginId, method, args = {}) {
+    if (safeModeStatus.value.enabled) throw Object.assign(new Error('安全模式已启用，插件请求不可用'), { code: 'SAFE_MODE_PLUGIN_BLOCKED' })
     return runtime.handleRpc(pluginId, method, args)
   }
 
@@ -693,16 +839,19 @@ export const usePluginsStore = defineStore('plugins', () => {
 
   function mountPageFrame(frame, pluginId, pageId) { runtime.mountFrame(frame, pluginId, pageId) }
   function unmountPageFrame(pluginId, pageId) { runtime.unmountFrame(pluginId, pageId) }
+  function connectPageFrame(frame, pluginId, pageId) { return runtime.connectFrame(frame, pluginId, pageId) }
   function mountVisualSurface(canvas, pluginId, surfaceId, viewport) { return runtime.mountVisualSurface(canvas, pluginId, surfaceId, viewport) }
   function resizeVisualSurface(pluginId, surfaceId, viewport) { runtime.resizeVisualSurface(pluginId, surfaceId, viewport) }
   function unmountVisualSurface(pluginId, surfaceId) { runtime.unmountVisualSurface(pluginId, surfaceId) }
 
   async function dispatchEvent(event, payload) {
     emitPluginEvent(event, payload)
+    if (safeModeStatus.value.enabled) return
     await runtime.dispatch(event, clone(payload))
   }
 
   async function handlePluginMessage(event) {
+    if (safeModeStatus.value.enabled) return
     const message = event.data || {}
     if (!message.pluginId || message.type !== 'rpc-request') return
     if (!runtime.ownsFrameSource(event.source, message.pluginId)) return
@@ -710,7 +859,7 @@ export const usePluginsStore = defineStore('plugins', () => {
       const result = await runtime.handleRpc(message.pluginId, message.method, message.args)
       event.source?.postMessage({ type: 'rpc-response', id: message.id, result: clone(result) }, '*')
     } catch (error) {
-      event.source?.postMessage({ type: 'rpc-response', id: message.id, error: error.message || String(error) }, '*')
+      event.source?.postMessage({ type: 'rpc-response', id: message.id, code: error.code, error: error.message || String(error) }, '*')
     }
   }
 
@@ -720,8 +869,11 @@ export const usePluginsStore = defineStore('plugins', () => {
     plugin.enabled = false
     plugin.runtimeError = error.message || String(error)
     lastError.value = `${plugin.manifest.name} 已因运行异常被禁用：${plugin.runtimeError}`
-    await runtime.deactivate(pluginId)
+    await deactivatePluginRuntime(pluginId)
     animationRegistry.unregisterPlugin(pluginId)
+    removeComponentOverrideSelectionsForPlugin(pluginId)
+    removeResultPresentationSelectionsForPlugin(pluginId)
+    await refreshPluginFonts()
     refreshPages()
     syncSessionMarker()
     await saveState(false)
@@ -733,10 +885,10 @@ export const usePluginsStore = defineStore('plugins', () => {
   }
 
   return {
-    installed, list, source, initialized, recovering, lastError, enabledPlugins, contributedPages, contributedCommands, contributedVisualSurfaces, contributedAppearancePacks, animationSelections, animationDurationScales,
-    initialize, setBannerHandler, saveState, activateEnabled, inspectPackage, installPackage, uninstall, setEnabled,
-    setSource, fetchList, downloadPlugin, loadCatalogDetails, pageById, appearanceByValue, appearanceOptions, resolveAppearance, pluginById, pluginAssetUrl,
-    pluginPageSource, requestPlugin, invokePluginCommand, mountPageFrame, unmountPageFrame, mountVisualSurface, resizeVisualSurface, unmountVisualSurface,
+    installed, list, source, initialized, recovering, lastError, enabledPlugins, contributedPages, contributedCommands, contributedVisualSurfaces, contributedAppearancePacks, contributedComponentStylePacks, contributedComponentOverridePacks, contributedNativeViews, contributedResultPresentations, animationSelections, animationDurationScales, componentStyleSelections, componentOverrideSelections, resultPresentationSelections, safeModeStatus,
+    initialize, configureSafeMode, setBannerHandler, saveState, activateEnabled, inspectPackage, installPackage, uninstall, setEnabled,
+    setSource, fetchList, downloadPlugin, loadCatalogDetails, pageById, appearanceByValue, appearanceOptions, resolveAppearance, componentStyleByValue, componentStyleOptions, componentStyleStyle, setComponentStyleSelection, componentOverrideByValue, componentOverrideOptions, nativeViewsForSlot, resultPresentationByValue, resultPresentationOptions, resultPresentationForTarget, setResultPresentationSelection, componentOverrideState, setComponentOverrideSelection, resetComponentOverrides, pluginById, pluginAssetUrl,
+    pluginPageSource, requestPlugin, invokePluginCommand, executeRollerDraw, mountPageFrame, connectPageFrame, unmountPageFrame, mountVisualSurface, resizeVisualSurface, unmountVisualSurface,
     animationOptions, animationSelectionValue, setAnimationSelection, hasAnimation, startAnimation, animationDurationScale, setAnimationDurationScale, registerAnimationSurface, unregisterAnimationSurface,
     dispatchEvent, handlePluginMessage, markCleanShutdown,
     compatibilityFor, platform: platformBridge.info(), platformCapabilities: platformBridge.capabilities()

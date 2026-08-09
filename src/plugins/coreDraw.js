@@ -7,23 +7,12 @@ export function validateCoreDrawArgs(rawArgs = {}) {
   return rawArgs
 }
 
-export function createCoreDrawQueue() {
-  let tail = Promise.resolve()
-  return task => {
-    const next = tail.catch(() => {}).then(task)
-    tail = next
-    return next
-  }
-}
-
-export async function commitCoreDrawTransaction({ statisticsStore, recordsStore, picks, records, countStatistics }) {
+export async function commitCoreStateTransaction({ statisticsStore, recordsStore, nextStatistics, nextRecords }) {
   const statisticsSnapshot = statisticsStore.snapshotState()
   const recordsSnapshot = recordsStore.snapshotState()
   try {
-    if (countStatistics) {
-      statisticsStore.incrementCounts((picks || []).filter(person => !person.isWhiteList), { persist: false })
-    }
-    recordsStore.appendRecords(records || [], { persist: false })
+    await statisticsStore.restoreState(nextStatistics, { persist: false })
+    await recordsStore.restoreState(nextRecords, { persist: false })
     const persistence = await Promise.allSettled([statisticsStore.save(), recordsStore.save()])
     const failed = persistence.find(result => result.status === 'rejected')
     if (failed) throw failed.reason
@@ -31,6 +20,6 @@ export async function commitCoreDrawTransaction({ statisticsStore, recordsStore,
     await statisticsStore.restoreState(statisticsSnapshot, { persist: false })
     await recordsStore.restoreState(recordsSnapshot, { persist: false })
     await Promise.allSettled([statisticsStore.save(), recordsStore.save()])
-    throw error
+    throw Object.assign(error instanceof Error ? error : new Error(String(error)), { code: 'CORE_TRANSACTION_ROLLED_BACK' })
   }
 }

@@ -5,10 +5,13 @@
       <FluentIcon :icon="balanceSettings.enabled ? 'fluent:shield-checkmark-24-regular' : 'fluent:shield-error-24-regular'" :width="18" />
       <span>{{ balanceSettings.enabled ? (lang === 'en' ? 'Balance enabled' : '平衡算法已启用') : (lang === 'en' ? 'Balance disabled' : '平衡算法未启用') }}</span>
     </div>
+    <PluginSlot class="roller-plugin-side-panel" slot="slot:roller.side-panel" />
 
     <div
       class="display-container"
+      data-plugin-component="roller.result"
       ref="displayRef"
+      :style="pluginsStore.componentStyleStyle('roller.result')"
     >
       <div
         v-for="(display, i) in nameDisplays"
@@ -18,7 +21,8 @@
         :class="{ rainbow: settings.nameColorMode === 'gradient', final: display.animating, [`final-${settings.finishAnimation || 'spotlight'}`]: display.animating }"
         :style="getNameStyle(display, i)"
       >
-        {{ display.text }}
+        <VerifiedResult v-if="currentReceipt && revealed[i]" :receipt="currentReceipt" :index="i" :presentation="resultPresentation" />
+        <template v-else>{{ display.text }}</template>
       </div>
     </div>
 
@@ -26,35 +30,41 @@
     <span ref="probeRef" class="fit-probe" aria-hidden="true"></span>
 
     <div class="controls-center" ref="controlsCenterRef">
-      <div class="switches">
-        <FluentToggle class="english-mode-toggle" v-model="settings.englishMode" label="English Mode" @update:model-value="saveSetting('englishMode', $event)" />
-        <FluentTabs :model-value="settings.groupMode ? 'groups' : 'people'" :options="drawTargetOptions" @update:model-value="onDrawTargetChange" />
-        <Transition name="toggle-expand">
-          <FluentTabs v-if="!settings.groupMode" v-model="genderFilter" :options="genderFilterOptions" />
-        </Transition>
-        <FluentTabs :model-value="settings.multiMode ? 'multiple' : 'single'" :options="drawCountOptions" @update:model-value="onDrawCountChange" />
-        <Transition name="toggle-expand">
-          <FluentTabs v-if="settings.multiMode" :model-value="settings.forbidDuplicates ? 'unique' : 'repeat'" :options="duplicateOptions" @update:model-value="onDuplicateModeChange" />
-        </Transition>
-      </div>
-
-      <Transition name="toggle-expand">
-        <div v-if="settings.multiMode" class="multi-settings">
-          <span class="setting-label">{{ countSettingLabel }}</span>
-          <div class="count-control">
-            <FluentButton variant="secondary" size="sm" @click="changeCount(-1)"><FluentIcon icon="subtract-16-regular" :width="14" /></FluentButton>
-            <FluentInput v-model="settings.peopleCount" type="number" :min="1" :max="maxPeopleCount" class="count-input" @update:model-value="onPeopleCountChange" />
-            <FluentButton variant="secondary" size="sm" @click="changeCount(1)"><FluentIcon icon="add-16-regular" :width="14" /></FluentButton>
-          </div>
+      <template v-if="filterOverride.visibility !== 'hidden' || filtersCompactOpen">
+        <div class="switches" data-plugin-component="roller.filters" :style="pluginsStore.componentStyleStyle('roller.filters')">
+          <FluentToggle class="english-mode-toggle" v-model="settings.englishMode" label="English Mode" @update:model-value="saveSetting('englishMode', $event)" />
+          <FluentTabs :model-value="settings.groupMode ? 'groups' : 'people'" :options="drawTargetOptions" @update:model-value="onDrawTargetChange" />
+          <Transition name="toggle-expand">
+            <FluentTabs v-if="!settings.groupMode" v-model="genderFilter" :options="genderFilterOptions" />
+          </Transition>
+          <FluentTabs :model-value="settings.multiMode ? 'multiple' : 'single'" :options="drawCountOptions" @update:model-value="onDrawCountChange" />
+          <Transition name="toggle-expand">
+            <FluentTabs v-if="settings.multiMode" :model-value="settings.forbidDuplicates ? 'unique' : 'repeat'" :options="duplicateOptions" @update:model-value="onDuplicateModeChange" />
+          </Transition>
         </div>
-      </Transition>
 
-      <div class="list-selector-bar">
+        <Transition name="toggle-expand">
+          <div v-if="settings.multiMode" class="multi-settings" data-plugin-component="roller.filters" :style="pluginsStore.componentStyleStyle('roller.filters')">
+            <span class="setting-label">{{ countSettingLabel }}</span>
+            <div class="count-control">
+              <FluentButton variant="secondary" size="sm" @click="changeCount(-1)"><FluentIcon icon="subtract-16-regular" :width="14" /></FluentButton>
+              <FluentInput v-model="settings.peopleCount" type="number" :min="1" :max="maxPeopleCount" class="count-input" @update:model-value="onPeopleCountChange" />
+              <FluentButton variant="secondary" size="sm" @click="changeCount(1)"><FluentIcon icon="add-16-regular" :width="14" /></FluentButton>
+            </div>
+          </div>
+        </Transition>
+      </template>
+      <div v-else-if="filterOverride.layout === 'reserve'" class="filters-reserved" aria-hidden="true"></div>
+      <FluentButton v-else-if="filterOverride.layout === 'compact'" variant="secondary" size="sm" class="filters-compact-entry" @click="filtersCompactOpen = true">
+        <FluentIcon icon="filter-16-regular" :width="14" />{{ lang === 'en' ? 'Show filters' : '显示筛选' }}
+      </FluentButton>
+
+      <div class="list-selector-bar" data-plugin-component="roller.current-list" :style="pluginsStore.componentStyleStyle('roller.current-list')">
         <span class="selector-label">{{ t('currentList', lang) }}</span>
         <FluentSelect :model-value="namesStore.currentListId" :options="listOptions" @update:model-value="namesStore.switchList" />
       </div>
 
-      <FluentButton :variant="isRunning ? 'danger' : 'primary'" size="lg" class="start-btn" :class="{ 'btn-dimmed': !canStart && !isRunning }" @click="toggleRoll">
+      <FluentButton :variant="isRunning ? 'danger' : 'primary'" size="lg" class="start-btn" data-plugin-component="roller.primary-action" :style="pluginsStore.componentStyleStyle('roller.primary-action')" :class="{ 'btn-dimmed': !canStart && !isRunning }" :disabled="isFinishing" @click="toggleRoll">
         <FluentIcon :icon="isRunning ? 'stop-24-filled' : 'play-24-filled'" :width="18" />
         {{ isRunning ? t('stop', lang) : t('start', lang) }}
         <span
@@ -65,6 +75,7 @@
         ></span>
       </FluentButton>
     </div>
+    <PluginSlot class="roller-plugin-below-result" slot="slot:roller.below-result" />
   </div>
 </template>
 
@@ -74,33 +85,28 @@ import { useNamesStore } from '../stores/names'
 import { useSettingsStore } from '../stores/settings'
 import { useStatisticsStore } from '../stores/statistics'
 import { t } from '../utils/i18n'
-import { useRecordsStore } from '../stores/records'
 import { usePluginsStore } from '../plugins/store'
+import PluginSlot from '../components/plugins/PluginSlot.vue'
+import VerifiedResult from '../components/roller/VerifiedResult.vue'
 import { dataBridge } from '../utils/dataBridge'
 import { consumePendingUriNavigation } from '../utils/uriNavigation'
 import { getAutoStopProgress, normalizeAutoStopDuration } from '../utils/autoStop.mjs'
 import {
   pickCyreneBalanced,
-  pickCyreneBatch,
   DEFAULT_CYRENE_BALANCE_SETTINGS,
   normalizeCyreneBalanceSettings
 } from '../utils/cyrene-balance'
-import FluentButton from '../components/FluentButton.vue'
-import FluentIcon from '../components/FluentIcon.vue'
-import FluentToggle from '../components/FluentToggle.vue'
-import FluentSelect from '../components/FluentSelect.vue'
-import FluentInput from '../components/FluentInput.vue'
-import FluentTabs from '../components/FluentTabs.vue'
 
 const namesStore = useNamesStore()
 const settingsStore = useSettingsStore()
 const statisticsStore = useStatisticsStore()
-const recordsStore = useRecordsStore()
 const pluginsStore = usePluginsStore()
 const showBanner = inject('banner')
 
 const lang = computed(() => settingsStore.settings.language)
 const settings = computed(() => settingsStore.settings)
+const filterOverride = computed(() => pluginsStore.componentOverrideState('roller.filters'))
+const filtersCompactOpen = ref(false)
 const listOptions = computed(() => namesStore.allLists.map(l => ({ value: l.id, label: l.name })))
 const genderFilter = ref('all')
 const drawTargetOptions = computed(() => [
@@ -148,11 +154,9 @@ const availableNames = computed(() => namesStore.currentNames.filter(person =>
 const nonWhiteListCount = computed(() => availableNames.value.filter(n => !n.isWhiteList).length)
 const maxPeopleCount = computed(() => {
   if (!settings.value.multiMode) return 1
+  if (!settings.value.forbidDuplicates) return Number.MAX_SAFE_INTEGER
   if (!settings.value.groupMode) return Math.max(1, nonWhiteListCount.value)
-  if (settings.value.forbidDuplicates) {
-    return Math.max(2, groupPoolCount.value)
-  }
-  return 9999
+  return Math.max(2, groupPoolCount.value)
 })
 const canStart = computed(() => {
   if (settings.value.groupMode) {
@@ -167,6 +171,9 @@ const canStart = computed(() => {
 
 const nameDisplays = reactive([])
 const isRunning = ref(false)
+const isFinishing = ref(false)
+const currentReceipt = ref(null)
+const resultPresentation = computed(() => pluginsStore.resultPresentationForTarget('roller.result'))
 const lastPickedNames = ref([])
 const sessionCounts = ref({})
 let intervalId = null
@@ -214,7 +221,8 @@ function getNameStyle(display, i) {
     style.top = layout.y + 'px'
     style.width = gridParams.cellW + 'px'
     style.textAlign = 'center'
-    style.fontSize = (nameFontSize.value * (settings.value.nameFontSize || 1)) + 'px'
+    const fittedFontSize = nameFontSize.value * (settings.value.nameFontSize || 1)
+    style.fontSize = `min(var(--plugin-component-roller-result-font-size, var(--plugin-component-roller-result-size, ${fittedFontSize}px)), ${fittedFontSize}px)`
     style['--reveal-scale'] = gridParams.revealScale
   }
   if (settings.value.nameColorMode === 'custom') {
@@ -239,7 +247,9 @@ function enforceGenderAvailability() {
     return true
   }
   const currentCount = Math.max(2, settings.value.peopleCount || 2)
-  const nextCount = Math.min(currentCount, availableCount)
+  const nextCount = settings.value.forbidDuplicates
+    ? Math.min(currentCount, availableCount)
+    : currentCount
   if (nextCount !== settings.value.peopleCount) settingsStore.update('peopleCount', nextCount)
   initializeDisplays(nextCount)
   nextTick(computeNameLayout)
@@ -274,7 +284,18 @@ function onGroupModeChange(val) {
 
 function onDrawTargetChange(value) { onGroupModeChange(value === 'groups') }
 
-function onForbidDuplicatesChange(val) { settingsStore.update('forbidDuplicates', val) }
+function onForbidDuplicatesChange(val) {
+  settingsStore.update('forbidDuplicates', val)
+  if (val && settings.value.multiMode) {
+    const cap = settings.value.groupMode ? groupPoolCount.value : nonWhiteListCount.value
+    if ((settings.value.peopleCount || 2) > cap) {
+      const c = Math.max(2, cap)
+      settingsStore.update('peopleCount', c)
+      initializeDisplays(c)
+      nextTick(computeNameLayout)
+    }
+  }
+}
 function onDuplicateModeChange(value) { onForbidDuplicatesChange(value === 'unique') }
 
 function onPeopleCountChange(val) {
@@ -388,7 +409,7 @@ function stopRoll() {
   autoStopInterval = null
   autoStopRemaining.value = 0
   isRunning.value = false
-  finishRoll()
+  void finishRoll()
 }
 
 function startAutoStopCountdown() {
@@ -403,6 +424,7 @@ function startAutoStopCountdown() {
 }
 
 function toggleRoll() {
+  if (isFinishing.value) return
   if (isRunning.value) { stopRoll(); return }
   pendingTimers.forEach(id => clearTimeout(id)); pendingTimers.length = 0
   if (!canStart.value) {
@@ -416,6 +438,7 @@ function toggleRoll() {
     return
   }
   isRunning.value = true
+  currentReceipt.value = null
   drawOperationId = crypto.randomUUID?.() || `roller-${Date.now()}`
   pluginsStore.dispatchEvent('roller:start', {
     operationId: drawOperationId,
@@ -494,93 +517,52 @@ async function applyUriNavigation(event) {
   }
 }
 
-function finishRoll() {
+async function finishRoll() {
+  isFinishing.value = true
   const count = settings.value.multiMode ? (settings.value.peopleCount || 2) : 1
-  const names = availableNames.value
-  const wl = names.filter(n => n.isWhiteList)
   const forbidDup = settings.value.multiMode && settings.value.forbidDuplicates
-  lastPickedNames.value = []
-  let finalPicks = []
-  if (settings.value.groupMode) {
-    for (let i = 0; i < count; i++) {
-      const ex = lastPickedNames.value.filter(n => n)
-      const pool = getCurrentPool()
-      if (forbidDup) {
-        const avail = pool.filter(p => !ex.includes(p.id))
-        const pick = avail.length ? avail[Math.floor(Math.random() * avail.length)] : pool[Math.floor(Math.random() * pool.length)]
-        finalPicks.push(pick)
-        lastPickedNames.value.push(pick.id)
-      } else {
-        const pick = pool[Math.floor(Math.random() * pool.length)]
-        finalPicks.push(pick)
-        lastPickedNames.value.push(pick.id)
-      }
-    }
-  } else {
-    finalPicks = pickCyreneBatch(
-      names,
-      wl,
-      statisticsStore.counts,
-      balanceSettings.value,
-      count,
-      !forbidDup
-    )
-    lastPickedNames.value = finalPicks.map(pick => pick.id || pick.cn)
-  }
   const shouldRecordCounts = settings.value.recordCounts || balanceSettings.value.enabled
-  if (shouldRecordCounts) {
-    statisticsStore.incrementCounts(finalPicks.filter(pick => !pick.isWhiteList))
+  let receipt
+  try {
+    receipt = await pluginsStore.executeRollerDraw({
+      listId: namesStore.currentList.id,
+      target: settings.value.groupMode ? 'groups' : 'people',
+      count,
+      allowDuplicates: !forbidDup,
+      gender: settings.value.groupMode ? 'all' : genderFilter.value,
+      operationId: drawOperationId,
+      countStatistics: shouldRecordCounts
+    })
+  } catch (error) {
+    currentReceipt.value = null
+    showBanner({ message: error?.message || (lang.value === 'en' ? 'Draw could not be committed' : '抽签结果保存失败'), icon: 'warning-16-regular', type: 'warning', duration: 8000 })
+    isFinishing.value = false
+    return
   }
-  for (let i = 0; i < finalPicks.length; i++) {
-    const pick = finalPicks[i]
-    recordsStore.addRecord({ personId: pick.isGroup ? null : (pick.id || null), listId: namesStore.currentList.id, groupId: pick.isGroup ? pick.id : null, source: 'roller' })
-  }
+  currentReceipt.value = receipt
+  lastPickedNames.value = receipt.results.map(result => result.id)
+  const finalPicks = receipt.results
   nextTick(computeNameLayout)
 
   const useStepStop = settings.value.multiMode && settings.value.multiStepStop
   const stagger = useStepStop ? Math.round((settings.value.stepStopInterval || 0.15) * 1000) : 0
-  revealed.value = new Array(count).fill(false)
+  revealed.value = new Array(finalPicks.length).fill(false)
   pluginsStore.startAnimation('global.transition', null, { variant: 'roller' })
-  for (let i = 0; i < count; i++) {
+  for (let i = 0; i < finalPicks.length; i++) {
     const tid = setTimeout(() => {
       revealed.value[i] = true
-      const pick = finalPicks[i]
-      nameDisplays[i].text = getDisplayName(pick)
+      const result = finalPicks[i]
+      nameDisplays[i].text = settings.value.englishMode && result.englishName ? result.englishName : result.name
       nameDisplays[i].opacity = 1
-      nameDisplays[i].isWhiteList = !!pick.isWhiteList
+      nameDisplays[i].isWhiteList = !!result.isWhiteList
       emphasize(i)
-      const result = {
-        id: pick.id || '',
-        name: pick.cn || '',
-        englishName: pick.en || '',
-        isGroup: !!pick.isGroup,
-        isWhiteList: !!pick.isWhiteList
-      }
-      pluginsStore.dispatchEvent('roller:item-result', {
-        operationId: drawOperationId,
-        index: i,
-        count: finalPicks.length,
-        listId: namesStore.currentList.id,
-        result
-      })
-      if (i === finalPicks.length - 1) {
-        pluginsStore.dispatchEvent('roller:result', {
-          operationId: drawOperationId,
-          listId: namesStore.currentList.id,
-          target: settings.value.groupMode ? 'groups' : 'people',
-          results: finalPicks.map(item => ({
-            id: item.id || '',
-            name: item.cn || '',
-            englishName: item.en || '',
-            isGroup: !!item.isGroup,
-            isWhiteList: !!item.isWhiteList
-          }))
-        })
-      }
+      pluginsStore.dispatchEvent('roller:item-result', { ...receipt, index: i, result })
+      if (i === finalPicks.length - 1) pluginsStore.dispatchEvent('roller:result', receipt)
     }, i * stagger)
     pendingTimers.push(tid)
   }
-  if (settings.value.multiMode) windDownLoop(count, useStepStop ? stagger : 0)
+  if (settings.value.multiMode) windDownLoop(finalPicks.length, useStepStop ? stagger : 0)
+  isFinishing.value = false
 }
 
 function windDownLoop(count, stagger) {
@@ -890,9 +872,17 @@ onBeforeUnmount(() => { if (intervalId) clearTimeout(intervalId); clearTimeout(a
   bottom: 24px;
   overflow: hidden;
   pointer-events: none;
+  color: var(--plugin-component-roller-result-foreground, var(--text-primary));
+  font-family: var(--plugin-component-roller-result-font-family, var(--font-display));
+  font-weight: var(--plugin-component-roller-result-font-weight, inherit);
+  background: var(--plugin-component-roller-result-background, transparent);
+  border: var(--plugin-component-roller-result-border-width, 0) solid var(--plugin-component-roller-result-border-color, transparent);
+  border-radius: var(--plugin-component-roller-result-radius, 0);
+  padding: var(--plugin-component-roller-result-padding, 0);
+  box-shadow: var(--plugin-component-roller-result-shadow, none);
 }
 
-.name-display { position: absolute; white-space: nowrap; overflow: visible; font-family: var(--font-display); font-weight: 700; color: var(--text-primary); line-height: 1.05; letter-spacing: 0.5px; transition: left 0.3s ease, top 0.3s ease, width 0.3s ease, font-size 0.3s ease, opacity 0.3s ease; text-shadow: 0 4px 20px rgba(234, 94, 193, 0.15); z-index: 5; }
+.name-display { position: absolute; white-space: nowrap; overflow: visible; font-family: var(--plugin-component-roller-result-font-family, var(--font-display)); font-weight: var(--plugin-component-roller-result-font-weight, 700); color: var(--plugin-component-roller-result-foreground, var(--text-primary)); line-height: 1.05; letter-spacing: 0.5px; transition: left 0.3s ease, top 0.3s ease, width 0.3s ease, font-size 0.3s ease, opacity 0.3s ease; text-shadow: 0 4px 20px rgba(234, 94, 193, 0.15); z-index: 5; }
 .name-display::before { content: ''; position: absolute; inset: -4px; background: var(--accent); border-radius: var(--radius-sm); z-index: -1; opacity: 0; transition: opacity 0.3s ease; }
 .name-display.rainbow {
   background: linear-gradient(90deg, #ff6ad9, #72afec, #ff6ad9, #72afec, #ff6ad9, #72afec, #ff6ad9, #72afec, #ff6ad9);
@@ -934,23 +924,32 @@ onBeforeUnmount(() => { if (intervalId) clearTimeout(intervalId); clearTimeout(a
   pointer-events: none;
 }
 
-.controls-center { position: absolute; bottom: 24px; right: 24px; display: flex; flex-direction: column; gap: 10px; align-items: flex-end; z-index: 10; }
-.switches { display: flex; flex-direction: column; gap: 6px; align-items: stretch; width: 280px; }
+.controls-center { position: absolute; bottom: 24px; right: 24px; width: min(280px, calc(100% - 48px)); display: flex; flex-direction: column; gap: 10px; align-items: stretch; z-index: 10; box-sizing: border-box; }
+.roller-plugin-side-panel { position: absolute; top: 96px; left: 24px; width: min(300px, calc(100% - 48px)); z-index: 9; }
+.roller-plugin-below-result { position: absolute; left: 24px; right: 24px; bottom: 24px; max-width: 520px; }
+.filters-reserved { width: min(280px, 100%); min-height: 120px; }
+.filters-compact-entry { min-width: 132px; }
+.switches { display: flex; flex-direction: column; gap: var(--plugin-component-roller-filters-gap, 6px); align-items: stretch; width: 100%; min-width: 0; color: var(--plugin-component-roller-filters-foreground, inherit); background: var(--plugin-component-roller-filters-background, transparent); font-size: var(--plugin-component-roller-filters-font-size, inherit); font-weight: var(--plugin-component-roller-filters-font-weight, inherit); }
 .english-mode-toggle { align-self: flex-end; }
-.multi-settings { display: flex; align-items: center; gap: 12px; }
+.multi-settings { display: flex; align-items: center; gap: var(--plugin-component-roller-filters-gap, 12px); min-width: 0; flex-wrap: wrap; color: var(--plugin-component-roller-filters-foreground, inherit); background: var(--plugin-component-roller-filters-background, transparent); font-size: var(--plugin-component-roller-filters-font-size, inherit); font-weight: var(--plugin-component-roller-filters-font-weight, inherit); }
 .setting-label { font-size: 14px; color: var(--text-secondary); }
 .count-control { display: flex; align-items: center; gap: 8px; }
 .count-input { width: 60px; text-align: center; }
 .count-input :deep(input) { text-align: center; -moz-appearance: textfield; }
 .count-input :deep(input)::-webkit-inner-spin-button,
 .count-input :deep(input)::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
-.list-selector-bar { display: flex; align-items: center; gap: 12px; background: var(--bg-card); backdrop-filter: blur(20px); padding: 8px 16px; border-radius: var(--radius-lg); border: 1px solid var(--border-default); box-shadow: var(--shadow-4); width: 100%; justify-content: center; }
+.list-selector-bar { display: flex; align-items: center; gap: var(--plugin-component-roller-current-list-gap, 12px); min-width: 0; box-sizing: border-box; background: var(--plugin-component-roller-current-list-background, var(--bg-card)); color: var(--plugin-component-roller-current-list-foreground, inherit); backdrop-filter: blur(20px); padding: var(--plugin-component-roller-current-list-padding, 8px 16px); border-radius: var(--radius-lg); border: 1px solid var(--border-default); box-shadow: var(--shadow-4); width: 100%; justify-content: center; font-size: var(--plugin-component-roller-current-list-font-size, inherit); font-weight: var(--plugin-component-roller-current-list-font-weight, inherit); }
 .selector-label { font-size: 14px; font-weight: 600; color: var(--text-secondary); white-space: nowrap; }
-.start-btn { min-width: 280px; font-size: 16px; min-height: 48px; margin-top: 8px; position: relative; overflow: hidden; }
+.start-btn { width: min(var(--plugin-component-roller-primary-action-size, 280px), 100%); min-width: 0; box-sizing: border-box; align-self: stretch; font-family: var(--plugin-component-roller-primary-action-font-family, var(--font-ui)); font-size: var(--plugin-component-roller-primary-action-font-size, 16px); font-weight: var(--plugin-component-roller-primary-action-font-weight, inherit); min-height: 48px; margin-top: 8px; position: relative; overflow: hidden; color: var(--plugin-component-roller-primary-action-foreground, inherit); background: var(--plugin-component-roller-primary-action-background, var(--accent)); border-radius: var(--plugin-component-roller-primary-action-radius, var(--radius)); }
 .start-btn-countdown { position: absolute; left: 0; right: auto; bottom: 0; height: 3px; background: #ffd6e8; box-shadow: 0 0 8px rgba(255, 214, 232, 0.75); pointer-events: none; transition: width 0.05s linear; }
 .btn-dimmed { opacity: 0.45; cursor: not-allowed; }
 
 .toggle-expand-enter-active { animation: toggle-in 0.25s cubic-bezier(0.1, 0.9, 0.2, 1); }
 .toggle-expand-leave-active { animation: toggle-in 0.15s ease-in reverse; }
 @keyframes toggle-in { from { opacity: 0; transform: translateY(-8px); max-height: 0; } to { opacity: 1; transform: translateY(0); max-height: 40px; } }
+
+@media (max-width: 720px) {
+  .balance-status { top: 84px; right: auto; left: 50%; max-width: calc(100% - 80px); transform: translateX(-50%); white-space: nowrap; }
+  .display-container { top: 128px; }
+}
 </style>

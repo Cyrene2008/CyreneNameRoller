@@ -79,7 +79,6 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import FluentIcon from '../components/FluentIcon.vue'
 import { useSettingsStore } from '../stores/settings'
 import { fetchAnnouncements, sortAnnouncements } from '../utils/announcement'
 import { renderMarkdown } from '../utils/markdown'

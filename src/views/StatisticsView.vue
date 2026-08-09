@@ -13,7 +13,13 @@
       />
     </div>
 
-    <FluentCard class="stats-summary">
+    <FluentCard
+      v-if="summaryOverride.visibility !== 'hidden'"
+      class="stats-summary"
+      data-plugin-component="statistics.summary"
+      :class="{ 'plugin-reserved': summaryOverride.layout === 'reserve' }"
+      :style="pluginsStore.componentStyleStyle('statistics.summary')"
+    >
       <div class="summary-item">
         <span class="summary-label">{{ lang === 'en' ? 'Total Rolls' : '总计抽取' }}</span>
         <span class="summary-value">{{ statsData.totalCount }}</span>
@@ -23,6 +29,7 @@
         <span class="summary-value">{{ selectedNames.filter(n => !n.isWhiteList).length }}</span>
       </div>
     </FluentCard>
+    <div v-else-if="summaryOverride.layout === 'reserve'" class="stats-summary-reserved" aria-hidden="true" />
 
     <FluentCard class="stats-list-card">
       <div class="stats-table-header">
@@ -53,6 +60,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useNamesStore } from '../stores/names'
 import { useSettingsStore } from '../stores/settings'
 import { useStatisticsStore } from '../stores/statistics'
+import { usePluginsStore } from '../plugins/store'
 import {
   computeCyreneBalanceProbability,
   DEFAULT_CYRENE_BALANCE_SETTINGS,
@@ -60,16 +68,15 @@ import {
 } from '../utils/cyrene-balance'
 import { dataBridge } from '../utils/dataBridge'
 import { t } from '../utils/i18n'
-import FluentCard from '../components/FluentCard.vue'
-import FluentIcon from '../components/FluentIcon.vue'
-import FluentSelect from '../components/FluentSelect.vue'
 
 const namesStore = useNamesStore()
 const settingsStore = useSettingsStore()
 const statisticsStore = useStatisticsStore()
+const pluginsStore = usePluginsStore()
 
 const lang = computed(() => settingsStore.settings.language)
 const balanceSettings = ref({ ...DEFAULT_CYRENE_BALANCE_SETTINGS })
+const summaryOverride = computed(() => pluginsStore.componentOverrideState('statistics.summary'))
 
 const selectedListId = ref(namesStore.currentListId)
 
@@ -164,9 +171,17 @@ onMounted(async () => {
   display: grid;
   grid-template-columns: 1fr 1fr 70px 90px 90px;
   align-items: center;
-  padding: 10px 20px;
-  gap: 0;
+  min-height: var(--plugin-component-statistics-summary-size, 0);
+  padding: var(--plugin-component-statistics-summary-padding, 10px 20px);
+  gap: var(--plugin-component-statistics-summary-gap, 0);
+  color: var(--plugin-component-statistics-summary-foreground, inherit);
+  background: var(--plugin-component-statistics-summary-background, var(--bg-card));
+  font-family: var(--plugin-component-statistics-summary-font-family, var(--font-ui));
+  font-size: var(--plugin-component-statistics-summary-font-size, inherit);
+  font-weight: var(--plugin-component-statistics-summary-font-weight, inherit);
 }
+.stats-summary.plugin-reserved { visibility: hidden; }
+.stats-summary-reserved { min-height: 96px; }
 
 .stats-table-header {
   background: var(--bg-hover);

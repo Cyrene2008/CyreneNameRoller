@@ -123,10 +123,6 @@ import { computed, inject, nextTick, onBeforeUnmount, onMounted, reactive, ref, 
 import { useRoute, useRouter } from 'vue-router'
 import { useSettingsStore } from '../stores/settings'
 import { usePluginsStore } from '../plugins/store'
-import FluentButton from '../components/FluentButton.vue'
-import FluentIcon from '../components/FluentIcon.vue'
-import FluentSelect from '../components/FluentSelect.vue'
-import FluentToggle from '../components/FluentToggle.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -286,7 +282,10 @@ async function mountPluginPage() {
     pageError.value = error.message || String(error)
   }
 }
-function onFrameLoad() { loading.value = false }
+function onFrameLoad() {
+  try { plugins.connectPageFrame(frameRef.value, String(route.params.pluginId || ''), String(route.params.pageId || '')) } catch (error) { pageError.value = error.message || String(error) }
+  loading.value = false
+}
 watch(() => [route.params.pluginId, route.params.pageId], mountPluginPage, { flush: 'post' })
 onMounted(async () => { await plugins.initialize(); await mountPluginPage() })
 onBeforeUnmount(() => {

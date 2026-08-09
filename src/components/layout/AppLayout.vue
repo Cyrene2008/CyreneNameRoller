@@ -14,7 +14,13 @@
       </main>
     </div>
     <FullscreenToggle />
-    <div class="version-badge">
+    <div
+      v-if="versionBadgeOverride.visibility !== 'hidden'"
+      class="version-badge"
+      data-plugin-component="app.version-badge"
+      :class="{ 'plugin-reserved': versionBadgeOverride.layout === 'reserve' }"
+      :style="pluginsStore.componentStyleStyle('app.version-badge')"
+    >
       <span class="v-prefix">{{ APP_VERSION_PREFIX }}</span><span class="v-num">{{ APP_VERSION }}</span>
       <span class="v-sep">build:</span><span class="v-num">{{ APP_BUILD }}</span><span class="v-sep">-{{ APP_PLATFORM }}</span>
     </div>
@@ -119,12 +125,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { gsap } from 'gsap'
 import TitleBar from './TitleBar.vue'
 import NavigationDock from './NavigationDock.vue'
-import FluentToast from '../FluentToast.vue'
-import FluentModal from '../FluentModal.vue'
-import FluentInput from '../FluentInput.vue'
-import FluentButton from '../FluentButton.vue'
 import FullscreenToggle from '../FullscreenToggle.vue'
-import FluentIcon from '../FluentIcon.vue'
 import PluginVisualLayers from '../plugins/PluginVisualLayers.vue'
 import { useSettingsStore } from '../../stores/settings'
 import { useNamesStore } from '../../stores/names'
@@ -157,6 +158,7 @@ const reducedMotion = ref(!!reducedMotionQuery?.matches)
 let removeAccentListener
 let removeReducedMotionListener
 const selectedAppearance = computed(() => pluginsStore.resolveAppearance(settingsStore.settings.colorTheme, settingsStore.darkMode))
+const versionBadgeOverride = computed(() => pluginsStore.componentOverrideState('app.version-badge'))
 const themeClass = computed(() => ['peach', 'fluent', 'custom'].includes(settingsStore.settings.colorTheme) ? settingsStore.settings.colorTheme : 'plugin-appearance')
 const resolvedThemeTokens = computed(() => {
   const settings = settingsStore.settings
@@ -762,8 +764,18 @@ onMounted(async () => {
   await statisticsStore.initialize()
   await recordsStore.initialize()
   await prizesStore.initialize()
+  const safeModeStatus = globalThis.__CYRENE_SAFE_MODE__ || { enabled: false, source: 'default', stale: false, errorCode: '', diagnostic: '' }
+  pluginsStore.configureSafeMode(safeModeStatus)
   await pluginsStore.initialize()
   pluginsStore.setBannerHandler(showBanner)
+  if (safeModeStatus.enabled || safeModeStatus.errorCode) {
+    showBanner({
+      message: safeModeStatus.enabled
+        ? `安全模式已启用：${safeModeStatus.path || '请修改 safemode.json 后重启'}`
+        : `安全模式配置诊断：${safeModeStatus.diagnostic || safeModeStatus.errorCode}`,
+      icon: 'shield-error-24-regular', type: 'warning', duration: 0, dismissible: true
+    })
+  }
   try {
     await pluginsStore.activateEnabled()
   } catch (error) {
@@ -927,8 +939,13 @@ watch(() => settingsStore.settings.fontFamily, (val) => {
   position: fixed;
   bottom: 0px;
   right: 24px;
-  font-size: 12px;
-  color: var(--text-muted);
+  font-size: var(--plugin-component-app-version-badge-font-size, 12px);
+  font-weight: var(--plugin-component-app-version-badge-font-weight, inherit);
+  font-family: var(--plugin-component-app-version-badge-font-family, var(--font-ui));
+  color: var(--plugin-component-app-version-badge-foreground, var(--text-muted));
+  background: var(--plugin-component-app-version-badge-background, transparent);
+  padding: var(--plugin-component-app-version-badge-padding, 0);
+  gap: var(--plugin-component-app-version-badge-gap, 0);
   opacity: 0.5;
   pointer-events: none;
   z-index: 999999;
@@ -936,6 +953,7 @@ watch(() => settingsStore.settings.fontFamily, (val) => {
   align-items: baseline;
   gap: 3px;
 }
+.version-badge.plugin-reserved { visibility: hidden; }
 
 .file-drop-overlay {
   position: fixed;
@@ -973,7 +991,7 @@ watch(() => settingsStore.settings.fontFamily, (val) => {
 .drop-modal-error { color: #c42b1c; font-size: 12px; }
 
 .v-prefix { font-family: var(--font-ui); font-size: 12px; }
-.v-num { font-family: var(--font-num); font-size: calc(12px * var(--font-num-scale, 1.6)); }
+.v-num { font-family: var(--font-ui); font-size: 13px; font-weight: 500; }
 .v-sep { font-family: var(--font-ui); font-size: 12px; }
 
 /* Banner Container */

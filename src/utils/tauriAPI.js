@@ -2,6 +2,8 @@ export function isTauri() {
   return typeof window !== 'undefined' && !!window.__TAURI_INTERNALS__
 }
 
+const coreGrantTokens = new Map()
+
 export const tauriAPI = {
   async invoke(cmd, args) {
     if (!isTauri()) return null
@@ -20,6 +22,25 @@ export const tauriAPI = {
   async storageSet(key, value) { return this.invoke('storage_set', { key, value }) },
   async storageDelete(key) { return this.invoke('storage_delete', { key }) },
   async storageClear() { return this.invoke('storage_clear', {}) },
+  async coreGrantToken(principal) { return this.invokeStrict('core_grant_token', { principal }) },
+  async coreGrantTokenFor(principal) {
+    if (!coreGrantTokens.has(principal)) coreGrantTokens.set(principal, await this.coreGrantToken(principal))
+    return coreGrantTokens.get(principal)
+  },
+  async coreRevokePrincipal(principal) {
+    coreGrantTokens.delete(principal)
+    return this.invokeStrict('core_revoke_principal', { principal })
+  },
+  async coreStateSet(key, value) {
+    const principal = 'core-ui'
+    return this.invokeStrict('core_state_set', { request: { grantToken: await this.coreGrantTokenFor(principal), principal, key, value } })
+  },
+  async coreDrawExecute(request) { return this.invokeStrict('core_draw_execute', { request }) },
+  async coreCardCommit(request) { return this.invokeStrict('core_card_commit', { request }) },
+  async coreMaintenanceExecute(action, fields = {}) {
+    const principal = 'core-ui'
+    return this.invokeStrict('core_maintenance_execute', { request: { grantToken: await this.coreGrantTokenFor(principal), principal, action, ...fields } })
+  },
   async exportEncryptedData() { return this.invoke('export_encrypted_data', {}) },
   async importEncryptedData(encodedData) { return this.invokeStrict('import_encrypted_data', { encodedData }) },
   async loadNames() { return this.invoke('load_names', {}) },
@@ -36,6 +57,7 @@ export const tauriAPI = {
   async setUriSchemeEnabled(enabled) { return this.invoke('set_uri_scheme_enabled', { enabled }) },
   async isUriSchemeEnabled() { return this.invoke('is_uri_scheme_enabled', {}) },
   async systemAccent() { return this.invoke('system_accent', {}) },
+  async safeModeStatus() { return this.invokeStrict('safe_mode_status', {}) },
   async saveTextFile(content, defaultName, extension = 'json') { return this.invoke('save_text_file', { content, defaultName, extension }) },
   async openTextFile(extension = 'json') { return this.invoke('open_text_file', { extension }) },
   async readDroppedFile(path) { return this.invokeStrict('read_dropped_file', { path }) },

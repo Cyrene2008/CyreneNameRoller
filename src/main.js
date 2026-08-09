@@ -4,8 +4,12 @@ import { addCollection } from '@iconify/vue'
 import App from './App.vue'
 import router from './router'
 import { useSettingsStore } from './stores/settings'
+import VueFluentWidgets from 'vue-fluent-widgets'
+import 'vue-fluent-widgets/style.css'
 import './assets/variables.css'
 import './assets/global.css'
+import { isTauri, tauriAPI } from './utils/tauriAPI'
+import { loadSafeModeStatus } from './plugins/safeMode'
 
 import fluentIcons from 'virtual:fluent-icons'
 addCollection(fluentIcons)
@@ -46,6 +50,12 @@ async function configureServiceWorker() {
 
 async function bootstrap() {
   await configureServiceWorker().catch(() => {})
+  const safeModeStatus = await loadSafeModeStatus({
+    platform: isTauri() ? 'tauri' : 'web',
+    baseUrl: import.meta.env.BASE_URL,
+    tauriStatus: isTauri() ? () => tauriAPI.safeModeStatus() : null
+  })
+  if (typeof window !== 'undefined') window.__CYRENE_SAFE_MODE__ = safeModeStatus
   const pinia = createPinia()
   const settingsStore = useSettingsStore(pinia)
   await settingsStore.initialize()
@@ -53,6 +63,7 @@ async function bootstrap() {
   const app = createApp(App)
   app.use(pinia)
   app.use(router)
+  app.use(VueFluentWidgets)
   app.mount('#app')
 }
 

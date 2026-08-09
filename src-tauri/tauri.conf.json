@@ -1,13 +1,13 @@
 {
   "$schema": "https://raw.githubusercontent.com/tauri-apps/tauri/dev/crates/tauri-cli/schema.json",
-  "productName": "CyreneNameRoller",
-  "version": "26.1.0",
+  "productName": "Cyreneの随机点名器",
+  "version": "26.2.0",
   "identifier": "cn.cyrene2008.nameroller",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:5173",
     "beforeDevCommand": "npm run dev",
-    "beforeBuildCommand": "npm run build"
+    "beforeBuildCommand": "pnpm run build"
   },
   "app": {
     "withGlobalTauri": true,
