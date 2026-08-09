@@ -23,17 +23,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
+          cache: pnpm
           registry-url: https://npm.pkg.github.com
           scope: '@starcyrene'
 
-      - run: npm ci
-      - run: npm test
-      - run: npm run build
-      - run: npm run plugin:sdk:pack
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test
+      - run: pnpm run build
+      - run: pnpm run plugin:sdk:pack
 
       - uses: actions/upload-artifact@v4
         with:

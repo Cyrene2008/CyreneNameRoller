@@ -44,22 +44,48 @@ A random name picker desktop app built with Vue 3 + Tauri, featuring Windows 11 
 - The host selects every result and append-only commits statistics and history; plugins cannot choose winners or rewrite existing core data
 - [Official plugin template, Fluent component gallery, and API documentation](https://github.com/Cyrene2008/CyreneNameRoller-Plugin-Template)
 
-## Quick Start
+## Source Development
+
+### Requirements
+
+- Node.js 22
+- pnpm
+- Rust stable
+- [Tauri 2 platform prerequisites](https://v2.tauri.app/start/prerequisites/)
 
 ```bash
 git clone https://github.com/StarCyrene/CyreneNameRoller.git
 cd CyreneNameRoller
-npm install
-npm run dev
+pnpm install --frozen-lockfile
 ```
 
-## Build Tauri Client
+Start the Web development server:
 
 ```bash
-npm run tauri:build
+pnpm run dev
 ```
 
-Output is in the Tauri build target directory.
+Start the Tauri desktop client:
+
+```bash
+pnpm run tauri:dev
+```
+
+### Build
+
+Build the Web version:
+
+```bash
+pnpm run build
+```
+
+Build the Tauri client:
+
+```bash
+pnpm run tauri:build
+```
+
+Desktop installers are written to `target/release/bundle/`.
 
 ## Tech Stack
 
