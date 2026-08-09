@@ -3,6 +3,7 @@ import { executeCoreCardRequest, executeCoreDrawRequest, executeCoreMaintenanceR
 export function createCoreWorkerHandler(postMessage) {
   let queue = Promise.resolve()
   let coreState = null
+  const peopleCache = new Map()
   const pendingCommits = new Map()
 
   function requestCommit(requestId, value) {
@@ -32,6 +33,7 @@ export function createCoreWorkerHandler(postMessage) {
         if (message.type === 'state.sync') {
           if (!message.state || typeof message.state !== 'object' || Array.isArray(message.state)) throw Object.assign(new Error('Core 状态无效'), { code: 'CORE_TRANSACTION_REJECTED' })
           coreState = structuredClone(message.state)
+          peopleCache.clear()
           postMessage({ type: 'success', requestId: message.requestId, value: true })
           return
         }
@@ -40,7 +42,7 @@ export function createCoreWorkerHandler(postMessage) {
           ? executeCoreCardRequest({ ...message, state: coreState })
           : message.type === 'maintenance.execute'
             ? executeCoreMaintenanceRequest({ ...message, state: coreState })
-            : executeCoreDrawRequest({ ...message, state: coreState })
+            : executeCoreDrawRequest({ ...message, state: coreState, peopleCache })
         await requestCommit(message.requestId, value)
         coreState = { ...coreState, statistics: value.nextStatistics, records: value.nextRecords }
         postMessage({ type: 'success', requestId: message.requestId, value: value.receipt })

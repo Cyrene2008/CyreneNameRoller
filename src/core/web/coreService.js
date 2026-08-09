@@ -3,7 +3,7 @@ import { normalizeCoreCaller, normalizeCoreCardInput, normalizeCoreDrawInput, no
 
 function coreError(code, message) { return Object.assign(new Error(message), { code }) }
 
-export function executeCoreDrawRequest({ input: rawInput, caller: rawCaller, state }) {
+export function executeCoreDrawRequest({ input: rawInput, caller: rawCaller, state, peopleCache }) {
   const input = normalizeCoreDrawInput(rawInput)
   const caller = normalizeCoreCaller(rawCaller)
   if (!state || typeof state !== 'object' || Array.isArray(state)) throw coreError('CORE_TRANSACTION_REJECTED', 'Core 状态无效')
@@ -27,10 +27,17 @@ export function executeCoreDrawRequest({ input: rawInput, caller: rawCaller, sta
       if (!input.allowDuplicates) available.splice(selectedIndex, 1)
     }
   } else {
-    const people = (list.names || []).filter(person => person.cn && person.cn !== '再来一次' && (input.gender === 'all' || person.gender === input.gender))
+    const cacheKey = `${input.listId}:${input.gender}`
+    let eligible = peopleCache?.get(cacheKey)
+    if (!eligible) {
+      const people = (list.names || []).filter(person => person.cn && person.cn !== '再来一次' && (input.gender === 'all' || person.gender === input.gender))
+      eligible = { people, whiteList: people.filter(person => person.isWhiteList) }
+      peopleCache?.set(cacheKey, eligible)
+    }
+    const { people, whiteList } = eligible
     if (!people.length) throw coreError('CORE_TRANSACTION_REJECTED', '所选名单没有符合条件的人员')
     const count = input.allowDuplicates ? input.count : Math.min(input.count, people.length)
-    picks = pickCyreneBatch(people, people.filter(person => person.isWhiteList), state.statistics?.counts || {}, normalizeCyreneBalanceSettings(state.balance), count, input.allowDuplicates)
+    picks = pickCyreneBatch(people, whiteList, state.statistics?.counts || {}, normalizeCyreneBalanceSettings(state.balance), count, input.allowDuplicates)
   }
 
   const results = picks.map(pick => ({ id: pick.id || '', name: pick.cn || '', englishName: pick.en || '', isGroup: !!pick.isGroup, isWhiteList: !!pick.isWhiteList }))

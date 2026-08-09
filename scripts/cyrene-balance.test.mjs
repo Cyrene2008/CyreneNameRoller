@@ -29,6 +29,17 @@ test('fairness statistics use UUIDs for duplicate display names', () => {
   assert.ok(probabilities['person-a'] > probabilities['person-b'])
 })
 
+test('fairness probability cap remains active for heavily skewed counts', () => {
+  const people = Array.from({ length: 4 }, (_, index) => ({ id: `person-${index}`, cn: `Person ${index}` }))
+  const probabilities = computeCyreneBalanceProbability(
+    people,
+    [],
+    { 'person-0': 0, 'person-1': 100, 'person-2': 100, 'person-3': 100 },
+    { enabled: true }
+  )
+  assert.ok(Math.max(...Object.values(probabilities)) <= 30 + 1e-9)
+})
+
 test('no-repeat batches keep same-name people independent', () => {
   const people = [
     { id: 'person-a', cn: '同名', en: 'A' },

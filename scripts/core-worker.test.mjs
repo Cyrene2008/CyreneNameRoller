@@ -105,6 +105,22 @@ test('Core Worker 在未同步状态时拒绝抽签', async () => {
   assert.equal(replies[0].code, 'CORE_TRANSACTION_REJECTED')
 })
 
+test('Core Worker 重新同步同一名单 ID 时清除候选池缓存', async () => {
+  const replies = []
+  let handler
+  handler = createCoreWorkerHandler(message => {
+    replies.push(message)
+    if (message.type === 'commit.request') handler({ data: { type: 'commit.resolve', requestId: message.requestId } })
+  })
+  await handler({ data: { type: 'state.sync', requestId: 'sync-old', state } })
+  await handler({ data: { type: 'draw.execute', requestId: 'draw-old', caller: { kind: 'core-ui', pluginId: 'core' }, input: { listId: 'list-1', gender: 'male' } } })
+  const replacement = structuredClone(state)
+  replacement.names.lists['list-1'].names = [{ id: 'person-new', cn: '新', en: 'New', gender: 'male', isWhiteList: false }]
+  await handler({ data: { type: 'state.sync', requestId: 'sync-new', state: replacement } })
+  await handler({ data: { type: 'draw.execute', requestId: 'draw-new', caller: { kind: 'core-ui', pluginId: 'core' }, input: { listId: 'list-1', gender: 'male' } } })
+  assert.equal(replies.find(reply => reply.type === 'success' && reply.requestId === 'draw-new')?.value.results[0].id, 'person-new')
+})
+
 test('Core 状态提交失败时回滚统计和记录', async () => {
   const statisticsStore = {
     state: { counts: { old: 1 }, totalCount: 1 },

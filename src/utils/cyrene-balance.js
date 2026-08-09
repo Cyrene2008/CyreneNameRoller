@@ -39,6 +39,15 @@ function capWeightShares(weightMap, names) {
   if (names.length <= 1) return weightMap
 
   const maxShare = Math.max(MAX_SELECTION_PROBABILITY, 1 / names.length)
+  let totalWeight = 0
+  let highestWeight = 0
+  for (const name of names) {
+    const weight = weightMap.get(personKey(name)) || 0
+    totalWeight += weight
+    highestWeight = Math.max(highestWeight, weight)
+  }
+  if (totalWeight <= 0 || highestWeight / totalWeight <= maxShare) return weightMap
+
   const remaining = new Set(names.map(personKey))
   const shares = new Map()
   let remainingMass = 1
@@ -187,13 +196,13 @@ export function pickCyreneBalanced(
   // In no-repeat mode, removing a candidate changes the current target pool.
   // Recompute the feedback model from the remaining candidates each draw.
   const weightMap = createWeightMap(available, whiteList, countsMap, settings)
-  const weights = available.map(name => weightMap.get(personKey(name)) || 1)
-  const totalWeight = weights.reduce((sum, weight) => sum + weight, 0)
+  let totalWeight = 0
+  for (const name of available) totalWeight += weightMap.get(personKey(name)) || 1
   const randomValue = clamp(Number(random()) || 0, 0, 1 - Number.EPSILON)
   let threshold = randomValue * totalWeight
 
   for (let index = 0; index < available.length; index++) {
-    threshold -= weights[index]
+    threshold -= weightMap.get(personKey(available[index])) || 1
     if (threshold < 0) {
       const selected = available[index]
       return {
