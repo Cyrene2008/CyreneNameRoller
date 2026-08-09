@@ -18,6 +18,7 @@
         </div>
         <FluentToggle
           :model-value="!settings.disableSplash"
+          :aria-label="lang === 'en' ? 'Startup splash screen' : '启动欢迎屏'"
           @update:model-value="update('disableSplash', !$event)"
         />
       </div>
@@ -27,7 +28,7 @@
       </div>
       <div v-if="isDesktop" class="setting-row">
         <span class="setting-label">{{ lang === 'en' ? 'Floating Window' : '悬浮窗快捷点名' }}</span>
-        <FluentToggle :model-value="settings.floatingWindowEnabled" @update:model-value="onFloatingWindowToggle" />
+        <FluentToggle :model-value="settings.floatingWindowEnabled" :aria-label="lang === 'en' ? 'Floating window' : '悬浮窗'" @update:model-value="onFloatingWindowToggle" />
       </div>
       <Transition name="toggle-expand">
         <div v-if="isDesktop && settings.floatingWindowEnabled" class="sub-setting floating-window-settings">
@@ -81,11 +82,11 @@
           </div>
         </div>
       </Transition>
-      <div v-if="isTauri()" class="setting-row"><span class="setting-label">{{ lang === 'en' ? 'Launch at sign-in' : '开机自启动' }}</span><FluentToggle :model-value="settings.autoStart" :disabled="autoStartBusy" @update:model-value="onAutoStart" /></div>
+      <div v-if="isTauri()" class="setting-row"><span class="setting-label">{{ lang === 'en' ? 'Launch at sign-in' : '开机自启动' }}</span><FluentToggle :model-value="settings.autoStart" :aria-label="lang === 'en' ? 'Launch at sign-in' : '开机自启动'" :disabled="autoStartBusy" @update:model-value="onAutoStart" /></div>
       <Transition name="toggle-expand">
         <div v-if="isTauri() && settings.autoStart" class="sub-setting">
           <div v-if="isWindows" class="setting-row"><span class="setting-label">{{ lang === 'en' ? 'Startup method' : '启动方式' }}</span><FluentSelect :model-value="settings.autoStartMode" :options="autoStartModeOptions" width="240px" :disabled="autoStartBusy" @update:model-value="onAutoStartModeChange" /></div>
-          <div class="setting-row"><span class="setting-label">{{ lang === 'en' ? 'Start hidden in tray' : '启动到托盘' }}</span><FluentToggle :model-value="settings.autoStartToTray" @update:model-value="update('autoStartToTray', $event)" /></div>
+          <div class="setting-row"><span class="setting-label">{{ lang === 'en' ? 'Start hidden in tray' : '启动到托盘' }}</span><FluentToggle :model-value="settings.autoStartToTray" :aria-label="lang === 'en' ? 'Start hidden in tray' : '启动到托盘'" @update:model-value="update('autoStartToTray', $event)" /></div>
         </div>
       </Transition>
       <div class="setting-row uri-setting-row">
@@ -98,7 +99,7 @@
             <FluentIcon icon="book-open-16-regular" :width="14" />
             {{ lang === 'en' ? 'Usage guide' : '查看调用方式' }}
           </FluentButton>
-          <FluentToggle v-if="isTauri()" :model-value="settings.uriSchemeEnabled" :disabled="uriSchemeBusy" @update:model-value="onUriSchemeToggle" />
+          <FluentToggle v-if="isTauri()" :model-value="settings.uriSchemeEnabled" :aria-label="lang === 'en' ? 'Cyrene URI protocol' : 'Cyrene URI 协议'" :disabled="uriSchemeBusy" @update:model-value="onUriSchemeToggle" />
         </div>
       </div>
       <div v-if="isDesktop" class="setting-row">
@@ -135,7 +136,7 @@
       <h3 class="section-title"><FluentIcon icon="color-24-regular" :width="20" /> {{ lang === 'en' ? 'Theme & Display' : '主题与显示' }}</h3>
       <div class="setting-row">
         <span class="setting-label">{{ lang === 'en' ? 'Dark Mode' : '深色模式' }}</span>
-        <FluentToggle :model-value="settingsStore.darkMode" @update:model-value="settingsStore.toggleDarkMode()" />
+        <FluentToggle :model-value="settingsStore.darkMode" :aria-label="lang === 'en' ? 'Dark mode' : '深色模式'" @update:model-value="settingsStore.toggleDarkMode()" />
       </div>
       <div class="setting-row">
         <span class="setting-label">{{ lang === 'en' ? 'Color theme' : '主题色' }}</span>
@@ -211,21 +212,21 @@
           <span class="setting-label">{{ lang === 'en' ? 'Acrylic Blur' : '亚克力模糊' }}</span>
           <span class="setting-desc">{{ lang === 'en' ? 'Glass blur on cards, dock, titlebar' : '卡片、侧边栏、标题栏的毛玻璃效果' }}</span>
         </div>
-        <FluentToggle :model-value="settings.perfBlur" @update:model-value="update('perfBlur', $event)" />
+        <FluentToggle :model-value="settings.perfBlur" :aria-label="lang === 'en' ? 'Acrylic blur' : '亚克力模糊'" @update:model-value="update('perfBlur', $event)" />
       </div>
       <div class="setting-row">
         <div class="setting-label-group">
           <span class="setting-label">{{ lang === 'en' ? 'Shadows' : '阴影效果' }}</span>
           <span class="setting-desc">{{ lang === 'en' ? 'Card and button drop shadows' : '卡片和按钮的投影效果' }}</span>
         </div>
-        <FluentToggle :model-value="settings.perfShadows" @update:model-value="update('perfShadows', $event)" />
+        <FluentToggle :model-value="settings.perfShadows" :aria-label="lang === 'en' ? 'Shadows' : '阴影效果'" @update:model-value="update('perfShadows', $event)" />
       </div>
       <div class="setting-row">
         <div class="setting-label-group">
           <span class="setting-label">{{ lang === 'en' ? 'Animations' : '过渡动画' }}</span>
           <span class="setting-desc">{{ lang === 'en' ? 'Page transitions, hover effects' : '页面切换动画、悬停效果' }}</span>
         </div>
-        <FluentToggle :model-value="settings.perfAnimations" @update:model-value="update('perfAnimations', $event)" />
+        <FluentToggle :model-value="settings.perfAnimations" :aria-label="lang === 'en' ? 'Animations' : '过渡动画'" @update:model-value="update('perfAnimations', $event)" />
       </div>
       <div class="performance-note">
         <FluentIcon icon="info-16-regular" :width="14" />
@@ -243,7 +244,7 @@
             ? (lang === 'en' ? 'Required by the fairness algorithm.' : '公平算法需要持续记录统计数据。')
             : (lang === 'en' ? 'When off, no selection counts are recorded.' : '关闭后不记录中签次数。') }}</span>
         </div>
-          <FluentToggle :model-value="settings.recordCounts" :disabled="balance.enabled" @update:model-value="update('recordCounts', $event)" />
+          <FluentToggle :model-value="settings.recordCounts" :aria-label="lang === 'en' ? 'Enable statistics' : '启用数据统计'" :disabled="balance.enabled" @update:model-value="update('recordCounts', $event)" />
       </div>
       <div class="setting-row">
         <div class="setting-label-group">
@@ -280,7 +281,7 @@
       <h3 class="section-title"><FluentIcon icon="play-24-regular" :width="18" /> {{ t('drawSettings', lang) }}</h3>
       <div class="setting-row">
         <span class="setting-label">{{ lang === 'en' ? 'Auto stop' : '自动停止' }}</span>
-        <FluentToggle :model-value="settings.autoStop" @update:model-value="update('autoStop', $event)" />
+        <FluentToggle :model-value="settings.autoStop" :aria-label="lang === 'en' ? 'Automatic stop' : '自动停止'" @update:model-value="update('autoStop', $event)" />
       </div>
       <Transition name="toggle-expand">
         <div v-if="settings.autoStop" class="sub-setting">
@@ -315,7 +316,7 @@
         <div class="setting-label-group">
           <span class="setting-label">{{ t('multiStepStop', lang) }}</span>
         </div>
-        <FluentToggle :model-value="settings.multiStepStop" @update:model-value="update('multiStepStop', $event)" />
+        <FluentToggle :model-value="settings.multiStepStop" :aria-label="lang === 'en' ? 'Reveal results one by one' : '逐个揭示结果'" @update:model-value="update('multiStepStop', $event)" />
       </div>
       <Transition name="toggle-expand">
         <div v-if="settings.multiStepStop" class="sub-setting">
@@ -338,7 +339,7 @@
       <h3 class="section-title"><FluentIcon icon="data-line-24-regular" :width="20" /> {{ t('balanceSettings', lang) }}</h3>
       <div class="setting-row">
         <span class="setting-label">{{ lang === 'en' ? 'Enable Balance' : '启用平衡算法' }}</span>
-          <FluentToggle :model-value="balance.enabled" @update:model-value="onBalanceEnabledChange" />
+          <FluentToggle :model-value="balance.enabled" :aria-label="lang === 'en' ? 'Enable balance algorithm' : '启用平衡算法'" @update:model-value="onBalanceEnabledChange" />
       </div>
       <Transition name="toggle-expand">
         <div v-if="balance.enabled" class="balance-sub">
