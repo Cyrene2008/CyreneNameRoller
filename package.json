@@ -3,6 +3,7 @@
   "version": "26.2.0",
   "description": "随机点名器 - 支持多人模式、平衡算法、翻牌模式的桌面端点名应用",
   "author": "Cyrene2008 <https://github.com/Cyrene2008>",
+  "packageManager": "pnpm@11.18.0",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
