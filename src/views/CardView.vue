@@ -108,6 +108,7 @@ const cardRefs = new Map()
 const pendingOperationTimers = new Set()
 let operationGeneration = 0
 let unmounted = false
+let cardTransactionInFlight = false
 let stopNamesLoadedWatch
 
 const TRAY_KEY = 'cardTrayHistory'
@@ -216,52 +217,65 @@ function shuffle() {
   cards.value.forEach((card, i) => scheduleOperation(generation, () => { revealCard(card, generation) }, i * 80))
 }
 
-async function flipCard(index, operation = null, generation = operation?.generation ?? operationGeneration) {
+async function flipCard(index, operation = null, generation = operationGeneration) {
   if (!operationIsActive(generation)) return
   const card = cards.value[index]
   if (!card || card.flipped) return
+  let activeOperation = operation || card.operation
+  if (!activeOperation && cardTransactionInFlight) return
+  const precommitted = !!activeOperation?.receipt
   card.flipped = true
   nextTick(() => {
     if (operationIsActive(generation)) pluginsStore.startAnimation('card.flip', cardRefs.get(card.id))
   })
-  const globalState = operation?.globalState || operation
+  const globalState = activeOperation?.globalState || activeOperation
   if (!globalState || !globalState.globalTriggered) {
     if (globalState) globalState.globalTriggered = true
     pluginsStore.startAnimation('global.transition', null, { variant: 'card' })
   }
   const personId = card.personId || namesStore.currentNames.find(person => person.cn === card.cn && (!card.en || person.en === card.en))?.id || null
   try {
-    await coreClient.commitCard({
-      listId: namesStore.currentList.id,
-      personIds: [personId],
-      operationId: operation?.id || `card-${card.id}`
-    })
+    if (!activeOperation?.receipt) {
+      const receipt = await coreClient.commitCard({
+        listId: namesStore.currentList.id,
+        personIds: [personId],
+        operationId: `card-${card.id}`
+      })
+      card.operation = { id: receipt.operationId, count: 1, index: 0, generation, receipt, globalState: {} }
+      activeOperation = card.operation
+    }
   } catch (error) {
     card.flipped = false
     showBanner({ message: error?.message || '卡牌记录保存失败', icon: 'warning-16-regular', type: 'warning', duration: 8000 })
     return
   }
-  usedNames.value.add(card.personId || card.cn)
-  trayHistory.value.unshift({ id: ++historyIdCounter, name: card.displayName })
-  const result = { id: personId || '', name: card.cn, englishName: card.en || '' }
+  if (!precommitted) {
+    usedNames.value.add(card.personId || card.cn)
+    trayHistory.value.unshift({ id: ++historyIdCounter, name: card.displayName })
+  }
+  const receiptResult = activeOperation?.receipt?.results?.[activeOperation.index]
+  const result = receiptResult
+    ? { id: receiptResult.id || '', name: receiptResult.name || '', englishName: receiptResult.englishName || '' }
+    : { id: personId || '', name: card.cn, englishName: card.en || '' }
   pluginsStore.dispatchEvent('card:item-result', {
-    operationId: operation?.id || `card-${card.id}`,
-    index: operation?.index || 0,
-    count: operation?.count || 1,
+    operationId: activeOperation?.id || card.operation?.id || `card-${card.id}`,
+    index: activeOperation?.index || 0,
+    count: activeOperation?.count || 1,
     listId: namesStore.currentList.id,
     result
   })
-  if (!operation || operation.index === operation.count - 1) {
+  if (!activeOperation || activeOperation.index === activeOperation.count - 1) {
     pluginsStore.dispatchEvent('card:result', {
-      operationId: operation?.id || `card-${card.id}`,
+      operationId: activeOperation?.id || card.operation?.id || `card-${card.id}`,
       listId: namesStore.currentList.id,
-      results: operation?.results || [result]
+      results: activeOperation?.receipt?.results || [result]
     })
   }
-  saveTrayState()
+  if (!precommitted) saveTrayState()
 }
 
-function quickDraw() {
+async function quickDraw() {
+  if (cardTransactionInFlight) return
   const generation = cancelPendingOperations()
   const available = getAvailableNames()
   if (available.length === 0) {
@@ -286,8 +300,29 @@ function quickDraw() {
   while (chosen.length < count && copy.length > 0) { const idx = Math.floor(Math.random() * copy.length); chosen.push(copy.splice(idx, 1)[0]) }
   cards.value = chosen.map(p => ({ id: ++cardIdCounter, personId: p.id, cn: p.cn, en: p.en, displayName: getDisplayName(p), visible: false, flipped: false, pluginDeal: false }))
   const operationId = crypto.randomUUID?.() || `card-${Date.now()}`
-  const results = chosen.map(person => ({ id: person.id || '', name: person.cn, englishName: person.en || '' }))
-  const operation = { id: operationId, count: cards.value.length, results, globalTriggered: false, generation }
+  let receipt
+  cardTransactionInFlight = true
+  try {
+    receipt = await coreClient.commitCard({
+      listId: namesStore.currentList.id,
+      personIds: chosen.map(person => person.id),
+      operationId
+    })
+  } catch (error) {
+    cardTransactionInFlight = false
+    if (operationIsActive(generation)) cards.value = []
+    if (operationIsActive(generation)) showBanner({ message: error?.message || '卡牌记录保存失败', icon: 'warning-16-regular', type: 'warning', duration: 8000 })
+    return
+  }
+  cardTransactionInFlight = false
+  if (!operationIsActive(generation)) return
+  const operation = { id: receipt.operationId || operationId, count: cards.value.length, globalTriggered: false, generation, receipt }
+  cards.value.forEach((card, index) => { card.operation = { ...operation, index, globalState: operation } })
+  chosen.forEach(card => {
+    usedNames.value.add(card.id)
+    trayHistory.value.unshift({ id: ++historyIdCounter, name: getDisplayName(card) })
+  })
+  saveTrayState()
   cards.value.forEach((card, i) => {
     scheduleOperation(generation, () => {
       revealCard(card, generation)

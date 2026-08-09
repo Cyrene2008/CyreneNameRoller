@@ -21,7 +21,7 @@ test('CardView tracks every delayed deal task behind one operation generation', 
 test('CardView invalidates nested callbacks and asynchronous animation continuations', async () => {
   const source = await fs.readFile(cardViewPath, 'utf8')
   assert.match(source, /if \(!operationIsActive\(generation\)\) return false[\s\S]*await nextTick\(\)[\s\S]*if \(!operationIsActive\(generation\)\) return false/)
-  assert.match(source, /function flipCard\(index, operation = null, generation = operation\?\.generation \?\? operationGeneration\) \{\s*if \(!operationIsActive\(generation\)\) return/)
+  assert.match(source, /function flipCard\(index, operation = null, generation = operationGeneration\) \{\s*if \(!operationIsActive\(generation\)\) return/)
   assert.match(source, /scheduleOperation\(generation, \(\) => \{[\s\S]*scheduleOperation\(generation, \(\) => flipCard/)
   assert.match(source, /nextTick\(\(\) => \{\s*if \(operationIsActive\(generation\)\) pluginsStore\.startAnimation\('card\.flip'/)
 })

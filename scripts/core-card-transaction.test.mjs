@@ -47,11 +47,22 @@ test('Card uses an independent host transaction and CardReceipt', () => {
   assert.equal(value.receipt.results[0].id, 'person-1')
   assert.equal(value.nextRecords[0].source, 'card')
   assert.equal(value.nextStatistics.totalCount, 0)
+
+  const batch = executeCoreCardRequest({
+    state,
+    caller: { kind: 'core-ui', pluginId: 'core', operationId: 'card-batch' },
+    input: { listId: 'list-1', personIds: ['person-1', 'person-3'] }
+  })
+  assert.equal(batch.receipt.operationId, 'card-batch')
+  assert.deepEqual(batch.receipt.results.map(result => result.id), ['person-1', 'person-3'])
+  assert.equal(batch.nextRecords.length, 2)
 })
 
 test('CardView does not write the Records Store directly', async () => {
   const source = await fs.readFile(new URL('../src/views/CardView.vue', import.meta.url), 'utf8')
   assert.match(source, /coreClient\.commitCard/)
+  assert.match(source, /personIds: chosen\.map\(person => person\.id\)/)
+  assert.match(source, /const operation = \{ id: receipt\.operationId/)
   assert.doesNotMatch(source, /recordsStore\.addRecord|recordsStore\.appendRecords/)
 })
 
