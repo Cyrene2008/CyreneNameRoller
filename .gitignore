@@ -27,6 +27,7 @@ src-tauri/target
 src-tauri/gen
 target/
 tmp/
+/doc/
 /docs/
 plugin-dev/
 *.cnrp
