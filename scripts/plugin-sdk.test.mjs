@@ -488,7 +488,7 @@ test('host and CLI load older plugin APIs in compatibility mode but reject newer
   assert.equal(compatibility.degraded, true)
   assert.match(compatibility.reason, /旧版 API|older API/i)
 
-  manifest.engine = { min: '1.3.0', max: '2.0.0' }
+  manifest.engine = { min: '1.4.0', max: '2.0.0' }
   await fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2))
   assert.throws(() => parser.normalizePluginManifest(manifest), /需要 API/)
   await assert.rejects(() => validateDirectory(source), /requires API/i)

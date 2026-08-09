@@ -39,6 +39,15 @@ function capWeightShares(weightMap, names) {
   if (names.length <= 1) return weightMap
 
   const maxShare = Math.max(MAX_SELECTION_PROBABILITY, 1 / names.length)
+  let totalWeight = 0
+  let highestWeight = 0
+  for (const name of names) {
+    const weight = weightMap.get(personKey(name)) || 0
+    totalWeight += weight
+    highestWeight = Math.max(highestWeight, weight)
+  }
+  if (totalWeight <= 0 || highestWeight / totalWeight <= maxShare) return weightMap
+
   const remaining = new Set(names.map(personKey))
   const shares = new Map()
   let remainingMass = 1
@@ -104,30 +113,47 @@ function createWeightMap(names, whiteList, countsMap, rawSettings) {
 
   if (!settings.enabled || regularNames.length === 0) return weights
 
-  const counts = regularNames.map(name => getCount(countsMap, name))
-  const totalDraws = counts.reduce((sum, count) => sum + count, 0)
+  const counts = new Array(regularNames.length)
+  let totalDraws = 0
+  let minCount = Number.POSITIVE_INFINITY
+  let maxCount = Number.NEGATIVE_INFINITY
+  for (let index = 0; index < regularNames.length; index++) {
+    const count = getCount(countsMap, regularNames[index])
+    counts[index] = count
+    totalDraws += count
+    minCount = Math.min(minCount, count)
+    maxCount = Math.max(maxCount, count)
+  }
   const expectedCount = totalDraws / regularNames.length
-  const gap = Math.max(...counts) - Math.min(...counts)
+  const gap = maxCount - minCount
 
   // Statistical feedback stays mild; the fixed soft-gap guard below provides
   // the strong correction needed near and beyond the target gap.
   const warmup = clamp(totalDraws / (regularNames.length * COLD_START_ROUNDS), 0, 1)
   const gapPressure = clamp(gap / TARGET_GAP, 0, 2)
   const adaptiveGain = INTERNAL_SENSITIVITY * (0.35 + 0.65 * gapPressure)
-  const rawLogWeights = counts.map(count => -adaptiveGain * (count - expectedCount))
-
-  const rawMin = Math.min(...rawLogWeights)
-  const rawMax = Math.max(...rawLogWeights)
+  const rawLogWeights = new Array(counts.length)
+  let rawMin = Number.POSITIVE_INFINITY
+  let rawMax = Number.NEGATIVE_INFINITY
+  for (let index = 0; index < counts.length; index++) {
+    const weight = -adaptiveGain * (counts[index] - expectedCount)
+    rawLogWeights[index] = weight
+    rawMin = Math.min(rawMin, weight)
+    rawMax = Math.max(rawMax, weight)
+  }
   const midpoint = (rawMin + rawMax) / 2
   const halfLogRange = Math.log(INTERNAL_MAX_RATIO) / 2
-  const minCount = Math.min(...counts)
+  const minCountOccurrences = counts.reduce((total, count) => total + (count === minCount ? 1 : 0), 0)
+  const secondMinCount = counts.reduce((second, count) => count > minCount && count < second ? count : second, Number.POSITIVE_INFINITY)
 
   regularNames.forEach((name, index) => {
     const centered = rawLogWeights[index] - midpoint
     const bounded = clamp(centered, -halfLogRange, halfLogRange)
-    const projectedCounts = counts.slice()
-    projectedCounts[index] += 1
-    const projectedGap = Math.max(...projectedCounts) - Math.min(...projectedCounts)
+    const projectedCount = counts[index] + 1
+    const projectedMin = counts[index] === minCount && minCountOccurrences === 1
+      ? Math.min(projectedCount, secondMinCount)
+      : minCount
+    const projectedGap = Math.max(maxCount, projectedCount) - projectedMin
 
     let guard = 1
     if (gap > TARGET_GAP && counts[index] > minCount) {
@@ -182,13 +208,13 @@ export function pickCyreneBalanced(
   // In no-repeat mode, removing a candidate changes the current target pool.
   // Recompute the feedback model from the remaining candidates each draw.
   const weightMap = createWeightMap(available, whiteList, countsMap, settings)
-  const weights = available.map(name => weightMap.get(personKey(name)) || 1)
-  const totalWeight = weights.reduce((sum, weight) => sum + weight, 0)
+  let totalWeight = 0
+  for (const name of available) totalWeight += weightMap.get(personKey(name)) || 1
   const randomValue = clamp(Number(random()) || 0, 0, 1 - Number.EPSILON)
   let threshold = randomValue * totalWeight
 
   for (let index = 0; index < available.length; index++) {
-    threshold -= weights[index]
+    threshold -= weightMap.get(personKey(available[index])) || 1
     if (threshold < 0) {
       const selected = available[index]
       return {

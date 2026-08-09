@@ -127,13 +127,13 @@ import { ref, computed, inject } from 'vue'
 import { useRouter } from 'vue-router'
 import { useNamesStore } from '../stores/names'
 import { useSettingsStore } from '../stores/settings'
-import { useStatisticsStore } from '../stores/statistics'
+import { getCoreClient } from '../core/client'
 import { t } from '../utils/i18n'
 
 const router = useRouter()
 const namesStore = useNamesStore()
 const settingsStore = useSettingsStore()
-const statisticsStore = useStatisticsStore()
+const coreClient = getCoreClient()
 const lang = computed(() => settingsStore.settings.language)
 const showBanner = inject('banner')
 
@@ -186,10 +186,14 @@ function toggleSelectAll() {
 
 async function addPerson() {
   if (!newCn.value.trim()) return
-  const existingPeople = [...namesStore.currentNames]
   const person = namesStore.addPerson(newCn.value, newEn.value, newGender.value)
   if (!person) return
-  await statisticsStore.initializePersonCount(person, existingPeople, settingsStore.settings.newMemberCountMode)
+  await namesStore.save()
+  await coreClient.initializePersonCount({
+    listId: namesStore.currentListId,
+    personId: person.id,
+    mode: settingsStore.settings.newMemberCountMode
+  })
   newCn.value = ''
   newEn.value = ''
   newGender.value = 'male'

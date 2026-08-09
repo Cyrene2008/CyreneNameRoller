@@ -16,3 +16,16 @@ test('SDK release workflow keeps package publication separate from GitHub Releas
   assert.doesNotMatch(workflow, /publish_failed=true/)
   assert.doesNotMatch(workflow, /exit 0/)
 })
+
+test('SDK artifact packing runs from the staged package with npm or pnpm', async () => {
+  const packScript = await fs.readFile('scripts/prepare-plugin-sdk-output.mjs', 'utf8')
+  assert.match(packScript, /\[packageManagerCli, 'pack', '--pack-destination', output\], stage/)
+  assert.doesNotMatch(packScript, /\[packageManagerCli, 'pack', stage,/)
+})
+
+test('Windows distribution invokes the Tauri CLI without shell path parsing', async () => {
+  const packageScript = await fs.readFile('scripts/package-dist.mjs', 'utf8')
+  assert.match(packageScript, /spawnSync\(process\.execPath, \[tauriCli, \.\.\.buildArgs\]/)
+  assert.match(packageScript, /shell: false/)
+  assert.doesNotMatch(packageScript, /\.bin.*tauri.*\.cmd/)
+})

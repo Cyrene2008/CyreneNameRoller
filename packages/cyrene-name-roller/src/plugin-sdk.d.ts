@@ -1,4 +1,4 @@
-export declare const PLUGIN_API_VERSION: '1.2.0'
+export declare const PLUGIN_API_VERSION: '1.3.0'
 export declare const PluginEvents: {
   readonly APP_READY: 'app:ready'
   readonly APP_ROUTE_CHANGED: 'app:route-changed'
@@ -32,6 +32,11 @@ export declare const PluginPermissions: {
   readonly UI_ANIMATIONS: 'ui:animations'
   readonly UI_VISUAL_SURFACES: 'ui:visual-surfaces'
   readonly UI_APPEARANCE: 'ui:appearance'
+  readonly UI_COMPONENT_STYLES: 'ui:component-styles'
+  readonly UI_COMPONENT_OVERRIDES: 'ui:component-overrides'
+  readonly UI_NATIVE_VIEWS: 'ui:native-views'
+  readonly UI_RESULT_PRESENTATIONS: 'ui:result-presentations'
+  readonly UI_FONTS: 'ui:fonts'
   readonly SYSTEM_OPEN_URL: 'system:open-url'
   readonly SYSTEM_SELECT_FILE: 'system:select-file'
   readonly SYSTEM_SELECT_DIRECTORY: 'system:select-directory'
@@ -124,6 +129,21 @@ export interface HostExtensionDescriptor {
   schemaVersion: 1
   apiVersion: string
   model: 'product-freedom-core-hosted'
+  platform?: 'web' | 'tauri'
+  security?: { runtime: 'plugin-isolated' | 'backend-authoritative' }
+  componentTargets?: Array<{
+    id: string
+    platform?: 'all' | 'web' | 'tauri'
+    available: boolean
+    visibilityPolicy: 'protected' | 'required' | 'replaceable' | 'optional'
+    allowedStyles: readonly string[]
+    allowPluginFonts?: boolean
+  }>
+  slots?: Array<{
+    id: `slot:${string}`
+    available: boolean
+    platform: 'web' | 'tauri'
+  }>
   resources: HostExtensionCapability[]
   transactions: HostExtensionCapability[]
   contributions: string[]
@@ -133,6 +153,11 @@ export interface HostExtensionDescriptor {
     animationPacks: { ownership: 'host'; execution: Array<'gsap' | 'waapi'>; input: 'declarative' }
     visualSurfaces: { ownership: 'plugin'; surface: 'offscreen-canvas'; placement: Array<'background'> }
     appearancePacks: { ownership: 'host'; input: 'semantic-tokens'; modes: Array<'light' | 'dark'> }
+    fonts: { ownership: 'host'; input: 'validated-woff2'; namespace: 'plugin:<pluginId>/<fontId>' }
+    nativeViews: { ownership: 'host'; input: 'declarative-schema'; slots: Array<'slot:roller.side-panel' | 'slot:roller.below-result' | 'slot:records.toolbar'> }
+    componentStylePacks: { ownership: 'host'; input: 'stable-component-ids'; properties: readonly string[] }
+    componentOverridePacks: { ownership: 'host'; input: 'stable-component-ids'; visibility: readonly string[] }
+    resultPresentations: { ownership: 'host'; input: 'verified-receipt-context'; targets: Array<'roller.result'> }
   }
   guarantees: {
     existingRecordsImmutable: true
@@ -383,8 +408,20 @@ export interface PluginManifest {
     animationPacks?: PluginAnimationPackContribution[]
     visualSurfaces?: PluginVisualSurfaceContribution[]
     appearancePacks?: PluginAppearancePackContribution[]
+    componentStylePacks?: PluginComponentStylePackContribution[]
+    componentOverridePacks?: PluginComponentOverridePackContribution[]
+    nativeViews?: PluginNativeViewContribution[]
+    resultPresentations?: PluginResultPresentationContribution[]
+    fonts?: PluginFontContribution[]
   }
 }
+
+export type ComponentStyleProperty = 'size' | 'scale' | 'foreground' | 'background' | 'accent' | 'fontFamily' | 'fontSize' | 'fontWeight' | 'lineHeight' | 'padding' | 'gap' | 'radius' | 'borderColor' | 'borderWidth' | 'shadow' | 'alignment' | 'density'
+export interface PluginComponentStylePackContribution { id: string; title: string; description?: string; targets: Record<string, Partial<Record<ComponentStyleProperty, string | number>>> }
+export interface PluginComponentOverridePackContribution { id: string; title: string; description?: string; targets: Record<string, { visibility?: 'visible' | 'hidden' | 'replaced'; layout?: 'collapse' | 'reserve' | 'compact' }> }
+export interface PluginNativeViewContribution { id: string; title: string; titleEn?: string; description?: string; slot: 'slot:roller.side-panel' | 'slot:roller.below-result' | 'slot:records.toolbar'; source: string; uses?: PluginPermission[]; order?: number }
+export interface PluginResultPresentationContribution { id: string; title: string; titleEn?: string; description?: string; targets: Array<'roller.result'>; layout: 'single' | 'list' | 'grid' | 'spotlight'; style?: { size?: 'small' | 'medium' | 'large'; alignment?: 'start' | 'center' | 'end'; showAlgorithm?: boolean; showOperationId?: boolean; showEnglishName?: boolean } }
+export interface PluginFontContribution { id: string; source: string; weight?: 400 | 500 | 600 | 700 | 800; style?: 'normal' | 'italic' }
 
 export interface DrawRequest {
   listId?: string
@@ -413,6 +450,9 @@ export interface DrawReceipt {
   readonly algorithm: string
   readonly algorithmVersion: string
   readonly committedAt: number
+  readonly sequence?: number
+  readonly previousHash?: string
+  readonly receiptHash?: string
   readonly results: readonly DrawResultItem[]
 }
 

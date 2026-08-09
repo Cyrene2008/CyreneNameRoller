@@ -18,6 +18,7 @@
         </div>
         <FluentToggle
           :model-value="!settings.disableSplash"
+          :aria-label="lang === 'en' ? 'Startup splash screen' : '启动欢迎屏'"
           @update:model-value="update('disableSplash', !$event)"
         />
       </div>
@@ -27,7 +28,7 @@
       </div>
       <div v-if="isDesktop" class="setting-row">
         <span class="setting-label">{{ lang === 'en' ? 'Floating Window' : '悬浮窗快捷点名' }}</span>
-        <FluentToggle :model-value="settings.floatingWindowEnabled" @update:model-value="onFloatingWindowToggle" />
+        <FluentToggle :model-value="settings.floatingWindowEnabled" :aria-label="lang === 'en' ? 'Floating window' : '悬浮窗'" @update:model-value="onFloatingWindowToggle" />
       </div>
       <Transition name="toggle-expand">
         <div v-if="isDesktop && settings.floatingWindowEnabled" class="sub-setting floating-window-settings">
@@ -81,11 +82,11 @@
           </div>
         </div>
       </Transition>
-      <div v-if="isTauri()" class="setting-row"><span class="setting-label">{{ lang === 'en' ? 'Launch at sign-in' : '开机自启动' }}</span><FluentToggle :model-value="settings.autoStart" :disabled="autoStartBusy" @update:model-value="onAutoStart" /></div>
+      <div v-if="isTauri()" class="setting-row"><span class="setting-label">{{ lang === 'en' ? 'Launch at sign-in' : '开机自启动' }}</span><FluentToggle :model-value="settings.autoStart" :aria-label="lang === 'en' ? 'Launch at sign-in' : '开机自启动'" :disabled="autoStartBusy" @update:model-value="onAutoStart" /></div>
       <Transition name="toggle-expand">
         <div v-if="isTauri() && settings.autoStart" class="sub-setting">
           <div v-if="isWindows" class="setting-row"><span class="setting-label">{{ lang === 'en' ? 'Startup method' : '启动方式' }}</span><FluentSelect :model-value="settings.autoStartMode" :options="autoStartModeOptions" width="240px" :disabled="autoStartBusy" @update:model-value="onAutoStartModeChange" /></div>
-          <div class="setting-row"><span class="setting-label">{{ lang === 'en' ? 'Start hidden in tray' : '启动到托盘' }}</span><FluentToggle :model-value="settings.autoStartToTray" @update:model-value="update('autoStartToTray', $event)" /></div>
+          <div class="setting-row"><span class="setting-label">{{ lang === 'en' ? 'Start hidden in tray' : '启动到托盘' }}</span><FluentToggle :model-value="settings.autoStartToTray" :aria-label="lang === 'en' ? 'Start hidden in tray' : '启动到托盘'" @update:model-value="update('autoStartToTray', $event)" /></div>
         </div>
       </Transition>
       <div class="setting-row uri-setting-row">
@@ -98,7 +99,7 @@
             <FluentIcon icon="book-open-16-regular" :width="14" />
             {{ lang === 'en' ? 'Usage guide' : '查看调用方式' }}
           </FluentButton>
-          <FluentToggle v-if="isTauri()" :model-value="settings.uriSchemeEnabled" :disabled="uriSchemeBusy" @update:model-value="onUriSchemeToggle" />
+          <FluentToggle v-if="isTauri()" :model-value="settings.uriSchemeEnabled" :aria-label="lang === 'en' ? 'Cyrene URI protocol' : 'Cyrene URI 协议'" :disabled="uriSchemeBusy" @update:model-value="onUriSchemeToggle" />
         </div>
       </div>
       <div v-if="isDesktop" class="setting-row">
@@ -135,7 +136,7 @@
       <h3 class="section-title"><FluentIcon icon="color-24-regular" :width="20" /> {{ lang === 'en' ? 'Theme & Display' : '主题与显示' }}</h3>
       <div class="setting-row">
         <span class="setting-label">{{ lang === 'en' ? 'Dark Mode' : '深色模式' }}</span>
-        <FluentToggle :model-value="settingsStore.darkMode" @update:model-value="settingsStore.toggleDarkMode()" />
+        <FluentToggle :model-value="settingsStore.darkMode" :aria-label="lang === 'en' ? 'Dark mode' : '深色模式'" @update:model-value="settingsStore.toggleDarkMode()" />
       </div>
       <div class="setting-row">
         <span class="setting-label">{{ lang === 'en' ? 'Color theme' : '主题色' }}</span>
@@ -211,21 +212,21 @@
           <span class="setting-label">{{ lang === 'en' ? 'Acrylic Blur' : '亚克力模糊' }}</span>
           <span class="setting-desc">{{ lang === 'en' ? 'Glass blur on cards, dock, titlebar' : '卡片、侧边栏、标题栏的毛玻璃效果' }}</span>
         </div>
-        <FluentToggle :model-value="settings.perfBlur" @update:model-value="update('perfBlur', $event)" />
+        <FluentToggle :model-value="settings.perfBlur" :aria-label="lang === 'en' ? 'Acrylic blur' : '亚克力模糊'" @update:model-value="update('perfBlur', $event)" />
       </div>
       <div class="setting-row">
         <div class="setting-label-group">
           <span class="setting-label">{{ lang === 'en' ? 'Shadows' : '阴影效果' }}</span>
           <span class="setting-desc">{{ lang === 'en' ? 'Card and button drop shadows' : '卡片和按钮的投影效果' }}</span>
         </div>
-        <FluentToggle :model-value="settings.perfShadows" @update:model-value="update('perfShadows', $event)" />
+        <FluentToggle :model-value="settings.perfShadows" :aria-label="lang === 'en' ? 'Shadows' : '阴影效果'" @update:model-value="update('perfShadows', $event)" />
       </div>
       <div class="setting-row">
         <div class="setting-label-group">
           <span class="setting-label">{{ lang === 'en' ? 'Animations' : '过渡动画' }}</span>
           <span class="setting-desc">{{ lang === 'en' ? 'Page transitions, hover effects' : '页面切换动画、悬停效果' }}</span>
         </div>
-        <FluentToggle :model-value="settings.perfAnimations" @update:model-value="update('perfAnimations', $event)" />
+        <FluentToggle :model-value="settings.perfAnimations" :aria-label="lang === 'en' ? 'Animations' : '过渡动画'" @update:model-value="update('perfAnimations', $event)" />
       </div>
       <div class="performance-note">
         <FluentIcon icon="info-16-regular" :width="14" />
@@ -243,7 +244,7 @@
             ? (lang === 'en' ? 'Required by the fairness algorithm.' : '公平算法需要持续记录统计数据。')
             : (lang === 'en' ? 'When off, no selection counts are recorded.' : '关闭后不记录中签次数。') }}</span>
         </div>
-          <FluentToggle :model-value="settings.recordCounts" :disabled="balance.enabled" @update:model-value="update('recordCounts', $event)" />
+          <FluentToggle :model-value="settings.recordCounts" :aria-label="lang === 'en' ? 'Enable statistics' : '启用数据统计'" :disabled="balance.enabled" @update:model-value="update('recordCounts', $event)" />
       </div>
       <div class="setting-row">
         <div class="setting-label-group">
@@ -280,7 +281,7 @@
       <h3 class="section-title"><FluentIcon icon="play-24-regular" :width="18" /> {{ t('drawSettings', lang) }}</h3>
       <div class="setting-row">
         <span class="setting-label">{{ lang === 'en' ? 'Auto stop' : '自动停止' }}</span>
-        <FluentToggle :model-value="settings.autoStop" @update:model-value="update('autoStop', $event)" />
+        <FluentToggle :model-value="settings.autoStop" :aria-label="lang === 'en' ? 'Automatic stop' : '自动停止'" @update:model-value="update('autoStop', $event)" />
       </div>
       <Transition name="toggle-expand">
         <div v-if="settings.autoStop" class="sub-setting">
@@ -315,7 +316,7 @@
         <div class="setting-label-group">
           <span class="setting-label">{{ t('multiStepStop', lang) }}</span>
         </div>
-        <FluentToggle :model-value="settings.multiStepStop" @update:model-value="update('multiStepStop', $event)" />
+        <FluentToggle :model-value="settings.multiStepStop" :aria-label="lang === 'en' ? 'Reveal results one by one' : '逐个揭示结果'" @update:model-value="update('multiStepStop', $event)" />
       </div>
       <Transition name="toggle-expand">
         <div v-if="settings.multiStepStop" class="sub-setting">
@@ -338,7 +339,7 @@
       <h3 class="section-title"><FluentIcon icon="data-line-24-regular" :width="20" /> {{ t('balanceSettings', lang) }}</h3>
       <div class="setting-row">
         <span class="setting-label">{{ lang === 'en' ? 'Enable Balance' : '启用平衡算法' }}</span>
-          <FluentToggle :model-value="balance.enabled" @update:model-value="onBalanceEnabledChange" />
+          <FluentToggle :model-value="balance.enabled" :aria-label="lang === 'en' ? 'Enable balance algorithm' : '启用平衡算法'" @update:model-value="onBalanceEnabledChange" />
       </div>
       <Transition name="toggle-expand">
         <div v-if="balance.enabled" class="balance-sub">
@@ -510,8 +511,8 @@ import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch, inject } fr
 import { useNamesStore } from '../stores/names'
 import { useSettingsStore } from '../stores/settings'
 import { usePluginsStore } from '../plugins/store'
-import { useRecordsStore } from '../stores/records'
 import { useStatisticsStore } from '../stores/statistics'
+import { getCoreClient } from '../core/client'
 import { dataBridge } from '../utils/dataBridge'
 import { isTauri, tauriAPI } from '../utils/tauriAPI'
 import { updateState, checkForUpdates, downloadUpdate, getDownloadUrl } from '../utils/updater'
@@ -536,8 +537,8 @@ defineProps({
 const settingsStore = useSettingsStore()
 const pluginsStore = usePluginsStore()
 const namesStore = useNamesStore()
-const recordsStore = useRecordsStore()
 const statisticsStore = useStatisticsStore()
+const coreClient = getCoreClient()
 const showBanner = inject('banner')
 
 const lang = computed(() => settingsStore.settings.language)
@@ -1034,7 +1035,7 @@ async function confirmPassword() {
   if (pwModalMode.value === 'change') { const s = await loadPasswordHash(); if (s && (await sha256(pwInput.value)) !== s) { pwError.value = '密码错误'; return }; pwModalMode.value = 'set'; pwInput.value = ''; return }
   const s = await loadPasswordHash(); if (!s) { showPwModal.value = false; executePending(); return }; if ((await sha256(pwInput.value)) !== s) { pwError.value = '密码错误'; return }; showPwModal.value = false; pwInput.value = ''; if (pendingAction.value) { executePending(); pendingAction.value = null }
 }
-function executePending() { const a = pendingAction.value; if (a === 'export') doExportNow(); else if (a === 'import') showImportWarning.value = true; else if (a === 'clearRecords') { recordsStore.clearAll() } else if (a === 'clearAll') doClearAllNow() }
+function executePending() { const a = pendingAction.value; if (a === 'export') doExportNow(); else if (a === 'import') showImportWarning.value = true; else if (a === 'clearRecords') { void clearRecordsNow() } else if (a === 'clearAll') doClearAllNow() }
 function requirePassword(action) { pendingAction.value = action; if (!hasPassword.value) { openPasswordModal(); return }; pwModalMode.value = 'verify'; pwInput.value = ''; pwError.value = ''; showPwModal.value = true }
 function doExport() { requirePassword('export') }
 function doImport() { requirePassword('import') }
@@ -1057,6 +1058,14 @@ async function confirmImport() {
 async function doClearAllNow() {
   await dataBridge.clearAll()
   alert(lang.value === 'en' ? 'All data cleared. Please close and restart.' : '所有数据已清除，请关闭并重启应用。')
+}
+async function clearRecordsNow() {
+  try {
+    await coreClient.clearRecords()
+    showBanner({ message: lang.value === 'en' ? 'Draw records cleared' : '抽签记录已清除', icon: 'checkmark-circle-16-regular', type: 'success', duration: 5000 })
+  } catch (error) {
+    showBanner({ message: error?.message || (lang.value === 'en' ? 'Could not clear draw records' : '抽签记录清除失败'), icon: 'warning-16-regular', type: 'warning', duration: 8000 })
+  }
 }
 async function saveBalance() {
   balance.value = normalizeCyreneBalanceSettings(balance.value)
@@ -1159,6 +1168,16 @@ function onBalanceEnabledChange(enabled) {
 @keyframes toggle-in { from { opacity: 0; transform: translateY(-8px); max-height: 0; } to { opacity: 1; transform: translateY(0); max-height: 300px; } }
 
 @media (max-width: 720px) {
+  .settings-view { padding: 20px 16px 28px; }
+  .setting-row { align-items: stretch; flex-direction: column; gap: 8px; }
+  .setting-row:has(> .fluent-toggle) { align-items: center; flex-direction: row; }
+  .setting-row > .fluent-select-wrapper,
+  .setting-row > .scale-control,
+  .setting-row > .color-picker-row,
+  .setting-row > .uri-setting-actions,
+  .setting-row > .update-actions { width: 100%; min-width: 0; }
+  .setting-row :deep(.fluent-select) { width: 100% !important; min-width: 0 !important; }
+  .scale-input-wrap, .hex-color-input { width: 100%; max-width: 100%; box-sizing: border-box; }
   .uri-setting-row { align-items: flex-start; flex-direction: column; }
   .uri-setting-actions { width: 100%; justify-content: space-between; }
   .uri-route-grid { grid-template-columns: 1fr; }

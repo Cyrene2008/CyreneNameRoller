@@ -470,3 +470,31 @@ The application downloads `plugins/list.json` at runtime through the selected so
 - Do not include secrets, absolute local paths or publisher private keys.
 - Verify the Release asset name matches `assetPattern` and the catalog public key is current.
 - If a plugin crashes the application session, the next startup enters clean mode and disables all plugins for recovery.
+
+## API 1.3 constrained UI
+
+API 1.3 adds host-owned UI contributions. The plugin declares intent in `manifest.json`; the host validates, resolves and renders every contribution. Plugins never receive Vue components, host DOM access, arbitrary CSS selectors or a core algorithm reference.
+
+### Component styles and visibility
+
+Use the `ui:component-styles` and `ui:component-overrides` permissions only when needed. Styles target stable component IDs and may adjust documented size, semantic colors, font size/weight, host font aliases, spacing, radius, borders, shadows and alignment tokens. CSS selectors, CSS files, `url()`, `var()`, `display`, `z-index`, `pointer-events`, positioning and script-backed values are rejected. Protected targets such as the authoritative result, list identity, errors, integrity state and recovery controls cannot be hidden or restyled with plugin fonts.
+
+The first 13 targets are frozen by the host component registry. `roller.filters` is `optional`: it may be hidden or compressed, while the host continues using the current or default draw scope. `app.title-bar` reports unavailable on Web. A failed override package is rejected atomically; it is never partially applied. Disabling or uninstalling a plugin removes its style variables and `FontFace` registrations.
+
+### Native views and slots
+
+`ui:native-views` contributions use a fixed declarative schema and one of these slot IDs:
+
+- `slot:roller.side-panel`
+- `slot:roller.below-result`
+- `slot:records.toolbar`
+
+Unknown slots return `available: false`. HTML, scripts, expressions, `eval`, arbitrary host objects and non-semantic icons are rejected. Generic native views always show an unavoidable "由插件提供" source label and the plugin name. `VerifiedResult` is not a general view node: only the host injects the current verified `DrawReceipt` in the result presentation context.
+
+### Authoritative draws and platform boundaries
+
+Roller host draws and plugin-requested draws use the same Core Client transaction entry. On Web, the Core Worker owns the algorithm, serial transaction queue, statistics/history submission and `DrawReceipt` generation. On Tauri, Rust owns the authoritative draw, statistics, records and authenticated `CoreStateEnvelope`; the frontend Store and generic `storage_set` cannot write core data. Plugins receive a bound `Principal` and capability-scoped RPC only, never the Worker port, internal request IDs or Tauri grant tokens.
+
+API 1.2 plugins remain valid without repackaging. Their legacy RPC path creates a `legacyPrincipal` and reaches the same authorization kernel, and their existing events, required `DrawReceipt` fields and Chinese error messages remain compatible. See [API 1.2 to 1.3 migration](./api-1.2-to-1.3.md) before declaring new 1.3 contributions.
+
+Before publishing the SDK or a catalog entry, run `node --test scripts/plugin-api-1.3-release.test.mjs`. The regression intentionally keeps the frozen API 1.2 fixture bytes unchanged.

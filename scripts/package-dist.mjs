@@ -61,8 +61,8 @@ async function main() {
     ? path.join(root, 'target', 'x86_64-unknown-linux-gnu', 'release', 'bundle')
     : path.join(root, 'target', 'release', 'bundle'), { recursive: true, force: true })
 
-  const tauriBin = path.join(root, 'node_modules', '.bin', 'tauri' + (platform === 'win32' ? '.cmd' : ''))
-  const run = spawnSync(tauriBin, buildArgs, { cwd: root, stdio: 'inherit', shell: platform === 'win32' })
+  const tauriCli = path.join(root, 'node_modules', '@tauri-apps', 'cli', 'tauri.js')
+  const run = spawnSync(process.execPath, [tauriCli, ...buildArgs], { cwd: root, stdio: 'inherit', shell: false })
   if (run.status !== 0) {
     console.error('[package-dist] tauri build failed')
     process.exit(run.status ?? 1)

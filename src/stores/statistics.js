@@ -1,13 +1,14 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { dataBridge } from '../utils/dataBridge'
-import { personKey } from '../utils/cyrene-balance'
-import { useNamesStore } from './names'
+import { dataBridge } from '../utils/dataBridge.js'
+import { personKey } from '../utils/cyrene-balance.js'
+import { useNamesStore } from './names.js'
 
 export const useStatisticsStore = defineStore('statistics', () => {
   const counts = ref({})
   const totalCount = ref(0)
   const isLoaded = ref(false)
+  const revision = ref(0)
 
   async function initialize() {
     if (isLoaded.value) return
@@ -74,24 +75,6 @@ export const useStatisticsStore = defineStore('statistics', () => {
     })
   }
 
-  function incrementCount(person) {
-    return incrementCounts([person])
-  }
-
-  function incrementCounts(people, { persist = true } = {}) {
-    let incremented = 0
-    for (const person of people || []) {
-      const key = personKey(person)
-      if (!key) continue
-      if (!counts.value[key]) counts.value[key] = 0
-      counts.value[key]++
-      incremented++
-    }
-    if (incremented === 0) return Promise.resolve()
-    totalCount.value += incremented
-    return persist ? save() : Promise.resolve()
-  }
-
   function snapshotState() {
     return {
       counts: { ...counts.value },
@@ -102,35 +85,12 @@ export const useStatisticsStore = defineStore('statistics', () => {
   function restoreState(snapshot, { persist = true } = {}) {
     counts.value = { ...(snapshot?.counts || {}) }
     totalCount.value = Math.max(0, Number(snapshot?.totalCount) || 0)
+    revision.value += 1
     return persist ? save() : Promise.resolve()
   }
 
   function getCount(person) {
     return counts.value[personKey(person)] || 0
-  }
-
-  async function initializePersonCount(person, existingPeople = [], mode = 'midpoint') {
-    const key = personKey(person)
-    if (!key) return 0
-    if (counts.value[key] !== undefined) return getCount(person)
-
-    const existingCounts = existingPeople
-      .filter(person => !person.isWhiteList && person.cn && person.cn !== '再来一次')
-      .map(existingPerson => getCount(existingPerson))
-    const initialCount = mode === 'zero' ? 0 : existingCounts.length > 0
-      ? Math.round((Math.min(...existingCounts) + Math.max(...existingCounts)) / 2)
-      : 0
-
-    counts.value[key] = initialCount
-    totalCount.value += initialCount
-    await save()
-    return initialCount
-  }
-
-  function clearAll() {
-    counts.value = {}
-    totalCount.value = 0
-    save()
   }
 
   function getStatsForList(names, whiteList) {
@@ -161,15 +121,12 @@ export const useStatisticsStore = defineStore('statistics', () => {
     counts,
     totalCount,
     isLoaded,
+    revision,
     initialize,
     save,
-    incrementCount,
-    incrementCounts,
     snapshotState,
     restoreState,
     getCount,
-    initializePersonCount,
-    clearAll,
     getStatsForList
   }
 })

@@ -1,4 +1,4 @@
-export const PLUGIN_API_VERSION = '1.2.0'
+export const PLUGIN_API_VERSION = '1.3.0'
 export const PLUGIN_LIST_REPOSITORY = 'StarCyrene/CyreneNameRoller'
 export const PLUGIN_LIST_PATH = 'plugins/list.json'
 
@@ -24,6 +24,11 @@ export const PLUGIN_PERMISSIONS = new Set([
   'ui:animations',
   'ui:visual-surfaces',
   'ui:appearance',
+  'ui:component-styles',
+  'ui:component-overrides',
+  'ui:native-views',
+  'ui:result-presentations',
+  'ui:fonts',
   'system:open-url',
   'system:select-file',
   'system:select-directory',

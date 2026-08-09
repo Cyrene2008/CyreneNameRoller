@@ -282,7 +282,10 @@ async function mountPluginPage() {
     pageError.value = error.message || String(error)
   }
 }
-function onFrameLoad() { loading.value = false }
+function onFrameLoad() {
+  try { plugins.connectPageFrame(frameRef.value, String(route.params.pluginId || ''), String(route.params.pageId || '')) } catch (error) { pageError.value = error.message || String(error) }
+  loading.value = false
+}
 watch(() => [route.params.pluginId, route.params.pageId], mountPluginPage, { flush: 'post' })
 onMounted(async () => { await plugins.initialize(); await mountPluginPage() })
 onBeforeUnmount(() => {

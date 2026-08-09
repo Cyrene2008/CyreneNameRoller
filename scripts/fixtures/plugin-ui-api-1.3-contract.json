@@ -1,0 +1,45 @@
+{
+  "apiVersion": "1.3.0",
+  "legacyApiVersion": "1.2.0",
+  "componentTargets": [
+    { "id": "app.title-bar", "platform": "tauri", "visibilityPolicy": "required", "allowedStyles": ["color", "fontAlias", "density"], "source": "src/components/layout/TitleBar.vue", "selector": ".titlebar" },
+    { "id": "app.version-badge", "platform": "all", "visibilityPolicy": "optional", "allowedStyles": ["color", "fontSize", "fontWeight", "fontAlias", "spacing"], "source": "src/components/layout/AppLayout.vue", "selector": ".version-badge" },
+    { "id": "navigation.dock", "platform": "all", "visibilityPolicy": "required", "allowedStyles": ["size", "color", "fontSize", "fontWeight", "fontAlias", "density"], "source": "src/components/layout/NavigationDock.vue", "selector": ".dock" },
+    { "id": "navigation.settings-entry", "platform": "all", "visibilityPolicy": "protected", "allowedStyles": [], "source": "src/components/layout/NavigationDock.vue", "selector": null, "mappingStatus": "requires-host-boundary-wrapper" },
+    { "id": "roller.current-list", "platform": "all", "visibilityPolicy": "required", "allowedStyles": ["size", "color", "fontSize", "fontWeight", "fontAlias", "spacing"], "source": "src/views/RollerView.vue", "selector": ".list-selector-bar" },
+    { "id": "roller.filters", "platform": "all", "visibilityPolicy": "optional", "allowedStyles": ["size", "color", "fontSize", "fontWeight", "fontAlias", "spacing"], "allowedLayouts": ["collapse", "reserve", "compact"], "source": "src/views/RollerView.vue", "selector": [".switches", ".multi-settings"], "hiddenBehavior": "host-keeps-current-or-default-draw-range" },
+    { "id": "roller.primary-action", "platform": "all", "visibilityPolicy": "required", "allowedStyles": ["size", "color", "fontSize", "fontWeight", "fontAlias", "borderRadius"], "source": "src/views/RollerView.vue", "selector": ".start-btn" },
+    { "id": "roller.result", "platform": "all", "visibilityPolicy": "protected", "allowedStyles": ["color", "background", "border", "spacing", "animation"], "source": "src/views/RollerView.vue", "selector": ".display-container,.name-display", "authority": "host-bound-text-only" },
+    { "id": "card.controls", "platform": "all", "visibilityPolicy": "replaceable", "allowedStyles": ["size", "color", "fontSize", "fontWeight", "fontAlias", "spacing"], "source": "src/views/CardView.vue", "selector": ".card-controls", "replacementSlots": [] },
+    { "id": "card.deck", "platform": "all", "visibilityPolicy": "required", "allowedStyles": ["size", "spacing", "color", "background"], "source": "src/views/CardView.vue", "selector": ".cards-grid" },
+    { "id": "card.item", "platform": "all", "visibilityPolicy": "required", "allowedStyles": ["size", "color", "fontSize", "fontWeight", "fontAlias", "borderRadius", "shadow"], "source": "src/views/CardView.vue", "selector": ".card,.card-face" },
+    { "id": "lottery.result", "platform": "all", "visibilityPolicy": "protected", "allowedStyles": ["color", "background", "border", "spacing", "animation"], "source": "src/views/LotteryView.vue", "selector": ".roller-result,.wheel-result", "authority": "host-bound-prize-text-only" },
+    { "id": "statistics.summary", "platform": "all", "visibilityPolicy": "optional", "allowedStyles": ["size", "color", "fontSize", "fontWeight", "fontAlias", "spacing"], "source": "src/views/StatisticsView.vue", "selector": ".stats-summary" }
+  ],
+  "slots": [
+    { "id": "slot:app.command-palette", "available": false, "reason": "host-command-palette-not-implemented" },
+    { "id": "slot:roller.toolbar", "available": false, "reason": "reserved" },
+    { "id": "slot:roller.side-panel", "available": true, "phase": 4 },
+    { "id": "slot:roller.below-result", "available": true, "phase": 4 },
+    { "id": "slot:card.footer", "available": false, "reason": "reserved" },
+    { "id": "slot:lottery.side-panel", "available": false, "reason": "reserved" },
+    { "id": "slot:records.toolbar", "available": true, "phase": 4 },
+    { "id": "slot:statistics.section", "available": false, "reason": "reserved" },
+    { "id": "slot:settings.plugin-section", "available": false, "reason": "reserved" }
+  ],
+  "safeMode": {
+    "file": { "tauri": "<appConfigDir>/safemode.json", "web": "import.meta.env.BASE_URL + safemode.json" },
+    "cache": "no-store",
+    "invalid": { "enable": true, "source": "invalid", "errorCode": "SAFE_MODE_CONFIG_INVALID" },
+    "offline": { "history": "stale", "noHistory": "disabled-with-diagnostic", "errorCode": "SAFE_MODE_CONFIG_UNAVAILABLE" },
+    "startupBefore": ["plugin-package-parse", "plugin-worker", "plugin-iframe", "plugin-command", "plugin-font", "plugin-contribution"]
+  },
+  "errorCodes": [
+    "PLUGIN_INSTANCE_REVOKED", "PLUGIN_PERMISSION_DENIED", "PLUGIN_RPC_RATE_LIMITED", "PLUGIN_RPC_PAYLOAD_TOO_LARGE",
+    "PLUGIN_UI_UNKNOWN_TARGET", "PLUGIN_UI_PROPERTY_NOT_ALLOWED", "PLUGIN_UI_VALUE_OUT_OF_RANGE", "PLUGIN_UI_CONTRAST_TOO_LOW",
+    "PLUGIN_UI_PROTECTED_TARGET", "PLUGIN_UI_REQUIRED_TARGET", "PLUGIN_UI_REPLACEMENT_UNAVAILABLE", "PLUGIN_UI_INVARIANT_FAILED",
+    "PLUGIN_UI_SCHEMA_INVALID", "PLUGIN_UI_ICON_NOT_ALLOWED", "PLUGIN_UI_FONT_NOT_ALLOWED_FOR_TARGET", "PLUGIN_UI_RESOURCE_BINDING_DENIED",
+    "PLUGIN_UI_RENDER_FAILED", "SAFE_MODE_CONFIG_INVALID", "SAFE_MODE_CONFIG_UNAVAILABLE", "CORE_TRANSACTION_REJECTED",
+    "CORE_TRANSACTION_ROLLED_BACK", "CORE_INTEGRITY_CHECK_FAILED", "CORE_INTEGRITY_KEY_UNAVAILABLE", "UNSUPPORTED_PLATFORM"
+  ]
+}

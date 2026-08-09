@@ -34,9 +34,9 @@ await fs.mkdir(stage, { recursive: true })
 await fs.cp(source, stage, { recursive: true })
 await fs.copyFile(path.join(root, 'LICENSE'), path.join(stage, 'LICENSE'))
 
-const npmCli = process.env.npm_execpath
-if (!npmCli) throw new Error('npm_execpath is unavailable; run this command through npm run plugin:sdk:pack')
-await run(process.execPath, [npmCli, 'pack', stage, '--pack-destination', output], root)
+const packageManagerCli = process.env.npm_execpath
+if (!packageManagerCli) throw new Error('npm_execpath is unavailable; run this command through a package manager script')
+await run(process.execPath, [packageManagerCli, 'pack', '--pack-destination', output], stage)
 const generatedTgz = (await fs.readdir(output)).find(name => name.endsWith('.tgz'))
 if (!generatedTgz) throw new Error('npm pack did not produce a .tgz file')
 await fs.rename(path.join(output, generatedTgz), path.join(output, `${baseName}.tgz`))

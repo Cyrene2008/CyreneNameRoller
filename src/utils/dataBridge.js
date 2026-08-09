@@ -1,6 +1,8 @@
-import { isTauri, tauriAPI } from './tauriAPI'
-import { decryptCyreneData, encryptCyreneData } from './cyreneCrypto'
-import { emitFileNotice } from './desktopFiles'
+import { isTauri, tauriAPI } from './tauriAPI.js'
+import { decryptCyreneData, encryptCyreneData } from './cyreneCrypto.js'
+import { emitFileNotice } from './desktopFiles.js'
+
+const TAURI_CORE_INPUT_KEYS = new Set(['lists', 'currentListId', 'balance'])
 
 export const dataBridge = {
   async load(key) {
@@ -8,9 +10,10 @@ export const dataBridge = {
     if (isTauri()) {
       try {
         const val = await tauriAPI.storageGet(key)
-        if (val !== null && val !== undefined) return val
+        return val ?? null
       } catch (e) {
         console.warn(`[dataBridge] Tauri load failed for "${key}":`, e)
+        return null
       }
     }
 
@@ -26,20 +29,25 @@ export const dataBridge = {
   async save(key, data) {
     // Tauri
     if (isTauri()) {
-      try {
-        await tauriAPI.storageSet(key, data)
-      } catch (e) {
-        console.warn(`[dataBridge] Tauri save failed for "${key}":`, e)
-      }
+      const result = TAURI_CORE_INPUT_KEYS.has(key)
+        ? await tauriAPI.coreStateSet(key, data)
+        : await tauriAPI.storageSet(key, data)
+      if (result === true || result?.success === true) return result
+      throw Object.assign(new Error(result?.error || `Tauri save failed for "${key}"`), { code: result?.code || 'CORE_TRANSACTION_REJECTED' })
     }
 
     // Browser fallback
-    try { localStorage.setItem(key, JSON.stringify(data)) } catch {}
+    try {
+      localStorage.setItem(key, JSON.stringify(data))
+      return true
+    } catch (error) {
+      throw Object.assign(new Error(`Web save failed for "${key}": ${error?.message || String(error)}`), { code: 'CORE_TRANSACTION_REJECTED' })
+    }
   },
 
   async clearAll() {
     if (isTauri()) {
-      try { await tauriAPI.storageClear() } catch {}
+      return tauriAPI.coreMaintenanceExecute('reset-all')
     }
     try { localStorage.clear() } catch {}
   },
