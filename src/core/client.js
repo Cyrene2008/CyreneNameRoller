@@ -3,7 +3,7 @@ import { useNamesStore } from '../stores/names.js'
 import { useRecordsStore } from '../stores/records.js'
 import { useStatisticsStore } from '../stores/statistics.js'
 import { commitCoreStateTransaction } from '../plugins/coreDraw.js'
-import { normalizeCoreCaller, normalizeCoreCardInput, normalizeCoreDrawInput } from './protocol.js'
+import { normalizeCoreCaller, normalizeCoreCardInput, normalizeCoreDrawInput, normalizeCoreMaintenanceInput } from './protocol.js'
 import { isTauri, tauriAPI } from '../utils/tauriAPI.js'
 
 class CoreClient {
@@ -141,6 +141,86 @@ class CoreClient {
     await commit
     this.lastStateSignature = `${namesStore.revision}:${recordsStore.revision}:${statisticsStore.revision}:${JSON.stringify(balance || {})}`
     return JSON.parse(JSON.stringify(value.receipt))
+  }
+
+  async clearRecords() {
+    const caller = normalizeCoreCaller({ kind: 'core-ui', pluginId: 'core', operationId: `clear-records-${Date.now()}`, countStatistics: false })
+    const input = normalizeCoreMaintenanceInput({ action: 'clear-records' })
+    const namesStore = useNamesStore()
+    const recordsStore = useRecordsStore()
+    const statisticsStore = useStatisticsStore()
+    await Promise.all([namesStore.initialize(), recordsStore.initialize(), statisticsStore.initialize()])
+    if (isTauri()) {
+      const value = await tauriAPI.coreMaintenanceExecute('clear-records')
+      await statisticsStore.restoreState(value.statistics, { persist: false })
+      await recordsStore.restoreState(value.records, { persist: false })
+      return JSON.parse(JSON.stringify(value.receipt))
+    }
+    const balance = await dataBridge.load('balance')
+    const stateSignature = `${namesStore.revision}:${recordsStore.revision}:${statisticsStore.revision}:${JSON.stringify(balance || {})}`
+    if (stateSignature !== this.lastStateSignature) {
+      await this.request({
+        type: 'state.sync',
+        state: {
+          names: { currentListId: namesStore.currentListId, lists: JSON.parse(JSON.stringify(namesStore.nameLists)) },
+          records: recordsStore.snapshotState(),
+          statistics: statisticsStore.snapshotState(),
+          balance
+        }
+      })
+      this.lastStateSignature = stateSignature
+    }
+    const value = await this.request({ type: 'maintenance.execute', caller, input })
+    const commit = this.commitQueue.catch(() => {}).then(() => commitCoreStateTransaction({
+      statisticsStore,
+      recordsStore,
+      nextStatistics: value.nextStatistics,
+      nextRecords: value.nextRecords
+    }))
+    this.commitQueue = commit
+    await commit
+    this.lastStateSignature = `${namesStore.revision}:${recordsStore.revision}:${statisticsStore.revision}:${JSON.stringify(balance || {})}`
+    return JSON.parse(JSON.stringify(value.receipt))
+  }
+
+  async initializePersonCount({ listId, personId, mode = 'midpoint' }) {
+    const caller = normalizeCoreCaller({ kind: 'core-ui', pluginId: 'core', operationId: `initialize-person-${personId}`, countStatistics: false })
+    const input = normalizeCoreMaintenanceInput({ action: 'initialize-person-count', listId, personId, mode })
+    const namesStore = useNamesStore()
+    const recordsStore = useRecordsStore()
+    const statisticsStore = useStatisticsStore()
+    await Promise.all([namesStore.initialize(), recordsStore.initialize(), statisticsStore.initialize()])
+    if (isTauri()) {
+      const value = await tauriAPI.coreMaintenanceExecute(input.action, input)
+      await statisticsStore.restoreState(value.statistics, { persist: false })
+      await recordsStore.restoreState(value.records, { persist: false })
+      return Number(value.statistics?.counts?.[personId]) || 0
+    }
+    const balance = await dataBridge.load('balance')
+    const stateSignature = `${namesStore.revision}:${recordsStore.revision}:${statisticsStore.revision}:${JSON.stringify(balance || {})}`
+    if (stateSignature !== this.lastStateSignature) {
+      await this.request({
+        type: 'state.sync',
+        state: {
+          names: { currentListId: namesStore.currentListId, lists: JSON.parse(JSON.stringify(namesStore.nameLists)) },
+          records: recordsStore.snapshotState(),
+          statistics: statisticsStore.snapshotState(),
+          balance
+        }
+      })
+      this.lastStateSignature = stateSignature
+    }
+    const value = await this.request({ type: 'maintenance.execute', caller, input })
+    const commit = this.commitQueue.catch(() => {}).then(() => commitCoreStateTransaction({
+      statisticsStore,
+      recordsStore,
+      nextStatistics: value.nextStatistics,
+      nextRecords: value.nextRecords
+    }))
+    this.commitQueue = commit
+    await commit
+    this.lastStateSignature = `${namesStore.revision}:${recordsStore.revision}:${statisticsStore.revision}:${JSON.stringify(balance || {})}`
+    return Number(value.nextStatistics?.counts?.[personId]) || 0
   }
 
   async revokePlugin(pluginId) {

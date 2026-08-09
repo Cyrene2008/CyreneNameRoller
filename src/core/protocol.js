@@ -1,5 +1,6 @@
 const DRAW_INPUT_FIELDS = new Set(['listId', 'target', 'count', 'allowDuplicates', 'gender'])
 const CARD_INPUT_FIELDS = new Set(['listId', 'personIds'])
+const MAINTENANCE_ACTIONS = new Set(['clear-records', 'initialize-person-count'])
 
 function coreError(code, message) { return Object.assign(new Error(message), { code }) }
 
@@ -41,5 +42,23 @@ export function normalizeCoreCardInput(raw = {}) {
   }
 }
 
+export function normalizeCoreMaintenanceInput(raw = {}) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw coreError('CORE_TRANSACTION_REJECTED', 'maintenance input must be an object')
+  const unsupported = Object.keys(raw).find(key => !['action', 'listId', 'personId', 'mode'].includes(key))
+  if (unsupported) throw coreError('CORE_TRANSACTION_REJECTED', `maintenance does not allow field ${unsupported}`)
+  const action = String(raw.action || '')
+  if (!MAINTENANCE_ACTIONS.has(action)) throw coreError('CORE_TRANSACTION_REJECTED', 'maintenance action is not allowed')
+  if (action === 'clear-records') {
+    if (raw.listId !== undefined || raw.personId !== undefined || raw.mode !== undefined) throw coreError('CORE_TRANSACTION_REJECTED', 'clear-records does not accept additional fields')
+    return { action }
+  }
+  const listId = String(raw.listId || '')
+  const personId = String(raw.personId || '')
+  const mode = raw.mode === 'zero' ? 'zero' : raw.mode === 'midpoint' ? 'midpoint' : ''
+  if (!listId || !personId || !mode) throw coreError('CORE_TRANSACTION_REJECTED', 'initialize-person-count requires listId, personId and mode')
+  return { action, listId, personId, mode }
+}
+
 export const CORE_DRAW_INPUT_FIELDS = Object.freeze([...DRAW_INPUT_FIELDS])
 export const CORE_CARD_INPUT_FIELDS = Object.freeze([...CARD_INPUT_FIELDS])
+export const CORE_MAINTENANCE_ACTIONS = Object.freeze([...MAINTENANCE_ACTIONS])

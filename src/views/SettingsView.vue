@@ -510,8 +510,8 @@ import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch, inject } fr
 import { useNamesStore } from '../stores/names'
 import { useSettingsStore } from '../stores/settings'
 import { usePluginsStore } from '../plugins/store'
-import { useRecordsStore } from '../stores/records'
 import { useStatisticsStore } from '../stores/statistics'
+import { getCoreClient } from '../core/client'
 import { dataBridge } from '../utils/dataBridge'
 import { isTauri, tauriAPI } from '../utils/tauriAPI'
 import { updateState, checkForUpdates, downloadUpdate, getDownloadUrl } from '../utils/updater'
@@ -536,8 +536,8 @@ defineProps({
 const settingsStore = useSettingsStore()
 const pluginsStore = usePluginsStore()
 const namesStore = useNamesStore()
-const recordsStore = useRecordsStore()
 const statisticsStore = useStatisticsStore()
+const coreClient = getCoreClient()
 const showBanner = inject('banner')
 
 const lang = computed(() => settingsStore.settings.language)
@@ -1034,7 +1034,7 @@ async function confirmPassword() {
   if (pwModalMode.value === 'change') { const s = await loadPasswordHash(); if (s && (await sha256(pwInput.value)) !== s) { pwError.value = '密码错误'; return }; pwModalMode.value = 'set'; pwInput.value = ''; return }
   const s = await loadPasswordHash(); if (!s) { showPwModal.value = false; executePending(); return }; if ((await sha256(pwInput.value)) !== s) { pwError.value = '密码错误'; return }; showPwModal.value = false; pwInput.value = ''; if (pendingAction.value) { executePending(); pendingAction.value = null }
 }
-function executePending() { const a = pendingAction.value; if (a === 'export') doExportNow(); else if (a === 'import') showImportWarning.value = true; else if (a === 'clearRecords') { recordsStore.clearAll() } else if (a === 'clearAll') doClearAllNow() }
+function executePending() { const a = pendingAction.value; if (a === 'export') doExportNow(); else if (a === 'import') showImportWarning.value = true; else if (a === 'clearRecords') { void clearRecordsNow() } else if (a === 'clearAll') doClearAllNow() }
 function requirePassword(action) { pendingAction.value = action; if (!hasPassword.value) { openPasswordModal(); return }; pwModalMode.value = 'verify'; pwInput.value = ''; pwError.value = ''; showPwModal.value = true }
 function doExport() { requirePassword('export') }
 function doImport() { requirePassword('import') }
@@ -1057,6 +1057,14 @@ async function confirmImport() {
 async function doClearAllNow() {
   await dataBridge.clearAll()
   alert(lang.value === 'en' ? 'All data cleared. Please close and restart.' : '所有数据已清除，请关闭并重启应用。')
+}
+async function clearRecordsNow() {
+  try {
+    await coreClient.clearRecords()
+    showBanner({ message: lang.value === 'en' ? 'Draw records cleared' : '抽签记录已清除', icon: 'checkmark-circle-16-regular', type: 'success', duration: 5000 })
+  } catch (error) {
+    showBanner({ message: error?.message || (lang.value === 'en' ? 'Could not clear draw records' : '抽签记录清除失败'), icon: 'warning-16-regular', type: 'warning', duration: 8000 })
+  }
 }
 async function saveBalance() {
   balance.value = normalizeCyreneBalanceSettings(balance.value)

@@ -52,7 +52,7 @@ export const useRecordsStore = defineStore('records', () => {
     await dataBridge.save('records', records.value)
   }
 
-  function appendRecords(items = [], { persist = true } = {}) {
+  function appendRecords(items = [], { persist = false } = {}) {
     const now = Date.now()
     const normalized = items.map((record, index) => ({
       personId: record.personId || null,
@@ -98,10 +98,8 @@ export const useRecordsStore = defineStore('records', () => {
     revision,
     initialize,
     save,
-    addRecord,
     appendRecords,
     snapshotState,
-    restoreState,
-    clearAll
+    restoreState
   }
 })

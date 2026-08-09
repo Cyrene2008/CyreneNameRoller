@@ -42,7 +42,7 @@ export const dataBridge = {
 
   async clearAll() {
     if (isTauri()) {
-      return tauriAPI.storageClear()
+      return tauriAPI.coreMaintenanceExecute('reset-all')
     }
     try { localStorage.clear() } catch {}
   },

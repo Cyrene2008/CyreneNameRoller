@@ -1,5 +1,5 @@
 import { ALGORITHM_NAME, ALGORITHM_VERSION, normalizeCyreneBalanceSettings, personKey, pickCyreneBatch, secureRandom } from '../../utils/cyrene-balance.js'
-import { normalizeCoreCaller, normalizeCoreCardInput, normalizeCoreDrawInput } from '../protocol.js'
+import { normalizeCoreCaller, normalizeCoreCardInput, normalizeCoreDrawInput, normalizeCoreMaintenanceInput } from '../protocol.js'
 
 function coreError(code, message) { return Object.assign(new Error(message), { code }) }
 
@@ -98,4 +98,43 @@ export function executeCoreCardRequest({ input: rawInput, caller: rawCaller, sta
   }))
   const nextRecords = [...appended, ...(Array.isArray(state.records) ? state.records : [])].slice(0, 500)
   return { receipt, nextStatistics: { ...(state.statistics || { counts: {}, totalCount: 0 }), counts: { ...(state.statistics?.counts || {}) } }, nextRecords }
+}
+
+export function executeCoreMaintenanceRequest({ input: rawInput, caller: rawCaller, state }) {
+  const input = normalizeCoreMaintenanceInput(rawInput)
+  const caller = normalizeCoreCaller(rawCaller)
+  if (caller.kind !== 'core-ui') throw coreError('PLUGIN_PERMISSION_DENIED', 'maintenance is host-only')
+  if (!state || typeof state !== 'object' || Array.isArray(state)) throw coreError('CORE_TRANSACTION_REJECTED', 'Core state is invalid')
+  const nextStatistics = { ...(state.statistics || { counts: {}, totalCount: 0 }), counts: { ...(state.statistics?.counts || {}) } }
+  let nextRecords = Array.isArray(state.records) ? [...state.records] : []
+  if (input.action === 'clear-records') {
+    nextRecords = []
+  } else {
+    const list = state.names?.lists?.[input.listId]
+    const people = Array.isArray(list?.names) ? list.names : []
+    const person = people.find(item => String(item?.id || '') === input.personId)
+    if (!person || person.isWhiteList) throw coreError('CORE_TRANSACTION_REJECTED', 'person is not eligible for statistics initialization')
+    if (nextStatistics.counts[input.personId] === undefined) {
+      const existingCounts = people
+        .filter(item => String(item?.id || '') !== input.personId && !item?.isWhiteList && item?.cn)
+        .map(item => Number(nextStatistics.counts[String(item.id || '')]) || 0)
+      const initialCount = input.mode === 'zero' || existingCounts.length === 0
+        ? 0
+        : Math.round((Math.min(...existingCounts) + Math.max(...existingCounts)) / 2)
+      nextStatistics.counts[input.personId] = initialCount
+      nextStatistics.totalCount = Math.max(0, Number(nextStatistics.totalCount) || 0) + initialCount
+    }
+  }
+  const committedAt = Date.now()
+  return {
+    receipt: {
+      kind: 'maintenance',
+      action: input.action,
+      operationId: caller.operationId || `maintenance-${committedAt}`,
+      pluginId: 'core',
+      committedAt
+    },
+    nextStatistics,
+    nextRecords
+  }
 }

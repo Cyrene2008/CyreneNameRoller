@@ -79,7 +79,7 @@ export const useStatisticsStore = defineStore('statistics', () => {
     return incrementCounts([person])
   }
 
-  function incrementCounts(people, { persist = true } = {}) {
+  function incrementCounts(people, { persist = false } = {}) {
     let incremented = 0
     for (const person of people || []) {
       const key = personKey(person)
@@ -169,13 +169,10 @@ export const useStatisticsStore = defineStore('statistics', () => {
     revision,
     initialize,
     save,
-    incrementCount,
     incrementCounts,
     snapshotState,
     restoreState,
     getCount,
-    initializePersonCount,
-    clearAll,
     getStatsForList
   }
 })

@@ -37,6 +37,10 @@ export const tauriAPI = {
   },
   async coreDrawExecute(request) { return this.invokeStrict('core_draw_execute', { request }) },
   async coreCardCommit(request) { return this.invokeStrict('core_card_commit', { request }) },
+  async coreMaintenanceExecute(action, fields = {}) {
+    const principal = 'core-ui'
+    return this.invokeStrict('core_maintenance_execute', { request: { grantToken: await this.coreGrantTokenFor(principal), principal, action, ...fields } })
+  },
   async exportEncryptedData() { return this.invoke('export_encrypted_data', {}) },
   async importEncryptedData(encodedData) { return this.invokeStrict('import_encrypted_data', { encodedData }) },
   async loadNames() { return this.invoke('load_names', {}) },

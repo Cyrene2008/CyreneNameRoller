@@ -1,4 +1,4 @@
-import { executeCoreCardRequest, executeCoreDrawRequest } from './coreService.js'
+import { executeCoreCardRequest, executeCoreDrawRequest, executeCoreMaintenanceRequest } from './coreService.js'
 
 export function createCoreWorkerHandler(postMessage) {
   let queue = Promise.resolve()
@@ -6,7 +6,7 @@ export function createCoreWorkerHandler(postMessage) {
 
   return event => {
     const message = event?.data || {}
-    if (!['state.sync', 'draw.execute', 'card.commit'].includes(message.type) || typeof message.requestId !== 'string') return
+    if (!['state.sync', 'draw.execute', 'card.commit', 'maintenance.execute'].includes(message.type) || typeof message.requestId !== 'string') return
     queue = queue.catch(() => {}).then(async () => {
       try {
         if (message.type === 'state.sync') {
@@ -17,7 +17,9 @@ export function createCoreWorkerHandler(postMessage) {
         if (!coreState) throw Object.assign(new Error('Core Worker 尚未同步状态'), { code: 'CORE_TRANSACTION_REJECTED' })
         const value = message.type === 'card.commit'
           ? executeCoreCardRequest({ ...message, state: coreState })
-          : executeCoreDrawRequest({ ...message, state: coreState })
+          : message.type === 'maintenance.execute'
+            ? executeCoreMaintenanceRequest({ ...message, state: coreState })
+            : executeCoreDrawRequest({ ...message, state: coreState })
         coreState = { ...coreState, statistics: value.nextStatistics, records: value.nextRecords }
         postMessage({ type: 'success', requestId: message.requestId, value })
       } catch (error) {
