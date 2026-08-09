@@ -35,6 +35,11 @@ jobs:
       - run: npm run build
       - run: npm run plugin:sdk:pack
 
+      - uses: actions/upload-artifact@v4
+        with:
+          name: plugin-sdk-package
+          path: packages/cyrene-name-roller/dist/
+
       # ── 发布到 GitHub Packages ──
       - name: Publish SDK to GitHub Packages
         if: >-
