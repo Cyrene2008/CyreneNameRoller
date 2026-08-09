@@ -947,4 +947,9 @@ onBeforeUnmount(() => { if (intervalId) clearTimeout(intervalId); clearTimeout(a
 .toggle-expand-enter-active { animation: toggle-in 0.25s cubic-bezier(0.1, 0.9, 0.2, 1); }
 .toggle-expand-leave-active { animation: toggle-in 0.15s ease-in reverse; }
 @keyframes toggle-in { from { opacity: 0; transform: translateY(-8px); max-height: 0; } to { opacity: 1; transform: translateY(0); max-height: 40px; } }
+
+@media (max-width: 720px) {
+  .balance-status { top: 84px; right: auto; left: 50%; max-width: calc(100% - 80px); transform: translateX(-50%); white-space: nowrap; }
+  .display-container { top: 128px; }
+}
 </style>

@@ -14,6 +14,20 @@ test('startup decides the splash before mounting plugin-owning layout', async ()
   assert.doesNotMatch(app, /const showSplash = ref\(false\)/)
 })
 
+test('settings controls collapse within narrow scaled layouts', async () => {
+  const settings = await read('src/views/SettingsView.vue')
+  assert.match(settings, /@media \(max-width: 720px\) \{[\s\S]*?\.setting-row \{[^}]*flex-direction: column;/)
+  assert.match(settings, /\.setting-row:has\(> \.fluent-toggle\) \{[^}]*flex-direction: row;/)
+  assert.match(settings, /\.setting-row :deep\(\.fluent-select\) \{[^}]*width: 100% !important;[^}]*min-width: 0 !important;/)
+  assert.match(settings, /\.scale-input-wrap, \.hex-color-input \{[^}]*max-width: 100%;/)
+})
+
+test('roller balance status clears the title on narrow layouts', async () => {
+  const roller = await read('src/views/RollerView.vue')
+  assert.match(roller, /@media \(max-width: 720px\) \{[\s\S]*?\.balance-status \{[^}]*top: 84px;[^}]*left: 50%;[^}]*transform: translateX\(-50%\);/)
+  assert.match(roller, /@media \(max-width: 720px\) \{[\s\S]*?\.display-container \{[^}]*top: 128px;/)
+})
+
 test('Web overlays keep their own fixed positions and Toasts stack from the top', async () => {
   const [layout, fullscreen, widgetCss] = await Promise.all([
     read('src/components/layout/AppLayout.vue'),

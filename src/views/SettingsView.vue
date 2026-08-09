@@ -1168,6 +1168,16 @@ function onBalanceEnabledChange(enabled) {
 @keyframes toggle-in { from { opacity: 0; transform: translateY(-8px); max-height: 0; } to { opacity: 1; transform: translateY(0); max-height: 300px; } }
 
 @media (max-width: 720px) {
+  .settings-view { padding: 20px 16px 28px; }
+  .setting-row { align-items: stretch; flex-direction: column; gap: 8px; }
+  .setting-row:has(> .fluent-toggle) { align-items: center; flex-direction: row; }
+  .setting-row > .fluent-select-wrapper,
+  .setting-row > .scale-control,
+  .setting-row > .color-picker-row,
+  .setting-row > .uri-setting-actions,
+  .setting-row > .update-actions { width: 100%; min-width: 0; }
+  .setting-row :deep(.fluent-select) { width: 100% !important; min-width: 0 !important; }
+  .scale-input-wrap, .hex-color-input { width: 100%; max-width: 100%; box-sizing: border-box; }
   .uri-setting-row { align-items: flex-start; flex-direction: column; }
   .uri-setting-actions { width: 100%; justify-content: space-between; }
   .uri-route-grid { grid-template-columns: 1fr; }
