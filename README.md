@@ -90,25 +90,26 @@
 ### 环境要求
 
 - Node.js 22
+- pnpm
 - Rust stable
 - [Tauri 2 对应平台的系统依赖](https://v2.tauri.app/start/prerequisites/)
 
 ```bash
 git clone https://github.com/StarCyrene/CyreneNameRoller.git
 cd CyreneNameRoller
-npm ci
+pnpm install --frozen-lockfile
 ```
 
 启动 Web 开发服务器：
 
 ```bash
-npm run dev
+pnpm run dev
 ```
 
 启动 Tauri 桌面客户端：
 
 ```bash
-npm run tauri:dev
+pnpm run tauri:dev
 ```
 
 ### 构建
@@ -116,13 +117,13 @@ npm run tauri:dev
 构建 Web 版本：
 
 ```bash
-npm run build
+pnpm run build
 ```
 
 构建 Tauri 客户端：
 
 ```bash
-npm run tauri:build
+pnpm run tauri:build
 ```
 
 桌面安装包位于 `target/release/bundle/`。
