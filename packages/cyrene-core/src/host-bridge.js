@@ -24,8 +24,8 @@ export const HOST_BRIDGE_METHODS = Object.freeze([
   { id: 'system.clipboard-write', permission: 'system:clipboard-write', group: 'system', description: '写入剪贴板' },
   { id: 'system.reveal-file', permission: 'system:reveal-file', group: 'system', description: '资源管理器中显示文件' },
   { id: 'system.execute', permission: 'system:execute', group: 'system', description: '执行受管系统操作（白名单命令）' },
-  { id: 'ui.render', permission: null, group: 'ui', description: 'SDK v2：渲染 UI 声明树（M2 定义权限）' },
-  { id: 'ui.action', permission: null, group: 'ui', description: 'SDK v2：UI 事件回传（M2 定义权限）' }
+  { id: 'ui.render', permission: 'ui:pages', group: 'ui', description: 'SDK v2：渲染 UI 声明树' },
+  { id: 'ui.action', permission: 'ui:pages', group: 'ui', description: 'SDK v2：UI 事件回传' }
 ])
 
 export function permissionForMethod(method) {

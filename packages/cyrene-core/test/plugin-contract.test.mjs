@@ -8,6 +8,7 @@ import {
   normalizeAnimationPack,
   normalizeAppearanceColor,
   contrastRatio,
+  normalizePluginManifest,
   validatePath
 } from '../src/plugin-contract.js'
 
@@ -61,4 +62,31 @@ test('路径契约：拒绝路径穿越', () => {
   assert.throws(() => validatePath('../escape.txt'))
   assert.throws(() => validatePath('/absolute'))
   assert.throws(() => validatePath('a/../b'))
+})
+
+const baseManifest = {
+  schemaVersion: 1,
+  id: 'cn.example.demo',
+  name: '示例',
+  version: '1.0.0',
+  author: 'demo',
+  engine: { min: '1.3.0' },
+  entry: 'main.js',
+  permissions: ['ui:pages']
+}
+
+test('manifest 契约：sdkVersion 默认 1，显式 2 合法', () => {
+  assert.equal(normalizePluginManifest(baseManifest).sdkVersion, 1)
+  const v2 = normalizePluginManifest({ ...baseManifest, sdkVersion: 2, ui: { schemaVersion: 1, pages: [{ id: 'demo.main', title: '主页', source: 'ui/main.json' }] } })
+  assert.equal(v2.sdkVersion, 2)
+  assert.equal(v2.ui.pages[0].location, 'plugins')
+  assert.throws(() => normalizePluginManifest({ ...baseManifest, sdkVersion: 3 }), /sdkVersion 必须为 1 或 2/)
+})
+
+test('manifest 契约：sdkVersion 2 的 ui 段强校验', () => {
+  assert.throws(() => normalizePluginManifest({ ...baseManifest, sdkVersion: 2 }), /ui 段无效/)
+  assert.throws(() => normalizePluginManifest({ ...baseManifest, sdkVersion: 2, ui: { schemaVersion: 2, pages: [] } }), /ui\.schemaVersion 必须为 1/)
+  assert.throws(() => normalizePluginManifest({ ...baseManifest, sdkVersion: 2, ui: { schemaVersion: 1, pages: [{ id: 'x!', title: 'T', source: 'ui.json' }] } }), /ID 无效或重复/)
+  assert.throws(() => normalizePluginManifest({ ...baseManifest, sdkVersion: 1, ui: { schemaVersion: 1, pages: [] } }), /sdkVersion 1 插件不允许声明 ui 段/)
+  assert.throws(() => normalizePluginManifest({ ...baseManifest, sdkVersion: 2, permissions: [], ui: { schemaVersion: 1, pages: [{ id: 'demo.main', title: 'T', source: 'ui.json' }] } }), /ui 段需要 ui:pages 权限/)
 })

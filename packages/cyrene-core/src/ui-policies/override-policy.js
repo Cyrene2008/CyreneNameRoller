@@ -1,4 +1,4 @@
-import { getComponentTarget } from './componentRegistry'
+import { getComponentTarget } from './component-registry.js'
 
 const VISIBILITIES = new Set(['visible', 'hidden', 'replaced'])
 const LAYOUTS = new Set(['collapse', 'reserve', 'compact'])
@@ -49,3 +49,4 @@ export function overrideStateForTarget(targetId, packs = [], selectedValue = '')
 
 export const COMPONENT_OVERRIDE_VISIBILITIES = Object.freeze([...VISIBILITIES])
 export const COMPONENT_OVERRIDE_LAYOUTS = Object.freeze([...LAYOUTS])
+

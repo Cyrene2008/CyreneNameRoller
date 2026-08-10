@@ -11,7 +11,7 @@ async function bundle(entry, name) {
 }
 
 const [override, safeMode] = await Promise.all([
-  bundle('src/plugins/ui/overridePolicy.js', 'override'),
+  bundle('packages/cyrene-core/src/ui-policies/override-policy.js', 'override'),
   bundle('src/plugins/safeMode.js', 'safe-mode')
 ])
 
@@ -48,3 +48,4 @@ test('Safe Mode 无历史时默认关闭但保留诊断', async () => {
   assert.equal(status.enabled, false)
   assert.equal(status.errorCode, 'SAFE_MODE_CONFIG_UNAVAILABLE')
 })
+

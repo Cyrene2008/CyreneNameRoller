@@ -5,14 +5,14 @@ import { build } from 'esbuild'
 import { pathToFileURL } from 'node:url'
 
 const output = path.resolve(import.meta.dirname, '../build-output/plugin-component-style/policy.mjs')
-await build({ entryPoints: [path.resolve(import.meta.dirname, '../src/plugins/ui/stylePolicy.js')], bundle: true, write: true, outfile: output, platform: 'browser', format: 'esm' })
+await build({ entryPoints: [path.resolve(import.meta.dirname, '../packages/cyrene-core/src/ui-policies/style-policy.js')], bundle: true, write: true, outfile: output, platform: 'browser', format: 'esm' })
 const policy = await import(`${pathToFileURL(output).href}?v=${Date.now()}`)
 const parserOutput = path.resolve(import.meta.dirname, '../build-output/plugin-component-style/parser.mjs')
 await build({ entryPoints: [path.resolve(import.meta.dirname, '../src/plugins/package.js')], bundle: true, write: true, outfile: parserOutput, platform: 'browser', format: 'esm' })
 const parser = await import(`${pathToFileURL(parserOutput).href}?v=${Date.now()}`)
 
 test('组件注册表冻结 13 个目标并报告 Web 标题栏不可用', async () => {
-  const registry = await import(`${pathToFileURL(path.resolve(import.meta.dirname, '../src/plugins/ui/componentRegistry.js')).href}?v=${Date.now()}`)
+  const registry = await import(`${pathToFileURL(path.resolve(import.meta.dirname, '../packages/cyrene-core/src/ui-policies/component-registry.js')).href}?v=${Date.now()}`)
   assert.equal(registry.COMPONENT_TARGET_IDS.length, 13)
   assert.equal(registry.getComponentTarget('app.title-bar', 'web').available, false)
   assert.equal(registry.getComponentTarget('roller.filters', 'web').visibilityPolicy, 'optional')
@@ -20,7 +20,7 @@ test('组件注册表冻结 13 个目标并报告 Web 标题栏不可用', async
 })
 
 test('13 个首批目标都有真实宿主边界和受限样式挂接', async () => {
-  const registry = await import(`${pathToFileURL(path.resolve(import.meta.dirname, '../src/plugins/ui/componentRegistry.js')).href}?v=${Date.now()}-mapping`)
+  const registry = await import(`${pathToFileURL(path.resolve(import.meta.dirname, '../packages/cyrene-core/src/ui-policies/component-registry.js')).href}?v=${Date.now()}-mapping`)
   const files = await Promise.all([
     'src/components/layout/TitleBar.vue',
     'src/components/layout/AppLayout.vue',
@@ -66,3 +66,4 @@ test('宿主清单解析器接收组件样式包并保持旧权限拒绝路径',
   assert.equal(normalized.contributes.componentStylePacks[0].targets['roller.primary-action'].fontFamily, 'host:ui')
   assert.throws(() => parser.normalizePluginManifest({ ...base, contributes: { componentStylePacks: manifest.contributes.componentStylePacks } }), error => error.code === 'PLUGIN_PERMISSION_DENIED')
 })
+

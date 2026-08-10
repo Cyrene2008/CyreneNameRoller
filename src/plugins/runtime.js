@@ -9,8 +9,8 @@ import {
   hasPrincipalPermission,
   revokePrincipal
 } from './ui/principal.js'
-import { listComponentTargets } from './ui/componentRegistry.js'
-import { NATIVE_VIEW_SLOTS } from './ui/nativeViewPolicy.js'
+import { listComponentTargets } from '../../packages/cyrene-core/src/ui-policies/component-registry.js'
+import { NATIVE_VIEW_SLOTS } from '../../packages/cyrene-core/src/ui-policies/native-view-policy.js'
 
 const RESERVED_NATIVE_VIEW_SLOTS = Object.freeze([
   'slot:app.command-palette',

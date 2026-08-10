@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import fs from 'node:fs/promises'
-import * as policy from '../src/plugins/ui/resultPresentationPolicy.js'
+import * as policy from '../packages/cyrene-core/src/ui-policies/result-presentation-policy.js'
 
 const root = new URL('../', import.meta.url)
 const read = path => fs.readFile(new URL(path, root), 'utf8')

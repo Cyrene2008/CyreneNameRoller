@@ -21,6 +21,7 @@ export const PLUGIN_PERMISSIONS = new Set([
   'ui:native-views',
   'ui:result-presentations',
   'ui:fonts',
+  'ui:pages',
   'system:open-url',
   'system:select-file',
   'system:select-directory',
@@ -71,6 +72,13 @@ export const PLUGIN_PLATFORM_IDS = new Set([
 export const PLUGIN_COMMAND_LOCATIONS = new Set([
   'command-palette', 'page-header', 'context-menu'
 ])
+
+import { normalizeComponentStylePacks } from './ui-policies/style-policy.js'
+import { normalizeFonts, validateFontFiles } from './ui-policies/font-policy.js'
+import { normalizeComponentOverridePacks } from './ui-policies/override-policy.js'
+import { normalizeNativeViews, normalizeNativeViewDocument } from './ui-policies/native-view-policy.js'
+import { normalizeResultPresentations } from './ui-policies/result-presentation-policy.js'
+import { UI_TREE_SCHEMA_VERSION } from './ui-tree-schema.js'
 export const MAX_PLUGIN_SIZE = 32 * 1024 * 1024
 export const MAX_FILE_COUNT = 256
 export const ID_PATTERN = /^[a-z0-9]+(?:[._-][a-z0-9]+)+$/
@@ -609,3 +617,77 @@ export function normalizeCommands(value) {
 }
 
 
+export function normalizeUiSection(value, permissions, sdkVersion) {
+  if (sdkVersion === 1) {
+    if (value !== undefined) throw new Error('sdkVersion 1 插件不允许声明 ui 段')
+    return undefined
+  }
+  if (!permissions.includes('ui:pages')) throw new Error('ui 段需要 ui:pages 权限')
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('ui 段无效')
+  if (value.schemaVersion !== UI_TREE_SCHEMA_VERSION) throw new Error(`ui.schemaVersion 必须为 ${UI_TREE_SCHEMA_VERSION}`)
+  if (!Array.isArray(value.pages) || !value.pages.length || value.pages.length > 8) throw new Error('ui.pages 必须包含 1-8 项')
+  const ids = new Set()
+  const pages = value.pages.map((rawPage, index) => {
+    if (!rawPage || typeof rawPage !== 'object' || Array.isArray(rawPage)) throw new Error(`ui.pages[${index}] 无效`)
+    const id = String(rawPage.id || '')
+    if (!CONTRIBUTION_ID_PATTERN.test(id) || ids.has(id)) throw new Error(`ui.pages[${index}] ID 无效或重复`)
+    ids.add(id)
+    const title = String(rawPage.title || '').trim()
+    if (!title || title.length > 120) throw new Error(`ui.pages[${index}] 缺少 title 或过长`)
+    const titleEn = String(rawPage.titleEn || '').trim()
+    if (titleEn.length > 120) throw new Error(`ui.pages[${index}].titleEn 过长`)
+    const icon = String(rawPage.icon || 'apps-24-regular')
+    if (!/^[a-z0-9][a-z0-9:_-]{0,99}$/i.test(icon)) throw new Error(`ui.pages[${index}].icon 无效`)
+    const order = rawPage.order === undefined ? 500 : Number(rawPage.order)
+    if (!Number.isInteger(order) || order < 0 || order > 999) throw new Error(`ui.pages[${index}].order 必须是 0-999 的整数`)
+    if (rawPage.location !== undefined && !['plugins', 'dock'].includes(rawPage.location)) throw new Error(`ui.pages[${index}].location 无效`)
+    const source = validatePath(rawPage.source)
+    if (!source) throw new Error(`ui.pages[${index}] 缺少 source`)
+    return { id, title, titleEn, icon, source, location: rawPage.location === 'dock' ? 'dock' : 'plugins', order, description: String(rawPage.description || '').slice(0, 300) }
+  })
+  return { schemaVersion: UI_TREE_SCHEMA_VERSION, pages }
+}
+
+export function normalizePluginManifest(raw) {
+  if (!raw || typeof raw !== 'object') throw new Error('manifest.json 无效')
+  const manifest = JSON.parse(JSON.stringify(raw))
+  if (manifest.schemaVersion !== 1) throw new Error('不支持的插件清单版本')
+  if (!ID_PATTERN.test(manifest.id || '')) throw new Error('插件 ID 无效，建议使用反向域名格式')
+  if (!manifest.name || !manifest.version || !manifest.author) throw new Error('插件名称、版本或开发者缺失')
+  if (!manifest.engine || comparePluginVersions(PLUGIN_API_VERSION, manifest.engine.min || '0') < 0) {
+    throw new Error(`插件需要 API ${manifest.engine?.min || '未知'}，当前为 ${PLUGIN_API_VERSION}`)
+  }
+  const sdkVersion = manifest.sdkVersion === undefined ? 1 : manifest.sdkVersion
+  if (![1, 2].includes(sdkVersion)) throw new Error('sdkVersion 必须为 1 或 2')
+  manifest.sdkVersion = sdkVersion
+  manifest.permissions = [...new Set(manifest.permissions || [])]
+  const unknownPermission = manifest.permissions.find(permission => !PLUGIN_PERMISSIONS.has(permission))
+  if (unknownPermission) throw new Error(`未知插件权限：${unknownPermission}`)
+  manifest.contributes = manifest.contributes && typeof manifest.contributes === 'object' ? manifest.contributes : {}
+  manifest.contributes.pages = normalizePages(manifest.contributes.pages)
+  manifest.contributes.commands = normalizeCommands(manifest.contributes.commands)
+  manifest.contributes.animationPacks = normalizeAnimationPacks(manifest.contributes.animationPacks, manifest.permissions)
+  manifest.contributes.visualSurfaces = normalizeVisualSurfaces(manifest.contributes.visualSurfaces, manifest.permissions)
+  manifest.contributes.appearancePacks = normalizeAppearancePacks(manifest.contributes.appearancePacks, manifest.permissions)
+  manifest.contributes.componentStylePacks = normalizeComponentStylePacks(manifest.contributes.componentStylePacks, manifest.permissions, { pluginId: manifest.id })
+  manifest.contributes.fonts = normalizeFonts(manifest.contributes.fonts, manifest.permissions, { pluginId: manifest.id })
+  manifest.contributes.componentOverridePacks = normalizeComponentOverridePacks(manifest.contributes.componentOverridePacks, manifest.permissions)
+  manifest.contributes.nativeViews = normalizeNativeViews(manifest.contributes.nativeViews, manifest.permissions)
+  manifest.contributes.resultPresentations = normalizeResultPresentations(manifest.contributes.resultPresentations, manifest.permissions)
+  manifest.supportedPlatforms = normalizePlatforms(manifest.supportedPlatforms, 'supportedPlatforms')
+  manifest.platformEntries = normalizePlatformEntries(manifest.platformEntries, 'platformEntries')
+  manifest.capabilities = normalizeCapabilities(manifest.capabilities, manifest.permissions)
+  manifest.systemOperations = normalizeSystemOperations(manifest.systemOperations, manifest.permissions)
+  manifest.dependencies = normalizeDependencies(manifest.dependencies, manifest.id)
+  manifest.ui = normalizeUiSection(manifest.ui, manifest.permissions, manifest.sdkVersion)
+  if (manifest.entry) manifest.entry = validatePath(manifest.entry)
+  if (manifest.contributes.commands.length && !manifest.entry && !Object.keys(manifest.platformEntries).length) {
+    throw new Error('commands 需要插件 Worker 入口')
+  }
+  if (!manifest.entry && !Object.keys(manifest.platformEntries).length && !(manifest.contributes.pages || []).length && !manifest.contributes.commands.length && !manifest.contributes.visualSurfaces.length && !manifest.contributes.appearancePacks.length && !manifest.contributes.componentStylePacks.length && !manifest.contributes.componentOverridePacks.length && !manifest.contributes.nativeViews.length && !manifest.contributes.resultPresentations.length && !manifest.contributes.fonts.length && !(manifest.ui?.pages || []).length) {
+    throw new Error('插件至少需要一个 Worker、页面、视觉层或外观包入口')
+  }
+  if (manifest.icon) manifest.icon = validatePath(manifest.icon)
+  if (manifest.readme) manifest.readme = validatePath(manifest.readme)
+  return manifest
+}

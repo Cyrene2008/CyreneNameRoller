@@ -5,7 +5,7 @@ import { build } from 'esbuild'
 import { pathToFileURL } from 'node:url'
 
 const output = path.resolve(import.meta.dirname, '../build-output/plugin-stage4/native.mjs')
-await build({ entryPoints: [path.resolve(import.meta.dirname, '../src/plugins/ui/nativeViewPolicy.js')], bundle: true, write: true, outfile: output, platform: 'browser', format: 'esm' })
+await build({ entryPoints: [path.resolve(import.meta.dirname, '../packages/cyrene-core/src/ui-policies/native-view-policy.js')], bundle: true, write: true, outfile: output, platform: 'browser', format: 'esm' })
 const native = await import(`${pathToFileURL(output).href}?v=${Date.now()}`)
 
 test('原生视图 Schema 限制节点、图标、表达式和 Receipt 绑定', () => {
@@ -25,3 +25,4 @@ test('原生视图只开放首批三个 slot，uses 权限必须显式声明', (
   assert.throws(() => native.normalizeNativeViews([{ ...declaration[0], slot: 'slot:app.command-palette' }], ['ui:native-views']), error => error.code === 'PLUGIN_UI_SCHEMA_INVALID')
   assert.throws(() => native.normalizeNativeViews(declaration, ['ui:native-views']), error => error.code === 'PLUGIN_PERMISSION_DENIED')
 })
+

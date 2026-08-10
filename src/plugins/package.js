@@ -1,38 +1,22 @@
 import JSZip from 'jszip'
 import {
   CNRP_MAGIC,
-  CONTRIBUTION_ID_PATTERN,
-  ID_PATTERN,
   MAX_FILE_COUNT,
   MAX_PLUGIN_ANIMATION_ACTIVE_MS,
   MAX_PLUGIN_SIZE,
-  PLUGIN_API_VERSION,
-  PLUGIN_PERMISSIONS,
-  SETTING_PATH_PATTERN,
   comparePluginVersions,
   normalizeAnimationPack,
-  normalizeAnimationPacks,
   normalizeAppearanceColor,
-  normalizeAppearancePacks,
   normalizeAppearanceShadow,
-  normalizeCapabilities,
-  normalizeCommands,
-  normalizeDependencies,
-  normalizePages,
-  normalizePlatformEntries,
-  normalizePlatforms,
-  normalizeSystemOperations,
-  normalizeVisualSurfaces,
+  normalizePluginManifest,
   opaqueRgb,
   contrastRatio,
   satisfiesPluginVersion,
   validatePath
 } from '../../packages/cyrene-core/src/plugin-contract.js'
-import { normalizeComponentStylePacks } from './ui/stylePolicy'
-import { normalizeFonts, validateFontFiles } from './ui/fontRegistry'
-import { normalizeComponentOverridePacks } from './ui/overridePolicy'
-import { normalizeNativeViews, normalizeNativeViewDocument } from './ui/nativeViewPolicy'
-import { normalizeResultPresentations } from './ui/resultPresentationPolicy'
+import { validateFontFiles } from './ui/fontRegistry'
+import { normalizeNativeViewDocument } from '../../packages/cyrene-core/src/ui-policies/native-view-policy.js'
+import { normalizeUiTree } from '../../packages/cyrene-core/src/ui-tree.js'
 
 export {
   CNRP_MAGIC,
@@ -43,47 +27,8 @@ export {
   normalizeAppearanceShadow,
   opaqueRgb,
   contrastRatio,
-  satisfiesPluginVersion
-}
-
-export function normalizePluginManifest(raw) {
-  if (!raw || typeof raw !== 'object') throw new Error('manifest.json 无效')
-  const manifest = JSON.parse(JSON.stringify(raw))
-  if (manifest.schemaVersion !== 1) throw new Error('不支持的插件清单版本')
-  if (!ID_PATTERN.test(manifest.id || '')) throw new Error('插件 ID 无效，建议使用反向域名格式')
-  if (!manifest.name || !manifest.version || !manifest.author) throw new Error('插件名称、版本或开发者缺失')
-  if (!manifest.engine || comparePluginVersions(PLUGIN_API_VERSION, manifest.engine.min || '0') < 0) {
-    throw new Error(`插件需要 API ${manifest.engine?.min || '未知'}，当前为 ${PLUGIN_API_VERSION}`)
-  }
-  manifest.permissions = [...new Set(manifest.permissions || [])]
-  const unknownPermission = manifest.permissions.find(permission => !PLUGIN_PERMISSIONS.has(permission))
-  if (unknownPermission) throw new Error(`未知插件权限：${unknownPermission}`)
-  manifest.contributes = manifest.contributes && typeof manifest.contributes === 'object' ? manifest.contributes : {}
-  manifest.contributes.pages = normalizePages(manifest.contributes.pages)
-  manifest.contributes.commands = normalizeCommands(manifest.contributes.commands)
-  manifest.contributes.animationPacks = normalizeAnimationPacks(manifest.contributes.animationPacks, manifest.permissions)
-  manifest.contributes.visualSurfaces = normalizeVisualSurfaces(manifest.contributes.visualSurfaces, manifest.permissions)
-  manifest.contributes.appearancePacks = normalizeAppearancePacks(manifest.contributes.appearancePacks, manifest.permissions)
-  manifest.contributes.componentStylePacks = normalizeComponentStylePacks(manifest.contributes.componentStylePacks, manifest.permissions, { pluginId: manifest.id })
-  manifest.contributes.fonts = normalizeFonts(manifest.contributes.fonts, manifest.permissions, { pluginId: manifest.id })
-  manifest.contributes.componentOverridePacks = normalizeComponentOverridePacks(manifest.contributes.componentOverridePacks, manifest.permissions)
-  manifest.contributes.nativeViews = normalizeNativeViews(manifest.contributes.nativeViews, manifest.permissions)
-  manifest.contributes.resultPresentations = normalizeResultPresentations(manifest.contributes.resultPresentations, manifest.permissions)
-  manifest.supportedPlatforms = normalizePlatforms(manifest.supportedPlatforms, 'supportedPlatforms')
-  manifest.platformEntries = normalizePlatformEntries(manifest.platformEntries, 'platformEntries')
-  manifest.capabilities = normalizeCapabilities(manifest.capabilities, manifest.permissions)
-  manifest.systemOperations = normalizeSystemOperations(manifest.systemOperations, manifest.permissions)
-  manifest.dependencies = normalizeDependencies(manifest.dependencies, manifest.id)
-  if (manifest.entry) manifest.entry = validatePath(manifest.entry)
-  if (manifest.contributes.commands.length && !manifest.entry && !Object.keys(manifest.platformEntries).length) {
-    throw new Error('commands 需要插件 Worker 入口')
-  }
-  if (!manifest.entry && !Object.keys(manifest.platformEntries).length && !(manifest.contributes.pages || []).length && !manifest.contributes.commands.length && !manifest.contributes.visualSurfaces.length && !manifest.contributes.appearancePacks.length && !manifest.contributes.componentStylePacks.length && !manifest.contributes.componentOverridePacks.length && !manifest.contributes.nativeViews.length && !manifest.contributes.resultPresentations.length && !manifest.contributes.fonts.length) {
-    throw new Error('插件至少需要一个 Worker、页面、视觉层或外观包入口')
-  }
-  if (manifest.icon) manifest.icon = validatePath(manifest.icon)
-  if (manifest.readme) manifest.readme = validatePath(manifest.readme)
-  return manifest
+  satisfiesPluginVersion,
+  normalizePluginManifest
 }
 
 export async function sha256Hex(bytes) {
@@ -195,7 +140,8 @@ export async function parsePluginPackage(input, { expectedPublisherKey = '' } = 
     ...(manifest.contributes.animationPacks || []).map(pack => pack.source),
     ...(manifest.contributes.fonts || []).map(font => font.source),
     ...(manifest.contributes.nativeViews || []).map(view => view.source),
-    ...(manifest.contributes.visualSurfaces || []).flatMap(surface => [surface.entry, ...Object.values(surface.platformEntries || {})])
+    ...(manifest.contributes.visualSurfaces || []).flatMap(surface => [surface.entry, ...Object.values(surface.platformEntries || {})]),
+    ...(manifest.ui?.pages || []).map(page => page.source)
   ].filter(Boolean)
   for (const name of requiredFiles) if (!files[name]) throw new Error(`插件清单引用的文件不存在：${name}`)
   validateFontFiles(manifest.contributes.fonts || [], files)
@@ -227,11 +173,21 @@ export async function parsePluginPackage(input, { expectedPublisherKey = '' } = 
     }
     return normalizeAnimationPack(raw, declaration)
   })
+  const uiPages = (manifest.ui?.pages || []).map(declaration => {
+    let raw
+    try {
+      raw = JSON.parse(decodePluginFile({ files }, declaration.source))
+    } catch (error) {
+      throw new Error(`UI 页面 ${declaration.id} 无法解析：${error.message || error}`)
+    }
+    return { ...declaration, tree: normalizeUiTree(raw, { pluginId: manifest.id }) }
+  })
   return {
     manifest,
     files,
     animationPacks,
     nativeViews,
+    uiPages,
     packageHash,
     packageSignature: envelope.signature || '',
     publisherKey: publisher.publisherKey,

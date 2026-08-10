@@ -108,6 +108,8 @@
 
 ### 4.2 UI 声明树语义（描述，非实现）
 
+> **实施落点**：schema 与校验器的单一事实源为 `packages/cyrene-core/src/ui-tree-schema.js` + `ui-tree.js`（M2-1 完成）；manifest 侧 `sdkVersion`/`ui` 段由 `plugin-contract.js` 的 `normalizePluginManifest`/`normalizeUiSection` 强校验（M2-2 完成），`.cnrp` 解析时由 `parsePluginPackage` 加载 `ui.pages` 声明树并经 `normalizeUiTree` 校验。
+
 - **页面节点**：页面/区块/卡片/表单，声明布局意图（分组、栅格、堆叠方向），不含像素级样式。
 - **控件交集**：仅允许两端都有的语义控件（下表），映射器各自落地：
   | 语义控件 | Tauri 线 | FluentAvalonia 线 |
@@ -264,6 +266,8 @@
 | ADR-7 | 插件动画引擎收敛为单一 `composition` 引擎 | 减少两套引擎的维护面；旧包显式报不兼容 | 已定 |
 | ADR-8 | HostBridge 契约以 `packages/cyrene-core/src/host-bridge.js` 为单一事实源 | 双端实现共用同一方法/权限/封装校验表（M1-4 落地，25 方法） | 已定 |
 | ADR-9 | 共享核心纯净度以自动扫描守门测试强制（新模块必须通过禁 DOM 检查） | 替代 eslint 配置缺失的现状，CI 即 lint | 已定 |
+| ADR-10 | UI 声明树 schema 与校验器落地共享核心（`ui-tree.js`，含字段白名单/绑定源/拒绝清单强制） | C 类插件契约双端共用，拒绝字段静态报错 | 已定 |
+| ADR-11 | UI 策略（component-style/override/native-view/result-presentation/font 校验）全部入核心 `ui-policies/` | 均为纯函数，使 `normalizePluginManifest` 完全纯化，C# 线可直接调用 | 已定 |
 
 ---
 

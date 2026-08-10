@@ -10,21 +10,21 @@ const modules = fs.readdirSync(path.join(packageRoot, 'src'))
   .map(name => `src/${name}`)
   .sort()
 const forbiddenGlobals = [
-  'document.',
-  'window.',
-  'localStorage',
-  'sessionStorage',
-  'navigator.',
-  'HTMLElement',
-  'Worker'
+  { pattern: /\bdocument\./, label: 'document.' },
+  { pattern: /\bwindow\./, label: 'window.' },
+  { pattern: /\blocalStorage\b/, label: 'localStorage' },
+  { pattern: /\bsessionStorage\b/, label: 'sessionStorage' },
+  { pattern: /\bnavigator\./, label: 'navigator.' },
+  { pattern: /\bHTMLElement\b/, label: 'HTMLElement' },
+  { pattern: /\bnew Worker\b|\bWorker\(|Worker\.prototype/, label: 'Worker' }
 ]
 
 test('共享核心模块源码不含浏览器/DOM 全局依赖', () => {
   assert.ok(modules.length >= 5, `共享核心应包含至少 5 个模块，当前 ${modules.length}`)
   for (const relative of modules) {
     const source = fs.readFileSync(path.join(packageRoot, relative), 'utf8')
-    for (const token of forbiddenGlobals) {
-      assert.ok(!source.includes(token), `${relative} 包含禁止的全局引用 ${token}`)
+    for (const forbidden of forbiddenGlobals) {
+      assert.ok(!forbidden.pattern.test(source), `${relative} 包含禁止的全局引用 ${forbidden.label}`)
     }
   }
 })

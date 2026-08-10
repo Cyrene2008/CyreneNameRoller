@@ -1,4 +1,4 @@
-import { COMPONENT_STYLE_PROPERTIES, getComponentTarget } from './componentRegistry'
+import { COMPONENT_STYLE_PROPERTIES, getComponentTarget } from './component-registry.js'
 
 const HOST_FONTS = new Set(['host:ui', 'host:display', 'host:numeric'])
 const FONT_ALIAS_PATTERN = /^plugin:([a-z0-9]+(?:[._-][a-z0-9]+)+)\/([a-z][a-z0-9._-]{0,63})$/
@@ -166,3 +166,4 @@ export function styleVarsForTarget(targetId, styles = {}) {
 }
 
 export const HOST_FONT_ALIASES = HOST_FONTS
+
