@@ -2,6 +2,7 @@
   <Project Path="Cyrene.App.Tests/Cyrene.App.Tests.csproj" />
   <Project Path="Cyrene.App/Cyrene.App.csproj" />
   <Project Path="Cyrene.Core.Bridge/Cyrene.Core.Bridge.csproj" />
+  <Project Path="Cyrene.Host.Tests/Cyrene.Host.Tests.csproj" />
   <Project Path="Cyrene.Host/Cyrene.Host.csproj" />
   <Project Path="Cyrene.PluginSdk/Cyrene.PluginSdk.csproj" />
 </Solution>

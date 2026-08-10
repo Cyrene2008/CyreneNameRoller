@@ -15,4 +15,12 @@
     <ProjectReference Include="..\Cyrene.PluginSdk\Cyrene.PluginSdk.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="Assets\cyrene-core-bundle.js" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <Target Name="BundleCore" BeforeTargets="BeforeBuild" Condition="Exists('..\..\node_modules\esbuild')">
+    <Exec Command="node ..\..\scripts\build-core-bundle.mjs" />
+  </Target>
+
 </Project>
