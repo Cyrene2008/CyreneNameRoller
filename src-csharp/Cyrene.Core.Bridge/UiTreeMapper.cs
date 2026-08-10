@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
-namespace Cyrene.App.Rendering;
+namespace Cyrene.Core.Bridge;
 
 public sealed record UiElementDescriptor(
     string Kind,
@@ -110,3 +110,4 @@ public static class UiTreeMapper
 
     private static string ToPascalCase(string key) => char.ToUpperInvariant(key[0]) + key[1..];
 }
+

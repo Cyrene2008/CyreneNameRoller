@@ -255,7 +255,7 @@ test('SDK validates animation packs and rejects properties outside the visual al
   }
   await fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2))
   await fs.writeFile(animationPath, JSON.stringify(pack, null, 2))
-  await assert.rejects(() => validateDirectory(source), /requires ui:animations permission/)
+  await assert.rejects(() => validateDirectory(source), /requires ui:animations permission|ui:animations 权限/)
 
   manifest.permissions.push('ui:animations')
   await fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2))
@@ -350,12 +350,12 @@ test('appearance packs provide semantic light and dark tokens with host and CLI 
 
   manifest.contributes.appearancePacks[0].light.width = '100vw'
   await fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2))
-  await assert.rejects(() => validateDirectory(source), /disallows token width/)
+  await assert.rejects(() => validateDirectory(source), /disallows token width|不允许 Token width/)
   delete manifest.contributes.appearancePacks[0].light.width
   manifest.contributes.appearancePacks[0].light['--text-primary'] = '#f8f8f8'
   manifest.contributes.appearancePacks[0].light['--bg-base'] = '#ffffff'
   await fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2))
-  await assert.rejects(() => validateDirectory(source), /contrast must be at least 4.5:1/)
+  await assert.rejects(() => validateDirectory(source), /contrast must be at least 4\.5:1|对比度低于 4\.5:1/)
 })
 
 test('SDK bundles visual surface workers and preserves top-level Dock page metadata', async t => {
@@ -408,12 +408,12 @@ test('CLI rejects packages that the host would reject before installation', asyn
   manifest.contributes.pages = []
   manifest.contributes.commands = []
   await fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2))
-  await assert.rejects(() => validateDirectory(source), /at least one Worker, page, visual surface or appearance pack/)
+  await assert.rejects(() => validateDirectory(source), /at least one Worker, page, visual surface or appearance pack|至少需要一个 Worker、页面、视觉层或外观包入口/)
 
   manifest.entry = 'src/worker.js'
   manifest.dependencies = [{ id: manifest.id, range: '^1.0.0' }]
   await fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2))
-  await assert.rejects(() => validateDirectory(source), /dependencies\[0\].*invalid/)
+  await assert.rejects(() => validateDirectory(source), /dependencies\[0\].*(invalid|无效)/)
 })
 
 test('CLI and host normalize API 1.2 page, native and dependency metadata consistently', async t => {
@@ -491,7 +491,7 @@ test('host and CLI load older plugin APIs in compatibility mode but reject newer
   manifest.engine = { min: '1.4.0', max: '2.0.0' }
   await fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2))
   assert.throws(() => parser.normalizePluginManifest(manifest), /需要 API/)
-  await assert.rejects(() => validateDirectory(source), /requires API/i)
+  await assert.rejects(() => validateDirectory(source), /requires API|需要 API/i)
 })
 
 test('core plugin data exposes read-only snapshots and no write RPCs', async t => {
@@ -1038,3 +1038,5 @@ test('SDK manifest rejects combined command strings instead of fixed program dec
   await fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2))
   await assert.rejects(() => validateDirectory(source), /system operation|系统操作/)
 })
+
+
