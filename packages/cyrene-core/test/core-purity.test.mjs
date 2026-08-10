@@ -72,10 +72,10 @@ test('核心事务在无 DOM 环境可完成一次完整抽取', async () => {
 test('共享核心仅依赖可注入的 crypto 宿主能力', () => {
   for (const relative of modules) {
     const source = fs.readFileSync(path.join(packageRoot, relative), 'utf8')
-    const cryptoUses = [...source.matchAll(/crypto\.[a-zA-Z]+/g)].map(match => match[0])
+    const cryptoUses = [...source.matchAll(/crypto\.[a-zA-Z.]+/g)].map(match => match[0])
     for (const use of cryptoUses) {
       assert.ok(
-        use === 'crypto.randomUUID' || use === 'crypto.getRandomValues',
+        use === 'crypto.randomUUID' || use === 'crypto.getRandomValues' || use.startsWith('crypto.subtle'),
         `${relative} 使用了宿主未声明的 crypto 能力 ${use}`
       )
     }

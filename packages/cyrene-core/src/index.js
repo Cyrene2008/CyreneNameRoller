@@ -7,3 +7,4 @@ export { normalizePluginManifest, normalizeAnimationPack, normalizeUiSection, sa
 export { normalizeUiTree } from './ui-tree.js'
 export { buildRenderPlan } from './ui-tree-render-plan.js'
 export { UI_TREE_SCHEMA_VERSION, UI_TREE_NODE_TYPES, UI_TREE_CONTROL_TYPES } from './ui-tree-schema.js'
+export { parsePluginPackage, decodePluginFile, sha256Hex } from './plugin-package.js'

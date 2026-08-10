@@ -16,6 +16,9 @@
   "scripts": {
     "test": "node --test test/*.test.mjs"
   },
+  "dependencies": {
+    "jszip": "^3.10.1"
+  },
   "engines": {
     "node": ">=18"
   }

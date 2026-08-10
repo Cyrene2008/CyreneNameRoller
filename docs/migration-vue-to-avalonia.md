@@ -207,7 +207,7 @@
 | M2 SDK v2 schema | UI 声明树 schema + 校验器 + 映射器骨架（两端） | 示例插件声明在两端渲染一致 | ⏳ |
 | M3 C# 宿主 | Jint + HostBridge 全部接口 + Dispatcher 约定 | 宿主 API 单测覆盖后台线程路径 | 🔄 M3-1/2/3/4 完成，M4 接线 |
 | M4 Avalonia 视图 | 逐页迁移（静态页 → 抽奖核心页，见 §11） | 各页功能与 Web 线等价 | ✅ M4-1~4-4 完成 |
-| M5 插件双端验证 | A/B 类插件在 C# 线跑通；C 类 v2 重写 1 个样例 | 兼容性矩阵全绿（§10 矩阵） | ⏳ |
+| M5 插件双端验证 | A/B 类插件在 C# 线跑通；C 类 v2 重写 1 个样例 | 兼容性矩阵全绿（§10 矩阵） | 🔄 M5-1 传输层完成（C# 原生加载器），沙箱执行待做 |
 | M6 性能门禁 | 抽奖帧率、算法耗时基准 + CI 回归 | 帧率 ≥ 60fps、算法耗时阈值 | ⏳ |
 
 ---
@@ -269,6 +269,7 @@
 | ADR-9 | 共享核心纯净度以自动扫描守门测试强制（新模块必须通过禁 DOM 检查） | 替代 eslint 配置缺失的现状，CI 即 lint | 已定 |
 | ADR-10 | UI 声明树 schema 与校验器落地共享核心（`ui-tree.js`，含字段白名单/绑定源/拒绝清单强制） | C 类插件契约双端共用，拒绝字段静态报错 | 已定 |
 | ADR-11 | UI 策略（component-style/override/native-view/result-presentation/font 校验）全部入核心 `ui-policies/` | 均为纯函数，使 `normalizePluginManifest` 完全纯化，C# 线可直接调用 | 已定 |
+| ADR-12 | `.cnrp` 传输层（PBKDF2/AES-GCM/SHA-256 + Zip）在 C# 线原生实现（`PluginPackageLoader`），契约校验（manifest/动画/声明树/路径）仍经 Jint 共享核心 | Jint 对深层 async 链（JSZip/WebCrypto）的微任务泵处理不可靠（实测挂起/标签不匹配）；传输层属宿主能力边界，校验层保持 SSOT | 已定 |
 
 ---
 

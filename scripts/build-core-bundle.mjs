@@ -13,7 +13,7 @@ await build({
   format: 'iife',
   globalName: 'CyreneCore',
   outfile: path.join(outDir, 'cyrene-core-bundle.js'),
-  platform: 'neutral',
+  platform: 'browser',
   target: ['es2020'],
   legalComments: 'none',
   banner: { js: '// 由 scripts/build-core-bundle.mjs 生成，请勿手改。' }

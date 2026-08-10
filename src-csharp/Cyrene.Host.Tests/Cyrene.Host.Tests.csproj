@@ -22,4 +22,9 @@
     <ProjectReference Include="..\Cyrene.Host\Cyrene.Host.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="..\..\scripts\fixtures\plugin-api-1.2\sound-effects-1.1.1.cnrp" Link="fixtures\sound-effects-1.1.1.cnrp" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\scripts\fixtures\plugin-api-1.2\basic-1.0.0.cnrp" Link="fixtures\basic-1.0.0.cnrp" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

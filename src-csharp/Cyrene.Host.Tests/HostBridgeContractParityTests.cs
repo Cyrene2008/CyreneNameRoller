@@ -11,7 +11,7 @@ public class HostBridgeContractParityTests : IDisposable
     [Fact]
     public async Task ContractTable_MatchesJsHostBridgeModule()
     {
-        var jsMethods = await _host.InvokeExpressionAsync("JSON.stringify(CyreneCore.HOST_BRIDGE_METHODS)");
+        var jsMethods = await _host.InvokeExpressionAsync("CyreneCore.HOST_BRIDGE_METHODS");
         var jsPermissions = new Dictionary<string, string?>();
         foreach (var item in jsMethods.EnumerateArray())
         {
@@ -34,7 +34,7 @@ public class HostBridgeContractParityTests : IDisposable
     [Fact]
     public async Task ContractTable_PermissionsExistInManifestPermissionSet()
     {
-        var manifestPermissions = await _host.InvokeExpressionAsync("JSON.stringify([...CyreneCore.PLUGIN_PERMISSIONS])");
+        var manifestPermissions = await _host.InvokeExpressionAsync("[...CyreneCore.PLUGIN_PERMISSIONS]");
         var permissionSet = manifestPermissions.EnumerateArray().Select(item => item.GetString()).ToHashSet();
         foreach (var (_, permission) in HostBridgeContract.Methods)
         {
@@ -42,3 +42,4 @@ public class HostBridgeContractParityTests : IDisposable
         }
     }
 }
+
