@@ -78,6 +78,7 @@
 | ui.render / ui.action（SDK v2，见 §4） | Vue 映射器 | FluentAvalonia 映射器 |
 
 > 契约以 JSON 序列化为边界，保证两端行为一致；任何新能力都必须先写进契约再实现。
+> **实施落点**：契约的唯一事实源为 `packages/cyrene-core/src/host-bridge.js`（25 个方法 + 权限映射 + 请求/响应封装校验，M1-4 完成）；Tauri 线实现为 `src/plugins/runtime.js` 的 `handleRpcPrincipal`，C# 线实现为 `Cyrene.Host`（M3）。
 
 ---
 
@@ -261,6 +262,8 @@
 | ADR-5 | 插件 dll 一律 **Shadow-copy** 加载（副本于 `.cache/`） | Windows 文件锁；支持热更新/卸载 | 已定 |
 | ADR-6 | 不引入 WebView/Blazor 兼容旧 C 类插件 | 割裂体验；C 类走 SDK v2 声明树重写 | 已定 |
 | ADR-7 | 插件动画引擎收敛为单一 `composition` 引擎 | 减少两套引擎的维护面；旧包显式报不兼容 | 已定 |
+| ADR-8 | HostBridge 契约以 `packages/cyrene-core/src/host-bridge.js` 为单一事实源 | 双端实现共用同一方法/权限/封装校验表（M1-4 落地，25 方法） | 已定 |
+| ADR-9 | 共享核心纯净度以自动扫描守门测试强制（新模块必须通过禁 DOM 检查） | 替代 eslint 配置缺失的现状，CI 即 lint | 已定 |
 
 ---
 

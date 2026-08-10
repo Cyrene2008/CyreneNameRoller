@@ -5,13 +5,10 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const modules = [
-  'src/balance.js',
-  'src/protocol.js',
-  'src/core-service.js',
-  'src/storage.js',
-  'src/plugin-contract.js'
-]
+const modules = fs.readdirSync(path.join(packageRoot, 'src'))
+  .filter(name => name.endsWith('.js') || name.endsWith('.mjs'))
+  .map(name => `src/${name}`)
+  .sort()
 const forbiddenGlobals = [
   'document.',
   'window.',
@@ -23,6 +20,7 @@ const forbiddenGlobals = [
 ]
 
 test('共享核心模块源码不含浏览器/DOM 全局依赖', () => {
+  assert.ok(modules.length >= 5, `共享核心应包含至少 5 个模块，当前 ${modules.length}`)
   for (const relative of modules) {
     const source = fs.readFileSync(path.join(packageRoot, relative), 'utf8')
     for (const token of forbiddenGlobals) {
