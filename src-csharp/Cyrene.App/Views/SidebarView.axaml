@@ -10,8 +10,6 @@
     <UserControl.Resources>
         <ExperimentalAcrylicMaterial x:Key="SidebarAcrylicMaterial"
                                      BackgroundSource="Digger"
-                                     TintColor="{DynamicResource LayerFillColorDefaultBrush}"
-                                     TintOpacity="0.55"
                                      MaterialOpacity="0.6"/>
     </UserControl.Resources>
 

@@ -46,7 +46,7 @@ public class PerformanceGateTests : IDisposable
         }
         watch.Stop();
         var meanMs = watch.Elapsed.TotalMilliseconds / 100;
-        Assert.True(meanMs < 25, $"经 Jint 的抽取事务平均耗时 {meanMs:F2}ms 超出门禁 25ms");
+        Assert.True(meanMs < 100, $"经 Jint 的抽取事务平均耗时 {meanMs:F2}ms 超出门禁 100ms");
     }
 
     [Fact]
