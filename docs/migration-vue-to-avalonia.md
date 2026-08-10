@@ -109,6 +109,7 @@
 ### 4.2 UI 声明树语义（描述，非实现）
 
 > **实施落点**：schema 与校验器的单一事实源为 `packages/cyrene-core/src/ui-tree-schema.js` + `ui-tree.js`（M2-1 完成）；manifest 侧 `sdkVersion`/`ui` 段由 `plugin-contract.js` 的 `normalizePluginManifest`/`normalizeUiSection` 强校验（M2-2 完成），`.cnrp` 解析时由 `parsePluginPackage` 加载 `ui.pages` 声明树并经 `normalizeUiTree` 校验。
+> **渲染一致性由构造保证（M2-3）**：`ui-tree-render-plan.js` 的 `buildRenderPlan(tree, dataContext)` 在共享核心解析绑定值并产出平台中立「渲染计划」；两端映射器（Vue：`src/plugins/ui/treeRenderer.js` → vue-fluent-widgets 组件；Avalonia：`Cyrene.App/Rendering/UiTreeMapper.cs` → FluentAvalonia 控件）只消费同一份计划做最终实例化。golden 样本：`packages/cyrene-core/test/fixtures/sample-render-plan.json`（两端测试共用同一 fixture 断言结构一致）；控件交集清单落为可测试数据：`ui-tree-mappings.js`（真实组件名，Vue 侧已验证库导出）。
 
 - **页面节点**：页面/区块/卡片/表单，声明布局意图（分组、栅格、堆叠方向），不含像素级样式。
 - **控件交集**：仅允许两端都有的语义控件（下表），映射器各自落地：

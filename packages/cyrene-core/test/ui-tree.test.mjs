@@ -43,7 +43,7 @@ test('UI 声明树：合法声明完整规范化', () => {
   assert.equal(tree.root.type, 'page')
   assert.equal(tree.nodeCount, 13)
   assert.equal(tree.root.children[1].children[0].action.method, 'draw.execute')
-  assert.deepEqual(tree.root.children[1].children[1], { type: 'badge', text: '已连接', tone: 'success' })
+  assert.deepEqual(tree.root.children[1].children[1], { type: 'badge', id: 'b1', text: '已连接', tone: 'success' })
 })
 
 test('UI 声明树：拒绝未知控件类型', () => {

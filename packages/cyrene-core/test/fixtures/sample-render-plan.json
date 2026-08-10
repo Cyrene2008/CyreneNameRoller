@@ -1,0 +1,102 @@
+{
+  "schemaVersion": 1,
+  "nodeCount": 13,
+  "root": {
+    "kind": "page",
+    "id": "demo",
+    "title": "示例页面",
+    "children": [
+      {
+        "kind": "section",
+        "title": "设置",
+        "children": [
+          {
+            "kind": "row",
+            "children": [
+              {
+                "kind": "toggle",
+                "id": "t1",
+                "label": "启用",
+                "binding": {
+                  "source": "settings",
+                  "path": "settings.darkMode",
+                  "value": true
+                }
+              },
+              {
+                "kind": "slider",
+                "id": "s1",
+                "label": "比例",
+                "min": 50,
+                "max": 200,
+                "step": 10,
+                "binding": {
+                  "source": "settings",
+                  "path": "settings.uiScale",
+                  "value": 100
+                }
+              }
+            ]
+          },
+          {
+            "kind": "select",
+            "id": "sel",
+            "label": "模式",
+            "options": [
+              {
+                "value": "a",
+                "label": "A"
+              },
+              {
+                "value": "b",
+                "label": "B"
+              }
+            ],
+            "binding": {
+              "source": "plugin",
+              "path": "plugin.storage.mode",
+              "value": "b"
+            }
+          }
+        ]
+      },
+      {
+        "kind": "card",
+        "title": "操作",
+        "children": [
+          {
+            "kind": "button",
+            "id": "btn",
+            "label": "执行抽取",
+            "variant": "primary",
+            "action": {
+              "method": "draw.execute",
+              "args": {
+                "count": 1
+              }
+            }
+          },
+          {
+            "kind": "badge",
+            "id": "b1",
+            "tone": "success",
+            "text": "已连接"
+          },
+          {
+            "kind": "progress",
+            "id": "p1",
+            "binding": {
+              "source": "ui.state",
+              "path": "ui.state.progress",
+              "value": 42
+            }
+          }
+        ]
+      },
+      {
+        "kind": "list",
+        "id": "list"
+      }
+    ]
+  }
+}

@@ -87,6 +87,7 @@ function normalizeControl(node, label, writable, itemContext) {
   const type = node.type
   if (!UI_TREE_CONTROL_TYPES.includes(type)) throw uiTreeError(`${label} 控件类型不受支持：${type}`)
   const result = { type }
+  if (node.id) result.id = String(node.id)
   if (type === 'text') {
     if (node.path) result.binding = validateBindingPath(node.path, label, false, { itemContext })
     else result.value = validateText(String(node.value ?? ''), `${label}.value`)
