@@ -14,6 +14,7 @@
     "package:linux": "node scripts/package-dist.mjs --platform=linux",
     "preview": "vite preview",
     "test": "node --test scripts/*.test.js scripts/*.test.mjs packages/cyrene-core/test/*.test.mjs",
+    "benchmark": "node scripts/benchmark-core.mjs",
     "plugin:create": "node packages/cyrene-name-roller/bin/cnrp.mjs create",
     "plugin:validate": "node packages/cyrene-name-roller/bin/cnrp.mjs validate",
     "plugin:pack": "node packages/cyrene-name-roller/bin/cnrp.mjs pack",
