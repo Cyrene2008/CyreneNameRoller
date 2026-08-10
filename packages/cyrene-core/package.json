@@ -1,0 +1,22 @@
+{
+  "name": "cyrene-core",
+  "version": "1.0.0",
+  "description": "Cyrene Name Roller 共享核心（单一事实源）：算法、领域逻辑、核心事务、插件契约。Tauri+Web 线与 C#/Jint 线共用。",
+  "type": "module",
+  "private": true,
+  "exports": {
+    ".": "./src/core-service.js",
+    "./balance": "./src/balance.js",
+    "./protocol": "./src/protocol.js",
+    "./core-service": "./src/core-service.js"
+  },
+  "files": [
+    "src"
+  ],
+  "scripts": {
+    "test": "node --test test/*.test.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

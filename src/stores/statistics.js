@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { dataBridge } from '../utils/dataBridge.js'
-import { personKey } from '../utils/cyrene-balance.js'
+import { personKey } from '../../packages/cyrene-core/src/balance.js'
 import { useNamesStore } from './names.js'
 
 export const useStatisticsStore = defineStore('statistics', () => {

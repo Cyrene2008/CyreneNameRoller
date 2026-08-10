@@ -29,5 +29,13 @@ target/
 tmp/
 /doc/
 /docs/
+# 迁移方案文档作为本分支交付物纳入版本控制
+!/docs/migration-vue-to-avalonia.md
 plugin-dev/
 *.cnrp
+# .NET (src-csharp)
+bin/
+obj/
+*.user
+.vs/
+

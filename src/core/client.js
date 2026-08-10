@@ -3,7 +3,7 @@ import { useNamesStore } from '../stores/names.js'
 import { useRecordsStore } from '../stores/records.js'
 import { useStatisticsStore } from '../stores/statistics.js'
 import { commitCoreStateTransaction } from '../plugins/coreDraw.js'
-import { normalizeCoreCaller, normalizeCoreCardInput, normalizeCoreCommitState, normalizeCoreDrawInput, normalizeCoreMaintenanceInput } from './protocol.js'
+import { normalizeCoreCaller, normalizeCoreCardInput, normalizeCoreCommitState, normalizeCoreDrawInput, normalizeCoreMaintenanceInput } from '../../packages/cyrene-core/src/protocol.js'
 import { isTauri, tauriAPI } from '../utils/tauriAPI.js'
 
 class CoreClient {

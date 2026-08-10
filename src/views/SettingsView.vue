@@ -523,7 +523,7 @@ import {
   normalizeCyreneBalanceSettings,
   ALGORITHM_NAME,
   ALGORITHM_VERSION
-} from '../utils/cyrene-balance'
+} from '../../packages/cyrene-core/src/balance.js'
 import { normalizeHex } from '../utils/theme'
 import { FLOATING_WINDOW_STYLES, floatingWindowImagePath, normalizeFloatingWindowStyle } from '../utils/floatingWindowStyle'
 import { normalizeFloatingWindowSize } from '../utils/floatingWindowSize'

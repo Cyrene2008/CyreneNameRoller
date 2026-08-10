@@ -3,7 +3,7 @@ import os from 'node:os'
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { performance } from 'node:perf_hooks'
-import { pickCyreneBatch } from '../src/utils/cyrene-balance.js'
+import { pickCyreneBatch } from '../packages/cyrene-core/src/balance.js'
 
 const iterations = Math.max(1, Number(process.env.CAF_BENCH_ITERATIONS || 1000))
 const warmup = Math.max(1, Number(process.env.CAF_BENCH_WARMUP || 25))

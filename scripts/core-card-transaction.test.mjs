@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import fs from 'node:fs/promises'
-import { executeCoreCardRequest, executeCoreMaintenanceRequest } from '../src/core/web/coreService.js'
-import { normalizeCoreCardInput, normalizeCoreMaintenanceInput } from '../src/core/protocol.js'
+import { executeCoreCardRequest, executeCoreMaintenanceRequest } from '../packages/cyrene-core/src/core-service.js'
+import { normalizeCoreCardInput, normalizeCoreMaintenanceInput } from '../packages/cyrene-core/src/protocol.js'
 
 const state = {
   names: {

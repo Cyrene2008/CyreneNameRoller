@@ -4,7 +4,7 @@ import { dataBridge } from '../utils/dataBridge'
 import { useNamesStore } from '../stores/names'
 import { useRecordsStore } from '../stores/records'
 import { useStatisticsStore } from '../stores/statistics'
-import { ALGORITHM_NAME, ALGORITHM_VERSION, DEFAULT_CYRENE_BALANCE_SETTINGS, TARGET_GAP, normalizeCyreneBalanceSettings } from '../utils/cyrene-balance'
+import { ALGORITHM_NAME, ALGORITHM_VERSION, DEFAULT_CYRENE_BALANCE_SETTINGS, TARGET_GAP, normalizeCyreneBalanceSettings } from '../../packages/cyrene-core/src/balance.js'
 import { getCoreClient } from '../core/client'
 import { emitPluginEvent } from './eventBus'
 import {

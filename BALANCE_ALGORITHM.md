@@ -6,7 +6,7 @@
 - **引擎版本**：3.1.1
 - **算法类型**：Cyrene Adaptive Fairness（CAF）
 - **设计目标**：长期公平、短期保留随机性、单次概率受控
-- **稳定模块名**：`src/utils/cyrene-balance.js`
+- **稳定模块名**：`packages/cyrene-core/src/balance.js`（2026-08 自 `src/utils/cyrene-balance.js` 迁入共享核心包，供双端共用）
 
 模块名不再包含算法版本。以后升级 v4、v5 时只修改模块内部实现和版本常量，调用方无需再次更换文件路径。
 

@@ -1,4 +1,4 @@
-import { executeCoreCardRequest, executeCoreDrawRequest, executeCoreMaintenanceRequest } from './coreService.js'
+import { executeCoreCardRequest, executeCoreDrawRequest, executeCoreMaintenanceRequest } from '../../../packages/cyrene-core/src/core-service.js'
 
 export function createCoreWorkerHandler(postMessage) {
   let queue = Promise.resolve()

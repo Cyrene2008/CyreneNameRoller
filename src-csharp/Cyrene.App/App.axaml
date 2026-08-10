@@ -1,0 +1,10 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:fa="using:FluentAvalonia.Styling"
+             x:Class="Cyrene.App.App"
+             RequestedThemeVariant="Default">
+
+    <Application.Styles>
+        <fa:FluentAvaloniaTheme />
+    </Application.Styles>
+</Application>

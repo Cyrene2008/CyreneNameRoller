@@ -65,7 +65,7 @@ import {
   computeCyreneBalanceProbability,
   DEFAULT_CYRENE_BALANCE_SETTINGS,
   normalizeCyreneBalanceSettings
-} from '../utils/cyrene-balance'
+} from '../../packages/cyrene-core/src/balance.js'
 import { dataBridge } from '../utils/dataBridge'
 import { t } from '../utils/i18n'
 

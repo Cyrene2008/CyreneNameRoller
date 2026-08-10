@@ -95,7 +95,7 @@ import {
   pickCyreneBalanced,
   DEFAULT_CYRENE_BALANCE_SETTINGS,
   normalizeCyreneBalanceSettings
-} from '../utils/cyrene-balance'
+} from '../../packages/cyrene-core/src/balance.js'
 
 const namesStore = useNamesStore()
 const settingsStore = useSettingsStore()

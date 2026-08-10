@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { createCoreWorkerHandler } from '../src/core/web/core.worker.js'
-import { executeCoreCardRequest, executeCoreDrawRequest } from '../src/core/web/coreService.js'
-import { normalizeCoreCardInput, normalizeCoreCommitState, normalizeCoreDrawInput } from '../src/core/protocol.js'
+import { executeCoreCardRequest, executeCoreDrawRequest } from '../packages/cyrene-core/src/core-service.js'
+import { normalizeCoreCardInput, normalizeCoreCommitState, normalizeCoreDrawInput } from '../packages/cyrene-core/src/protocol.js'
 import { commitCoreStateTransaction } from '../src/plugins/coreDraw.js'
 
 const state = {

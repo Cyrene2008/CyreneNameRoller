@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import fs from 'node:fs/promises'
-import { pickCyreneBatch } from '../src/utils/cyrene-balance.js'
+import { pickCyreneBatch } from '../packages/cyrene-core/src/balance.js'
 
 const vectors = JSON.parse(await fs.readFile(new URL('./fixtures/core-algorithm-v3.1.1.json', import.meta.url), 'utf8'))
 

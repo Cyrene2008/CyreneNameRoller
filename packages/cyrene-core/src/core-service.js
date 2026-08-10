@@ -1,5 +1,5 @@
-import { ALGORITHM_NAME, ALGORITHM_VERSION, normalizeCyreneBalanceSettings, personKey, pickCyreneBatch, secureRandom } from '../../utils/cyrene-balance.js'
-import { normalizeCoreCaller, normalizeCoreCardInput, normalizeCoreDrawInput, normalizeCoreMaintenanceInput } from '../protocol.js'
+import { ALGORITHM_NAME, ALGORITHM_VERSION, normalizeCyreneBalanceSettings, personKey, pickCyreneBatch, secureRandom } from './balance.js'
+import { normalizeCoreCaller, normalizeCoreCardInput, normalizeCoreDrawInput, normalizeCoreMaintenanceInput } from './protocol.js'
 
 function coreError(code, message) { return Object.assign(new Error(message), { code }) }
 
