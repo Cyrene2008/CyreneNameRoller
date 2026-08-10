@@ -150,11 +150,11 @@
 
 ### 5.2 C# 线（新增）
 
-- **Jint 宿主**：进程内单实例（或按需多实例）Jint Engine，加载共享核心 bundle；核心 API 以 JSON 进出。
-- **能力桥**：实现 §2.2 HostBridge 全部接口；每个调用带能力门禁 + 超时 + 异常隔离（复刻 runtime.js 的 host 边界语义）。
+- **Jint 宿主**：`Cyrene.Host/JintCoreHost`（M3-1 完成）——专用线程 + 串行执行队列 + 加密随机数 shim；共享核心经 `index.js` 统一导出并由 esbuild 打包为 `cyrene-core-bundle.js`（csproj 构建时自动生成），JSON 序列化边界调用。
+- **能力桥**：`DefaultHostBridge`（M3-2 完成）——storage（AppData 文件存储）/http/open-url 原生实现，剪贴板/选择器/音频/通知以委托注入（UI 线程能力由 App 接线）；核心快照与 draw.execute 经 Jint 共享核心执行。
 - **线程模型**：Jint 在后台线程执行；回调回 UI 一律 `Dispatcher.UIThread.Post`（详见风险 R1）。
 - **持久化**：AppData 下 JSON 文件，使用与 Web 线同一份 schema 迁移层（§2.1 共享），保证两端数据可互认。
-- **故障域**：插件连续崩溃 → 自动禁用并进入安全模式（对应 safeMode.js 语义）。
+- **故障域**：`SecureHostBridge`（M3-3 完成）——契约表 + 能力门禁 + 15s 超时 + 异常归一化；契约表与 JS 契约对等一致性测试锁定（25 方法权限映射）。
 
 ### 5.3 双端一致性保障
 
@@ -205,7 +205,7 @@
 | M0 骨架 | C# 解决方案 + FluentAvalonia 外壳 + 导航 | 空壳可启动，窗口/主题正常 | ✅ 完成（见 §10 ADR） |
 | M1 共享核心抽取 | 算法/模型/迁移抽为独立 JS 模块，去 DOM 依赖 | 现有 Tauri 线全量回归通过 | 🔄 进行中 |
 | M2 SDK v2 schema | UI 声明树 schema + 校验器 + 映射器骨架（两端） | 示例插件声明在两端渲染一致 | ⏳ |
-| M3 C# 宿主 | Jint + HostBridge 全部接口 + Dispatcher 约定 | 宿主 API 单测覆盖后台线程路径 | ⏳ |
+| M3 C# 宿主 | Jint + HostBridge 全部接口 + Dispatcher 约定 | 宿主 API 单测覆盖后台线程路径 | 🔄 M3-1/2/3/4 完成，M4 接线 |
 | M4 Avalonia 视图 | 逐页迁移（静态页 → 抽奖核心页，见 §11） | 各页功能与 Web 线等价 | ⏳ |
 | M5 插件双端验证 | A/B 类插件在 C# 线跑通；C 类 v2 重写 1 个样例 | 兼容性矩阵全绿（§10 矩阵） | ⏳ |
 | M6 性能门禁 | 抽奖帧率、算法耗时基准 + CI 回归 | 帧率 ≥ 60fps、算法耗时阈值 | ⏳ |

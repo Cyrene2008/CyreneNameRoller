@@ -60,6 +60,28 @@ public sealed class JintCoreHost : IDisposable
         return completion.Task;
     }
 
+    public Task<JsonElement> InvokeExpressionAsync(string jsExpression)
+    {
+        var completion = new TaskCompletionSource<JsonElement>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _queue.Add(() =>
+        {
+            try
+            {
+                var result = _engine.Evaluate(jsExpression);
+                var serialized = result.IsUndefined() ? "undefined" : result.ToString();
+                if (serialized == "undefined") return null;
+                using var document = JsonDocument.Parse(serialized);
+                completion.SetResult(document.RootElement.Clone());
+            }
+            catch (Exception error)
+            {
+                completion.SetException(error);
+            }
+            return null;
+        });
+        return completion.Task;
+    }
+
     private JsonElement InvokeOnEngine(string name, object?[] args)
     {
         var argsJson = JsonSerializer.Serialize(args);
