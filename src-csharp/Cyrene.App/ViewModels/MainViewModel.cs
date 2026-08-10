@@ -14,14 +14,16 @@ public partial class MainViewModel : ObservableObject
 
     public SettingsViewModel Settings { get; }
     public ListsViewModel Lists { get; }
+    public RollerViewModel Roller { get; }
 
     public MainViewModel(AppServices services)
     {
         Settings = new SettingsViewModel(services.Settings);
         Lists = new ListsViewModel();
         Lists.SeedSampleData();
+        Roller = new RollerViewModel(services.Core, Lists);
 
-        NavItems.Add(new NavItem("抽奖", new PlaceholderViewModel("抽奖", "LotteryView 占位（M4-2）")));
+        NavItems.Add(new NavItem("抽奖", Roller));
         NavItems.Add(new NavItem("名单", Lists));
         NavItems.Add(new NavItem("奖品", new PlaceholderViewModel("奖品", "PrizesView 占位")));
         NavItems.Add(new NavItem("记录", new PlaceholderViewModel("记录", "RecordsView 占位")));

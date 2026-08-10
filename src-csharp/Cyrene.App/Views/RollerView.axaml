@@ -1,0 +1,47 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:Cyrene.App.ViewModels"
+             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="600"
+             x:DataType="vm:RollerViewModel"
+             x:Class="Cyrene.App.Views.RollerView">
+    <Grid RowDefinitions="Auto,*,Auto" Margin="0,0,24,24">
+        <StackPanel Spacing="8" Grid.Row="0">
+            <TextBlock Text="抽奖" FontSize="24" FontWeight="SemiBold"/>
+            <TextBlock Text="{Binding StatusText}" FontSize="13" Opacity="0.7"/>
+        </StackPanel>
+
+        <Border Grid.Row="1"
+                Classes="roller-display"
+                HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                Margin="0,16">
+            <Grid RowDefinitions="Auto,Auto" RowSpacing="12">
+                <TextBlock Text="{Binding CurrentName}"
+                           FontSize="56" FontWeight="Bold"
+                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                           Classes.roller-name="{Binding IsRunning}"/>
+                <TextBlock Grid.Row="1"
+                           Text="{Binding LastResult}"
+                           IsVisible="{Binding LastResult, Converter={x:Static vm:BoolConverters.IsNotNull}}"
+                           FontSize="20" Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}"
+                           HorizontalAlignment="Center"
+                           Opacity="{Binding LastResult, Converter={x:Static vm:BoolConverters.HasResultOpacity}}"/>
+            </Grid>
+        </Border>
+
+        <StackPanel Grid.Row="2" Spacing="12">
+            <ProgressBar Minimum="0" Maximum="100" Value="{Binding Progress}"
+                         IsVisible="{Binding IsRunning}"/>
+            <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
+                <Button Content="开始" Classes="accent"
+                        Command="{Binding StartRollCommand}"
+                        IsEnabled="{Binding IsRunning, Converter={x:Static vm:BoolConverters.Not}}"/>
+                <Button Grid.Column="1" Content="停止"
+                        Command="{Binding StopRollCommand}"
+                        IsEnabled="{Binding IsRunning}"/>
+            </Grid>
+        </StackPanel>
+    </Grid>
+</UserControl>
+

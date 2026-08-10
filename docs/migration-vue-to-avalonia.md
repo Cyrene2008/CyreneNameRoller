@@ -206,7 +206,7 @@
 | M1 共享核心抽取 | 算法/模型/迁移抽为独立 JS 模块，去 DOM 依赖 | 现有 Tauri 线全量回归通过 | 🔄 进行中 |
 | M2 SDK v2 schema | UI 声明树 schema + 校验器 + 映射器骨架（两端） | 示例插件声明在两端渲染一致 | ⏳ |
 | M3 C# 宿主 | Jint + HostBridge 全部接口 + Dispatcher 约定 | 宿主 API 单测覆盖后台线程路径 | 🔄 M3-1/2/3/4 完成，M4 接线 |
-| M4 Avalonia 视图 | 逐页迁移（静态页 → 抽奖核心页，见 §11） | 各页功能与 Web 线等价 | ⏳ |
+| M4 Avalonia 视图 | 逐页迁移（静态页 → 抽奖核心页，见 §11） | 各页功能与 Web 线等价 | 🔄 M4-1/4-2 完成，M4-3/4-4 待做 |
 | M5 插件双端验证 | A/B 类插件在 C# 线跑通；C 类 v2 重写 1 个样例 | 兼容性矩阵全绿（§10 矩阵） | ⏳ |
 | M6 性能门禁 | 抽奖帧率、算法耗时基准 + CI 回归 | 帧率 ≥ 60fps、算法耗时阈值 | ⏳ |
 
@@ -290,3 +290,40 @@
 | PluginPageView | PluginPageView（声明树宿主容器） | 第三批·插件（依赖 M2/M3） | 高 |
 
 > 映射器细则：同一功能在两端命名为同名 View；导航结构对应现有 NavigationDock 的侧栏入口，M0 骨架中已用占位页建立导航框架，M4 逐批替换占位实现。
+
+---
+
+## 13. 附录：导航侧边栏 UI 设计规范（Left / LeftCompact）
+
+> 状态：已定稿待实现。落地阶段：**M4-3（导航/抽屉动画）首选**；若 M4-3 优先级被抽奖动画挤占，则顺延至 M6 后。实现时需对接 M2 声明树 `page.location = 'dock'` 的宿主渲染。
+
+### 13.1 两种模式
+
+| 模式 | 说明 |
+|---|---|
+| **Left** | 常规侧边栏：图标 + 文字，二级菜单缩进展开 |
+| **LeftCompact** | 紧凑模式：收起为仅图标列，悬停弹出 Tooltip 或临时展开面板 |
+
+### 13.2 视觉与交互规范
+
+- **背景**：半透明 `AcrylicBrush`（亚克力）或 `Mica`（云母），隐约透出桌面壁纸/窗口底层色，营造层次感；无 Acrylic 支持的平台回退半透明实色。
+- **选中态**：选中导航项左侧细长圆角矩形**指示条**（Selection Indicator），颜色跟随系统主题色（Accent）；切换时指示条带**平滑垂直滑动动画**（对应原 NavigationDock 的 gsap 指示器位移，实现见 §6.2 映射）。
+- **悬停/按下态**：悬停出现轻微浅色高光反馈；按下有明显下沉缩放效果（scale 0.98 级别，Transitions 实现）。
+- **二级菜单**：子项以缩进列表形式在侧边栏内直接展开，带**高度过渡动画**（MaxHeight 或 Grid 行高动画）；字号/字重与一级一致，仅通过左侧 Padding 区分层级。
+- **紧凑模式**：收起仅显示图标；悬停时弹出 Tooltip 或临时展开面板（FluentAvalonia Flyout），面板内支持完整二级菜单。
+
+### 13.3 技术映射
+
+| 设计点 | Avalonia 实现 |
+|---|---|
+| Acrylic/Mica 背景 | `FluentAvalonia.Styling` 的 AcrylicBrush / WindowTransparencyFeatures（Mica），含回退 |
+| 指示条滑动动画 | Transitions（Offset/TranslateTransform）或 Composition（§6.2） |
+| 按下下沉 | Button Pressed 状态样式 + RenderTransform Scale 过渡 |
+| 二级展开 | 子列表 ItemsSource 展开 + MaxHeight/Opacity 过渡 |
+| 紧凑模式 | 侧栏宽度切换（220→64）+ Tooltip/Flyout；导航状态仅存 VM |
+
+### 13.4 验收要点
+
+- 切换导航项时指示条平滑滑到新位置（≥30fps 低负载）。
+- LeftCompact 下图标 Tooltip 悬停即显，面板展开不遮挡内容区操作。
+- 背景半透明不破坏可读性（文字对比度 ≥ 4.5:1，复用 §3.2 对比度校验纪律）。

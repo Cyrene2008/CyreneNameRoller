@@ -23,6 +23,9 @@
         <DataTemplate DataType="{x:Type vm:ListsViewModel}" x:DataType="vm:ListsViewModel">
             <views:ListsView/>
         </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:RollerViewModel}" x:DataType="vm:RollerViewModel">
+            <views:RollerView/>
+        </DataTemplate>
     </Window.DataTemplates>
 
     <Window.Styles>
@@ -37,6 +40,13 @@
             <Setter Property="Background" Value="{DynamicResource AccentFillColorDefaultBrush}"/>
             <Setter Property="Foreground" Value="White"/>
             <Setter Property="CornerRadius" Value="4"/>
+        </Style>
+        <Style Selector="Border.roller-display">
+            <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}"/>
+            <Setter Property="CornerRadius" Value="16"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="24"/>
         </Style>
     </Window.Styles>
 
