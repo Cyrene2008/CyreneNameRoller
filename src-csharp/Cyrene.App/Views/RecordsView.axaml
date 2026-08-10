@@ -1,0 +1,35 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:Cyrene.App.ViewModels"
+             xmlns:s="using:Cyrene.App.Services"
+             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="600"
+             x:DataType="vm:RecordsViewModel"
+             x:Class="Cyrene.App.Views.RecordsView">
+    <DockPanel Margin="0,0,24,24">
+        <StackPanel DockPanel.Dock="Top" Spacing="12" Margin="0,0,0,16">
+            <TextBlock Text="抽取记录" FontSize="24" FontWeight="SemiBold"/>
+            <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Text="{Binding Records.Count, StringFormat='共 {0} 条记录'}" VerticalAlignment="Center" Opacity="0.7"/>
+                <Button Grid.Column="1" Content="导出 CSV" Command="{Binding ExportCommand}"
+                        IsEnabled="{Binding Records.Count, Converter={x:Static vm:BoolConverters.CountPositive}}"/>
+            </Grid>
+        </StackPanel>
+        <Border Classes="card">
+            <ListBox ItemsSource="{Binding Records}" Background="Transparent">
+                <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="s:DrawRecord">
+                        <Grid ColumnDefinitions="*,Auto" Margin="4,6">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <TextBlock Text="{Binding Name}" FontSize="15"/>
+                                <TextBlock Text="{Binding EnglishName}" FontSize="12" Opacity="0.6"/>
+                            </StackPanel>
+                            <TextBlock Grid.Column="1" Text="{Binding Time, Converter={x:Static vm:BoolConverters.TimestampToLocal}}" FontSize="12" Opacity="0.6"/>
+                        </Grid>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </Border>
+    </DockPanel>
+</UserControl>

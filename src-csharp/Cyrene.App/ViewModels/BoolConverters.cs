@@ -29,6 +29,12 @@ public static class BoolConverters
     public static readonly IValueConverter CollapsedOpacity = new FuncConverter(value =>
         value is true ? 0.0 : 1.0);
 
+    public static readonly IValueConverter CountPositive = new FuncConverter(value =>
+        value is int count && count > 0);
+
+    public static readonly IValueConverter TimestampToLocal = new FuncConverter(value =>
+        value is long timestamp ? DateTimeOffset.FromUnixTimeMilliseconds(timestamp).LocalDateTime.ToString("yyyy-MM-dd HH:mm:ss") : "");
+
     private sealed class FuncConverter(Func<object?, object?> convert) : IValueConverter
     {
         public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture) => convert(value);

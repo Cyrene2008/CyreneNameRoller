@@ -10,6 +10,7 @@ public sealed class AppServices : IDisposable
     public DefaultHostBridge Bridge { get; }
     public SecureHostBridge SecureBridge { get; }
     public SettingsService Settings { get; }
+    public RecordsService Records { get; }
     public FileSystemHostStorage Storage { get; }
 
     public AppServices()
@@ -23,6 +24,7 @@ public sealed class AppServices : IDisposable
         Bridge = new DefaultHostBridge(Storage);
         SecureBridge = new SecureHostBridge(Bridge, new EmptyPermissions());
         Settings = new SettingsService(Core, Bridge);
+        Records = new RecordsService(Core, Bridge);
     }
 
     public void Dispose()

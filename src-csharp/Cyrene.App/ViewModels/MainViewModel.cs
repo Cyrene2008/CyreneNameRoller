@@ -24,6 +24,7 @@ public partial class MainViewModel : ObservableObject
     public SettingsViewModel Settings { get; }
     public ListsViewModel Lists { get; }
     public RollerViewModel Roller { get; }
+    public RecordsViewModel Records { get; }
 
     public RelayCommand ToggleCompactCommand { get; }
 
@@ -32,14 +33,15 @@ public partial class MainViewModel : ObservableObject
         Settings = new SettingsViewModel(services.Settings);
         Lists = new ListsViewModel();
         Lists.SeedSampleData();
-        Roller = new RollerViewModel(services.Core, Lists);
+        Records = new RecordsViewModel(services.Records);
+        Roller = new RollerViewModel(services.Core, Lists, Records);
 
         var lottery = new NavItem("抽奖", "\uE7EF", Roller);
         var lists = new NavItem("名单", "\uE716", Lists);
         var prizes = new NavItem("奖品", "\uE734", new PlaceholderViewModel("奖品", "PrizesView 占位"));
         var records = new NavItem("记录", "\uE8FD", children: new[]
         {
-            new NavItem("抽取记录", "\uE8FD", new PlaceholderViewModel("抽取记录", "RecordsView 占位")),
+            new NavItem("抽取记录", "\uE8FD", Records),
             new NavItem("卡牌记录", "\uE734", new PlaceholderViewModel("卡牌记录", "LotteryRecordsView 占位"))
         });
         var statistics = new NavItem("统计", "\uE9D2", new PlaceholderViewModel("统计", "StatisticsView 占位"));

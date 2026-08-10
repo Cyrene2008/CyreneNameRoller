@@ -13,6 +13,7 @@ public partial class RollerViewModel : ObservableObject
 
     private readonly JintCoreHost _core;
     private readonly ListsViewModel _lists;
+    private readonly RecordsViewModel? _records;
     private readonly Stopwatch _watch = new();
     private DispatcherTimer? _timer;
     private int _index;
@@ -35,10 +36,11 @@ public partial class RollerViewModel : ObservableObject
     public AsyncRelayCommand StartRollCommand { get; }
     public AsyncRelayCommand StopRollCommand { get; }
 
-    public RollerViewModel(JintCoreHost core, ListsViewModel lists)
+    public RollerViewModel(JintCoreHost core, ListsViewModel lists, RecordsViewModel? records = null)
     {
         _core = core;
         _lists = lists;
+        _records = records;
         StartRollCommand = new AsyncRelayCommand(StartRollAsync);
         StopRollCommand = new AsyncRelayCommand(StopRollAsync);
     }
@@ -87,6 +89,11 @@ public partial class RollerViewModel : ObservableObject
             LastResult = selected;
             Progress = 100;
             StatusText = "已结束";
+            if (_records is not null)
+            {
+                var person = people.FirstOrDefault(item => item.Name == selected);
+                await _records.AddAsync(new Cyrene.App.Services.DrawRecord(selected, person?.EnglishName ?? "", DateTimeOffset.Now.ToUnixTimeMilliseconds()));
+            }
         }
         catch (Exception error)
         {

@@ -26,6 +26,9 @@
         <DataTemplate DataType="{x:Type vm:RollerViewModel}" x:DataType="vm:RollerViewModel">
             <views:RollerView/>
         </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:RecordsViewModel}" x:DataType="vm:RecordsViewModel">
+            <views:RecordsView/>
+        </DataTemplate>
     </Window.DataTemplates>
 
     <Window.Styles>

@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
+using Avalonia.Platform.Storage;
 using Avalonia.Styling;
 using Cyrene.App.Services;
 using Cyrene.App.ViewModels;
@@ -26,6 +27,8 @@ public partial class App : Application
             mainViewModel.Settings.DarkModeChanged += dark =>
                 RequestedThemeVariant = dark ? ThemeVariant.Dark : ThemeVariant.Light;
             _ = mainViewModel.Settings.InitializeAsync();
+            _ = mainViewModel.Records.InitializeAsync();
+            mainViewModel.Records.FilePicker = () => PickCsvPathAsync();
 
             var window = new MainWindow { DataContext = mainViewModel };
             desktop.MainWindow = window;
@@ -33,5 +36,19 @@ public partial class App : Application
         }
 
         base.OnFrameworkInitializationCompleted();
+    }
+
+    private async Task<string?> PickCsvPathAsync()
+    {
+        var topLevel = Avalonia.Controls.TopLevel.GetTopLevel(ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop ? desktop.MainWindow : null);
+        if (topLevel is null) return null;
+        var file = await topLevel.StorageProvider.SaveFilePickerAsync(new Avalonia.Platform.Storage.FilePickerSaveOptions
+        {
+            Title = "导出抽取记录",
+            SuggestedFileName = $"cyrene-records-{DateTime.Now:yyyyMMdd-HHmmss}.csv",
+            DefaultExtension = "csv",
+            FileTypeChoices = [new Avalonia.Platform.Storage.FilePickerFileType("CSV 文件") { Patterns = ["*.csv"] }]
+        });
+        return file?.TryGetLocalPath();
     }
 }
