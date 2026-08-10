@@ -1,13 +1,17 @@
-export const MIN_FLOATING_WINDOW_SIZE = 40
-export const MAX_FLOATING_WINDOW_SIZE = 256
-export const FLOATING_WINDOW_SIZE_STEP = 4
-export const DEFAULT_FLOATING_WINDOW_SIZE = 64
+import {
+  DEFAULT_FLOATING_WINDOW_SIZE,
+  MAX_FLOATING_WINDOW_SIZE,
+  MIN_FLOATING_WINDOW_SIZE,
+  FLOATING_WINDOW_SIZE_STEP,
+  normalizeFloatingWindowSize
+} from '../../packages/cyrene-core/src/storage.js'
 
-export function normalizeFloatingWindowSize(value) {
-  const number = Number(value)
-  if (!Number.isFinite(number)) return DEFAULT_FLOATING_WINDOW_SIZE
-  const rounded = Math.round(number / FLOATING_WINDOW_SIZE_STEP) * FLOATING_WINDOW_SIZE_STEP
-  return Math.min(MAX_FLOATING_WINDOW_SIZE, Math.max(MIN_FLOATING_WINDOW_SIZE, rounded))
+export {
+  DEFAULT_FLOATING_WINDOW_SIZE,
+  MAX_FLOATING_WINDOW_SIZE,
+  MIN_FLOATING_WINDOW_SIZE,
+  FLOATING_WINDOW_SIZE_STEP,
+  normalizeFloatingWindowSize
 }
 
 export function floatingWindowTextSize(value) {

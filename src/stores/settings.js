@@ -1,55 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { dataBridge } from '../utils/dataBridge'
-import { normalizeFloatingWindowStyle } from '../utils/floatingWindowStyle'
-import { normalizeFloatingWindowSize } from '../utils/floatingWindowSize'
-import { normalizeAutoStopDuration } from '../utils/autoStop.mjs'
-
-const DEFAULT_SETTINGS = {
-  recordCounts: true,
-  rainbowNames: true,
-  englishMode: false,
-  language: 'zh',
-  groupMode: false,
-  multiMode: false,
-  peopleCount: 2,
-  allowDuplicates: false,
-  forbidDuplicates: false,
-  multiStepStop: true,
-  autoStop: false,
-  autoStopDuration: 3,
-  finishAnimation: 'spotlight',
-  stepStopInterval: 0.15,
-  theme: 'default',
-  colorTheme: 'peach',
-  customThemeColor: '#0078d4',
-  downloadSource: 'ghproxy',
-  particles: true,
-  blur: true,
-  animSpeed: 1,
-  uiScale: 100,
-  uiScaleVersion: 2,
-  nameFontSize: 1.0,
-  fontFamily: 'MiSans',
-  darkMode: false,
-  nameColorMode: 'gradient',
-  customNameColorLight: '#d04a9d',
-  customNameColorDark: '#f09bd7',
-  perfBlur: true,
-  perfShadows: true,
-  perfAnimations: true,
-  dockCollapsed: false,
-  disableSplash: false,
-  floatingWindowEnabled: false,
-  floatingWindowStyle: 'text',
-  floatingWindowSize: 64,
-  floatingCompassHintDismissed: false,
-  autoStart: false,
-  autoStartMode: 'registry',
-  autoStartToTray: false,
-  uriSchemeEnabled: false,
-  newMemberCountMode: 'midpoint'
-}
+import { DEFAULT_SETTINGS, normalizeStoredSettings } from '../../packages/cyrene-core/src/storage.js'
 
 export const useSettingsStore = defineStore('settings', () => {
   const settings = ref({ ...DEFAULT_SETTINGS })
@@ -60,18 +12,11 @@ export const useSettingsStore = defineStore('settings', () => {
     try {
       const saved = await dataBridge.load('settings')
       if (saved && typeof saved === 'object') {
-        settings.value = { ...DEFAULT_SETTINGS, ...saved }
-        settings.value.newMemberCountMode = settings.value.newMemberCountMode === 'zero' ? 'zero' : 'midpoint'
-        settings.value.floatingWindowStyle = normalizeFloatingWindowStyle(settings.value.floatingWindowStyle)
-        settings.value.floatingWindowSize = normalizeFloatingWindowSize(settings.value.floatingWindowSize)
-        settings.value.autoStopDuration = normalizeAutoStopDuration(settings.value.autoStopDuration)
+        const needsUiScalePersist = !saved.uiScaleVersion || saved.uiScaleVersion < 2
+        settings.value = normalizeStoredSettings(saved)
         darkMode.value = !!saved.darkMode
 
-        if (!saved.uiScaleVersion || saved.uiScaleVersion < 2) {
-          settings.value.uiScale = Math.round((saved.uiScale || 100) * 0.8)
-          save()
-          settings.value.uiScaleVersion = 2
-        }
+        if (needsUiScalePersist) save()
       }
     } catch (e) {
       console.error('[settings] initialize failed:', e)

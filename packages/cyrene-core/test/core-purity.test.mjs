@@ -8,7 +8,8 @@ const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '
 const modules = [
   'src/balance.js',
   'src/protocol.js',
-  'src/core-service.js'
+  'src/core-service.js',
+  'src/storage.js'
 ]
 const forbiddenGlobals = [
   'document.',

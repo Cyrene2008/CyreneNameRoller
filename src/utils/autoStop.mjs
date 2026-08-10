@@ -1,11 +1,15 @@
-export const DEFAULT_AUTO_STOP_DURATION = 3
-export const MIN_AUTO_STOP_DURATION = 1
-export const MAX_AUTO_STOP_DURATION = 60
+import {
+  DEFAULT_AUTO_STOP_DURATION,
+  MAX_AUTO_STOP_DURATION,
+  MIN_AUTO_STOP_DURATION,
+  normalizeAutoStopDuration
+} from '../../packages/cyrene-core/src/storage.js'
 
-export function normalizeAutoStopDuration(value) {
-  const parsed = Number(value)
-  if (!Number.isFinite(parsed)) return DEFAULT_AUTO_STOP_DURATION
-  return Math.min(MAX_AUTO_STOP_DURATION, Math.max(MIN_AUTO_STOP_DURATION, Math.round(parsed)))
+export {
+  DEFAULT_AUTO_STOP_DURATION,
+  MAX_AUTO_STOP_DURATION,
+  MIN_AUTO_STOP_DURATION,
+  normalizeAutoStopDuration
 }
 
 export function getAutoStopProgress(remainingMs, durationMs) {

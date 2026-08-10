@@ -4,12 +4,12 @@ const fs = require('node:fs')
 const path = require('node:path')
 
 const root = path.resolve(__dirname, '..')
-const settingsStore = fs.readFileSync(path.join(root, 'src', 'stores', 'settings.js'), 'utf8')
+const settingsSchema = fs.readFileSync(path.join(root, 'packages', 'cyrene-core', 'src', 'storage.js'), 'utf8')
 const settingsView = fs.readFileSync(path.join(root, 'src', 'views', 'SettingsView.vue'), 'utf8')
 const rollerView = fs.readFileSync(path.join(root, 'src', 'views', 'RollerView.vue'), 'utf8')
 
 test('auto-stop duration is persisted and configurable', () => {
-  assert.match(settingsStore, /autoStopDuration:\s*3/)
+  assert.match(settingsSchema, /autoStopDuration:\s*3/)
   assert.match(settingsView, /autoStopDuration/)
 })
 

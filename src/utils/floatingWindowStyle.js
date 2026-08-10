@@ -1,8 +1,6 @@
-export const FLOATING_WINDOW_STYLES = ['text', 'image1', 'image2', 'image3']
+import { FLOATING_WINDOW_STYLES, normalizeFloatingWindowStyle } from '../../packages/cyrene-core/src/storage.js'
 
-export function normalizeFloatingWindowStyle(value) {
-  return FLOATING_WINDOW_STYLES.includes(value) ? value : 'text'
-}
+export { FLOATING_WINDOW_STYLES, normalizeFloatingWindowStyle }
 
 export function floatingWindowImagePath(style) {
   const normalized = normalizeFloatingWindowStyle(style)

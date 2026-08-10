@@ -5,10 +5,12 @@ const path = require('node:path')
 
 const root = path.resolve(__dirname, '..')
 const settingsStore = fs.readFileSync(path.join(root, 'src', 'stores', 'settings.js'), 'utf8')
+const settingsSchema = fs.readFileSync(path.join(root, 'packages', 'cyrene-core', 'src', 'storage.js'), 'utf8')
 const settingsView = fs.readFileSync(path.join(root, 'src', 'views', 'SettingsView.vue'), 'utf8')
 
 test('new settings default to the traditional startup entry', () => {
-  assert.match(settingsStore, /autoStartMode:\s*'registry'/)
+  assert.match(settingsSchema, /autoStartMode:\s*'registry'/)
+  assert.match(settingsStore, /DEFAULT_SETTINGS/)
 })
 
 test('startup method is only shown while launch at sign-in is enabled', () => {
