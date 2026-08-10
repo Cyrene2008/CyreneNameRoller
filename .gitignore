@@ -18,6 +18,7 @@ build-output
 *.dat
 *.bin
 *.yml
+!.github/workflows/*.yml
 *.pak
 .git-rewrite
 .codex/
