@@ -17,7 +17,28 @@
         <DataTemplate DataType="{x:Type vm:PlaceholderViewModel}" x:DataType="vm:PlaceholderViewModel">
             <views:PlaceholderView/>
         </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:SettingsViewModel}" x:DataType="vm:SettingsViewModel">
+            <views:SettingsView/>
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:ListsViewModel}" x:DataType="vm:ListsViewModel">
+            <views:ListsView/>
+        </DataTemplate>
     </Window.DataTemplates>
+
+    <Window.Styles>
+        <Style Selector="Border.card">
+            <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Padding" Value="16"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+        </Style>
+        <Style Selector="Button.accent">
+            <Setter Property="Background" Value="{DynamicResource AccentFillColorDefaultBrush}"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="CornerRadius" Value="4"/>
+        </Style>
+    </Window.Styles>
 
     <DockPanel>
         <Border DockPanel.Dock="Left"

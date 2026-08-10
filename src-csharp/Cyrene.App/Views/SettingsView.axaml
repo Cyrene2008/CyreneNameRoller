@@ -1,0 +1,90 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:Cyrene.App.ViewModels"
+             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="600"
+             x:DataType="vm:SettingsViewModel"
+             x:Class="Cyrene.App.Views.SettingsView">
+    <ScrollViewer>
+        <StackPanel Spacing="16" Margin="0,0,24,24" MaxWidth="720" HorizontalAlignment="Stretch">
+            <TextBlock Text="设置" FontSize="24" FontWeight="SemiBold"/>
+            <TextBlock Text="{Binding IsLoading, StringFormat='加载中：{0}'}" IsVisible="{Binding IsLoading}" FontSize="12" Opacity="0.6"/>
+
+            <Border Classes="card">
+                <StackPanel Spacing="10">
+                    <TextBlock Text="常规" FontSize="16" FontWeight="SemiBold"/>
+                    <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto">
+                        <TextBlock Text="界面语言" VerticalAlignment="Center"/>
+                        <ComboBox Grid.Column="1" Width="200"
+                                  SelectedIndex="{Binding SelectedLanguageIndex}"
+                                  ItemsSource="{Binding LanguageOptions}"/>
+                    </Grid>
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Text="深色模式" VerticalAlignment="Center"/>
+                        <ToggleSwitch Grid.Column="1" IsChecked="{Binding DarkMode}"/>
+                    </Grid>
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Text="多人抽取" VerticalAlignment="Center"/>
+                        <ToggleSwitch Grid.Column="1" IsChecked="{Binding MultiMode}"/>
+                    </Grid>
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Text="记录抽取次数" VerticalAlignment="Center"/>
+                        <ToggleSwitch Grid.Column="1" IsChecked="{Binding RecordCounts}"/>
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <Border Classes="card">
+                <StackPanel Spacing="10">
+                    <TextBlock Text="抽取" FontSize="16" FontWeight="SemiBold"/>
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Text="每次人数" VerticalAlignment="Center"/>
+                        <NumericUpDown Grid.Column="1" Width="140" Minimum="1" Maximum="100"
+                                       Value="{Binding PeopleCount}"/>
+                    </Grid>
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Text="允许重复" VerticalAlignment="Center"/>
+                        <ToggleSwitch Grid.Column="1" IsChecked="{Binding AllowDuplicates}"/>
+                    </Grid>
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Text="自动停止（秒）" VerticalAlignment="Center"/>
+                        <NumericUpDown Grid.Column="1" Width="140" Minimum="1" Maximum="60"
+                                       Value="{Binding AutoStopDuration}"/>
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <Border Classes="card">
+                <StackPanel Spacing="10">
+                    <TextBlock Text="外观" FontSize="16" FontWeight="SemiBold"/>
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Text="界面缩放（%）" VerticalAlignment="Center"/>
+                        <Slider Grid.Column="1" Width="240" Minimum="80" Maximum="200" TickFrequency="10"
+                                Value="{Binding UiScale}"/>
+                    </Grid>
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Text="动画速度" VerticalAlignment="Center"/>
+                        <Slider Grid.Column="1" Width="240" Minimum="0.5" Maximum="2" TickFrequency="0.1"
+                                Value="{Binding AnimSpeed}"/>
+                    </Grid>
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Text="主题色" VerticalAlignment="Center"/>
+                        <ComboBox Grid.Column="1" Width="200"
+                                  SelectedItem="{Binding ColorTheme}"
+                                  ItemsSource="{Binding ColorThemeOptions}"/>
+                    </Grid>
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Text="字体" VerticalAlignment="Center"/>
+                        <ComboBox Grid.Column="1" Width="200"
+                                  SelectedItem="{Binding FontFamily}"
+                                  ItemsSource="{Binding FontFamilyOptions}"/>
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <Button Content="保存设置" HorizontalAlignment="Stretch" Classes="accent"
+                    Command="{Binding SaveCommand}"/>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

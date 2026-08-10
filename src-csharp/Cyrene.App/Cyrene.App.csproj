@@ -1,8 +1,9 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
     <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>
 
@@ -21,5 +22,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Cyrene.Core.Bridge\Cyrene.Core.Bridge.csproj" />
+    <ProjectReference Include="..\Cyrene.Host\Cyrene.Host.csproj" />
   </ItemGroup>
 </Project>
+
+
