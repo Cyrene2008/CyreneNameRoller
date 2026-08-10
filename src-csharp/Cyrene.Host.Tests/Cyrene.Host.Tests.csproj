@@ -25,6 +25,7 @@
   <ItemGroup>
     <None Include="..\..\scripts\fixtures\plugin-api-1.2\sound-effects-1.1.1.cnrp" Link="fixtures\sound-effects-1.1.1.cnrp" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\scripts\fixtures\plugin-api-1.2\basic-1.0.0.cnrp" Link="fixtures\basic-1.0.0.cnrp" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\scripts\fixtures\sound-effects-worker.bundle.js" Link="fixtures\sound-effects-worker.bundle.js" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>
