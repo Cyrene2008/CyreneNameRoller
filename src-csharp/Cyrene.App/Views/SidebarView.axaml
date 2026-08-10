@@ -1,0 +1,158 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:Cyrene.App.ViewModels"
+             mc:Ignorable="d" d:DesignWidth="220" d:DesignHeight="800"
+             x:DataType="vm:MainViewModel"
+             x:Class="Cyrene.App.Views.SidebarView">
+
+    <UserControl.Resources>
+        <ExperimentalAcrylicMaterial x:Key="SidebarAcrylicMaterial"
+                                     BackgroundSource="Digger"
+                                     TintColor="{DynamicResource LayerFillColorDefaultBrush}"
+                                     TintOpacity="0.55"
+                                     MaterialOpacity="0.6"/>
+    </UserControl.Resources>
+
+    <UserControl.Styles>
+        <Style Selector="Border.nav-item">
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="Padding" Value="10,8"/>
+            <Setter Property="Margin" Value="0,2"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Transitions">
+                <Transitions>
+                    <BrushTransition Property="Background" Duration="0:0:0.15"/>
+                    <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.15"/>
+                </Transitions>
+            </Setter>
+        </Style>
+        <Style Selector="Border.nav-item:pointerover">
+            <Setter Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}"/>
+        </Style>
+        <Style Selector="Border.nav-item.pressed">
+            <Setter Property="RenderTransform" Value="scale(0.98)"/>
+        </Style>
+        <Style Selector="Rectangle.selected-indicator">
+            <Setter Property="Transitions">
+                <Transitions>
+                    <DoubleTransition Property="Opacity" Duration="0:0:0.18"/>
+                    <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.18"/>
+                </Transitions>
+            </Setter>
+        </Style>
+        <Style Selector="TextBlock.nav-title">
+            <Setter Property="Transitions">
+                <Transitions>
+                    <DoubleTransition Property="Opacity" Duration="0:0:0.18"/>
+                </Transitions>
+            </Setter>
+        </Style>
+        <Style Selector="TextBlock.chevron">
+            <Setter Property="Transitions">
+                <Transitions>
+                    <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.2"/>
+                </Transitions>
+            </Setter>
+        </Style>
+    </UserControl.Styles>
+
+    <ExperimentalAcrylicBorder Material="{StaticResource SidebarAcrylicMaterial}">
+        <ExperimentalAcrylicBorder.Transitions>
+            <Transitions>
+                <DoubleTransition Property="Width" Duration="0:0:0.2"/>
+            </Transitions>
+        </ExperimentalAcrylicBorder.Transitions>
+        <DockPanel>
+            <Button DockPanel.Dock="Bottom" Margin="8,4" Classes="subtle" HorizontalContentAlignment="Stretch"
+                    Command="{Binding ToggleCompactCommand}">
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                    <TextBlock Text="&#xE700;" FontFamily="Segoe MDL2 Assets" FontSize="16"
+                               HorizontalAlignment="Center" Width="20"/>
+                    <TextBlock Text="收起 / 展开"
+                               Opacity="{Binding IsCompact, Converter={x:Static vm:BoolConverters.CollapsedOpacity}}"/>
+                </StackPanel>
+            </Button>
+            <ScrollViewer Margin="8">
+                <ItemsControl ItemsSource="{Binding NavItems}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:NavItem">
+                            <StackPanel>
+                                <Border Classes="nav-item"
+                                        Tapped="OnNavItemTapped"
+                                        PointerPressed="OnNavItemPointerPressed"
+                                        PointerReleased="OnNavItemPointerReleased"
+                                        PointerCaptureLost="OnNavItemPointerReleased"
+                                        ToolTip.Tip="{Binding Title}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{Binding IconGlyph}" FontFamily="Segoe MDL2 Assets" FontSize="16"
+                                                   HorizontalAlignment="Center" Width="20"/>
+                                        <TextBlock Grid.Column="1" Classes="nav-title" Text="{Binding Title}" FontSize="14"
+                                                   VerticalAlignment="Center"
+                                                   Opacity="{Binding $parent[UserControl].((vm:MainViewModel)DataContext).IsCompact, Converter={x:Static vm:BoolConverters.CollapsedOpacity}}"/>
+                                        <TextBlock Grid.Column="2" Classes="chevron" Text="&#xE70D;"
+                                                   FontFamily="Segoe MDL2 Assets" FontSize="12"
+                                                   IsVisible="{Binding HasChildren}" VerticalAlignment="Center" Opacity="0.6"
+                                                   RenderTransform="{Binding IsExpanded, Converter={x:Static vm:BoolConverters.Rotate180}}"/>
+                                        <Rectangle Classes="selected-indicator"
+                                                   Width="3" Height="22" RadiusX="1.5" RadiusY="1.5"
+                                                   Fill="{DynamicResource AccentFillColorDefaultBrush}"
+                                                   HorizontalAlignment="Left" VerticalAlignment="Center" Margin="-10,0,0,0"
+                                                   Opacity="{Binding IsSelected, Converter={x:Static vm:BoolConverters.SelectedOpacity}}"
+                                                   RenderTransform="{Binding IsSelected, Converter={x:Static vm:BoolConverters.SelectedScale}}"/>
+                                    </Grid>
+                                </Border>
+                                <StackPanel MaxHeight="{Binding IsExpanded, Converter={x:Static vm:BoolConverters.ExpandHeight}}"
+                                            Opacity="{Binding IsExpanded, Converter={x:Static vm:BoolConverters.SelectedOpacity}}"
+                                            ClipToBounds="True">
+                                    <StackPanel.Transitions>
+                                        <Transitions>
+                                            <DoubleTransition Property="MaxHeight" Duration="0:0:0.2"/>
+                                            <DoubleTransition Property="Opacity" Duration="0:0:0.2"/>
+                                        </Transitions>
+                                    </StackPanel.Transitions>
+                                    <ItemsControl ItemsSource="{Binding Children}" Margin="14,0,0,0">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="vm:NavItem">
+                                                <Border Classes="nav-item" Padding="12,7"
+                                                        Tapped="OnNavItemTapped"
+                                                        PointerPressed="OnNavItemPointerPressed"
+                                                        PointerReleased="OnNavItemPointerReleased"
+                                                        PointerCaptureLost="OnNavItemPointerReleased"
+                                                        ToolTip.Tip="{Binding Title}">
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Text="{Binding IconGlyph}" FontFamily="Segoe MDL2 Assets" FontSize="14"
+                                                                   HorizontalAlignment="Center" Width="16"
+                                                                   IsVisible="{Binding $parent[UserControl].((vm:MainViewModel)DataContext).IsCompact}"/>
+                                                        <TextBlock Grid.Column="1" Classes="nav-title" Text="{Binding Title}" FontSize="14"
+                                                                   IsVisible="{Binding $parent[UserControl].((vm:MainViewModel)DataContext).IsCompact, Converter={x:Static vm:BoolConverters.Not}}"/>
+                                                        <Rectangle Classes="selected-indicator"
+                                                                   Width="3" Height="20" RadiusX="1.5" RadiusY="1.5"
+                                                                   Fill="{DynamicResource AccentFillColorDefaultBrush}"
+                                                                   HorizontalAlignment="Left" VerticalAlignment="Center" Margin="-12,0,0,0"
+                                                                   Opacity="{Binding IsSelected, Converter={x:Static vm:BoolConverters.SelectedOpacity}}"
+                                                                   RenderTransform="{Binding IsSelected, Converter={x:Static vm:BoolConverters.SelectedScale}}"/>
+                                                    </Grid>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+        </DockPanel>
+    </ExperimentalAcrylicBorder>
+</UserControl>

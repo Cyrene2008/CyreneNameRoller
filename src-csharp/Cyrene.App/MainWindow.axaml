@@ -51,20 +51,7 @@
     </Window.Styles>
 
     <DockPanel>
-        <Border DockPanel.Dock="Left"
-                Width="220"
-                Background="{DynamicResource LayerFillColorDefaultBrush}">
-            <ListBox ItemsSource="{Binding NavItems}"
-                     SelectedItem="{Binding SelectedNavItem}"
-                     Margin="8"
-                     Background="Transparent">
-                <ListBox.ItemTemplate>
-                    <DataTemplate x:DataType="vm:NavItem">
-                        <TextBlock Text="{Binding Title}" Margin="12,8" FontSize="14"/>
-                    </DataTemplate>
-                </ListBox.ItemTemplate>
-            </ListBox>
-        </Border>
+        <views:SidebarView DockPanel.Dock="Left" DataContext="{Binding}"/>
         <Border Padding="24" Background="{DynamicResource LayerFillColorAltBrush}">
             <ContentControl Content="{Binding SelectedNavItem.ViewModel}"/>
         </Border>
