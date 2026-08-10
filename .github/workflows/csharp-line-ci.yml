@@ -1,0 +1,36 @@
+name: csharp-line-ci
+
+on:
+  push:
+    branches: [cyrene2008-csharp]
+  pull_request:
+    branches: [cyrene2008-csharp]
+
+jobs:
+  test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: 安装前端依赖（含 esbuild，供核心 bundle 构建）
+        run: npm ci
+
+      - name: JS 共享核心回归
+        run: npm test
+
+      - name: JS 共享核心性能门禁
+        run: node --test scripts/performance-gate.test.mjs
+
+      - name: C# 双端回归（构建时自动生成核心 bundle）
+        run: dotnet test src-csharp/CyreneNameRoller.slnx --configuration Release
+
+      - name: 前端构建回归
+        run: npm run build
