@@ -9,7 +9,8 @@ const modules = [
   'src/balance.js',
   'src/protocol.js',
   'src/core-service.js',
-  'src/storage.js'
+  'src/storage.js',
+  'src/plugin-contract.js'
 ]
 const forbiddenGlobals = [
   'document.',

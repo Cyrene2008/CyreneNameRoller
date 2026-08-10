@@ -1,4 +1,23 @@
-export const PLUGIN_API_VERSION = '1.3.0'
+import {
+  PLUGIN_ANIMATION_TARGETS,
+  PLUGIN_API_VERSION,
+  PLUGIN_COMMAND_LOCATIONS,
+  PLUGIN_LIFECYCLE_EVENTS,
+  PLUGIN_PERMISSIONS,
+  PLUGIN_PLATFORM_CAPABILITIES,
+  PLUGIN_PLATFORM_IDS
+} from '../../packages/cyrene-core/src/plugin-contract.js'
+
+export {
+  PLUGIN_ANIMATION_TARGETS,
+  PLUGIN_API_VERSION,
+  PLUGIN_COMMAND_LOCATIONS,
+  PLUGIN_LIFECYCLE_EVENTS,
+  PLUGIN_PERMISSIONS,
+  PLUGIN_PLATFORM_CAPABILITIES,
+  PLUGIN_PLATFORM_IDS
+}
+
 export const PLUGIN_LIST_REPOSITORY = 'StarCyrene/CyreneNameRoller'
 export const PLUGIN_LIST_PATH = 'plugins/list.json'
 
@@ -7,78 +26,6 @@ export const PLUGIN_DOWNLOAD_SOURCES = [
   { value: 'ghproxy', label: 'gh-proxy.com' },
   { value: 'github', label: 'GitHub' }
 ]
-
-export const PLUGIN_PERMISSIONS = new Set([
-  'storage:read',
-  'storage:write',
-  'events:draw',
-  'notifications:show',
-  'audio:select',
-  'audio:play',
-  'names:read',
-  'records:read',
-  'statistics:read',
-  'balance:read',
-  'events:lifecycle',
-  'draw:execute',
-  'ui:animations',
-  'ui:visual-surfaces',
-  'ui:appearance',
-  'ui:component-styles',
-  'ui:component-overrides',
-  'ui:native-views',
-  'ui:result-presentations',
-  'ui:fonts',
-  'system:open-url',
-  'system:select-file',
-  'system:select-directory',
-  'system:clipboard-read',
-  'system:clipboard-write',
-  'system:reveal-file',
-  'system:execute'
-])
-
-export const PLUGIN_ANIMATION_TARGETS = new Set([
-  'page.transition',
-  'roller.finish',
-  'card.deal',
-  'card.flip',
-  'lottery.finish',
-  'global.transition'
-])
-
-export const PLUGIN_LIFECYCLE_EVENTS = new Set([
-  'app:ready',
-  'app:route-changed',
-  'app:theme-changed',
-  'app:resize',
-  'plugin:storage-changed'
-])
-
-export const PLUGIN_PLATFORM_CAPABILITIES = new Set([
-  'notifications:show',
-  'audio:select',
-  'audio:play',
-  'system:open-url',
-  'system:select-file',
-  'system:select-directory',
-  'system:clipboard-read',
-  'system:clipboard-write',
-  'system:reveal-file',
-  'system:execute'
-])
-
-export const PLUGIN_PLATFORM_IDS = new Set([
-  'web', 'tauri', 'windows', 'macos', 'linux', 'android', 'ios'
-])
-
-// Contribution kinds describe product-owned extension surfaces rather than
-// individual feature targets.  New host UI can discover these at runtime and
-// plugins do not need a bespoke permission for a command that only runs inside
-// their own worker.
-export const PLUGIN_COMMAND_LOCATIONS = new Set([
-  'command-palette', 'page-header', 'context-menu'
-])
 
 function githubRawAlternative(url) {
   const match = String(url || '').match(/^https:\/\/raw\.githubusercontent\.com\/([^/]+)\/([^/]+)\/([^/]+)\/(.+)$/i)
