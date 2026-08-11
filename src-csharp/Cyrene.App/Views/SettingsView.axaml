@@ -39,11 +39,6 @@
                 <StackPanel Spacing="10">
                     <TextBlock Text="抽取" FontSize="16" FontWeight="SemiBold"/>
                     <Grid ColumnDefinitions="*,Auto">
-                        <TextBlock Text="每次人数" VerticalAlignment="Center"/>
-                        <NumericUpDown Grid.Column="1" Width="140" Minimum="1" Maximum="100"
-                                       Value="{Binding PeopleCount}"/>
-                    </Grid>
-                    <Grid ColumnDefinitions="*,Auto">
                         <TextBlock Text="允许重复" VerticalAlignment="Center"/>
                         <ToggleSwitch Grid.Column="1" IsChecked="{Binding AllowDuplicates}"/>
                     </Grid>

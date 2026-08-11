@@ -16,6 +16,9 @@ public partial class PersonItem : ObservableObject
 
     [ObservableProperty]
     private bool isWhiteList;
+
+    [ObservableProperty]
+    private string gender = "all";
 }
 
 public partial class ListsViewModel : ObservableObject

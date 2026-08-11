@@ -1,0 +1,42 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:Cyrene.App.ViewModels"
+             mc:Ignorable="d" d:DesignWidth="900" d:DesignHeight="700"
+             x:DataType="vm:LotteryDrawViewModel"
+             x:Class="Cyrene.App.Views.LotteryDrawView">
+    <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="0,0,24,24">
+        <StackPanel Spacing="4">
+            <TextBlock Text="奖品抽取" FontSize="24" FontWeight="SemiBold"/>
+            <TextBlock Text="{Binding TotalStock, StringFormat='当前奖品单 · 剩余 {0} 件'}" FontSize="13" Opacity="0.7"/>
+        </StackPanel>
+
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="16" Margin="0,16,0,0">
+            <TextBlock Text="当前奖品单" VerticalAlignment="Center" Opacity="0.7"/>
+            <ComboBox ItemsSource="{Binding PrizeListNames}" SelectedItem="{Binding SelectedPrizeList}" Width="200"/>
+            <TextBlock Text="抽取方式" VerticalAlignment="Center" Opacity="0.7"/>
+            <ComboBox ItemsSource="{Binding DrawStyleOptions}" SelectedItem="{Binding SelectedDrawStyle}" Width="140"/>
+        </StackPanel>
+
+        <Border Grid.Row="2" Classes="roller-display" Margin="0,16" VerticalAlignment="Stretch">
+            <StackPanel VerticalAlignment="Center" Spacing="10" HorizontalAlignment="Center">
+                <TextBlock Text="{Binding VisibleQuality}" FontSize="14" Opacity="0.7"
+                           HorizontalAlignment="Center"/>
+                <TextBlock Text="{Binding VisiblePrizeName}" FontSize="48" FontWeight="Bold"
+                           HorizontalAlignment="Center"/>
+                <TextBlock Text="{Binding StockText}" FontSize="14" Opacity="0.7"
+                           HorizontalAlignment="Center"
+                           IsVisible="{Binding ResultPrize, Converter={x:Static vm:BoolConverters.IsNotNull}}"/>
+            </StackPanel>
+        </Border>
+
+        <StackPanel Grid.Row="3" HorizontalAlignment="Center">
+            <Button Classes="accent" MinWidth="220" Padding="14,10"
+                    Content="{Binding Rolling, Converter={x:Static vm:BoolConverters.RollingLabel}}"
+                    Command="{Binding ToggleRollCommand}"/>
+            <TextBlock Text="当前奖品单没有可抽取库存" Opacity="0.7" HorizontalAlignment="Center" Margin="0,8,0,0"
+                       IsVisible="{Binding NoStock}"/>
+        </StackPanel>
+    </Grid>
+</UserControl>

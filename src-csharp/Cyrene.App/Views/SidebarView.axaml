@@ -7,22 +7,16 @@
              x:DataType="vm:MainViewModel"
              x:Class="Cyrene.App.Views.SidebarView">
 
-    <UserControl.Resources>
-        <ExperimentalAcrylicMaterial x:Key="SidebarAcrylicMaterial"
-                                     BackgroundSource="Digger"
-                                     MaterialOpacity="0.6"/>
-    </UserControl.Resources>
-
     <UserControl.Styles>
         <Style Selector="Border.nav-item">
             <Setter Property="CornerRadius" Value="6"/>
-            <Setter Property="Padding" Value="10,8"/>
-            <Setter Property="Margin" Value="0,2"/>
+            <Setter Property="Padding" Value="12,10"/>
+            <Setter Property="Margin" Value="0,3"/>
+            <Setter Property="MinHeight" Value="40"/>
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="Transitions">
                 <Transitions>
                     <BrushTransition Property="Background" Duration="0:0:0.15"/>
-                    <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.15"/>
                 </Transitions>
             </Setter>
         </Style>
@@ -40,43 +34,29 @@
                 </Transitions>
             </Setter>
         </Style>
-        <Style Selector="TextBlock.nav-title">
+        <Style Selector="Border.dock-layer">
             <Setter Property="Transitions">
                 <Transitions>
-                    <DoubleTransition Property="Opacity" Duration="0:0:0.18"/>
-                </Transitions>
-            </Setter>
-        </Style>
-        <Style Selector="TextBlock.chevron">
-            <Setter Property="Transitions">
-                <Transitions>
-                    <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.2"/>
+                    <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.26"/>
                 </Transitions>
             </Setter>
         </Style>
     </UserControl.Styles>
 
-    <ExperimentalAcrylicBorder Material="{StaticResource SidebarAcrylicMaterial}">
-        <ExperimentalAcrylicBorder.Transitions>
+    <Border Background="{DynamicResource SidebarBackgroundBrush}" ClipToBounds="True"
+            Width="{Binding SidebarWidth}">
+        <Border.Transitions>
             <Transitions>
                 <DoubleTransition Property="Width" Duration="0:0:0.2"/>
             </Transitions>
-        </ExperimentalAcrylicBorder.Transitions>
-        <DockPanel>
-            <Button DockPanel.Dock="Bottom" Margin="8,4" Classes="subtle" HorizontalContentAlignment="Stretch"
-                    Command="{Binding ToggleCompactCommand}">
-                <StackPanel Orientation="Horizontal" Spacing="10">
-                    <TextBlock Text="&#xE700;" FontFamily="Segoe MDL2 Assets" FontSize="16"
-                               HorizontalAlignment="Center" Width="20"/>
-                    <TextBlock Text="收起 / 展开"
-                               Opacity="{Binding IsCompact, Converter={x:Static vm:BoolConverters.CollapsedOpacity}}"/>
-                </StackPanel>
-            </Button>
-            <ScrollViewer Margin="8">
-                <ItemsControl ItemsSource="{Binding NavItems}">
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate x:DataType="vm:NavItem">
-                            <StackPanel>
+        </Border.Transitions>
+        <Grid>
+            <!-- 主导航层：二级面板打开时整体左滑出（对齐 Tauri 版 dock-primary） -->
+            <DockPanel x:Name="PrimaryLayer">
+                <Border DockPanel.Dock="Bottom" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="0,1,0,0" Padding="0,4">
+                    <ItemsControl ItemsSource="{Binding BottomNavItems}" Margin="8,0">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:NavItem">
                                 <Border Classes="nav-item"
                                         Tapped="OnNavItemTapped"
                                         PointerPressed="OnNavItemPointerPressed"
@@ -89,15 +69,16 @@
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="Auto"/>
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Text="{Binding IconGlyph}" FontFamily="Segoe MDL2 Assets" FontSize="16"
-                                                   HorizontalAlignment="Center" Width="20"/>
-                                        <TextBlock Grid.Column="1" Classes="nav-title" Text="{Binding Title}" FontSize="14"
+                                        <PathIcon Width="20" Height="20"
+                                                  HorizontalAlignment="Center"
+                                                  Data="{Binding IconName, Converter={x:Static vm:BoolConverters.IconGeometry}}"/>
+                                        <TextBlock Grid.Column="1" Text="{Binding Title}" FontSize="13"
+                                                   Margin="10,0,0,0"
                                                    VerticalAlignment="Center"
                                                    Opacity="{Binding $parent[UserControl].((vm:MainViewModel)DataContext).IsCompact, Converter={x:Static vm:BoolConverters.CollapsedOpacity}}"/>
-                                        <TextBlock Grid.Column="2" Classes="chevron" Text="&#xE70D;"
-                                                   FontFamily="Segoe MDL2 Assets" FontSize="12"
-                                                   IsVisible="{Binding HasChildren}" VerticalAlignment="Center" Opacity="0.6"
-                                                   RenderTransform="{Binding IsExpanded, Converter={x:Static vm:BoolConverters.Rotate180}}"/>
+                                        <PathIcon Grid.Column="2" Width="12" Height="12"
+                                                  Data="{Binding Converter={x:Static vm:BoolConverters.IconGeometry}, ConverterParameter=chevron-right-16-regular}"
+                                                  IsVisible="{Binding HasChildren}" VerticalAlignment="Center" Opacity="0.6"/>
                                         <Rectangle Classes="selected-indicator"
                                                    Width="3" Height="22" RadiusX="1.5" RadiusY="1.5"
                                                    Fill="{DynamicResource AccentFillColorDefaultBrush}"
@@ -106,51 +87,98 @@
                                                    RenderTransform="{Binding IsSelected, Converter={x:Static vm:BoolConverters.SelectedScale}}"/>
                                     </Grid>
                                 </Border>
-                                <StackPanel MaxHeight="{Binding IsExpanded, Converter={x:Static vm:BoolConverters.ExpandHeight}}"
-                                            Opacity="{Binding IsExpanded, Converter={x:Static vm:BoolConverters.SelectedOpacity}}"
-                                            ClipToBounds="True">
-                                    <StackPanel.Transitions>
-                                        <Transitions>
-                                            <DoubleTransition Property="MaxHeight" Duration="0:0:0.2"/>
-                                            <DoubleTransition Property="Opacity" Duration="0:0:0.2"/>
-                                        </Transitions>
-                                    </StackPanel.Transitions>
-                                    <ItemsControl ItemsSource="{Binding Children}" Margin="14,0,0,0">
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate x:DataType="vm:NavItem">
-                                                <Border Classes="nav-item" Padding="12,7"
-                                                        Tapped="OnNavItemTapped"
-                                                        PointerPressed="OnNavItemPointerPressed"
-                                                        PointerReleased="OnNavItemPointerReleased"
-                                                        PointerCaptureLost="OnNavItemPointerReleased"
-                                                        ToolTip.Tip="{Binding Title}">
-                                                    <Grid>
-                                                        <Grid.ColumnDefinitions>
-                                                            <ColumnDefinition Width="Auto"/>
-                                                            <ColumnDefinition Width="*"/>
-                                                        </Grid.ColumnDefinitions>
-                                                        <TextBlock Text="{Binding IconGlyph}" FontFamily="Segoe MDL2 Assets" FontSize="14"
-                                                                   HorizontalAlignment="Center" Width="16"
-                                                                   IsVisible="{Binding $parent[UserControl].((vm:MainViewModel)DataContext).IsCompact}"/>
-                                                        <TextBlock Grid.Column="1" Classes="nav-title" Text="{Binding Title}" FontSize="14"
-                                                                   IsVisible="{Binding $parent[UserControl].((vm:MainViewModel)DataContext).IsCompact, Converter={x:Static vm:BoolConverters.Not}}"/>
-                                                        <Rectangle Classes="selected-indicator"
-                                                                   Width="3" Height="20" RadiusX="1.5" RadiusY="1.5"
-                                                                   Fill="{DynamicResource AccentFillColorDefaultBrush}"
-                                                                   HorizontalAlignment="Left" VerticalAlignment="Center" Margin="-12,0,0,0"
-                                                                   Opacity="{Binding IsSelected, Converter={x:Static vm:BoolConverters.SelectedOpacity}}"
-                                                                   RenderTransform="{Binding IsSelected, Converter={x:Static vm:BoolConverters.SelectedScale}}"/>
-                                                    </Grid>
-                                                </Border>
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
-                                </StackPanel>
-                            </StackPanel>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-            </ScrollViewer>
-        </DockPanel>
-    </ExperimentalAcrylicBorder>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </Border>
+                <ScrollViewer Margin="8">
+                    <ItemsControl ItemsSource="{Binding NavItems}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:NavItem">
+                                <Border Classes="nav-item"
+                                        Tapped="OnNavItemTapped"
+                                        PointerPressed="OnNavItemPointerPressed"
+                                        PointerReleased="OnNavItemPointerReleased"
+                                        PointerCaptureLost="OnNavItemPointerReleased"
+                                        ToolTip.Tip="{Binding Title}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <PathIcon Width="20" Height="20"
+                                                  HorizontalAlignment="Center"
+                                                  Data="{Binding IconName, Converter={x:Static vm:BoolConverters.IconGeometry}}"/>
+                                        <TextBlock Grid.Column="1" Text="{Binding Title}" FontSize="13"
+                                                   Margin="10,0,0,0"
+                                                   VerticalAlignment="Center"
+                                                   Opacity="{Binding $parent[UserControl].((vm:MainViewModel)DataContext).IsCompact, Converter={x:Static vm:BoolConverters.CollapsedOpacity}}"/>
+                                        <PathIcon Grid.Column="2" Width="12" Height="12"
+                                                  Data="{Binding Converter={x:Static vm:BoolConverters.IconGeometry}, ConverterParameter=chevron-right-16-regular}"
+                                                  IsVisible="{Binding HasChildren}" VerticalAlignment="Center" Opacity="0.6"/>
+                                        <Rectangle Classes="selected-indicator"
+                                                   Width="3" Height="22" RadiusX="1.5" RadiusY="1.5"
+                                                   Fill="{DynamicResource AccentFillColorDefaultBrush}"
+                                                   HorizontalAlignment="Left" VerticalAlignment="Center" Margin="-10,0,0,0"
+                                                   Opacity="{Binding IsSelected, Converter={x:Static vm:BoolConverters.SelectedOpacity}}"
+                                                   RenderTransform="{Binding IsSelected, Converter={x:Static vm:BoolConverters.SelectedScale}}"/>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+            </DockPanel>
+
+            <!-- 二级滑入面板：顶部返回 + 子项列表（对齐 Tauri 版 SecondarySidebarMenu） -->
+            <DockPanel x:Name="SecondaryLayer" Background="{DynamicResource SidebarBackgroundBrush}"
+                       IsHitTestVisible="{Binding ActiveMenu, Converter={x:Static vm:BoolConverters.MenuOpen}}">
+                <Border DockPanel.Dock="Top" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="0,0,0,1" Padding="8,6,8,10" Margin="0,0,0,0">
+                    <Button Classes="subtle" HorizontalContentAlignment="Left"
+                            Command="{Binding CloseMenuCommand}">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <PathIcon Width="18" Height="18"
+                                      Data="{Binding Converter={x:Static vm:BoolConverters.IconGeometry}, ConverterParameter=arrow-left-20-regular}"/>
+                            <TextBlock Text="返回" FontSize="13" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
+                </Border>
+                <ScrollViewer Margin="8,4">
+                    <ItemsControl ItemsSource="{Binding ActiveMenuChildren}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:NavItem">
+                                <Border Classes="nav-item"
+                                        Tapped="OnNavItemTapped"
+                                        PointerPressed="OnNavItemPointerPressed"
+                                        PointerReleased="OnNavItemPointerReleased"
+                                        PointerCaptureLost="OnNavItemPointerReleased"
+                                        ToolTip.Tip="{Binding Title}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <PathIcon Width="18" Height="18"
+                                                  HorizontalAlignment="Center"
+                                                  Data="{Binding IconName, Converter={x:Static vm:BoolConverters.IconGeometry}}"/>
+                                        <TextBlock Grid.Column="1" Text="{Binding Title}" FontSize="13"
+                                                   Margin="9,0,0,0"
+                                                   VerticalAlignment="Center"
+                                                   Opacity="{Binding $parent[UserControl].((vm:MainViewModel)DataContext).IsCompact, Converter={x:Static vm:BoolConverters.CollapsedOpacity}}"/>
+                                        <Rectangle Classes="selected-indicator"
+                                                   Width="3" Height="20" RadiusX="1.5" RadiusY="1.5"
+                                                   Fill="{DynamicResource AccentFillColorDefaultBrush}"
+                                                   HorizontalAlignment="Left" VerticalAlignment="Center" Margin="-10,0,0,0"
+                                                   Opacity="{Binding IsSelected, Converter={x:Static vm:BoolConverters.SelectedOpacity}}"
+                                                   RenderTransform="{Binding IsSelected, Converter={x:Static vm:BoolConverters.SelectedScale}}"/>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+            </DockPanel>
+        </Grid>
+    </Border>
 </UserControl>

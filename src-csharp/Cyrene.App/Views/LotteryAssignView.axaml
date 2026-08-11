@@ -1,0 +1,54 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:Cyrene.App.ViewModels"
+             mc:Ignorable="d" d:DesignWidth="900" d:DesignHeight="700"
+             x:DataType="vm:LotteryAssignViewModel"
+             x:Class="Cyrene.App.Views.LotteryAssignView">
+    <ScrollViewer>
+        <StackPanel Spacing="16" Margin="0,0,24,24" MaxWidth="760">
+            <TextBlock Text="人员奖品分配" FontSize="24" FontWeight="SemiBold"/>
+
+            <Border Classes="card">
+                <Grid ColumnDefinitions="*,Auto,*" RowDefinitions="Auto,Auto" RowSpacing="10" ColumnSpacing="16">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBlock Text="分配人数" VerticalAlignment="Center" Opacity="0.7"/>
+                        <NumericUpDown Minimum="1" Maximum="999" Value="{Binding AssignmentCount}" Width="120"/>
+                    </StackPanel>
+                    <TextBlock Grid.Row="1" Text="{Binding EligiblePeopleCount, StringFormat='{}{0} 名可抽取人员'}"
+                               VerticalAlignment="Center" Opacity="0.7"/>
+                    <TextBlock Grid.Row="1" Grid.Column="2" Text="{Binding TotalStock, StringFormat='{}{0} 件奖品库存'}"
+                               VerticalAlignment="Center" Opacity="0.7" HorizontalAlignment="Right"/>
+                </Grid>
+            </Border>
+
+            <TextBlock Text="{Binding ValidationMessage}" Foreground="{DynamicResource SystemFillColorCriticalBrush}"
+                       IsVisible="{Binding ValidationMessage, Converter={x:Static vm:BoolConverters.IsNotEmpty}}"/>
+
+            <Button Classes="accent" HorizontalAlignment="Stretch" Padding="14,10"
+                    Content="抽取人员并分配奖品" Command="{Binding AssignCommand}"/>
+
+            <ItemsControl ItemsSource="{Binding Allocations}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:AllocationRow">
+                        <Border Classes="card" Margin="0,0,0,8" Padding="14,10">
+                            <Grid ColumnDefinitions="40,*,Auto,*,60">
+                                <TextBlock Text="{Binding Index, StringFormat='{}{0:D2}'}" Opacity="0.5"
+                                           VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="1" Text="{Binding PersonName}" FontWeight="SemiBold"
+                                           VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="2" Text="→" VerticalAlignment="Center" Opacity="0.5" Margin="8,0"/>
+                                <TextBlock Grid.Column="3" Text="{Binding PrizeName}" VerticalAlignment="Center"/>
+                                <Border Grid.Column="4" CornerRadius="4" Padding="6,2" HorizontalAlignment="Right"
+                                        Background="{DynamicResource ControlFillColorDefaultBrush}">
+                                    <TextBlock Text="{Binding PrizeQuality}" FontSize="12" VerticalAlignment="Center"/>
+                                </Border>
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

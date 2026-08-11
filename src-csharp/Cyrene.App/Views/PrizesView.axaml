@@ -1,0 +1,64 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:Cyrene.App.ViewModels"
+             mc:Ignorable="d" d:DesignWidth="900" d:DesignHeight="700"
+             x:DataType="vm:PrizesViewModel"
+             x:Class="Cyrene.App.Views.PrizesView">
+    <ScrollViewer>
+        <StackPanel Spacing="16" Margin="0,0,24,24" MaxWidth="820">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <TextBlock Text="奖品管理" FontSize="24" FontWeight="SemiBold"/>
+                <TextBlock Text="·" FontSize="24" Opacity="0.5" VerticalAlignment="Center"/>
+                <ComboBox ItemsSource="{Binding Lists}" SelectedItem="{Binding CurrentList}" Width="200">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate x:DataType="vm:PrizeList">
+                            <TextBlock Text="{Binding Name}"/>
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
+            </StackPanel>
+
+            <Border Classes="card">
+                <StackPanel Spacing="10">
+                    <TextBlock Text="添加奖品" FontSize="16" FontWeight="SemiBold"/>
+                    <Grid ColumnDefinitions="*,120,110,110,Auto" ColumnSpacing="10">
+                        <TextBox PlaceholderText="奖品名称" Text="{Binding NewPrizeName}"/>
+                        <TextBox Grid.Column="1" PlaceholderText="品质（例如 SR）" Text="{Binding NewPrizeQuality}"/>
+                        <NumericUpDown Grid.Column="2" Minimum="0" Maximum="9999" Value="{Binding NewPrizeQuantity}" PlaceholderText="库存"/>
+                        <NumericUpDown Grid.Column="3" Minimum="0" Maximum="9999" Value="{Binding NewPrizeWeight}" PlaceholderText="概率权重" FormatString="0.##"/>
+                        <Button Grid.Column="4" Content="添加" Classes="accent" Command="{Binding AddPrizeCommand}"/>
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <Border Classes="card">
+                <StackPanel Spacing="8">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBlock Text="{Binding CurrentList.Name}" FontSize="16" FontWeight="SemiBold"/>
+                        <TextBlock Text="{Binding CurrentList.Prizes.Count, StringFormat='{}{0} 项奖品'}" Opacity="0.6" VerticalAlignment="Center"/>
+                    </StackPanel>
+                    <ItemsControl ItemsSource="{Binding CurrentList.Prizes}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:PrizeItem">
+                                <Grid ColumnDefinitions="*,90,70,70,40" Margin="0,4">
+                                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                    <Border Grid.Column="1" CornerRadius="4" Padding="8,2" HorizontalAlignment="Left"
+                                            Background="{DynamicResource ControlFillColorDefaultBrush}">
+                                        <TextBlock Text="{Binding Quality}" FontSize="12" VerticalAlignment="Center"/>
+                                    </Border>
+                                    <TextBlock Grid.Column="2" Text="{Binding Quantity}" VerticalAlignment="Center"/>
+                                    <TextBlock Grid.Column="3" Text="{Binding Weight}" VerticalAlignment="Center"/>
+                                    <Button Grid.Column="4" Content="删除" Classes="subtle"
+                                            Command="{Binding $parent[ItemsControl].((vm:PrizesViewModel)DataContext).DeletePrizeCommand}"
+                                            CommandParameter="{Binding}"/>
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

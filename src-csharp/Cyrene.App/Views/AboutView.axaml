@@ -1,0 +1,19 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:Cyrene.App.ViewModels"
+             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="600"
+             x:DataType="vm:AboutViewModel"
+             x:Class="Cyrene.App.Views.AboutView">
+    <StackPanel Spacing="16" Margin="0,0,24,24" MaxWidth="640" HorizontalAlignment="Center">
+        <TextBlock Text="{Binding AppName}" FontSize="28" FontWeight="Bold" HorizontalAlignment="Center"/>
+        <TextBlock Text="{Binding Version}" FontSize="16" Opacity="0.7" HorizontalAlignment="Center"/>
+        <Border Classes="card">
+            <StackPanel Spacing="8">
+                <TextBlock Text="{Binding BuildLine}" FontSize="13" Opacity="0.7"/>
+                <TextBlock Text="{Binding Description}" TextWrapping="Wrap" LineHeight="24"/>
+            </StackPanel>
+        </Border>
+    </StackPanel>
+</UserControl>

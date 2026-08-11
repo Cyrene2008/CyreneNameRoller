@@ -1,0 +1,40 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:Cyrene.App.ViewModels"
+             mc:Ignorable="d" d:DesignWidth="900" d:DesignHeight="700"
+             x:DataType="vm:AnnouncementViewModel"
+             x:Class="Cyrene.App.Views.AnnouncementView">
+    <Grid ColumnDefinitions="300,*" Margin="0,0,24,24">
+        <Grid RowDefinitions="Auto,*">
+            <TextBlock Text="公告" FontSize="24" FontWeight="SemiBold"/>
+            <ListBox Grid.Row="1" ItemsSource="{Binding Items}" SelectedItem="{Binding Selected}"
+                     Margin="0,16,16,0" Background="Transparent">
+                <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:AnnouncementItem">
+                        <StackPanel Spacing="4" Margin="4,6">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <Border CornerRadius="4" Padding="6,2" Background="{DynamicResource AccentFillColorDefaultBrush}"
+                                        IsVisible="{Binding Important}">
+                                    <TextBlock Text="{Binding Tag}" FontSize="11" Foreground="White"/>
+                                </Border>
+                                <TextBlock Text="{Binding Title}" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                            </StackPanel>
+                            <TextBlock Text="{Binding Time}" FontSize="12" Opacity="0.6"/>
+                        </StackPanel>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </Grid>
+
+        <ScrollViewer Grid.Column="1">
+            <StackPanel Margin="8,0,0,24" Spacing="12"
+                        IsVisible="{Binding Selected, Converter={x:Static vm:BoolConverters.IsNotNull}}">
+                <TextBlock Text="{Binding Selected.Title}" FontSize="22" FontWeight="SemiBold"/>
+                <TextBlock Text="{Binding Selected.Time}" FontSize="12" Opacity="0.6"/>
+                <TextBlock Text="{Binding Selected.Content}" TextWrapping="Wrap" FontSize="14" LineHeight="24"/>
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</UserControl>

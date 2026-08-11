@@ -11,10 +11,10 @@ public class RollerViewModelTests : IDisposable
     public void Dispose() => _core.Dispose();
 
     [Fact]
-    public void StartRoll_WithEmptyList_ShowsGuidance()
+    public async Task StartRoll_WithEmptyList_ShowsGuidance()
     {
         var roller = new RollerViewModel(_core, _lists);
-        roller.StartRollCommand.Execute(null);
+        await roller.ToggleRollCommand.ExecuteAsync(null);
         Assert.False(roller.IsRunning);
         Assert.Contains("名单", roller.StatusText);
     }

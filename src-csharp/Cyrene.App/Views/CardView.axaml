@@ -1,0 +1,117 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:Cyrene.App.ViewModels"
+             mc:Ignorable="d" d:DesignWidth="900" d:DesignHeight="700"
+             x:DataType="vm:CardViewModel"
+             x:Class="Cyrene.App.Views.CardView">
+
+    <UserControl.Styles>
+        <Style Selector="Border.flip-card">
+            <Setter Property="Width" Value="120"/>
+            <Setter Property="Height" Value="160"/>
+            <Setter Property="CornerRadius" Value="12"/>
+            <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Transitions">
+                <Transitions>
+                    <BrushTransition Property="Background" Duration="0:0:0.2"/>
+                </Transitions>
+            </Setter>
+        </Style>
+        <Style Selector="Border.flip-card.flipped">
+            <Setter Property="Background" Value="{DynamicResource AccentFillColorDefaultBrush}"/>
+        </Style>
+        <Style Selector="Border.history-chip">
+            <Setter Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}"/>
+            <Setter Property="CornerRadius" Value="12"/>
+            <Setter Property="Padding" Value="10,4"/>
+            <Setter Property="Margin" Value="0,0,6,0"/>
+        </Style>
+    </UserControl.Styles>
+
+    <Grid RowDefinitions="Auto,*,Auto" Margin="0,0,24,24">
+        <StackPanel Spacing="4">
+            <TextBlock Text="翻牌抽名器" FontSize="24" FontWeight="SemiBold"/>
+        </StackPanel>
+
+        <ScrollViewer Grid.Row="1" Margin="0,16" HorizontalScrollBarVisibility="Disabled">
+            <ItemsControl ItemsSource="{Binding Cards}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <WrapPanel Orientation="Horizontal"/>
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:CardItem">
+                        <Button Classes="subtle" Padding="0" Margin="0,0,16,16"
+                                Command="{Binding $parent[UserControl].((vm:CardViewModel)DataContext).FlipCommand}"
+                                CommandParameter="{Binding}">
+                            <Border Classes="flip-card" Classes.flipped="{Binding Flipped}">
+                                <Grid>
+                                    <TextBlock Text="?" FontSize="44" FontWeight="Bold" Opacity="0.35"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                                               IsVisible="{Binding Flipped, Converter={x:Static vm:BoolConverters.Not}}"/>
+                                    <TextBlock Text="{Binding DisplayName}" FontSize="20" FontWeight="SemiBold"
+                                               TextWrapping="Wrap" TextAlignment="Center"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                                               Foreground="White"
+                                               IsVisible="{Binding Flipped}"/>
+                                </Grid>
+                            </Border>
+                        </Button>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+
+        <StackPanel Grid.Row="2" Spacing="10">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+                <TextBlock Text="收牌区域" FontSize="13" Opacity="0.7" VerticalAlignment="Center"/>
+                <TextBlock Text="{Binding TrayHistory.Count, StringFormat='({0})'}" FontSize="13" Opacity="0.7" VerticalAlignment="Center"/>
+            </StackPanel>
+            <ItemsControl ItemsSource="{Binding TrayHistory}" MaxHeight="64">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <WrapPanel Orientation="Horizontal"/>
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="x:String">
+                        <Border Classes="history-chip">
+                            <TextBlock Text="{Binding}" FontSize="12"/>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <Border Classes="card">
+                <Grid RowDefinitions="Auto,Auto" RowSpacing="10">
+                    <StackPanel Orientation="Horizontal" Spacing="14">
+                        <ToggleSwitch IsChecked="{Binding EnglishMode}" Content="English Mode" OnContent="" OffContent=""/>
+                        <TextBlock Text="名单:" VerticalAlignment="Center" Opacity="0.7"/>
+                        <TextBlock Text="{Binding ListName}" VerticalAlignment="Center" FontWeight="SemiBold"/>
+                        <TextBlock Text="牌子数量:" VerticalAlignment="Center" Opacity="0.7"/>
+                        <Button Content="−" Command="{Binding DecrementCardCountCommand}"/>
+                        <TextBlock Text="{Binding CardCount}" VerticalAlignment="Center" Width="30" TextAlignment="Center"/>
+                        <Button Content="＋" Command="{Binding IncrementCardCountCommand}"/>
+                        <Button Content="洗牌" Classes="accent" Command="{Binding ShuffleCommand}"/>
+                    </StackPanel>
+                    <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="14">
+                        <TextBlock Text="一键多抽:" VerticalAlignment="Center" Opacity="0.7"/>
+                        <Button Content="−" Command="{Binding DecrementQuickCountCommand}"/>
+                        <TextBlock Text="{Binding QuickCount}" VerticalAlignment="Center" Width="30" TextAlignment="Center"/>
+                        <Button Content="＋" Command="{Binding IncrementQuickCountCommand}"/>
+                        <Button Content="多抽" Command="{Binding QuickDrawCommand}"/>
+                        <Button Content="重置" Command="{Binding ResetCommand}"/>
+                        <TextBlock Text="{Binding RemainingCount, StringFormat='剩余待抽取: {0}'}"
+                                   VerticalAlignment="Center" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </StackPanel>
+    </Grid>
+</UserControl>

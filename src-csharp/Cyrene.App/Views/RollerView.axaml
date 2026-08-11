@@ -3,45 +3,209 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="using:Cyrene.App.ViewModels"
-             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="600"
+             xmlns:views="using:Cyrene.App.Views"
+             mc:Ignorable="d" d:DesignWidth="1000" d:DesignHeight="720"
              x:DataType="vm:RollerViewModel"
              x:Class="Cyrene.App.Views.RollerView">
-    <Grid RowDefinitions="Auto,*,Auto" Margin="0,0,24,24">
-        <StackPanel Spacing="8" Grid.Row="0">
-            <TextBlock Text="抽奖" FontSize="24" FontWeight="SemiBold"/>
-            <TextBlock Text="{Binding StatusText}" FontSize="13" Opacity="0.7"/>
-        </StackPanel>
 
-        <Border Grid.Row="1"
-                Classes="roller-display"
-                HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
-                Margin="0,16">
-            <Grid RowDefinitions="Auto,Auto" RowSpacing="12">
-                <TextBlock Text="{Binding CurrentName}"
-                           FontSize="56" FontWeight="Bold"
-                           HorizontalAlignment="Center" VerticalAlignment="Center"
-                           Classes.roller-name="{Binding IsRunning}"/>
-                <TextBlock Grid.Row="1"
-                           Text="{Binding LastResult}"
-                           IsVisible="{Binding LastResult, Converter={x:Static vm:BoolConverters.IsNotNull}}"
-                           FontSize="20" Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}"
-                           HorizontalAlignment="Center"
-                           Opacity="{Binding LastResult, Converter={x:Static vm:BoolConverters.HasResultOpacity}}"/>
-            </Grid>
-        </Border>
+    <Grid>
+        <!-- 顶部：标题 + 平衡状态徽章 -->
+        <Grid ColumnDefinitions="*,Auto" Margin="32,28,28,0" VerticalAlignment="Top">
+            <TextBlock Text="点名器" FontSize="28" FontWeight="Bold"
+                       HorizontalAlignment="Center"/>
+            <Border Grid.Column="1" CornerRadius="6" Padding="11,7"
+                    BorderBrush="{DynamicResource AccentFillColorDefaultBrush}" BorderThickness="1">
+                <StackPanel Orientation="Horizontal" Spacing="7">
+                    <PathIcon Width="16" Height="16"
+                              Data="{Binding Converter={x:Static vm:BoolConverters.IconGeometry}, ConverterParameter=shield-checkmark-24-regular}"
+                              Foreground="{DynamicResource AccentFillColorDefaultBrush}"/>
+                    <TextBlock Text="{Binding BalanceStatusText}" FontSize="12"
+                               Foreground="{DynamicResource AccentFillColorDefaultBrush}"
+                               VerticalAlignment="Center"/>
+                </StackPanel>
+            </Border>
+        </Grid>
 
-        <StackPanel Grid.Row="2" Spacing="12">
-            <ProgressBar Minimum="0" Maximum="100" Value="{Binding Progress}"
-                         IsVisible="{Binding IsRunning}"/>
-            <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
-                <Button Content="开始" Classes="accent"
-                        Command="{Binding StartRollCommand}"
-                        IsEnabled="{Binding IsRunning, Converter={x:Static vm:BoolConverters.Not}}"/>
-                <Button Grid.Column="1" Content="停止"
-                        Command="{Binding StopRollCommand}"
-                        IsEnabled="{Binding IsRunning}"/>
+        <!-- 名字舞台：覆盖主体区域，名字自动换行并整体居中 -->
+        <ItemsControl ItemsSource="{Binding NameDisplays}" Margin="24,96,24,24" ClipToBounds="True">
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <views:FlowPanel/>
+                </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="x:String">
+                    <TextBlock Text="{Binding}" FontWeight="Bold"
+                               FontSize="{Binding $parent[ItemsControl].((vm:RollerViewModel)DataContext).DisplayCount, Converter={x:Static vm:BoolConverters.CountToFontSize}}"/>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <!-- 右下控制区 -->
+        <StackPanel HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                    Width="300" Margin="0,0,24,24" Spacing="10">
+            <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Text="English Mode" FontSize="14" VerticalAlignment="Center"
+                           HorizontalAlignment="Right"/>
+                <ToggleSwitch Grid.Column="1" IsChecked="{Binding EnglishMode}"
+                              OffContent="" OnContent="" MinWidth="0" Margin="8,0,0,0"/>
             </Grid>
+
+            <Border Classes="segment-group">
+                <Grid ColumnDefinitions="*,*">
+                    <ToggleButton Classes="segment"
+                                  IsChecked="{Binding GroupMode, Converter={x:Static vm:BoolConverters.BoolNotTwoWay}}">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Rectangle Width="3" Height="16" RadiusX="1.5" RadiusY="1.5"
+                                       Fill="{DynamicResource AccentFillColorDefaultBrush}"
+                                       IsVisible="{Binding $parent[ToggleButton].IsChecked}"/>
+                            <PathIcon Width="16" Height="16"
+                                      Data="{Binding Converter={x:Static vm:BoolConverters.IconGeometry}, ConverterParameter=person-24-regular}"/>
+                            <TextBlock Text="抽取人员" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </ToggleButton>
+                    <ToggleButton Grid.Column="1" Classes="segment"
+                                  IsChecked="{Binding GroupMode}">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Rectangle Width="3" Height="16" RadiusX="1.5" RadiusY="1.5"
+                                       Fill="{DynamicResource AccentFillColorDefaultBrush}"
+                                       IsVisible="{Binding $parent[ToggleButton].IsChecked}"/>
+                            <PathIcon Width="16" Height="16"
+                                      Data="{Binding Converter={x:Static vm:BoolConverters.IconGeometry}, ConverterParameter=group-24-regular}"/>
+                            <TextBlock Text="抽取小组" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </ToggleButton>
+                </Grid>
+            </Border>
+
+            <Border Classes="segment-group" IsVisible="{Binding GroupMode, Converter={x:Static vm:BoolConverters.Not}}">
+                <Grid ColumnDefinitions="*,*,*">
+                    <ToggleButton Classes="segment"
+                                  IsChecked="{Binding GenderFilter, Converter={x:Static vm:BoolConverters.EqualsParamTwoWay}, ConverterParameter=all}">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Rectangle Width="3" Height="16" RadiusX="1.5" RadiusY="1.5"
+                                       Fill="{DynamicResource AccentFillColorDefaultBrush}"
+                                       IsVisible="{Binding $parent[ToggleButton].IsChecked}"/>
+                            <PathIcon Width="16" Height="16"
+                                      Data="{Binding Converter={x:Static vm:BoolConverters.IconGeometry}, ConverterParameter=people-16-regular}"/>
+                            <TextBlock Text="全部" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </ToggleButton>
+                    <ToggleButton Grid.Column="1" Classes="segment"
+                                  IsChecked="{Binding GenderFilter, Converter={x:Static vm:BoolConverters.EqualsParamTwoWay}, ConverterParameter=male}">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Rectangle Width="3" Height="16" RadiusX="1.5" RadiusY="1.5"
+                                       Fill="{DynamicResource AccentFillColorDefaultBrush}"
+                                       IsVisible="{Binding $parent[ToggleButton].IsChecked}"/>
+                            <TextBlock Text="仅男" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </ToggleButton>
+                    <ToggleButton Grid.Column="2" Classes="segment"
+                                  IsChecked="{Binding GenderFilter, Converter={x:Static vm:BoolConverters.EqualsParamTwoWay}, ConverterParameter=female}">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Rectangle Width="3" Height="16" RadiusX="1.5" RadiusY="1.5"
+                                       Fill="{DynamicResource AccentFillColorDefaultBrush}"
+                                       IsVisible="{Binding $parent[ToggleButton].IsChecked}"/>
+                            <TextBlock Text="仅女" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </ToggleButton>
+                </Grid>
+            </Border>
+
+            <Border Classes="segment-group">
+                <Grid ColumnDefinitions="*,*">
+                    <ToggleButton Classes="segment"
+                                  IsChecked="{Binding MultiMode, Converter={x:Static vm:BoolConverters.BoolNotTwoWay}}">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Rectangle Width="3" Height="16" RadiusX="1.5" RadiusY="1.5"
+                                       Fill="{DynamicResource AccentFillColorDefaultBrush}"
+                                       IsVisible="{Binding $parent[ToggleButton].IsChecked}"/>
+                            <PathIcon Width="16" Height="16"
+                                      Data="{Binding Converter={x:Static vm:BoolConverters.IconGeometry}, ConverterParameter=person-24-regular}"/>
+                            <TextBlock Text="抽取单人" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </ToggleButton>
+                    <ToggleButton Grid.Column="1" Classes="segment"
+                                  IsChecked="{Binding MultiMode}">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Rectangle Width="3" Height="16" RadiusX="1.5" RadiusY="1.5"
+                                       Fill="{DynamicResource AccentFillColorDefaultBrush}"
+                                       IsVisible="{Binding $parent[ToggleButton].IsChecked}"/>
+                            <PathIcon Width="16" Height="16"
+                                      Data="{Binding Converter={x:Static vm:BoolConverters.IconGeometry}, ConverterParameter=people-24-regular}"/>
+                            <TextBlock Text="抽取多人" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </ToggleButton>
+                </Grid>
+            </Border>
+
+            <Border Classes="segment-group" IsVisible="{Binding MultiMode}">
+                <Grid ColumnDefinitions="*,*">
+                    <ToggleButton Classes="segment"
+                                  IsChecked="{Binding ForbidDuplicates}">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Rectangle Width="3" Height="16" RadiusX="1.5" RadiusY="1.5"
+                                       Fill="{DynamicResource AccentFillColorDefaultBrush}"
+                                       IsVisible="{Binding $parent[ToggleButton].IsChecked}"/>
+                            <PathIcon Width="16" Height="16"
+                                      Data="{Binding Converter={x:Static vm:BoolConverters.IconGeometry}, ConverterParameter=shield-checkmark-24-regular}"/>
+                            <TextBlock Text="禁止重复" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </ToggleButton>
+                    <ToggleButton Grid.Column="1" Classes="segment"
+                                  IsChecked="{Binding ForbidDuplicates, Converter={x:Static vm:BoolConverters.BoolNotTwoWay}}">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Rectangle Width="3" Height="16" RadiusX="1.5" RadiusY="1.5"
+                                       Fill="{DynamicResource AccentFillColorDefaultBrush}"
+                                       IsVisible="{Binding $parent[ToggleButton].IsChecked}"/>
+                            <PathIcon Width="16" Height="16"
+                                      Data="{Binding Converter={x:Static vm:BoolConverters.IconGeometry}, ConverterParameter=arrow-repeat-all-24-regular}"/>
+                            <TextBlock Text="允许重复" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </ToggleButton>
+                </Grid>
+            </Border>
+
+            <Grid ColumnDefinitions="Auto,*" IsVisible="{Binding MultiMode}" VerticalAlignment="Center">
+                <TextBlock Text="人数" FontSize="14" VerticalAlignment="Center"
+                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                    <Button Classes="stepper" Width="32" Height="32"
+                            Command="{Binding ChangeCountCommand}" CommandParameter="-1">
+                        <PathIcon Width="14" Height="14"
+                                  Data="{Binding Converter={x:Static vm:BoolConverters.IconGeometry}, ConverterParameter=subtract-16-regular}"/>
+                    </Button>
+                    <Border Classes="stepper-value" Width="56" Height="32">
+                        <TextBlock Text="{Binding PeopleCount}" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                   FontSize="14"/>
+                    </Border>
+                    <Button Classes="stepper" Width="32" Height="32"
+                            Command="{Binding ChangeCountCommand}" CommandParameter="1">
+                        <PathIcon Width="14" Height="14"
+                                  Data="{Binding Converter={x:Static vm:BoolConverters.IconGeometry}, ConverterParameter=add-16-regular}"/>
+                    </Button>
+                </StackPanel>
+            </Grid>
+
+            <Border Classes="list-bar">
+                <Grid ColumnDefinitions="Auto,*">
+                    <TextBlock Text="当前名单" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center"
+                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                    <ComboBox Grid.Column="1" ItemsSource="{Binding ListOptions}"
+                              SelectedItem="{Binding CurrentListName}"
+                              HorizontalAlignment="Right" MinWidth="150"/>
+                </Grid>
+            </Border>
+
+            <Button Classes="accent" Height="48" FontSize="16" HorizontalAlignment="Stretch"
+                    Command="{Binding ToggleRollCommand}">
+                <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Center">
+                    <PathIcon Width="18" Height="18"
+                              Data="{Binding IsRunning, Converter={x:Static vm:BoolConverters.RollingIcon}}"/>
+                    <TextBlock Text="{Binding IsRunning, Converter={x:Static vm:BoolConverters.RollingLabel}}"
+                               VerticalAlignment="Center"/>
+                </StackPanel>
+            </Button>
         </StackPanel>
     </Grid>
 </UserControl>
-

@@ -2,9 +2,32 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:fa="using:FluentAvalonia.Styling"
              x:Class="Cyrene.App.App"
-             RequestedThemeVariant="Default">
+             RequestedThemeVariant="Light">
+
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.ThemeDictionaries>
+                <!-- 与 Tauri 版 variables.css 的 bg-base 一致：浅 #FDF5FA，深 #2D1A25 -->
+                <ResourceDictionary x:Key="Light">
+                    <SolidColorBrush x:Key="LayerFillColorAltBrush" Color="#FDF5FA"/>
+                    <SolidColorBrush x:Key="LayerFillColorDefaultBrush" Color="#FDF5FA"/>
+                    <SolidColorBrush x:Key="SidebarBackgroundBrush" Color="#FBEBF5"/>
+                    <SolidColorBrush x:Key="SegmentedGroupBackgroundBrush" Color="#F9E1EF"/>
+                    <SolidColorBrush x:Key="SegmentedItemCheckedBrush" Color="#FFFFFF"/>
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="Dark">
+                    <SolidColorBrush x:Key="LayerFillColorAltBrush" Color="#2D1A25"/>
+                    <SolidColorBrush x:Key="LayerFillColorDefaultBrush" Color="#2D1A25"/>
+                    <SolidColorBrush x:Key="SidebarBackgroundBrush" Color="#241320"/>
+                    <SolidColorBrush x:Key="SegmentedGroupBackgroundBrush" Color="#3A2233"/>
+                    <SolidColorBrush x:Key="SegmentedItemCheckedBrush" Color="#2E1B29"/>
+                </ResourceDictionary>
+            </ResourceDictionary.ThemeDictionaries>
+        </ResourceDictionary>
+    </Application.Resources>
 
     <Application.Styles>
-        <fa:FluentAvaloniaTheme />
+        <!-- 与 Tauri 版一致的粉色强调色 -->
+        <fa:FluentAvaloniaTheme CustomAccentColor="#EA5EC1" PreferSystemTheme="false"/>
     </Application.Styles>
 </Application>

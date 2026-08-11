@@ -11,7 +11,10 @@
         Title="Cyrene Name Roller"
         Width="1200" Height="800"
         MinWidth="960" MinHeight="640"
-        WindowStartupLocation="CenterScreen">
+        WindowStartupLocation="CenterScreen"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaTitleBarHeightHint="40"
+        SystemDecorations="BorderOnly">
 
     <Window.DataTemplates>
         <DataTemplate DataType="{x:Type vm:PlaceholderViewModel}" x:DataType="vm:PlaceholderViewModel">
@@ -26,8 +29,29 @@
         <DataTemplate DataType="{x:Type vm:RollerViewModel}" x:DataType="vm:RollerViewModel">
             <views:RollerView/>
         </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:CardViewModel}" x:DataType="vm:CardViewModel">
+            <views:CardView/>
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:LotteryDrawViewModel}" x:DataType="vm:LotteryDrawViewModel">
+            <views:LotteryDrawView/>
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:LotteryAssignViewModel}" x:DataType="vm:LotteryAssignViewModel">
+            <views:LotteryAssignView/>
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:PrizesViewModel}" x:DataType="vm:PrizesViewModel">
+            <views:PrizesView/>
+        </DataTemplate>
         <DataTemplate DataType="{x:Type vm:RecordsViewModel}" x:DataType="vm:RecordsViewModel">
             <views:RecordsView/>
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:StatisticsViewModel}" x:DataType="vm:StatisticsViewModel">
+            <views:StatisticsView/>
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:AnnouncementViewModel}" x:DataType="vm:AnnouncementViewModel">
+            <views:AnnouncementView/>
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:AboutViewModel}" x:DataType="vm:AboutViewModel">
+            <views:AboutView/>
         </DataTemplate>
     </Window.DataTemplates>
 
@@ -42,18 +66,112 @@
         <Style Selector="Button.accent">
             <Setter Property="Background" Value="{DynamicResource AccentFillColorDefaultBrush}"/>
             <Setter Property="Foreground" Value="White"/>
-            <Setter Property="CornerRadius" Value="4"/>
+            <Setter Property="CornerRadius" Value="8"/>
         </Style>
-        <Style Selector="Border.roller-display">
-            <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}"/>
-            <Setter Property="CornerRadius" Value="16"/>
+        <Style Selector="Button.titlebar-btn">
+            <Setter Property="Width" Value="46"/>
+            <Setter Property="Height" Value="40"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="CornerRadius" Value="0"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}"/>
+        </Style>
+        <Style Selector="Button.titlebar-btn:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}"/>
+        </Style>
+        <Style Selector="Button.titlebar-close:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="#C42B1C"/>
+            <Setter Property="Foreground" Value="White"/>
+        </Style>
+        <Style Selector="Border.segment-group">
+            <Setter Property="Background" Value="{DynamicResource SegmentedGroupBackgroundBrush}"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Padding" Value="4"/>
+        </Style>
+        <Style Selector="ToggleButton.segment">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="12,8"/>
+            <Setter Property="MinHeight" Value="36"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="HorizontalAlignment" Value="Stretch"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}"/>
+        </Style>
+        <Style Selector="ToggleButton.segment:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}"/>
+        </Style>
+        <Style Selector="ToggleButton.segment:checked /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource SegmentedItemCheckedBrush}"/>
+            <Setter Property="TextElement.Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}"/>
+        </Style>
+        <Style Selector="ToggleButton.segment:checked">
+            <Setter Property="FontWeight" Value="SemiBold"/>
+        </Style>
+        <Style Selector="Button.stepper">
+            <Setter Property="Background" Value="{DynamicResource SegmentedItemCheckedBrush}"/>
             <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}"/>
             <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Padding" Value="24"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="Padding" Value="0"/>
+        </Style>
+        <Style Selector="Border.stepper-value">
+            <Setter Property="Background" Value="{DynamicResource SegmentedItemCheckedBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="6"/>
+        </Style>
+        <Style Selector="Border.list-bar">
+            <Setter Property="Background" Value="{DynamicResource SegmentedItemCheckedBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Padding" Value="16,8"/>
         </Style>
     </Window.Styles>
 
     <DockPanel>
+        <!-- 自定义标题栏：汉堡按钮 + logo + 标题（对齐 Tauri 版 TitleBar） -->
+        <Grid DockPanel.Dock="Top" Height="40"
+              Background="{DynamicResource LayerFillColorDefaultBrush}"
+              PointerPressed="OnTitleBarPointerPressed"
+              DoubleTapped="OnTitleBarDoubleTapped">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <Button Classes="titlebar-btn" Command="{Binding ToggleCompactCommand}"
+                    ToolTip.Tip="收起 / 展开">
+                <PathIcon Width="18" Height="18"
+                          Data="{Binding Converter={x:Static vm:BoolConverters.IconGeometry}, ConverterParameter=line-horizontal-3-20-regular}"/>
+            </Button>
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" Margin="2,0,0,0">
+                <PathIcon Width="20" Height="20"
+                          Data="{Binding Converter={x:Static vm:BoolConverters.IconGeometry}, ConverterParameter=flash-24-filled}"
+                          Foreground="{DynamicResource AccentFillColorDefaultBrush}"/>
+                <TextBlock Text="Cyreneの随机点名器" FontSize="13" FontWeight="SemiBold"
+                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                           VerticalAlignment="Center"/>
+            </StackPanel>
+            <StackPanel Grid.Column="3" Orientation="Horizontal">
+                <Button Classes="titlebar-btn" Click="OnMinimizeClick" ToolTip.Tip="最小化">
+                    <Rectangle Width="10" Height="1" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
+                </Button>
+                <Button Classes="titlebar-btn" Click="OnMaximizeClick" ToolTip.Tip="最大化">
+                    <Border Width="10" Height="10" BorderThickness="1" CornerRadius="1"
+                            BorderBrush="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
+                </Button>
+                <Button Classes="titlebar-btn titlebar-close" Click="OnCloseClick" ToolTip.Tip="关闭">
+                    <PathIcon Width="10" Height="10"
+                              Data="{Binding Converter={x:Static vm:BoolConverters.IconGeometry}, ConverterParameter=dismiss-16-regular}"/>
+                </Button>
+            </StackPanel>
+        </Grid>
+
         <views:SidebarView DockPanel.Dock="Left" DataContext="{Binding}"/>
         <Border Padding="24" Background="{DynamicResource LayerFillColorAltBrush}">
             <ContentControl Content="{Binding SelectedNavItem.ViewModel}"/>
