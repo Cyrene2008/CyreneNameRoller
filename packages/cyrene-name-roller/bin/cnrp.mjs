@@ -24,6 +24,7 @@ const CONTRIBUTION_ID_PATTERN = /^[a-z][a-z0-9._-]{0,63}$/
 const COMMAND_LOCATIONS = new Set(['command-palette', 'page-header', 'context-menu'])
 const SETTING_PATH_PATTERN = /^[a-z][a-z0-9._-]{0,63}$/i
 const ANIMATION_TARGETS = new Set(['page.transition', 'roller.finish', 'card.deal', 'card.flip', 'lottery.finish', 'global.transition'])
+const COMPONENT_TARGETS = new Set(['app.title-bar', 'app.version-badge', 'navigation.dock', 'navigation.settings-entry', 'roller.current-list', 'roller.filters', 'roller.primary-action', 'roller.result', 'card.controls', 'card.deck', 'card.item', 'lottery.result', 'statistics.summary'])
 const ANIMATION_FRAME_PROPERTIES = new Set(['opacity', 'transform', 'filter', 'clipPath', 'borderRadius', 'boxShadow', 'textShadow', 'color', 'background', 'backgroundColor', 'letterSpacing', 'offset', 'easing', 'composite'])
 const GSAP_ANIMATION_PROPERTIES = new Set(['opacity', 'autoAlpha', 'x', 'y', 'xPercent', 'yPercent', 'scale', 'scaleX', 'scaleY', 'rotation', 'rotate', 'rotationX', 'rotationY', 'rotateX', 'rotateY', 'skewX', 'skewY', 'filter', 'clipPath', 'borderRadius', 'boxShadow', 'textShadow', 'color', 'background', 'backgroundColor', 'letterSpacing', 'transformOrigin'])
 const UNSAFE_VISUAL_VALUE_PATTERN = /url\s*\(|image-set\s*\(|cross-fade\s*\(|paint\s*\(|(?:https?:|data:|blob:|\/\/)/i
@@ -392,16 +393,19 @@ function normalizeNativePage(value, label) {
     if (!control || typeof control !== 'object' || !CONTRIBUTION_ID_PATTERN.test(control.id || '') || ids.has(control.id)) fail(`${label}.controls[${index}] has an invalid or duplicate id`)
     ids.add(control.id)
     const type = String(control.type || '')
-    if (!['toggle', 'range', 'select', 'audio', 'animation-select'].includes(type)) fail(`${label}.controls[${index}] has an unsupported type`)
-    if (!control.label || String(control.label).length > 120 || (type !== 'animation-select' && !SETTING_PATH_PATTERN.test(control.path || ''))) fail(`${label}.controls[${index}] needs a valid label and path`)
+    const hostSelect = ['animation-select', 'component-style-select', 'component-override-select', 'result-presentation-select'].includes(type)
+    if (!['toggle', 'range', 'select', 'audio', 'animation-select', 'component-style-select', 'component-override-select', 'result-presentation-select'].includes(type)) fail(`${label}.controls[${index}] has an unsupported type`)
+    if (!control.label || String(control.label).length > 120 || (!hostSelect && !SETTING_PATH_PATTERN.test(control.path || ''))) fail(`${label}.controls[${index}] needs a valid label and path`)
     if (type === 'animation-select' && !ANIMATION_TARGETS.has(control.target)) fail(`${label}.controls[${index}] has an invalid animation target`)
+    if (['component-style-select', 'component-override-select'].includes(type) && !COMPONENT_TARGETS.has(control.target)) fail(`${label}.controls[${index}] has an invalid component target`)
+    if (type === 'result-presentation-select' && control.target !== 'roller.result') fail(`${label}.controls[${index}] has an invalid result presentation target`)
     if (type === 'animation-select' && control.packId && !CONTRIBUTION_ID_PATTERN.test(control.packId)) fail(`${label}.controls[${index}] has an invalid animation pack id`)
     if (type === 'select' && (!Array.isArray(control.options) || !control.options.length || control.options.length > 32)) fail(`${label}.controls[${index}] needs options`)
     if (type === 'range' && (!Number.isFinite(Number(control.min)) || !Number.isFinite(Number(control.max)) || Number(control.min) >= Number(control.max))) fail(`${label}.controls[${index}] has an invalid range`)
     return {
       id: String(control.id), type, label: String(control.label), description: String(control.description || ''),
-      path: type === 'animation-select' ? '' : String(control.path),
-      target: type === 'animation-select' ? control.target : undefined,
+      path: hostSelect ? '' : String(control.path),
+      target: hostSelect ? String(control.target) : undefined,
       packId: type === 'animation-select' ? String(control.packId || '') : undefined,
       accept: type === 'audio' ? String(control.accept || 'audio/*') : undefined,
       min: type === 'range' ? Number(control.min) : undefined,

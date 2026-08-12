@@ -269,13 +269,15 @@ Use host-native settings pages whenever possible. The application renders these 
 }
 ```
 
-Supported controls are `toggle`, `range`, `select`, `audio` and `animation-select`. Ordinary values are stored in the plugin namespace and can be read by the Worker through `storage.read`; animation selections are maintained by the host animation registry.
+Supported controls are `toggle`, `range`, `select`, `audio`, `animation-select`, `component-style-select`, `component-override-select` and `result-presentation-select`. Ordinary values are stored in the plugin namespace and can be read by the Worker through `storage.read`; contribution selectors are maintained by the host registries.
 
 HTML pages remain supported for rich custom functionality and are rendered in a sandboxed frame with the `window.CyrenePlugin.request()` bridge. They cannot access the host DOM. The host injects the current semantic appearance tokens, a small Fluent base stylesheet, `window.CyrenePlugin.host`, and live theme updates. Use the provided `.cyrene-fluent-page`, `.cyrene-fluent-card`, `.cyrene-fluent-row` and `.cyrene-muted` primitives as a baseline, then build any page-specific UI inside the plugin frame. Host-native settings pages remain the simplest choice for ordinary configuration.
 
 Set `location: "dock"` to make a substantial plugin page a first-level Dock destination. The page still uses the same sandbox and permission model; Dock placement does not grant extra privileges. `order` controls stable placement and `icon` uses a Fluent icon name. Use `location: "plugins"` for secondary/configuration pages.
 
 Native settings also support an `animation-select` control. It does not use a storage `path`; instead declare the animation `target` and optional `packId`.
+
+The component and result selectors also omit `path`. Declare a `target`; the host lists contributions from the current plugin and persists the active selection in application state.
 
 ## Animation packs
 

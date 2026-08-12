@@ -320,9 +320,26 @@ export interface PluginAnimationSelectControl extends PluginNativeControlBase {
   packId?: string
 }
 
+export interface PluginComponentStyleSelectControl extends PluginNativeControlBase {
+  type: 'component-style-select'
+  target: string
+}
+
+export interface PluginComponentOverrideSelectControl extends PluginNativeControlBase {
+  type: 'component-override-select'
+  target: string
+}
+
+export interface PluginResultPresentationSelectControl extends PluginNativeControlBase {
+  type: 'result-presentation-select'
+  target: 'roller.result'
+}
+
 export type PluginNativeControl =
   | PluginToggleControl | PluginRangeControl | PluginSelectControl
   | PluginAudioControl | PluginAnimationSelectControl
+  | PluginComponentStyleSelectControl | PluginComponentOverrideSelectControl
+  | PluginResultPresentationSelectControl
 
 export interface PluginNativeSettingsPage {
   type: 'settings'

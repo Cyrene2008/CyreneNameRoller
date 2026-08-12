@@ -42,6 +42,8 @@ const DEFAULT_SETTINGS = {
   disableSplash: false,
   floatingWindowEnabled: false,
   floatingWindowStyle: 'text',
+  floatingWindowCustomImage: '',
+  floatingWindowRadius: null,
   floatingWindowSize: 64,
   floatingCompassHintDismissed: false,
   autoStart: false,

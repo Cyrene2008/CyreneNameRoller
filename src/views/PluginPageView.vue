@@ -76,6 +76,14 @@
                 @update:model-value="updateValue(control, $event)"
               />
 
+              <FluentSelect
+                v-else-if="isContributionSelect(control)"
+                :model-value="contributionValue(control)"
+                :options="contributionOptions(control)"
+                width="250px"
+                @update:model-value="updateContribution(control, $event)"
+              />
+
               <div v-else-if="control.type === 'animation-select'" class="animation-actions">
                 <div :ref="element => setAnimationPreviewRef(control.id, element)" class="animation-preview" aria-hidden="true">
                   <FluentIcon icon="sparkle-20-filled" :width="18" />
@@ -142,13 +150,35 @@ const plugin = computed(() => plugins.pluginById(route.params.pluginId))
 const page = computed(() => plugins.pageById(route.params.pluginId, route.params.pageId))
 const pageCommands = computed(() => (plugins.contributedCommands || []).filter(command => command.pluginId === route.params.pluginId && command.locations?.includes('page-header')).sort((left, right) => left.order - right.order))
 
+const contributionTypes = new Set(['component-style-select', 'component-override-select', 'result-presentation-select'])
 function valueAt(path) { return values[path] }
+function isHostSelect(control) { return control.type === 'animation-select' || contributionTypes.has(control.type) }
+function isContributionSelect(control) { return contributionTypes.has(control.type) }
 function defaultsFor(nativePage) {
-  return Object.fromEntries((nativePage?.controls || []).filter(control => control.type !== 'animation-select').map(control => [control.path, control.default ?? (control.type === 'toggle' ? false : '')]))
+  return Object.fromEntries((nativePage?.controls || []).filter(control => !isHostSelect(control)).map(control => [control.path, control.default ?? (control.type === 'toggle' ? false : '')]))
 }
 async function saveValues() {
-  const stored = Object.fromEntries(page.value.native.controls.filter(control => control.type !== 'animation-select').map(control => [control.path, values[control.path]]))
+  const stored = Object.fromEntries(page.value.native.controls.filter(control => !isHostSelect(control)).map(control => [control.path, values[control.path]]))
   await plugins.requestPlugin(route.params.pluginId, 'storage.write', { key: page.value.native.settingsKey, value: stored })
+}
+function contributionValue(control) {
+  if (control.type === 'component-style-select') return plugins.componentStyleSelections[control.target] || ''
+  if (control.type === 'component-override-select') return plugins.componentOverrideSelections[control.target] || ''
+  return plugins.resultPresentationSelections[control.target] || ''
+}
+function contributionOptions(control) {
+  const own = option => option.pluginId === route.params.pluginId
+  const defaultOption = { value: '', label: lang.value === 'en' ? `Default: ${control.target}` : `默认：${control.target}` }
+  if (control.type === 'component-style-select') return [defaultOption, ...plugins.componentStyleOptions(control.target, lang.value).filter(own)]
+  if (control.type === 'component-override-select') return [defaultOption, ...plugins.componentOverrideOptions(control.target, lang.value).filter(own)]
+  return [defaultOption, ...plugins.resultPresentationOptions(control.target, lang.value).filter(own)]
+}
+async function updateContribution(control, value) {
+  try {
+    if (control.type === 'component-style-select') await plugins.setComponentStyleSelection(control.target, value)
+    else if (control.type === 'component-override-select') await plugins.setComponentOverrideSelection(control.target, value)
+    else await plugins.setResultPresentationSelection(control.target, value)
+  } catch (error) { notify(error.message || String(error), 'warning') }
 }
 function notify(message, type = 'info') {
   showBanner?.({

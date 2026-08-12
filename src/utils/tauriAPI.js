@@ -79,7 +79,7 @@ export const tauriAPI = {
       return { success: false, error: String(error) }
     }
   },
-  async setFloatingWindowStyle(style) { return this.invoke('set_floating_window_style', { style }) },
+  async setFloatingWindowStyle(style, customImage = '', radius = null) { return this.invoke('set_floating_window_style', { style, customImage, radius }) },
   async setFloatingWindowSize(size) {
     if (!isTauri()) return { success: false, error: 'Tauri is unavailable' }
     try {

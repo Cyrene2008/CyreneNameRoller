@@ -13,6 +13,7 @@ import { normalizeFonts, validateFontFiles } from './ui/fontRegistry'
 import { normalizeComponentOverridePacks } from './ui/overridePolicy'
 import { normalizeNativeViews, normalizeNativeViewDocument } from './ui/nativeViewPolicy'
 import { normalizeResultPresentations } from './ui/resultPresentationPolicy'
+import { getComponentTarget } from './ui/componentRegistry'
 
 const MAX_PLUGIN_SIZE = 32 * 1024 * 1024
 const MAX_FILE_COUNT = 256
@@ -456,10 +457,13 @@ function normalizeNativePage(value, label) {
     }
     ids.add(control.id)
     const type = String(control.type || '')
-    if (!['toggle', 'range', 'select', 'audio', 'animation-select'].includes(type)) throw new Error(`${label}.controls[${index}] 类型不受支持`)
+    const hostSelect = ['animation-select', 'component-style-select', 'component-override-select', 'result-presentation-select'].includes(type)
+    if (!['toggle', 'range', 'select', 'audio', 'animation-select', 'component-style-select', 'component-override-select', 'result-presentation-select'].includes(type)) throw new Error(`${label}.controls[${index}] 类型不受支持`)
     if (!control.label || String(control.label).length > 120) throw new Error(`${label}.controls[${index}] 缺少 label`)
-    if (type !== 'animation-select' && !SETTING_PATH_PATTERN.test(control.path || '')) throw new Error(`${label}.controls[${index}] path 无效`)
+    if (!hostSelect && !SETTING_PATH_PATTERN.test(control.path || '')) throw new Error(`${label}.controls[${index}] path 无效`)
     if (type === 'animation-select' && !PLUGIN_ANIMATION_TARGETS.has(control.target)) throw new Error(`${label}.controls[${index}] target 无效`)
+    if (['component-style-select', 'component-override-select'].includes(type) && !getComponentTarget(control.target)) throw new Error(`${label}.controls[${index}] target 无效`)
+    if (type === 'result-presentation-select' && control.target !== 'roller.result') throw new Error(`${label}.controls[${index}] target 无效`)
     if (type === 'animation-select' && control.packId && !CONTRIBUTION_ID_PATTERN.test(control.packId)) throw new Error(`${label}.controls[${index}] packId 无效`)
     if (type === 'select' && (!Array.isArray(control.options) || !control.options.length || control.options.length > 32)) {
       throw new Error(`${label}.controls[${index}] options 无效`)
@@ -470,8 +474,8 @@ function normalizeNativePage(value, label) {
       if (!Number.isFinite(min) || !Number.isFinite(max) || min >= max) throw new Error(`${label}.controls[${index}] 范围无效`)
     }
     return {
-      id: String(control.id), type, label: control.label, description: control.description || '', path: type === 'animation-select' ? '' : String(control.path),
-      target: type === 'animation-select' ? control.target : undefined,
+      id: String(control.id), type, label: control.label, description: control.description || '', path: hostSelect ? '' : String(control.path),
+      target: hostSelect ? String(control.target) : undefined,
       packId: type === 'animation-select' ? String(control.packId || '') : undefined,
       accept: type === 'audio' ? String(control.accept || 'audio/*') : undefined,
       min: type === 'range' ? Number(control.min) : undefined,

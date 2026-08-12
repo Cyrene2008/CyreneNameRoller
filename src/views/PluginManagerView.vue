@@ -156,9 +156,9 @@ const confirmPlugin = ref(null)
 let confirmResolver = null
 const installedPlugins = computed(() => Object.values(plugins.installed))
 const stylePacks = computed(() => plugins.contributedComponentStylePacks)
-const styleTargets = ['roller.result', 'roller.filters', 'roller.current-list', 'roller.primary-action']
+const styleTargets = computed(() => [...new Set(stylePacks.value.flatMap(pack => Object.keys(pack.targets || {})))].sort())
 const overridePacks = computed(() => plugins.contributedComponentOverridePacks)
-const overrideTargets = ['app.version-badge', 'roller.filters', 'statistics.summary']
+const overrideTargets = computed(() => [...new Set(overridePacks.value.flatMap(pack => Object.keys(pack.targets || {})))].sort())
 const resultPresentations = computed(() => plugins.contributedResultPresentations)
 const contributedPages = computed(() => plugins.contributedPages)
 const permissionDescriptions = {
@@ -233,7 +233,7 @@ function catalogButtonLabel(item) {
   if (compareVersion(item.version, installed) > 0) return lang.value === 'en' ? 'Update' : '更新'
   return lang.value === 'en' ? 'Installed' : '已安装'
 }
-function pagesFor(plugin) { return contributedPages.value.filter(page => page.pluginId === plugin.manifest.id) }
+function pagesFor(plugin) { return contributedPages.value.filter(page => page.pluginId === plugin.manifest.id && page.location === 'plugins') }
 function pluginIcon(plugin) { return plugins.pluginAssetUrl(plugin) || plugin.manifest.iconDataUrl || '' }
 function pluginCompatibility(plugin) { return plugins.compatibilityFor(plugin) }
 function pluginProvenance(plugin) {

@@ -193,6 +193,34 @@ test('native Fluent settings pages validate and pack without an iframe entry', a
   assert.equal(parsed.manifest.contributes.pages[0].entry, '')
 })
 
+test('native settings pages accept host contribution selectors', async t => {
+  const temporary = await createTestDirectory('cyrene-plugin-native-contribution-page-')
+  t.after(() => fs.rm(temporary, { recursive: true, force: true }))
+  const source = path.join(temporary, 'plugin')
+  const output = path.join(temporary, 'native-contributions.cnrp')
+  await createTemplate(source, 'sound-effects')
+  const manifestPath = path.join(source, 'manifest.json')
+  const manifest = JSON.parse(await fs.readFile(manifestPath, 'utf8'))
+  manifest.contributes.pages[0].native.controls.push(
+    { id: 'style', type: 'component-style-select', label: 'Style', target: 'navigation.dock' },
+    { id: 'override', type: 'component-override-select', label: 'Override', target: 'card.controls' },
+    { id: 'result', type: 'result-presentation-select', label: 'Result', target: 'roller.result' }
+  )
+  await fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2))
+
+  const validation = await validateDirectory(source)
+  assert.deepEqual(validation.manifest.contributes.pages[0].native.controls.slice(-3).map(control => [control.type, control.target, control.path]), [
+    ['component-style-select', 'navigation.dock', ''],
+    ['component-override-select', 'card.controls', ''],
+    ['result-presentation-select', 'roller.result', '']
+  ])
+
+  await packDirectory(source, output)
+  const parser = await loadApplicationParser(temporary)
+  const parsed = await parser.parsePluginPackage(new Uint8Array(await fs.readFile(output)))
+  assert.equal(parsed.manifest.contributes.pages[0].native.controls.at(-1).type, 'result-presentation-select')
+})
+
 test('plugin-owned commands are validated, packed and advertised as a generic extension point', async t => {
   const temporary = await createTestDirectory('cyrene-plugin-command-')
   t.after(() => fs.rm(temporary, { recursive: true, force: true }))

@@ -1,6 +1,7 @@
 <template>
   <div
     :class="['floating-ball', style === 'text' ? 'text-style' : 'image-style']"
+    :style="{ borderRadius: `${effectiveRadius}%` }"
     @contextmenu.prevent
     @pointerdown.prevent="onPointerDown"
     @pointermove.prevent="onPointerMove"
@@ -10,7 +11,7 @@
     <img
       v-if="style !== 'text'"
       class="ball-image"
-      :src="floatingWindowImagePath(style)"
+      :src="floatingWindowImagePath(style, customImage)"
       alt=""
       draggable="false"
       @error="onImageError"
@@ -20,18 +21,27 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
 import { dataBridge } from '../utils/dataBridge'
 import { isTauri, tauriAPI } from '../utils/tauriAPI'
 import { floatingWindowDragPosition } from '../utils/floatingWindowDrag.mjs'
-import { floatingWindowImagePath, normalizeFloatingWindowStyle } from '../utils/floatingWindowStyle'
+import { floatingWindowImagePath, normalizeFloatingWindowStyle, resolveFloatingWindowRadius } from '../utils/floatingWindowStyle'
 import { floatingWindowTextSize, normalizeFloatingWindowSize } from '../utils/floatingWindowSize'
 
 const DRAG_THRESHOLD = 5
 const style = ref('text')
+const customImage = ref('')
+const radius = ref(null)
+const effectiveRadius = computed(() => resolveFloatingWindowRadius(radius.value, style.value))
 let removeNativeListeners
 
 function applyStyle(value) {
+  if (value && typeof value === 'object') {
+    customImage.value = typeof value.customImage === 'string' ? value.customImage : customImage.value
+    radius.value = value.radius ?? null
+    style.value = normalizeFloatingWindowStyle(value.style)
+    return
+  }
   style.value = normalizeFloatingWindowStyle(value)
 }
 
@@ -46,6 +56,8 @@ function applySize(value) {
 
 onMounted(async () => {
   const saved = await dataBridge.load('settings')
+  customImage.value = typeof saved?.floatingWindowCustomImage === 'string' ? saved.floatingWindowCustomImage : ''
+  radius.value = saved?.floatingWindowRadius ?? null
   applyStyle(saved?.floatingWindowStyle)
   applySize(saved?.floatingWindowSize)
   if (isTauri()) {
@@ -162,26 +174,26 @@ async function openMainWindow() {
 
 <style scoped>
 .floating-ball {
-  width: 100%;
-  height: 100%;
+  width: min(100vw, 100vh);
+  height: min(100vw, 100vh);
   aspect-ratio: 1;
+  flex: none;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   user-select: none;
   -webkit-user-select: none;
+  overflow: hidden;
   touch-action: none;
   -webkit-app-region: no-drag;
 }
 
 .floating-ball.text-style {
-  border-radius: 50%;
   background: var(--accent);
 }
 
 .floating-ball.image-style {
-  border-radius: 0;
   background: transparent;
 }
 
@@ -193,6 +205,12 @@ async function openMainWindow() {
   margin: 0;
   overflow: hidden;
   background: transparent !important;
+}
+
+:global(#app) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .ball-text {

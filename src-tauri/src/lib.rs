@@ -2273,11 +2273,16 @@ async fn reset_floating_window_position(app: tauri::AppHandle) -> Result<(), Str
 }
 
 #[tauri::command]
-async fn set_floating_window_style(app: tauri::AppHandle, style: String) -> Result<(), String> {
+async fn set_floating_window_style(
+    app: tauri::AppHandle,
+    style: String,
+    custom_image: Option<String>,
+    radius: Option<f64>,
+) -> Result<(), String> {
     app.emit_to(
         EventTarget::webview_window("floating"),
         "floating-window-style-changed",
-        style,
+        serde_json::json!({ "style": style, "customImage": custom_image, "radius": radius }),
     )
     .map_err(|error| error.to_string())
 }
