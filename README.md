@@ -26,15 +26,24 @@
 - [x] 小组管理功能
 - [x] 桌面端后台常驻
 - [x] 抽奖模式
-- [x] [插件系统](https://github.com/Cyrene2008/CyreneNameRoller-Plugin-Template)
+- [x] [插件系统(点击查看插件模板)](https://github.com/Cyrene2008/CyreneNameRoller-Plugin-Template)
 - [ ] 积分系统
-- [ ] 多平台支持
+- [x] 多平台支持
   - [x] Windows10+
   - [x] Web
   - [ ] Android
   - [x] Linux(早期测试阶段，不作稳定性和性能保证，Linux平台仍然建议先使用Web版)
 - [x] 悬浮窗启动
 - [ ] 更多功能正在路上♪
+
+## 插件SDK
+
+安装插件SDK
+```
+npm i @starcyrene/cyrene-name-roller
+```
+
+[点击查看插件模板，从模板开始创建您的插件](https://github.com/Cyrene2008/CyreneNameRoller-Plugin-Template)
 
 ## 功能
 
