@@ -1,4 +1,4 @@
-import { definePlugin, executeDraw } from '@starcyrene/cyrene-name-roller/plugin-sdk'
+import { definePlugin, describeHost, executeDraw, queryResource } from '@starcyrene/cyrene-name-roller/plugin-sdk'
 
 export default definePlugin({
   async activate(context) {
@@ -6,6 +6,8 @@ export default definePlugin({
   },
   async onCommand(commandId) {
     if (commandId === 'draw-now') return executeDraw(this.context, { count: 1 })
+    if (commandId === 'show-statistics') return queryResource(this.context, 'statistics')
+    if (commandId === 'describe-host') return describeHost(this.context)
     if (commandId === 'desktop-check') {
       if (this.context.platform?.runtime !== 'tauri' || this.context.platform?.os !== 'windows') {
         return { ok: false, code: 'UNSUPPORTED_PLATFORM' }

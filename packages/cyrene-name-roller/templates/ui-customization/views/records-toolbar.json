@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "root": {
+    "type": "Grid",
+    "props": { "columns": 3, "gap": 8, "align": "center" },
+    "children": [
+      { "type": "Icon", "props": { "icon": "history" } },
+      { "type": "Text", "props": { "text": "Statistics snapshot" } },
+      { "type": "Button", "props": { "label": "Show statistics" }, "action": { "command": "show-statistics", "args": {} } }
+    ]
+  }
+}
