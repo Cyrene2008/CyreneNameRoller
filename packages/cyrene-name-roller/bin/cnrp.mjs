@@ -786,7 +786,16 @@ async function main() {
   fail(`unknown command: ${command}`)
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+async function isMainModule() {
+  if (!process.argv[1]) return false
+  try {
+    return await fs.realpath(path.resolve(process.argv[1])) === await fs.realpath(fileURLToPath(import.meta.url))
+  } catch {
+    return false
+  }
+}
+
+if (await isMainModule()) {
   main().catch(error => {
     console.error(`cnrp: ${error.message || error}`)
     process.exitCode = 1
