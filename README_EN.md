@@ -49,14 +49,14 @@ A random name picker desktop app built with Vue 3 + Tauri, featuring Windows 11 
 ```bash
 git clone https://github.com/StarCyrene/CyreneNameRoller.git
 cd CyreneNameRoller
-npm install
-npm run dev
+bun install
+bun run dev
 ```
 
 ## Build Tauri Client
 
 ```bash
-npm run tauri:build
+bun run tauri:build
 ```
 
 Output is in the Tauri build target directory.

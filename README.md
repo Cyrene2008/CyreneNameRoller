@@ -99,14 +99,14 @@ npm i @starcyrene/cyrene-name-roller
 ```bash
 git clone https://github.com/StarCyrene/CyreneNameRoller.git
 cd CyreneNameRoller
-npm install
-npm run dev
+bun install
+bun run dev
 ```
 
 ## 构建 Tauri 客户端
 
 ```bash
-npm run tauri:build
+bun run tauri:build
 ```
 
 打包产物在 `src-tauri/target/` 目录下。
