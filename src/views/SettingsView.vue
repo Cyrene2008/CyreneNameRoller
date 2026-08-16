@@ -352,6 +352,13 @@
         </div>
         <FluentSelect :model-value="settings.newMemberCountMode" :options="newMemberCountModeOptions" width="220px" @update:model-value="update('newMemberCountMode', $event)" />
       </div>
+      <div v-if="isDesktop" class="setting-row">
+        <div class="setting-label-group">
+          <span class="setting-label">{{ lang === 'en' ? 'Portable mode' : '便携模式' }}</span>
+          <span class="setting-desc">{{ lang === 'en' ? 'Store app data beside the program instead of AppData.' : '开启后将应用数据保存在程序目录，而不是 AppData。' }}</span>
+        </div>
+        <FluentToggle :model-value="portableMode" :aria-label="lang === 'en' ? 'Portable mode' : '便携模式'" :disabled="portableModeBusy" @update:model-value="onPortableModeChange" />
+      </div>
       <div class="setting-row">
         <span class="setting-label">{{ lang === 'en' ? 'Data Password' : '数据操作密码' }}</span>
         <FluentButton variant="secondary" size="sm" @click="openPasswordModal">
@@ -842,6 +849,8 @@ function onAutoStopDurationChange(value) {
 const customColorDraft = ref(settings.value.customThemeColor)
 const autoStartBusy = ref(false)
 const uriSchemeBusy = ref(false)
+const portableMode = ref(false)
+const portableModeBusy = ref(false)
 watch(() => settings.value.customThemeColor, value => { customColorDraft.value = value })
 function commitCustomColor() {
   const normalized = normalizeHex(customColorDraft.value, '')
@@ -1053,6 +1062,31 @@ async function onFloatingWindowStyleChange(value) {
   await syncing
 }
 
+async function onPortableModeChange(enabled) {
+  portableModeBusy.value = true
+  try {
+    const result = await tauriAPI.setPortableMode(enabled)
+    portableMode.value = !!result.enabled
+    showBanner({
+      message: enabled
+        ? (lang.value === 'en' ? 'Portable mode enabled. Data moved to the program directory.' : '便携模式已开启，数据已迁移到程序目录。')
+        : (lang.value === 'en' ? 'Portable mode disabled. Data moved to AppData.' : '便携模式已关闭，数据已迁移到 AppData。'),
+      icon: 'checkmark-circle-16-regular',
+      type: 'success',
+      duration: 6000
+    })
+  } catch (error) {
+    showBanner({
+      message: `${lang.value === 'en' ? 'Could not change portable mode' : '便携模式切换失败'}：${error?.message || String(error)}`,
+      icon: 'warning-16-regular',
+      type: 'warning',
+      duration: 8000
+    })
+  } finally {
+    portableModeBusy.value = false
+  }
+}
+
 function syncFloatingWindowStyle(overrides = {}) {
   if (!isTauri()) return Promise.resolve()
   const style = overrides.style ?? settings.value.floatingWindowStyle
@@ -1112,6 +1146,183 @@ async function persistFloatingAppearance() {
       floatingAppearanceSaveTimer = setTimeout(persistFloatingAppearance, 300)
     }
   }
+  settingsStore.settings.floatingWindowStyle = style
+  const syncing = syncFloatingWindowStyle()
+  await settingsStore.save()
+  await syncing
+}
+
+function syncFloatingWindowStyle(overrides = {}) {
+  if (!isTauri()) return Promise.resolve()
+  const style = overrides.style ?? settings.value.floatingWindowStyle
+  floatingStylePending = [
+    style,
+    style === 'custom' ? (overrides.customImage ?? settings.value.floatingWindowCustomImage) : '',
+    overrides.radius ?? settings.value.floatingWindowRadius,
+    overrides.text ?? settings.value.floatingWindowText,
+    overrides.backgroundColor ?? settings.value.floatingWindowBackgroundColor,
+    overrides.textColor ?? settings.value.floatingWindowTextColor,
+    overrides.textSize ?? settings.value.floatingWindowTextSize,
+    overrides.opacity ?? settings.value.floatingWindowOpacity
+  ]
+  if (!floatingStyleRunning) floatingStyleDrain = processFloatingWindowStyleQueue()
+  return floatingStyleDrain
+}
+
+let floatingStylePending = null
+let floatingStyleRunning = false
+let floatingStyleDrain = Promise.resolve()
+
+async function processFloatingWindowStyleQueue() {
+  floatingStyleRunning = true
+  try {
+    while (floatingStylePending) {
+      const payload = floatingStylePending
+      floatingStylePending = null
+      await tauriAPI.setFloatingWindowStyle(...payload)
+    }
+  } finally {
+    floatingStyleRunning = false
+  }
+}
+
+let floatingAppearanceSaveTimer = null
+let floatingAppearanceDirty = false
+let floatingAppearanceSaving = false
+
+function updateFloatingAppearanceSetting(key, value) {
+  settingsStore.settings[key] = value
+  floatingAppearanceDirty = true
+  clearTimeout(floatingAppearanceSaveTimer)
+  floatingAppearanceSaveTimer = setTimeout(persistFloatingAppearance, 300)
+}
+
+async function persistFloatingAppearance() {
+  clearTimeout(floatingAppearanceSaveTimer)
+  floatingAppearanceSaveTimer = null
+  if (floatingAppearanceSaving || !floatingAppearanceDirty) return
+  floatingAppearanceDirty = false
+  floatingAppearanceSaving = true
+  try {
+    await settingsStore.save()
+  } finally {
+    floatingAppearanceSaving = false
+    if (floatingAppearanceDirty) {
+      floatingAppearanceSaveTimer = setTimeout(persistFloatingAppearance, 300)
+    }
+  }
+}
+
+function onFloatingWindowTextInput(value) {
+  floatingTextDraft.value = Array.from(String(value ?? '')).slice(0, MAX_FLOATING_WINDOW_TEXT_LENGTH).join('')
+  syncFloatingWindowStyle({ text: normalizeFloatingWindowText(floatingTextDraft.value) })
+}
+
+function commitFloatingWindowText() {
+  const text = normalizeFloatingWindowText(floatingTextDraft.value)
+  floatingTextDraft.value = text
+  updateFloatingAppearanceSetting('floatingWindowText', text)
+  syncFloatingWindowStyle()
+}
+
+function onFloatingWindowTextSizeInput(value) {
+  const requested = Math.round(Number(value))
+  const size = Math.min(
+    floatingTextSizeMax.value,
+    Math.max(MIN_FLOATING_WINDOW_TEXT_SIZE, Number.isFinite(requested) ? requested : floatingTextSizeDraft.value)
+  )
+  floatingTextSizeDraft.value = size
+  updateFloatingAppearanceSetting('floatingWindowTextSize', normalizeFloatingWindowTextSize(size))
+  syncFloatingWindowStyle({ textSize: size })
+}
+
+function onFloatingWindowBackgroundColor(value) {
+  updateFloatingAppearanceSetting('floatingWindowBackgroundColor', normalizeFloatingWindowBackgroundColor(value))
+  syncFloatingWindowStyle()
+}
+
+function onFloatingWindowTextColor(value) {
+  updateFloatingAppearanceSetting('floatingWindowTextColor', normalizeFloatingWindowTextColor(value))
+  syncFloatingWindowStyle()
+}
+
+function onFloatingWindowOpacityInput(value) {
+  const opacity = normalizeFloatingWindowOpacity(value)
+  floatingOpacityDraft.value = opacity
+  updateFloatingAppearanceSetting('floatingWindowOpacity', opacity)
+  syncFloatingWindowStyle({ opacity })
+}
+
+function selectFloatingWindowImage() {
+  const input = document.createElement('input')
+  input.type = 'file'
+  input.accept = 'image/png,image/jpeg,image/webp'
+  input.onchange = async () => {
+    const file = input.files?.[0]
+    if (!file) return
+    if (file.size > 12 * 1024 * 1024) {
+      showBanner({ message: lang.value === 'en' ? 'Image must be smaller than 12 MB' : '图片不能超过 12 MB', icon: 'warning-16-regular', type: 'warning', duration: 6000 })
+      return
+    }
+    floatingCropSource.value = await readImageFile(file)
+    showFloatingCropper.value = true
+  }
+  input.click()
+}
+
+function readImageFile(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result || ''))
+    reader.onerror = () => reject(reader.error)
+    reader.readAsDataURL(file)
+  })
+}
+
+async function saveFloatingWindowImage(image) {
+  settingsStore.settings.floatingWindowCustomImage = image
+  settingsStore.settings.floatingWindowStyle = 'custom'
+  const syncing = syncFloatingWindowStyle()
+  await settingsStore.save()
+  await syncing
+}
+
+let floatingRadiusPending = null
+let floatingRadiusRunning = false
+let floatingRadiusWaiters = []
+
+function sendFloatingWindowRadius(radius) {
+  if (!isTauri()) return Promise.resolve()
+  floatingRadiusPending = radius
+  const completion = new Promise(resolve => { floatingRadiusWaiters.push(resolve) })
+  if (!floatingRadiusRunning) processFloatingWindowRadiusQueue()
+  return completion
+}
+
+async function processFloatingWindowRadiusQueue() {
+  floatingRadiusRunning = true
+  while (floatingRadiusPending !== null) {
+    const radius = floatingRadiusPending
+    floatingRadiusPending = null
+    await syncFloatingWindowStyle({ radius })
+  }
+  floatingRadiusRunning = false
+  const waiters = floatingRadiusWaiters
+  floatingRadiusWaiters = []
+  waiters.forEach(resolve => resolve())
+}
+
+function onFloatingWindowRadiusInput(value) {
+  const radius = normalizeFloatingWindowRadius(value)
+  floatingRadiusDraft.value = radius
+  sendFloatingWindowRadius(radius)
+}
+
+async function onFloatingWindowRadiusChange(value) {
+  const radius = normalizeFloatingWindowRadius(value)
+  floatingRadiusDraft.value = radius
+  await update('floatingWindowRadius', radius)
+  await sendFloatingWindowRadius(radius)
 }
 
 function onFloatingWindowTextInput(value) {
@@ -1353,6 +1564,7 @@ function getLogEntries(log) {
 
 onMounted(async () => {
   if (isTauri()) {
+    try { portableMode.value = !!(await tauriAPI.portableModeStatus()).enabled } catch {}
     let registered = !!(await tauriAPI.isUriSchemeEnabled())
     if (settings.value.uriSchemeEnabled && !registered) {
       const result = await tauriAPI.setUriSchemeEnabled(true)

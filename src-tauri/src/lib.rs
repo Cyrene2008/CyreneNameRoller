@@ -43,6 +43,7 @@ const MIN_INSTALLER_SIZE: usize = 1024 * 1024;
 const DATA_MAGIC: &[u8] = b"CYRENE1\0";
 const DATA_NONCE_LENGTH: usize = 12;
 const DATA_TAG_LENGTH: usize = 16;
+const PORTABLE_MODE_MARKER: &str = "portable.mode";
 #[cfg(target_os = "windows")]
 const STARTUP_TASK_NAME: &str = "CyreneNameRollerAutoStart";
 const FLOATING_WINDOW_SIZE: i32 = 64;
@@ -245,7 +246,7 @@ impl MainWindowRevealState {
 }
 
 struct EncryptedStore {
-    path: PathBuf,
+    path: Mutex<PathBuf>,
     values: Mutex<serde_json::Value>,
     integrity_error: Mutex<Option<String>>,
 }
@@ -1259,7 +1260,7 @@ impl EncryptedStore {
             }
         };
         Self {
-            path,
+            path: Mutex::new(path),
             values: Mutex::new(values),
             integrity_error: Mutex::new(integrity_error),
         }
@@ -1279,12 +1280,17 @@ impl EncryptedStore {
 
     fn persist_with_fault(&self, fail_stage: Option<&str>) -> Result<(), String> {
         self.is_healthy()?;
+        let path = self
+            .path
+            .lock()
+            .map_err(|_| "数据路径锁定失败".to_string())?
+            .clone();
         let values = self
             .values
             .lock()
             .map_err(|_| "数据锁定失败".to_string())?
             .clone();
-        let temporary_path = self.path.with_extension("cyrene.tmp");
+        let temporary_path = path.with_extension("cyrene.tmp");
         let bytes = encrypt_data(&values)?;
         let mut temporary = OpenOptions::new()
             .create(true)
@@ -1297,17 +1303,17 @@ impl EncryptedStore {
         temporary.sync_all().map_err(|error| error.to_string())?;
         if fail_stage == Some("temporary-sync") { return Err("injected temporary-sync failure".into()); }
         drop(temporary);
-        let backup_path = self.path.with_extension("cyrene.bak");
+        let backup_path = path.with_extension("cyrene.bak");
         let _ = fs::remove_file(&backup_path);
-        if self.path.exists() {
-            fs::rename(&self.path, &backup_path).map_err(|error| error.to_string())?;
+        if path.exists() {
+            fs::rename(&path, &backup_path).map_err(|error| error.to_string())?;
         }
         if fail_stage == Some("backup") { return Err("injected backup failure".into()); }
-        match fs::rename(&temporary_path, &self.path) {
+        match fs::rename(&temporary_path, &path) {
             Ok(_) => {
                 if fail_stage == Some("replace") { return Err("injected replace failure".into()); }
                 let _ = fs::remove_file(backup_path);
-                if let Some(parent) = self.path.parent() {
+                if let Some(parent) = path.parent() {
                     if let Ok(directory) = fs::File::open(parent) {
                         let _ = directory.sync_all();
                     }
@@ -1316,7 +1322,7 @@ impl EncryptedStore {
             }
             Err(error) => {
                 if backup_path.exists() {
-                    let _ = fs::rename(&backup_path, &self.path);
+                    let _ = fs::rename(&backup_path, &path);
                 }
                 Err(error.to_string())
             }
@@ -1324,14 +1330,67 @@ impl EncryptedStore {
     }
 }
 
-fn legacy_installation_data_dir() -> PathBuf {
-    let root = std::env::current_exe()
+fn installation_dir() -> PathBuf {
+    std::env::current_exe()
         .ok()
         .and_then(|path| path.parent().map(Path::to_path_buf))
-        .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
-    let dir = root.join("data");
-    fs::create_dir_all(&dir).ok();
-    dir
+        .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")))
+}
+
+fn legacy_installation_data_dir() -> PathBuf {
+    installation_dir().join("data")
+}
+
+fn portable_marker_path(root: &Path) -> PathBuf {
+    root.join(PORTABLE_MODE_MARKER)
+}
+
+fn portable_data_path(root: &Path) -> PathBuf {
+    root.join("data").join("cyrene-data.cyrene")
+}
+
+fn data_path_for_mode(app_data_dir: &Path, root: &Path, portable: bool) -> PathBuf {
+    if portable {
+        portable_data_path(root)
+    } else {
+        app_data_dir.join("data").join("cyrene-data.cyrene")
+    }
+}
+
+fn configured_data_path(app_data_dir: &Path, root: &Path) -> PathBuf {
+    data_path_for_mode(app_data_dir, root, portable_marker_path(root).is_file())
+}
+
+fn set_portable_marker(root: &Path, enabled: bool) -> Result<(), String> {
+    let marker = portable_marker_path(root);
+    if enabled {
+        fs::write(marker, b"portable\n").map_err(|error| error.to_string())
+    } else if marker.exists() {
+        fs::remove_file(marker).map_err(|error| error.to_string())
+    } else {
+        Ok(())
+    }
+}
+
+fn portable_program_dir_error(root: &Path, enabled: bool, error: impl std::fmt::Display) -> String {
+    let action = if enabled { "写入便携数据或 portable.mode 标记" } else { "删除 portable.mode 标记" };
+    let unchanged = if enabled { "当前仍使用 AppData。" } else { "当前仍保持便携模式。" };
+    format!(
+        "无法{}便携模式：程序目录“{}”可能受系统保护（例如 C:\\Program Files），应用无法{}。{}请将程序移至非受保护且可写的目录后重试；确需保留当前位置时，请以管理员身份运行。原始错误：{}",
+        if enabled { "开启" } else { "关闭" },
+        root.to_string_lossy(),
+        action,
+        unchanged,
+        error
+    )
+}
+
+fn portable_target_error(root: &Path, enabled: bool, error: impl std::fmt::Display) -> String {
+    if enabled {
+        portable_program_dir_error(root, true, error)
+    } else {
+        format!("无法关闭便携模式：数据无法迁移到 AppData，当前仍保持便携模式。原始错误：{}", error)
+    }
 }
 
 fn get_resource_dir(app: &tauri::AppHandle) -> PathBuf {
@@ -1809,14 +1868,17 @@ fn clear_non_core_values(values: &mut Value) -> bool {
 
 fn migrate_legacy_data(app: &tauri::AppHandle) {
     let store = app.state::<EncryptedStore>();
-    if store.path.exists() || store.is_healthy().is_err() {
+    let Ok(store_path) = store.path.lock().map(|path| path.clone()) else {
+        return;
+    };
+    if store_path.exists() || store.is_healthy().is_err() {
         return;
     }
 
     // 26.0.5 曾把数据写在安装目录。普通用户通常无权写 Program Files，
     // 因此只读取并迁移到当前用户的 AppData，保留原文件作为回退备份。
     let installed_data = legacy_installation_data_dir().join("cyrene-data.cyrene");
-    if installed_data != store.path {
+    if installed_data != store_path {
         if let Ok(bytes) = fs::read(&installed_data) {
             if let Ok(values) = decrypt_data(&bytes) {
                 if let Ok(mut current_values) = store.values.lock() {
@@ -1881,6 +1943,65 @@ fn migrate_legacy_data(app: &tauri::AppHandle) {
 }
 
 #[tauri::command]
+fn portable_mode_status(store: State<'_, EncryptedStore>) -> Result<serde_json::Value, String> {
+    let path = store
+        .path
+        .lock()
+        .map_err(|_| "数据路径锁定失败".to_string())?
+        .clone();
+    let enabled = path == portable_data_path(&installation_dir());
+    Ok(serde_json::json!({
+        "enabled": enabled,
+        "dataPath": path.to_string_lossy()
+    }))
+}
+
+#[tauri::command]
+fn set_portable_mode(
+    app: tauri::AppHandle,
+    store: State<'_, EncryptedStore>,
+    enabled: bool,
+) -> Result<serde_json::Value, String> {
+    store.is_healthy()?;
+    let root = installation_dir();
+    let app_data_dir = app.path().app_data_dir().map_err(|error| error.to_string())?;
+    let target_path = data_path_for_mode(&app_data_dir, &root, enabled);
+    let mut active_path = store
+        .path
+        .lock()
+        .map_err(|_| "数据路径锁定失败".to_string())?;
+    if *active_path != target_path {
+        if let Some(parent) = target_path.parent() {
+            fs::create_dir_all(parent)
+                .map_err(|error| portable_target_error(&root, enabled, error))?;
+        }
+        let values = store
+            .values
+            .lock()
+            .map_err(|_| "数据锁定失败".to_string())?
+            .clone();
+        EncryptedStore {
+            path: Mutex::new(target_path.clone()),
+            values: Mutex::new(values),
+            integrity_error: Mutex::new(None),
+        }
+        .persist()
+        .map_err(|error| portable_target_error(&root, enabled, error))?;
+        set_portable_marker(&root, enabled)
+            .map_err(|error| portable_program_dir_error(&root, enabled, error))?;
+        *active_path = target_path.clone();
+    } else {
+        set_portable_marker(&root, enabled)
+            .map_err(|error| portable_program_dir_error(&root, enabled, error))?;
+    }
+    Ok(serde_json::json!({
+        "success": true,
+        "enabled": enabled,
+        "dataPath": target_path.to_string_lossy()
+    }))
+}
+
+#[tauri::command]
 fn storage_set(
     store: State<'_, EncryptedStore>,
     key: String,
@@ -1902,7 +2023,10 @@ fn storage_set(
         return serde_json::json!({ "success": false, "error": "数据锁定失败" });
     }
     match store.persist() {
-        Ok(_) => serde_json::json!({ "success": true, "filePath": store.path.to_string_lossy() }),
+        Ok(_) => serde_json::json!({
+            "success": true,
+            "filePath": store.path.lock().ok().map(|path| path.to_string_lossy().into_owned()).unwrap_or_default()
+        }),
         Err(error) => serde_json::json!({ "success": false, "error": error }),
     }
 }
@@ -1945,7 +2069,8 @@ fn storage_clear(store: State<'_, EncryptedStore>) -> bool {
 #[tauri::command]
 fn export_encrypted_data(store: State<'_, EncryptedStore>) -> Result<String, String> {
     store.persist()?;
-    let bytes = fs::read(&store.path).map_err(|error| error.to_string())?;
+    let path = store.path.lock().map_err(|_| "数据路径锁定失败".to_string())?.clone();
+    let bytes = fs::read(path).map_err(|error| error.to_string())?;
     Ok(base64::engine::general_purpose::STANDARD.encode(bytes))
 }
 
@@ -2229,7 +2354,8 @@ async fn export_data_file(
         return Ok(serde_json::json!({ "success": false, "cancelled": true }));
     };
     let path = selected.into_path().map_err(|error| error.to_string())?;
-    fs::copy(&store.path, &path).map_err(|error| error.to_string())?;
+    let store_path = store.path.lock().map_err(|_| "数据路径锁定失败".to_string())?.clone();
+    fs::copy(store_path, &path).map_err(|error| error.to_string())?;
     Ok(serde_json::json!({ "success": true, "filePath": path.to_string_lossy() }))
 }
 
@@ -2650,7 +2776,12 @@ fn reveal_file(path: String) -> bool {
 
 #[tauri::command]
 fn show_data_location(store: State<'_, EncryptedStore>) -> bool {
-    reveal_file(store.path.to_string_lossy().into_owned())
+    store
+        .path
+        .lock()
+        .ok()
+        .map(|path| reveal_file(path.to_string_lossy().into_owned()))
+        .unwrap_or(false)
 }
 
 #[tauri::command]
@@ -3248,11 +3379,8 @@ pub fn run() {
         .setup(move |app| {
             let safe_mode_path = app.path().app_config_dir()?.join("safemode.json");
             app.manage(SafeModeState { status: Mutex::new(read_safe_mode_status(&safe_mode_path)) });
-            let data_path = app
-                .path()
-                .app_data_dir()?
-                .join("data")
-                .join("cyrene-data.cyrene");
+            let app_data_dir = app.path().app_data_dir()?;
+            let data_path = configured_data_path(&app_data_dir, &installation_dir());
             let encrypted_store = EncryptedStore::load(data_path);
             let core_readonly = encrypted_store.is_healthy().is_err()
                 || core_data_key().and_then(|key| encrypted_store.values.lock().map_err(|_| "CORE_INTEGRITY_CHECK_FAILED".to_string()).and_then(|values| core_state::parse(&values, &key).map(|_| ()))).is_err();
@@ -3304,6 +3432,8 @@ pub fn run() {
             storage_delete,
             storage_clear,
             safe_mode_status,
+            portable_mode_status,
+            set_portable_mode,
             core_grant_token,
             core_revoke_principal,
             core_state_set,
@@ -3357,12 +3487,33 @@ mod tests {
         floating_window_position_visible, floating_window_region_geometry, is_cyrene_uri,
         launch_uri_from_arguments,
         normalize_floating_window_size, read_safe_mode_status, resize_floating_window_position,
-        core_data_key_for, data_key, is_core_storage_key, valid_core_principal,
+        configured_data_path, core_data_key_for, data_key, data_path_for_mode, is_core_storage_key,
+        portable_marker_path, valid_core_principal,
         validate_core_card_caller, validate_core_caller, validate_core_maintenance_request,
         CoreMaintenanceRequest, EncryptedStore, RustCardCommitRequest, RustCardInput,
         RustDrawInput, RustDrawRequest,
     };
     use serde_json::json;
+
+    #[test]
+    fn portable_marker_selects_installation_data_path() {
+        let root = std::env::temp_dir().join(format!("cyrene-portable-{}", std::process::id()));
+        let app_data = root.join("app-data");
+        let installation = root.join("installation");
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&installation).unwrap();
+
+        assert_eq!(
+            configured_data_path(&app_data, &installation),
+            data_path_for_mode(&app_data, &installation, false)
+        );
+        std::fs::write(portable_marker_path(&installation), b"portable\n").unwrap();
+        assert_eq!(
+            configured_data_path(&app_data, &installation),
+            data_path_for_mode(&app_data, &installation, true)
+        );
+        let _ = std::fs::remove_dir_all(root);
+    }
 
     #[cfg(target_os = "windows")]
     use windows_sys::Win32::UI::WindowsAndMessaging::{

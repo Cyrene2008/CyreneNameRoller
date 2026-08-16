@@ -23,20 +23,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: pnpm/action-setup@v4
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
         with:
-          version: 10.28.1
+          bun-version-file: package.json
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: pnpm
           registry-url: https://npm.pkg.github.com
           scope: '@starcyrene'
 
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm test
-      - run: pnpm run build
-      - run: pnpm run plugin:sdk:pack
+      - run: bun install --frozen-lockfile
+      - run: bun run test
+      - run: bun run build
+      - run: bun run plugin:sdk:pack
 
       - uses: actions/upload-artifact@v4
         with:

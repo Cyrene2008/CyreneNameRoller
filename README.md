@@ -99,7 +99,7 @@ npm i @starcyrene/cyrene-name-roller
 ### 环境要求
 
 - Node.js 22
-- pnpm
+- Bun 1.3.14
 - Rust stable
 - [Tauri 2 对应平台的系统依赖](https://v2.tauri.app/start/prerequisites/)
 
@@ -113,7 +113,7 @@ bun run dev
 启动 Tauri 桌面客户端：
 
 ```bash
-pnpm run tauri:dev
+bun run tauri:dev
 ```
 
 ### 构建
@@ -121,7 +121,7 @@ pnpm run tauri:dev
 构建 Web 版本：
 
 ```bash
-pnpm run build
+bun run build
 ```
 
 构建 Tauri 客户端：

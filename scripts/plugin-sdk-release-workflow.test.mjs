@@ -10,6 +10,9 @@ test('SDK release workflow keeps package publication separate from GitHub Releas
   assert.doesNotMatch(workflow, /Attach assets to published release/)
   assert.doesNotMatch(workflow, /github\.event_name == 'release'/)
   assert.match(workflow, /uses:\s+actions\/upload-artifact@v4/)
+  assert.match(workflow, /uses:\s+oven-sh\/setup-bun@v2/)
+  assert.match(workflow, /bun install --frozen-lockfile/)
+  assert.match(workflow, /bun run plugin:sdk:pack/)
   assert.match(workflow, /@starcyrene/)
   assert.match(workflow, /scope:\s+'@starcyrene'/)
   assert.match(workflow, /npm publish build-output\/plugin-sdk\/cyrene-name-roller-plugin-sdk-\*\.tgz --registry=https:\/\/npm\.pkg\.github\.com/)
@@ -21,10 +24,11 @@ test('SDK release workflow keeps package publication separate from GitHub Releas
   assert.doesNotMatch(workflow, /exit 0/)
 })
 
-test('SDK artifact packing runs from the staged package with npm or pnpm', async () => {
+test('SDK artifact packing runs from the staged package with Bun', async () => {
   const packScript = await fs.readFile('scripts/prepare-plugin-sdk-output.mjs', 'utf8')
-  assert.match(packScript, /\[packageManagerCli, 'pack', '--pack-destination', output\], stage/)
-  assert.doesNotMatch(packScript, /\[packageManagerCli, 'pack', stage,/)
+  assert.match(packScript, /run\('bun', \['pm', 'pack', '--destination', output\], stage\)/)
+  assert.match(packScript, /bun pm pack did not produce a \.tgz file/)
+  assert.doesNotMatch(packScript, /npm_execpath/)
 })
 
 test('Windows distribution invokes the Tauri CLI without shell path parsing', async () => {
