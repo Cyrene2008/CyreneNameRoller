@@ -29,8 +29,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          registry-url: https://registry.npmjs.org
-          scope: '@starcyrene'
 
       - run: bun install --frozen-lockfile
       - run: bun run test
@@ -43,6 +41,12 @@ jobs:
           path: build-output/plugin-sdk/
 
       # ── 发布到 npmjs（OIDC Trusted Publishing）──
+      # npm ≥ 11.5.1 才支持 OIDC 可信发布认证；Node 22 自带的 npm 10.x 仅能签名
+      # provenance 但无法完成发布认证（表现为 PUT 404）。同时不要在 setup-node
+      # 配置 registry-url，否则 .npmrc 中的占位 token 会屏蔽 OIDC 流程。
+      - name: Upgrade npm for OIDC trusted publishing
+        run: npm install -g npm@latest && npm --version
+
       - name: Publish SDK to npmjs
         if: >-
           (github.event_name == 'workflow_dispatch' && inputs.publish_package) ||
