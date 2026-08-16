@@ -1,4 +1,4 @@
-const CACHE_NAME = 'cyrene-v26.2.0-shell-2'
+const CACHE_NAME = 'cyrene-v26.2.1-shell-2'
 const ASSETS = [
   '/',
   '/index.html',
