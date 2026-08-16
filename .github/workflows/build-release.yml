@@ -24,13 +24,13 @@ jobs:
     name: ${{ matrix.name }}
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
         with:
-          version: 11
+          bun-version-file: package.json
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: pnpm
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable
@@ -38,7 +38,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf
-      - run: pnpm install --frozen-lockfile --registry=https://registry.npmjs.org/
+      - run: bun install --frozen-lockfile --registry=https://registry.npmjs.org/
       - run: node scripts/package-dist.mjs ${{ matrix.args }}
         env:
           CI: true

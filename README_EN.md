@@ -49,7 +49,7 @@ A random name picker desktop app built with Vue 3 + Tauri, featuring Windows 11 
 ### Requirements
 
 - Node.js 22
-- pnpm
+- Bun 1.3.14
 - Rust stable
 - [Tauri 2 platform prerequisites](https://v2.tauri.app/start/prerequisites/)
 
@@ -63,7 +63,7 @@ bun run dev
 Start the Tauri desktop client:
 
 ```bash
-pnpm run tauri:dev
+bun run tauri:dev
 ```
 
 ### Build
@@ -71,7 +71,7 @@ pnpm run tauri:dev
 Build the Web version:
 
 ```bash
-pnpm run build
+bun run build
 ```
 
 Build the Tauri client:
