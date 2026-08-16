@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       publish_package:
-        description: Publish @starcyrene/cyrene-name-roller to package registries
+        description: Publish @starcyrene/cyrene-name-roller to npmjs
         required: true
         type: boolean
         default: true
@@ -14,7 +14,6 @@ on:
 
 permissions:
   contents: write
-  packages: write
   id-token: write
 
 jobs:
@@ -30,7 +29,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          registry-url: https://npm.pkg.github.com
+          registry-url: https://registry.npmjs.org
           scope: '@starcyrene'
 
       - run: bun install --frozen-lockfile
@@ -42,15 +41,6 @@ jobs:
         with:
           name: plugin-sdk-package
           path: build-output/plugin-sdk/
-
-      # ── 发布到 GitHub Packages ──
-      - name: Publish SDK to GitHub Packages
-        if: >-
-          (github.event_name == 'workflow_dispatch' && inputs.publish_package) ||
-          (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/plugin-sdk-v'))
-        env:
-          NODE_AUTH_TOKEN: ${{ github.token }}
-        run: npm publish build-output/plugin-sdk/cyrene-name-roller-plugin-sdk-*.tgz --registry=https://npm.pkg.github.com --access public --provenance=false
 
       # ── 发布到 npmjs（OIDC Trusted Publishing）──
       - name: Publish SDK to npmjs
