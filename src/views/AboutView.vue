@@ -7,7 +7,7 @@
 
     <FluentCard class="about-card">
       <div class="about-logo">
-        <img src="/cyrene256.png" alt="CyreneNameRoller" class="logo-img" />
+        <img src="/icon.png" alt="CyreneNameRoller" class="logo-img" />
       </div>
 
       <h2 class="app-name">{{ APP_NAME }}</h2>

@@ -2,10 +2,13 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
   DEFAULT_FLOATING_WINDOW_SIZE,
+  MAX_FLOATING_WINDOW_TEXT_SIZE,
   MAX_FLOATING_WINDOW_SIZE,
+  MIN_FLOATING_WINDOW_TEXT_SIZE,
   MIN_FLOATING_WINDOW_SIZE,
   floatingWindowTextSize,
-  normalizeFloatingWindowSize
+  normalizeFloatingWindowSize,
+  normalizeFloatingWindowTextSize
 } from './floatingWindowSize.js'
 
 test('uses 64px as the default floating window size', () => {
@@ -33,4 +36,17 @@ test('scales floating text conservatively with the window', () => {
   assert.equal(floatingWindowTextSize(64), 14)
   assert.equal(floatingWindowTextSize(128), 28)
   assert.equal(floatingWindowTextSize(256), 28)
+  assert.equal(floatingWindowTextSize(64, '123456789012'), 11)
+})
+
+test('supports a custom floating text size without overflowing the window', () => {
+  assert.equal(MIN_FLOATING_WINDOW_TEXT_SIZE, 7)
+  assert.equal(MAX_FLOATING_WINDOW_TEXT_SIZE, 64)
+  assert.equal(normalizeFloatingWindowTextSize(null), null)
+  assert.equal(normalizeFloatingWindowTextSize('invalid'), null)
+  assert.equal(normalizeFloatingWindowTextSize(3), 7)
+  assert.equal(normalizeFloatingWindowTextSize(80), 64)
+  assert.equal(floatingWindowTextSize(256, '点名', 48), 48)
+  assert.equal(floatingWindowTextSize(64, '点名', 48), 23)
+  assert.equal(floatingWindowTextSize(64, '123456789012', 48), 11)
 })

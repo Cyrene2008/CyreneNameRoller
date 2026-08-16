@@ -3,7 +3,7 @@
     <button class="titlebar-hamburger" @click="toggleDock" :title="dockCollapsed ? '展开' : '收起'">
       <Icon icon="fluent:line-horizontal-3-20-regular" :width="18" />
     </button>
-    <img src="/cyrene.png" class="titlebar-logo" alt="" draggable="false" @mousedown="startNativeDrag" />
+    <img src="/icon.png" class="titlebar-logo" alt="" draggable="false" @mousedown="startNativeDrag" />
     <span class="titlebar-app-title" @mousedown="startNativeDrag">Cyreneの随机点名器</span>
     <div v-if="notice.message" class="titlebar-notice" :title="notice.message">
       <div ref="noticeViewport" class="titlebar-notice-viewport"><span ref="noticeText">{{ notice.message }}</span></div>

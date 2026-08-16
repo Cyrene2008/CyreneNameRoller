@@ -29,6 +29,7 @@ import { overrideStateForTarget } from './ui/overridePolicy'
 const STATE_KEY = 'pluginState'
 const PLUGIN_DATA_KEY = 'pluginData'
 const SESSION_MARKER_KEY = 'cyrene-plugin-session-pending'
+const SESSION_MARKER_VALUE = 'activation-v2'
 const MAX_AUDIO_FILE_SIZE = 16 * 1024 * 1024
 const MAX_PLUGIN_DATA_SIZE = 96 * 1024 * 1024
 const APPEARANCE_VALUE_PREFIX = 'plugin-appearance::'
@@ -187,9 +188,12 @@ export const usePluginsStore = defineStore('plugins', () => {
     validateCoreDrawArgs(drawArgs)
     return coreClient.executeDraw({ caller: { kind: 'core-ui', pluginId: 'core', operationId, countStatistics }, input: drawArgs })
   }
-  function syncSessionMarker() {
-    if (Object.values(installed.value).some(plugin => plugin.enabled)) localStorage.setItem(SESSION_MARKER_KEY, '1')
-    else localStorage.removeItem(SESSION_MARKER_KEY)
+  function markActivationPending() {
+    localStorage.setItem(SESSION_MARKER_KEY, SESSION_MARKER_VALUE)
+  }
+
+  function clearActivationMarker() {
+    localStorage.removeItem(SESSION_MARKER_KEY)
   }
 
   async function initialize() {
@@ -213,7 +217,9 @@ export const usePluginsStore = defineStore('plugins', () => {
       componentOverrideSelections.value = saved.componentOverrideSelections && typeof saved.componentOverrideSelections === 'object' ? saved.componentOverrideSelections : {}
       resultPresentationSelections.value = saved.resultPresentationSelections && typeof saved.resultPresentationSelections === 'object' ? saved.resultPresentationSelections : {}
       source.value = PLUGIN_DOWNLOAD_SOURCES.some(item => item.value === saved.source) ? saved.source : 'cyrene'
-      const crashedSession = localStorage.getItem(SESSION_MARKER_KEY) === '1'
+      const sessionMarker = localStorage.getItem(SESSION_MARKER_KEY)
+      const crashedSession = sessionMarker === SESSION_MARKER_VALUE
+      if (sessionMarker && !crashedSession) clearActivationMarker()
       if (saved.pendingStartup || crashedSession) {
         recovering.value = true
         lastError.value = '上次启动未能完成插件激活，已自动禁用全部插件。'
@@ -227,7 +233,7 @@ export const usePluginsStore = defineStore('plugins', () => {
           source: source.value,
           pendingStartup: false
         })
-        localStorage.removeItem(SESSION_MARKER_KEY)
+        clearActivationMarker()
       }
     }
     initialized.value = true
@@ -323,7 +329,7 @@ export const usePluginsStore = defineStore('plugins', () => {
       plugins.push(plugin)
     }
     if (!plugins.length) {
-      localStorage.removeItem(SESSION_MARKER_KEY)
+      clearActivationMarker()
       await saveState(false)
       return
     }
@@ -339,7 +345,7 @@ export const usePluginsStore = defineStore('plugins', () => {
       refreshPages()
       await refreshPluginFonts()
       await saveState(false)
-      syncSessionMarker()
+      clearActivationMarker()
       lastError.value = ''
     } catch (error) {
       lastError.value = error.message || String(error)
@@ -354,7 +360,7 @@ export const usePluginsStore = defineStore('plugins', () => {
       }
       refreshPages()
       recovering.value = true
-      localStorage.removeItem(SESSION_MARKER_KEY)
+      clearActivationMarker()
       await saveState(false)
       throw error
     }
@@ -400,7 +406,7 @@ export const usePluginsStore = defineStore('plugins', () => {
     installed.value[pluginId] = candidate
     try {
       if (candidate.enabled) {
-        localStorage.setItem(SESSION_MARKER_KEY, '1')
+        markActivationPending()
         assertPlatformCompatibility(candidate)
         assertDependencies(candidate)
         await runtime.activate(candidate)
@@ -409,7 +415,7 @@ export const usePluginsStore = defineStore('plugins', () => {
       }
       refreshPages()
       await refreshPluginFonts()
-      syncSessionMarker()
+      clearActivationMarker()
       recovering.value = false
       await saveState(false)
       return candidate
@@ -427,7 +433,7 @@ export const usePluginsStore = defineStore('plugins', () => {
         delete installed.value[pluginId]
       }
       refreshPages()
-      syncSessionMarker()
+      clearActivationMarker()
       await saveState(false)
       throw error
     }
@@ -451,7 +457,7 @@ export const usePluginsStore = defineStore('plugins', () => {
     await removePluginData(pluginId)
     await refreshPluginFonts()
     refreshPages()
-    syncSessionMarker()
+    clearActivationMarker()
     await saveState(false)
   }
 
@@ -468,7 +474,7 @@ export const usePluginsStore = defineStore('plugins', () => {
       removeResultPresentationSelectionsForPlugin(pluginId)
       await refreshPluginFonts()
       refreshPages()
-      syncSessionMarker()
+      clearActivationMarker()
       await saveState(false)
       return true
     }
@@ -478,14 +484,14 @@ export const usePluginsStore = defineStore('plugins', () => {
       plugin.enabled = true
       plugin.runtimeError = ''
       plugin.recoveryDisabled = false
-      localStorage.setItem(SESSION_MARKER_KEY, '1')
+      markActivationPending()
       await runtime.activate(plugin)
       animationRegistry.registerPlugin(plugin, animationSelections.value)
       animationRegistry.setDurationScale(pluginId, animationDurationScales.value[pluginId] ?? 1)
       await refreshPluginFonts()
       recovering.value = false
       refreshPages()
-      syncSessionMarker()
+      clearActivationMarker()
       await saveState(false)
     } catch (error) {
       plugin.enabled = false
@@ -493,7 +499,7 @@ export const usePluginsStore = defineStore('plugins', () => {
       await deactivatePluginRuntime(pluginId)
       animationRegistry.unregisterPlugin(pluginId)
       refreshPages()
-      syncSessionMarker()
+      clearActivationMarker()
       await saveState(false)
       throw error
     }
@@ -875,13 +881,13 @@ export const usePluginsStore = defineStore('plugins', () => {
     removeResultPresentationSelectionsForPlugin(pluginId)
     await refreshPluginFonts()
     refreshPages()
-    syncSessionMarker()
+    clearActivationMarker()
     await saveState(false)
     runtime.showBanner?.({ message: lastError.value, icon: 'shield-error-24-regular', type: 'warning', duration: 0, dismissible: true })
   }
 
   function markCleanShutdown() {
-    localStorage.removeItem(SESSION_MARKER_KEY)
+    clearActivationMarker()
   }
 
   return {

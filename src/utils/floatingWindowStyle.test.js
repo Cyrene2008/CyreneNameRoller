@@ -1,8 +1,12 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
+  DEFAULT_FLOATING_WINDOW_OPACITY,
   FLOATING_WINDOW_STYLES,
   floatingWindowImagePath,
+  MAX_FLOATING_WINDOW_OPACITY,
+  MIN_FLOATING_WINDOW_OPACITY,
+  normalizeFloatingWindowOpacity,
   normalizeFloatingWindowRadius,
   resolveFloatingWindowRadius,
   normalizeFloatingWindowStyle
@@ -21,6 +25,18 @@ test('normalizes freely adjustable floating window radius', () => {
   assert.equal(normalizeFloatingWindowRadius(80), 50)
 })
 
+test('normalizes floating window opacity as a percentage', () => {
+  assert.equal(DEFAULT_FLOATING_WINDOW_OPACITY, 100)
+  assert.equal(MIN_FLOATING_WINDOW_OPACITY, 20)
+  assert.equal(MAX_FLOATING_WINDOW_OPACITY, 100)
+  assert.equal(normalizeFloatingWindowOpacity(null), 100)
+  assert.equal(normalizeFloatingWindowOpacity(undefined), 100)
+  assert.equal(normalizeFloatingWindowOpacity('invalid'), 100)
+  assert.equal(normalizeFloatingWindowOpacity(12), 20)
+  assert.equal(normalizeFloatingWindowOpacity(63.6), 64)
+  assert.equal(normalizeFloatingWindowOpacity(120), 100)
+})
+
 test('preserves legacy style radius until the user customizes it', () => {
   assert.equal(resolveFloatingWindowRadius(null, 'text'), 50)
   assert.equal(resolveFloatingWindowRadius(undefined, 'image1'), 0)
@@ -37,7 +53,7 @@ test('falls back to text for invalid styles', () => {
 
 test('maps image styles to public asset paths', () => {
   assert.equal(floatingWindowImagePath('text'), '')
-  assert.equal(floatingWindowImagePath('image1'), './cyrene1.jpg')
-  assert.equal(floatingWindowImagePath('image3'), './cyrene3.jpg')
+  assert.equal(floatingWindowImagePath('image1'), './cyrene.png')
+  assert.equal(floatingWindowImagePath('image3'), './icon.png')
   assert.equal(floatingWindowImagePath('custom', 'data:image/png;base64,test'), 'data:image/png;base64,test')
 })

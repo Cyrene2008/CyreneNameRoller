@@ -16,7 +16,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
-use tauri::{Emitter, EventTarget, LogicalSize, Manager, PhysicalPosition, State};
+use tauri::{Emitter, EventTarget, Manager, PhysicalPosition, State};
 use tauri_plugin_dialog::DialogExt;
 
 mod core_state;
@@ -25,9 +25,17 @@ mod core_algorithm;
 #[cfg(target_os = "windows")]
 use std::os::windows::{ffi::OsStrExt, process::CommandExt};
 #[cfg(target_os = "windows")]
+use windows_sys::Win32::Graphics::Gdi::{
+    ClientToScreen, CreateRectRgn, CreateRoundRectRgn, DeleteObject, SetWindowRgn,
+};
+#[cfg(target_os = "windows")]
 use windows_sys::Win32::UI::Shell::{IsUserAnAdmin, ShellExecuteW};
 #[cfg(target_os = "windows")]
-use windows_sys::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
+use windows_sys::Win32::UI::WindowsAndMessaging::{
+    GetClientRect, GetWindowLongPtrW, GetWindowRect, SetWindowLongPtrW, SetWindowPos, GWL_STYLE,
+    SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, SW_SHOWNORMAL,
+    WS_CAPTION, WS_MAXIMIZEBOX, WS_MINIMIZEBOX, WS_SYSMENU, WS_THICKFRAME,
+};
 
 const UPDATE_PROXY_BASE: &str = "https://gh.xn--8hvv1o.cn/";
 const UPDATE_URL_PREFIX: &str = "https://github.com/StarCyrene/CyreneNameRoller/releases/download/";
@@ -240,6 +248,223 @@ struct EncryptedStore {
     path: PathBuf,
     values: Mutex<serde_json::Value>,
     integrity_error: Mutex<Option<String>>,
+}
+
+fn floating_window_corner_radius(style: &str, radius: Option<f64>) -> i32 {
+    match style {
+        "text" => radius
+            .filter(|value| value.is_finite())
+            .map(|value| value.round() as i32)
+            .unwrap_or(50)
+            .clamp(0, 50),
+        "custom" => radius
+            .filter(|value| value.is_finite())
+            .map(|value| value.round() as i32)
+            .unwrap_or(0)
+            .clamp(0, 50),
+        _ => 0,
+    }
+}
+
+fn floating_window_region_geometry(
+    width: i32,
+    height: i32,
+    corner_radius: i32,
+    antialias_margin: i32,
+) -> (i32, i32, i32, i32, i32) {
+    let side = width.min(height).max(1);
+    let left = (width - side) / 2;
+    let top = (height - side) / 2;
+    let corner_radius = corner_radius.clamp(0, 50);
+    let antialias_margin = if corner_radius == 0 {
+        0
+    } else {
+        antialias_margin.max(1)
+    };
+    let diameter = ((side as f64) * corner_radius as f64 / 50.0).round() as i32;
+    (
+        left - antialias_margin,
+        top - antialias_margin,
+        left + side + antialias_margin,
+        top + side + antialias_margin,
+        diameter + antialias_margin * 2,
+    )
+}
+
+#[cfg(target_os = "windows")]
+fn floating_window_undecorated_style(style: isize) -> isize {
+    style & !((WS_CAPTION | WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_SYSMENU) as isize)
+}
+
+#[cfg(target_os = "windows")]
+fn remove_floating_window_decorations<R: tauri::Runtime>(
+    window: &tauri::WebviewWindow<R>,
+) -> Result<(), String> {
+    let hwnd = window.hwnd().map_err(|error| error.to_string())?;
+    let native_hwnd = hwnd.0 as windows_sys::Win32::Foundation::HWND;
+    let style = unsafe { GetWindowLongPtrW(native_hwnd, GWL_STYLE) };
+    let undecorated_style = floating_window_undecorated_style(style);
+    if style == undecorated_style {
+        return Ok(());
+    }
+
+    unsafe {
+        SetWindowLongPtrW(native_hwnd, GWL_STYLE, undecorated_style);
+        SetWindowPos(
+            native_hwnd,
+            std::ptr::null_mut(),
+            0,
+            0,
+            0,
+            0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED,
+        );
+    }
+    Ok(())
+}
+
+#[cfg(not(target_os = "windows"))]
+fn remove_floating_window_decorations<R: tauri::Runtime>(
+    _window: &tauri::WebviewWindow<R>,
+) -> Result<(), String> {
+    Ok(())
+}
+
+#[cfg(target_os = "windows")]
+fn floating_window_client_bounds(
+    hwnd: windows_sys::Win32::Foundation::HWND,
+) -> Result<(i32, i32, i32, i32), String> {
+    let mut client_rect: windows_sys::Win32::Foundation::RECT = unsafe { std::mem::zeroed() };
+    let mut window_rect: windows_sys::Win32::Foundation::RECT = unsafe { std::mem::zeroed() };
+    let mut client_origin: windows_sys::Win32::Foundation::POINT = unsafe { std::mem::zeroed() };
+    unsafe {
+        if GetClientRect(hwnd, &mut client_rect) == 0
+            || GetWindowRect(hwnd, &mut window_rect) == 0
+            || ClientToScreen(hwnd, &mut client_origin) == 0
+        {
+            return Err("读取悬浮窗客户区失败".to_string());
+        }
+    }
+    Ok((
+        client_origin.x - window_rect.left,
+        client_origin.y - window_rect.top,
+        client_rect.right - client_rect.left,
+        client_rect.bottom - client_rect.top,
+    ))
+}
+
+#[cfg(target_os = "windows")]
+fn set_floating_window_physical_size<R: tauri::Runtime>(
+    window: &tauri::WebviewWindow<R>,
+    width: u32,
+    height: u32,
+) -> Result<(), String> {
+    let hwnd = window.hwnd().map_err(|error| error.to_string())?;
+    let native_hwnd = hwnd.0 as windows_sys::Win32::Foundation::HWND;
+    let width = i32::try_from(width).map_err(|_| "悬浮窗宽度无效".to_string())?;
+    let height = i32::try_from(height).map_err(|_| "悬浮窗高度无效".to_string())?;
+    let success = unsafe {
+        SetWindowPos(
+            native_hwnd,
+            std::ptr::null_mut(),
+            0,
+            0,
+            width,
+            height,
+            SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE,
+        )
+    };
+    if success == 0 {
+        return Err("调整悬浮窗原生尺寸失败".to_string());
+    }
+    Ok(())
+}
+
+#[cfg(not(target_os = "windows"))]
+fn set_floating_window_physical_size<R: tauri::Runtime>(
+    window: &tauri::WebviewWindow<R>,
+    width: u32,
+    height: u32,
+) -> Result<(), String> {
+    window
+        .set_size(tauri::PhysicalSize::new(width, height))
+        .map_err(|error| error.to_string())
+}
+
+fn set_floating_window_square_size<R: tauri::Runtime>(
+    window: &tauri::WebviewWindow<R>,
+    logical_size: i32,
+) -> Result<u32, String> {
+    let scale_factor = window.scale_factor().map_err(|error| error.to_string())?;
+    let physical_size = (logical_size as f64 * scale_factor).round().max(1.0) as u32;
+    set_floating_window_physical_size(window, physical_size, physical_size)?;
+    Ok(physical_size)
+}
+
+fn floating_window_style_and_radius(app: &tauri::AppHandle) -> (String, Option<f64>) {
+    let store = app.state::<EncryptedStore>();
+    let Ok(values) = store.values.lock() else {
+        return ("text".to_string(), None);
+    };
+    let style = values["settings"]["floatingWindowStyle"]
+        .as_str()
+        .unwrap_or("text")
+        .to_string();
+    let radius = values["settings"]["floatingWindowRadius"]
+        .as_f64()
+        .or_else(|| values["settings"]["floatingWindowRadius"].as_i64().map(|value| value as f64));
+    (style, radius)
+}
+
+#[cfg(target_os = "windows")]
+fn apply_floating_window_region<R: tauri::Runtime>(
+    window: &tauri::WebviewWindow<R>,
+    style: &str,
+    radius: Option<f64>,
+) -> Result<(), String> {
+    let hwnd = window.hwnd().map_err(|error| error.to_string())?;
+    let native_hwnd = hwnd.0 as windows_sys::Win32::Foundation::HWND;
+    let (client_left, client_top, width, height) = floating_window_client_bounds(native_hwnd)?;
+    let corner_radius = floating_window_corner_radius(style, radius);
+    let antialias_margin = window
+        .scale_factor()
+        .map_err(|error| error.to_string())?
+        .ceil() as i32;
+    let (left, top, right, bottom, diameter) = floating_window_region_geometry(
+        width,
+        height,
+        corner_radius,
+        antialias_margin,
+    );
+    let left = left + client_left;
+    let top = top + client_top;
+    let right = right + client_left;
+    let bottom = bottom + client_top;
+
+    unsafe {
+        let region = if corner_radius == 0 {
+            CreateRectRgn(left, top, right, bottom)
+        } else {
+            CreateRoundRectRgn(left, top, right, bottom, diameter, diameter)
+        };
+        if region.is_null() {
+            return Err("创建悬浮窗命中区域失败".to_string());
+        }
+        if SetWindowRgn(native_hwnd, region, 1) == 0 {
+            DeleteObject(region as _);
+            return Err("应用悬浮窗命中区域失败".to_string());
+        }
+    }
+    Ok(())
+}
+
+#[cfg(not(target_os = "windows"))]
+fn apply_floating_window_region<R: tauri::Runtime>(
+    _window: &tauri::WebviewWindow<R>,
+    _style: &str,
+    _radius: Option<f64>,
+) -> Result<(), String> {
+    Ok(())
 }
 
 struct SafeModeState {
@@ -2191,10 +2416,13 @@ async fn download_and_launch_update(
 #[tauri::command]
 async fn open_floating_window(app: tauri::AppHandle) -> Result<(), String> {
     let size = floating_window_size(&app);
+    let (style, radius) = floating_window_style_and_radius(&app);
     if let Some(win) = app.get_webview_window("floating") {
-        win.set_size(LogicalSize::new(size as f64, size as f64))
-            .map_err(|e| e.to_string())?;
+        win.set_title("").map_err(|e| e.to_string())?;
         win.show().map_err(|e| e.to_string())?;
+        remove_floating_window_decorations(&win)?;
+        set_floating_window_square_size(&win, size)?;
+        apply_floating_window_region(&win, &style, radius)?;
         win.set_focus().map_err(|e| e.to_string())?;
         return Ok(());
     }
@@ -2205,6 +2433,7 @@ async fn open_floating_window(app: tauri::AppHandle) -> Result<(), String> {
         tauri::WebviewUrl::App("index.html#/floating".into()),
     )
     .always_on_top(true)
+    .title("")
     .skip_taskbar(true)
     .decorations(false)
     .shadow(false)
@@ -2222,14 +2451,20 @@ async fn open_floating_window(app: tauri::AppHandle) -> Result<(), String> {
     .visible(false)
     .build()
     .map_err(|e| e.to_string())?;
+    set_floating_window_square_size(&win, size)?;
     win.set_position(PhysicalPosition::new(x, y))
         .map_err(|e| e.to_string())?;
+    win.show().map_err(|e| e.to_string())?;
+    remove_floating_window_decorations(&win)?;
+    set_floating_window_square_size(&win, size)?;
+    win.set_position(PhysicalPosition::new(x, y))
+        .map_err(|e| e.to_string())?;
+    apply_floating_window_region(&win, &style, radius)?;
     if used_fallback {
         if let Err(error) = persist_tauri_floating_position(&app, x, y) {
             eprintln!("[floating] failed to persist fallback position: {}", error);
         }
     }
-    win.show().map_err(|e| e.to_string())?;
     win.set_focus().map_err(|e| e.to_string())?;
     Ok(())
 }
@@ -2247,6 +2482,9 @@ async fn save_floating_window_position(app: tauri::AppHandle) -> Result<(), Stri
     let win = app
         .get_webview_window("floating")
         .ok_or_else(|| "悬浮窗不可用".to_string())?;
+    set_floating_window_square_size(&win, floating_window_size(&app))?;
+    let (style, radius) = floating_window_style_and_radius(&app);
+    apply_floating_window_region(&win, &style, radius)?;
     let position = win.outer_position().map_err(|error| error.to_string())?;
     persist_tauri_floating_position(&app, position.x, position.y)
 }
@@ -2278,11 +2516,28 @@ async fn set_floating_window_style(
     style: String,
     custom_image: Option<String>,
     radius: Option<f64>,
+    text: Option<String>,
+    background_color: Option<String>,
+    text_color: Option<String>,
+    text_size: Option<f64>,
+    opacity: Option<f64>,
 ) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("floating") {
+        apply_floating_window_region(&window, &style, radius)?;
+    }
     app.emit_to(
         EventTarget::webview_window("floating"),
         "floating-window-style-changed",
-        serde_json::json!({ "style": style, "customImage": custom_image, "radius": radius }),
+        serde_json::json!({
+            "style": style,
+            "customImage": custom_image,
+            "radius": radius,
+            "text": text,
+            "backgroundColor": background_color,
+            "textColor": text_color,
+            "textSize": text_size,
+            "opacity": opacity
+        }),
     )
     .map_err(|error| error.to_string())
 }
@@ -2327,15 +2582,20 @@ async fn set_floating_window_size(app: tauri::AppHandle, size: f64) -> Result<i3
         (x, y) = primary_floating_position(&app, size)?;
     }
 
-    win.set_size(LogicalSize::new(size as f64, size as f64))
-        .map_err(|error| error.to_string())?;
+    set_floating_window_physical_size(&win, physical_size as u32, physical_size as u32)?;
+    let (style, radius) = floating_window_style_and_radius(&app);
+    if let Err(error) = apply_floating_window_region(&win, &style, radius) {
+        let _ = set_floating_window_physical_size(&win, previous_size.width, previous_size.height);
+        let _ = win.set_position(previous_position);
+        return Err(error);
+    }
     if let Err(error) = win.set_position(PhysicalPosition::new(x, y)) {
-        let _ = win.set_size(previous_size);
+        let _ = set_floating_window_physical_size(&win, previous_size.width, previous_size.height);
         let _ = win.set_position(previous_position);
         return Err(error.to_string());
     }
     if let Err(error) = persist_tauri_floating_position(&app, x, y) {
-        let _ = win.set_size(previous_size);
+        let _ = set_floating_window_physical_size(&win, previous_size.width, previous_size.height);
         let _ = win.set_position(previous_position);
         return Err(error);
     }
@@ -3094,7 +3354,8 @@ pub fn run() {
 mod tests {
     use super::{
         apply_core_maintenance, apply_core_state_update, center_floating_window, clear_non_core_values, constrain_floating_window_position,
-        floating_window_position_visible, is_cyrene_uri, launch_uri_from_arguments,
+        floating_window_position_visible, floating_window_region_geometry, is_cyrene_uri,
+        launch_uri_from_arguments,
         normalize_floating_window_size, read_safe_mode_status, resize_floating_window_position,
         core_data_key_for, data_key, is_core_storage_key, valid_core_principal,
         validate_core_card_caller, validate_core_caller, validate_core_maintenance_request,
@@ -3102,6 +3363,11 @@ mod tests {
         RustDrawInput, RustDrawRequest,
     };
     use serde_json::json;
+
+    #[cfg(target_os = "windows")]
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        WS_CAPTION, WS_MAXIMIZEBOX, WS_MINIMIZEBOX, WS_SYSMENU, WS_THICKFRAME,
+    };
 
     fn maintenance_values(key: &[u8; 32]) -> serde_json::Value {
         let mut values = json!({
@@ -3240,6 +3506,21 @@ mod tests {
             constrain_floating_window_position(-20, 1070, 128, 0, 40, 1920, 1040),
             (0, 952)
         );
+    }
+
+    #[test]
+    fn floating_window_region_matches_centered_ball_inside_rectangular_webview() {
+        assert_eq!(floating_window_region_geometry(96, 64, 50, 1), (15, -1, 81, 65, 66));
+        assert_eq!(floating_window_region_geometry(96, 64, 0, 2), (16, 0, 80, 64, 0));
+        assert_eq!(floating_window_region_geometry(64, 96, 24, 2), (-2, 14, 66, 82, 35));
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn floating_window_native_style_removes_caption_controls() {
+        let decorated =
+            (WS_CAPTION | WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_SYSMENU) as isize;
+        assert_eq!(super::floating_window_undecorated_style(decorated), 0);
     }
 
     #[test]

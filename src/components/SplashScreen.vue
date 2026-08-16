@@ -62,7 +62,7 @@ const t1 = ref(null)
 const t2 = ref(null)
 const fading = ref(false)
 
-const LOGO = '/cyrene256.png'
+const LOGO = '/icon.png'
 const FALLBACK_LOGO =
   'data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20128%20128%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%221%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%23ff9ecf%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23e0438b%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20x%3D%228%22%20y%3D%228%22%20width%3D%22112%22%20height%3D%22112%22%20rx%3D%2228%22%20fill%3D%22url(%23g)%22%2F%3E%3Cpath%20d%3D%22M64%2092%20C44%2076%2036%2060%2044%2050%20C50%2042%2060%2044%2064%2052%20C68%2044%2078%2042%2084%2050%20C92%2060%2084%2076%2064%2092%20Z%22%20fill%3D%22%23fff%22%2F%3E%3C%2Fsvg%3E'
 

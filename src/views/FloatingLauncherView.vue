@@ -1,7 +1,12 @@
 <template>
   <div
     :class="['floating-ball', style === 'text' ? 'text-style' : 'image-style']"
-    :style="{ borderRadius: `${effectiveRadius}%` }"
+    :style="{
+      borderRadius: `${effectiveRadius}%`,
+      opacity: floatingOpacity / 100,
+      '--floating-background-color': backgroundColor,
+      '--floating-text-color': textColor
+    }"
     @contextmenu.prevent
     @pointerdown.prevent="onPointerDown"
     @pointermove.prevent="onPointerMove"
@@ -16,7 +21,7 @@
       draggable="false"
       @error="onImageError"
     />
-    <span v-else class="ball-text">点名</span>
+    <span v-else class="ball-text">{{ text }}</span>
   </div>
 </template>
 
@@ -25,21 +30,45 @@ import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
 import { dataBridge } from '../utils/dataBridge'
 import { isTauri, tauriAPI } from '../utils/tauriAPI'
 import { floatingWindowDragPosition } from '../utils/floatingWindowDrag.mjs'
-import { floatingWindowImagePath, normalizeFloatingWindowStyle, resolveFloatingWindowRadius } from '../utils/floatingWindowStyle'
-import { floatingWindowTextSize, normalizeFloatingWindowSize } from '../utils/floatingWindowSize'
+import { floatingWindowImagePath, normalizeFloatingWindowOpacity, normalizeFloatingWindowStyle, resolveFloatingWindowRadius } from '../utils/floatingWindowStyle'
+import { floatingWindowTextSize, normalizeFloatingWindowSize, normalizeFloatingWindowTextSize } from '../utils/floatingWindowSize'
+import {
+  DEFAULT_FLOATING_WINDOW_BACKGROUND_COLOR,
+  DEFAULT_FLOATING_WINDOW_TEXT,
+  DEFAULT_FLOATING_WINDOW_TEXT_COLOR,
+  normalizeFloatingWindowBackgroundColor,
+  normalizeFloatingWindowText,
+  normalizeFloatingWindowTextColor
+} from '../utils/floatingWindowText'
 
 const DRAG_THRESHOLD = 5
 const style = ref('text')
 const customImage = ref('')
+const text = ref(DEFAULT_FLOATING_WINDOW_TEXT)
+const backgroundColor = ref(DEFAULT_FLOATING_WINDOW_BACKGROUND_COLOR)
+const textColor = ref(DEFAULT_FLOATING_WINDOW_TEXT_COLOR)
+const textSize = ref(null)
 const radius = ref(null)
+const floatingOpacity = ref(100)
+const windowSize = ref(64)
 const effectiveRadius = computed(() => resolveFloatingWindowRadius(radius.value, style.value))
 let removeNativeListeners
 
 function applyStyle(value) {
   if (value && typeof value === 'object') {
     customImage.value = typeof value.customImage === 'string' ? value.customImage : customImage.value
+    text.value = normalizeFloatingWindowText(value.text ?? text.value)
+    backgroundColor.value = normalizeFloatingWindowBackgroundColor(value.backgroundColor ?? backgroundColor.value)
+    textColor.value = normalizeFloatingWindowTextColor(value.textColor ?? textColor.value)
+    if (Object.prototype.hasOwnProperty.call(value, 'textSize')) {
+      textSize.value = normalizeFloatingWindowTextSize(value.textSize)
+    }
     radius.value = value.radius ?? null
+    if (Object.prototype.hasOwnProperty.call(value, 'opacity')) {
+      floatingOpacity.value = normalizeFloatingWindowOpacity(value.opacity)
+    }
     style.value = normalizeFloatingWindowStyle(value.style)
+    applyTextSize()
     return
   }
   style.value = normalizeFloatingWindowStyle(value)
@@ -50,14 +79,23 @@ function onImageError() {
 }
 
 function applySize(value) {
-  const size = normalizeFloatingWindowSize(value)
-  document.documentElement.style.setProperty('--floating-text-size', `${floatingWindowTextSize(size)}px`)
+  windowSize.value = normalizeFloatingWindowSize(value)
+  applyTextSize()
+}
+
+function applyTextSize() {
+  document.documentElement.style.setProperty('--floating-text-size', `${floatingWindowTextSize(windowSize.value, text.value, textSize.value)}px`)
 }
 
 onMounted(async () => {
   const saved = await dataBridge.load('settings')
   customImage.value = typeof saved?.floatingWindowCustomImage === 'string' ? saved.floatingWindowCustomImage : ''
+  text.value = normalizeFloatingWindowText(saved?.floatingWindowText)
+  backgroundColor.value = normalizeFloatingWindowBackgroundColor(saved?.floatingWindowBackgroundColor)
+  textColor.value = normalizeFloatingWindowTextColor(saved?.floatingWindowTextColor)
+  textSize.value = normalizeFloatingWindowTextSize(saved?.floatingWindowTextSize)
   radius.value = saved?.floatingWindowRadius ?? null
+  floatingOpacity.value = normalizeFloatingWindowOpacity(saved?.floatingWindowOpacity)
   applyStyle(saved?.floatingWindowStyle)
   applySize(saved?.floatingWindowSize)
   if (isTauri()) {
@@ -190,7 +228,7 @@ async function openMainWindow() {
 }
 
 .floating-ball.text-style {
-  background: var(--accent);
+  background: var(--floating-background-color, var(--accent));
 }
 
 .floating-ball.image-style {
@@ -214,10 +252,15 @@ async function openMainWindow() {
 }
 
 .ball-text {
+  max-width: 78%;
+  max-height: 78%;
   font-family: var(--font-display);
   font-size: var(--floating-text-size, 14px);
   font-weight: 600;
-  color: #fff;
+  line-height: 1.1;
+  color: var(--floating-text-color, #fff);
+  text-align: center;
+  overflow-wrap: anywhere;
   pointer-events: none;
 }
 

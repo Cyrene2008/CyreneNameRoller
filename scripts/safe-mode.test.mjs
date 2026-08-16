@@ -135,6 +135,50 @@ test('安全模式初始化不读取插件状态、不创建 Worker、不注册�
   }
 })
 
+test('插件开关状态不会被旧版激活标记重置', async () => {
+  const originalStorage = globalThis.localStorage
+  const plugin = {
+    enabled: true,
+    manifest: {
+      id: 'cn.example.remembered',
+      name: 'Remembered',
+      version: '1.0.0',
+      permissions: [],
+      contributes: {}
+    }
+  }
+  const storedState = JSON.stringify({
+    installed: { [plugin.manifest.id]: plugin },
+    pendingStartup: false
+  })
+  try {
+    const storeModule = await bundle('src/plugins/store.js', 'store-marker-migration', { packages: 'external' })
+    const storage = memoryStorage({
+      pluginState: storedState,
+      'cyrene-plugin-session-pending': '1'
+    })
+    globalThis.localStorage = storage
+    setActivePinia(createPinia())
+    const store = storeModule.usePluginsStore()
+    await store.initialize()
+    assert.equal(store.installed[plugin.manifest.id].enabled, true)
+    assert.equal(storage.getItem('cyrene-plugin-session-pending'), null)
+
+    const interruptedStorage = memoryStorage({
+      pluginState: storedState,
+      'cyrene-plugin-session-pending': 'activation-v2'
+    })
+    globalThis.localStorage = interruptedStorage
+    setActivePinia(createPinia())
+    const interruptedStore = storeModule.usePluginsStore()
+    await interruptedStore.initialize()
+    assert.equal(interruptedStore.installed[plugin.manifest.id].enabled, false)
+    assert.equal(interruptedStore.installed[plugin.manifest.id].recoveryDisabled, true)
+  } finally {
+    globalThis.localStorage = originalStorage
+  }
+})
+
 test('安全模式检查早于应用和插件初始化，Service Worker 不缓存配置', async () => {
   const [main, serviceWorker, config, pluginManager] = await Promise.all([
     fs.readFile(path.join(root, 'src/main.js'), 'utf8'),
