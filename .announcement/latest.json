@@ -1,5 +1,23 @@
 [
   {
+    "id": 8,
+    "title": {
+      "cn": "v26.2.1 已发布",
+      "en": "v26.2.1 Has released"
+    },
+    "important": true,
+    "pinned": true,
+    "tag": {
+      "cn": "更新",
+      "en": "Update"
+    },
+    "time": "2026/08/16 00:00",
+    "content": {
+      "cn": "v26.2.1 已发布！本版本修复了 v26.2.0 的构建失败问题，并恢复 Release、GitHub Pages 与插件 SDK 的发布流程。\n\n本次更新重点包括：\n\n- 移除设置页中重复声明的悬浮窗样式同步函数，修复构建失败\n- 发布流程全面统一使用 bun，安装、测试与构建更加稳定\n\n详细内容可在「设置 → 更新日志」查看。欢迎通过 GitHub Issues 反馈问题与建议。",
+      "en": "v26.2.1 has been released! This version fixes the v26.2.0 build failure and restores the Release, GitHub Pages, and Plugin SDK publishing pipelines.\n\nHighlights include:\n\n- Removed duplicate floating-window style sync declarations in Settings that broke the build\n- All publishing pipelines now consistently use bun for more stable installs, tests, and builds\n\nSee Settings → Changelog for details. Use GitHub Issues for feedback."
+    }
+  },
+  {
     "id": 6,
     "title": {
       "cn": "v26.1.0 已发布",

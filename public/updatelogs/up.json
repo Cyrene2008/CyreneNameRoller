@@ -1,5 +1,21 @@
 [
   {
+    "version": "26.2.1",
+    "date": "2026-08-16",
+    "logs": {
+      "zh": [
+        "【修复】修复 v26.2.0 构建失败问题：移除设置页中重复声明的悬浮窗样式同步函数",
+        "【发布】恢复 Release（Windows/Linux）、GitHub Pages 与插件 SDK 的 CI 发布流程",
+        "【构建】发布流程全面统一使用 bun，不再依赖 pnpm/npm"
+      ],
+      "en": [
+        "[Fix] Fixed the v26.2.0 build failure by removing duplicate floating-window style sync declarations in Settings",
+        "[Release] Restored the Release (Windows/Linux), GitHub Pages, and Plugin SDK publishing pipelines",
+        "[Build] All publishing pipelines now consistently use bun; pnpm/npm are no longer used"
+      ]
+    }
+  },
+  {
     "version": "26.2.0",
     "date": "2026-08-07",
     "logs": {
