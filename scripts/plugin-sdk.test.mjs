@@ -193,6 +193,37 @@ test('native Fluent settings pages validate and pack without an iframe entry', a
   assert.equal(parsed.manifest.contributes.pages[0].entry, '')
 })
 
+test('native settings pages accept host contribution selectors', async t => {
+  const temporary = await createTestDirectory('cyrene-plugin-native-contribution-page-')
+  t.after(() => fs.rm(temporary, { recursive: true, force: true }))
+  const source = path.join(temporary, 'plugin')
+  const output = path.join(temporary, 'native-contributions.cnrp')
+  await createTemplate(source, 'sound-effects')
+  const manifestPath = path.join(source, 'manifest.json')
+  const manifest = JSON.parse(await fs.readFile(manifestPath, 'utf8'))
+  manifest.contributes.pages[0].native.controls.push(
+    { id: 'style', type: 'component-style-select', label: 'Style', target: 'navigation.dock' },
+    { id: 'override', type: 'component-override-select', label: 'Override', target: 'card.controls' },
+    { id: 'result', type: 'result-presentation-select', label: 'Result', target: 'roller.result' },
+    { id: 'override-toggle', type: 'component-override-toggle', label: 'Hide controls', target: 'card.controls', packId: 'hide-controls' }
+  )
+  await fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2))
+
+  const validation = await validateDirectory(source)
+  assert.deepEqual(validation.manifest.contributes.pages[0].native.controls.slice(-4).map(control => [control.type, control.target, control.path, control.packId || '']), [
+    ['component-style-select', 'navigation.dock', '', ''],
+    ['component-override-select', 'card.controls', '', ''],
+    ['result-presentation-select', 'roller.result', '', ''],
+    ['component-override-toggle', 'card.controls', '', 'hide-controls']
+  ])
+
+  await packDirectory(source, output)
+  const parser = await loadApplicationParser(temporary)
+  const parsed = await parser.parsePluginPackage(new Uint8Array(await fs.readFile(output)))
+  assert.equal(parsed.manifest.contributes.pages[0].native.controls.at(-1).type, 'component-override-toggle')
+  assert.equal(parsed.manifest.contributes.pages[0].native.controls.at(-1).packId, 'hide-controls')
+})
+
 test('plugin-owned commands are validated, packed and advertised as a generic extension point', async t => {
   const temporary = await createTestDirectory('cyrene-plugin-command-')
   t.after(() => fs.rm(temporary, { recursive: true, force: true }))
@@ -488,7 +519,7 @@ test('host and CLI load older plugin APIs in compatibility mode but reject newer
   assert.equal(compatibility.degraded, true)
   assert.match(compatibility.reason, /旧版 API|older API/i)
 
-  manifest.engine = { min: '1.4.0', max: '2.0.0' }
+  manifest.engine = { min: '1.5.0', max: '2.0.0' }
   await fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2))
   assert.throws(() => parser.normalizePluginManifest(manifest), /需要 API/)
   await assert.rejects(() => validateDirectory(source), /requires API/i)

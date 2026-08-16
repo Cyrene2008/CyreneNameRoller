@@ -1,10 +1,9 @@
-const CACHE_NAME = 'cyrene-v26.2.0-shell-1'
+const CACHE_NAME = 'cyrene-v26.2.0-shell-2'
 const ASSETS = [
   '/',
   '/index.html',
   '/updatelogs/up.json',
   '/cyrene.png',
-  '/cyrene256.png',
   '/icon.png',
   '/favicon.ico'
 ]

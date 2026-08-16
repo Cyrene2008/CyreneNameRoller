@@ -4,8 +4,16 @@
     "type": "Stack",
     "props": { "gap": 12, "padding": 12 },
     "children": [
-      { "type": "Text", "props": { "text": "Draw statistics" } },
-      { "type": "Text", "bindings": { "text": "$resource.statistics.totalCount" } },
+      {
+        "type": "Grid",
+        "props": { "columns": 2, "gap": 8 },
+        "children": [
+          { "type": "Icon", "props": { "icon": "history" } },
+          { "type": "Text", "props": { "text": "Draw statistics" } }
+        ]
+      },
+      { "type": "Badge", "bindings": { "text": "$resource.statistics.totalCount" } },
+      { "type": "Progress", "props": { "max": 100 }, "bindings": { "value": "$resource.statistics.totalCount" } },
       { "type": "Button", "props": { "label": "Draw now" }, "action": { "command": "draw-now", "args": {} } }
     ]
   }

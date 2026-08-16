@@ -48,13 +48,78 @@
                   :checked="settings.floatingWindowStyle === option.value"
                   @change="onFloatingWindowStyleChange(option.value)"
                 />
-                <span :class="['floating-style-preview', { 'text-preview': option.value === 'text' }]">
-                  <span v-if="option.value === 'text'">点名</span>
-                  <img v-else :src="floatingWindowImagePath(option.value)" alt="" />
+                <span
+                  :class="['floating-style-preview', { 'text-preview': option.value === 'text' }]"
+                  :style="{
+                    borderRadius: `${resolveFloatingWindowRadius(settings.floatingWindowRadius, option.value)}%`,
+                    opacity: floatingOpacityDraft / 100,
+                    background: option.value === 'text' ? settings.floatingWindowBackgroundColor : undefined,
+                    color: option.value === 'text' ? settings.floatingWindowTextColor : undefined,
+                    fontSize: option.value === 'text' ? `${floatingWindowTextSize(52, floatingTextPreview, settings.floatingWindowTextSize)}px` : undefined
+                  }"
+                >
+                  <span v-if="option.value === 'text'">{{ floatingTextPreview }}</span>
+                  <FluentIcon v-else-if="option.value === 'custom' && !settings.floatingWindowCustomImage" icon="image-add-24-regular" :width="24" />
+                  <img v-else :src="floatingWindowImagePath(option.value, settings.floatingWindowCustomImage)" alt="" />
                 </span>
                 <span class="floating-style-label">{{ option.label }}</span>
               </label>
             </div>
+            <div v-if="settings.floatingWindowStyle === 'text'" class="floating-text-settings">
+              <div class="setting-row">
+                <span class="setting-label">{{ lang === 'en' ? 'Text content' : '文字内容' }}</span>
+                <FluentInput
+                  :model-value="floatingTextDraft"
+                  class="floating-text-input"
+                  :maxlength="MAX_FLOATING_WINDOW_TEXT_LENGTH"
+                  :placeholder="DEFAULT_FLOATING_WINDOW_TEXT"
+                  @update:model-value="onFloatingWindowTextInput"
+                  @enter="commitFloatingWindowText"
+                  @blur="commitFloatingWindowText"
+                />
+              </div>
+              <div class="setting-row floating-text-size-row">
+                <div class="setting-label-group">
+                  <span class="setting-label">{{ lang === 'en' ? 'Text size' : '文字大小' }}</span>
+                  <span class="setting-desc">{{ floatingTextSizeDraft }} px</span>
+                </div>
+                <FluentSlider
+                  :model-value="floatingTextSizeDraft"
+                  :min="MIN_FLOATING_WINDOW_TEXT_SIZE"
+                  :max="floatingTextSizeMax"
+                  :step="1"
+                  class="floating-text-size-range"
+                  :aria-label="lang === 'en' ? 'Floating window text size' : '悬浮窗文字大小'"
+                  :show-value="false"
+                  @update:model-value="onFloatingWindowTextSizeInput"
+                  @change="onFloatingWindowTextSizeInput"
+                />
+              </div>
+              <div class="setting-row">
+                <span class="setting-label">{{ lang === 'en' ? 'Background color' : '背景颜色' }}</span>
+                <div class="color-picker-row">
+                  <FluentColorPicker :model-value="settings.floatingWindowBackgroundColor" @update:model-value="onFloatingWindowBackgroundColor" />
+                  <span class="color-value">{{ settings.floatingWindowBackgroundColor }}</span>
+                </div>
+              </div>
+              <div class="setting-row">
+                <span class="setting-label">{{ lang === 'en' ? 'Text color' : '文字颜色' }}</span>
+                <div class="color-picker-row">
+                  <FluentColorPicker :model-value="settings.floatingWindowTextColor" @update:model-value="onFloatingWindowTextColor" />
+                  <span class="color-value">{{ settings.floatingWindowTextColor }}</span>
+                </div>
+              </div>
+            </div>
+            <FluentButton
+              v-if="settings.floatingWindowStyle === 'custom'"
+              variant="secondary"
+              size="sm"
+              class="floating-custom-button"
+              @click="selectFloatingWindowImage"
+            >
+              <FluentIcon icon="crop-20-regular" :width="16" />
+              {{ settings.floatingWindowCustomImage ? (lang === 'en' ? 'Replace and crop image' : '更换并裁切图片') : (lang === 'en' ? 'Choose and crop image' : '选择并裁切图片') }}
+            </FluentButton>
           </div>
           <div class="setting-row floating-size-row">
             <div class="setting-label-group">
@@ -71,6 +136,40 @@
               :show-value="false"
               @update:model-value="onFloatingWindowSizeInput"
               @change="onFloatingWindowSizeChange"
+            />
+          </div>
+          <div v-if="supportsFloatingRadius" class="setting-row floating-radius-row">
+            <div class="setting-label-group">
+              <span class="setting-label">{{ lang === 'en' ? 'Corner radius' : '悬浮窗圆角' }}</span>
+              <span class="setting-desc">{{ floatingRadiusDraft }}%</span>
+            </div>
+            <FluentSlider
+              :model-value="floatingRadiusDraft"
+              :min="0"
+              :max="50"
+              :step="1"
+              class="floating-radius-range"
+              :aria-label="lang === 'en' ? 'Floating window corner radius' : '悬浮窗圆角'"
+              :show-value="false"
+              @update:model-value="onFloatingWindowRadiusInput"
+              @change="onFloatingWindowRadiusChange"
+            />
+          </div>
+          <div class="setting-row floating-opacity-row">
+            <div class="setting-label-group">
+              <span class="setting-label">{{ lang === 'en' ? 'Opacity' : '悬浮窗透明度' }}</span>
+              <span class="setting-desc">{{ floatingOpacityDraft }}%</span>
+            </div>
+            <FluentSlider
+              :model-value="floatingOpacityDraft"
+              :min="MIN_FLOATING_WINDOW_OPACITY"
+              :max="MAX_FLOATING_WINDOW_OPACITY"
+              :step="1"
+              class="floating-opacity-range"
+              :aria-label="lang === 'en' ? 'Floating window opacity' : '悬浮窗透明度'"
+              :show-value="false"
+              @update:model-value="onFloatingWindowOpacityInput"
+              @change="onFloatingWindowOpacityInput"
             />
           </div>
           <div class="setting-row floating-reset-row">
@@ -375,6 +474,8 @@
       </template>
     </FluentModal>
 
+    <FloatingImageCropper v-model="showFloatingCropper" :source="floatingCropSource" :lang="lang" @save="saveFloatingWindowImage" />
+
     <FluentModal v-model="showImportWarning" :title="lang === 'en' ? 'Warning' : '警告'" max-width="440px">
       <div class="pw-modal-body">
         <p class="pw-hint">{{ lang === 'en' ? 'This will overwrite all data. Continue?' : '将覆盖所有数据，是否继续？' }}</p>
@@ -525,10 +626,33 @@ import {
   ALGORITHM_VERSION
 } from '../utils/cyrene-balance'
 import { normalizeHex } from '../utils/theme'
-import { FLOATING_WINDOW_STYLES, floatingWindowImagePath, normalizeFloatingWindowStyle } from '../utils/floatingWindowStyle'
-import { normalizeFloatingWindowSize } from '../utils/floatingWindowSize'
+import {
+  FLOATING_WINDOW_STYLES,
+  floatingWindowImagePath,
+  MAX_FLOATING_WINDOW_OPACITY,
+  MIN_FLOATING_WINDOW_OPACITY,
+  normalizeFloatingWindowOpacity,
+  normalizeFloatingWindowRadius,
+  normalizeFloatingWindowStyle,
+  resolveFloatingWindowRadius
+} from '../utils/floatingWindowStyle'
+import {
+  floatingWindowTextSize,
+  MAX_FLOATING_WINDOW_TEXT_SIZE,
+  MIN_FLOATING_WINDOW_TEXT_SIZE,
+  normalizeFloatingWindowSize,
+  normalizeFloatingWindowTextSize
+} from '../utils/floatingWindowSize'
+import {
+  DEFAULT_FLOATING_WINDOW_TEXT,
+  MAX_FLOATING_WINDOW_TEXT_LENGTH,
+  normalizeFloatingWindowBackgroundColor,
+  normalizeFloatingWindowText,
+  normalizeFloatingWindowTextColor
+} from '../utils/floatingWindowText'
 import { normalizeAutoStopDuration } from '../utils/autoStop.mjs'
 import { isWindowsTauri } from '../utils/desktopRuntime.js'
+import FloatingImageCropper from '../components/FloatingImageCropper.vue'
 
 defineProps({
   section: { type: String, default: 'general' }
@@ -549,11 +673,50 @@ const floatingStyleOptions = computed(() => FLOATING_WINDOW_STYLES.map((value, i
   value,
   label: value === 'text'
     ? (lang.value === 'en' ? 'Text' : '文字')
-    : (lang.value === 'en' ? `Image ${index}` : `图片 ${index}`)
+    : value === 'custom'
+      ? (lang.value === 'en' ? 'Custom' : '自定义')
+      : (lang.value === 'en' ? `Image ${index}` : `图片 ${index}`)
 })))
 const floatingSizeDraft = ref(normalizeFloatingWindowSize(settings.value.floatingWindowSize))
+const floatingTextDraft = ref(normalizeFloatingWindowText(settings.value.floatingWindowText))
+const floatingTextPreview = computed(() => normalizeFloatingWindowText(floatingTextDraft.value))
+const floatingTextSizeMax = computed(() => floatingWindowTextSize(
+  settings.value.floatingWindowSize,
+  floatingTextPreview.value,
+  MAX_FLOATING_WINDOW_TEXT_SIZE
+))
+const floatingTextSizeDraft = ref(floatingWindowTextSize(
+  settings.value.floatingWindowSize,
+  floatingTextPreview.value,
+  settings.value.floatingWindowTextSize
+))
+const supportsFloatingRadius = computed(() => ['text', 'custom'].includes(settings.value.floatingWindowStyle))
+const floatingRadiusDraft = ref(resolveFloatingWindowRadius(settings.value.floatingWindowRadius, settings.value.floatingWindowStyle))
+const floatingOpacityDraft = ref(normalizeFloatingWindowOpacity(settings.value.floatingWindowOpacity))
+const showFloatingCropper = ref(false)
+const floatingCropSource = ref('')
 watch(() => settings.value.floatingWindowSize, value => {
   floatingSizeDraft.value = normalizeFloatingWindowSize(value)
+})
+watch(() => settings.value.floatingWindowText, value => {
+  floatingTextDraft.value = normalizeFloatingWindowText(value)
+})
+watch(() => [
+  floatingTextPreview.value,
+  settings.value.floatingWindowTextSize,
+  settings.value.floatingWindowSize
+], () => {
+  floatingTextSizeDraft.value = floatingWindowTextSize(
+    settings.value.floatingWindowSize,
+    floatingTextPreview.value,
+    settings.value.floatingWindowTextSize
+  )
+})
+watch(() => [settings.value.floatingWindowRadius, settings.value.floatingWindowStyle], ([radius, style]) => {
+  floatingRadiusDraft.value = resolveFloatingWindowRadius(radius, style)
+})
+watch(() => settings.value.floatingWindowOpacity, value => {
+  floatingOpacityDraft.value = normalizeFloatingWindowOpacity(value)
 })
 
 const langOptions = [
@@ -880,10 +1043,187 @@ async function downloadCompassAsset(asset) {
 
 async function onFloatingWindowStyleChange(value) {
   const style = normalizeFloatingWindowStyle(value)
-  await update('floatingWindowStyle', style)
-  if (isTauri()) {
-    await tauriAPI.setFloatingWindowStyle(style)
+  if (style === 'custom' && !settings.value.floatingWindowCustomImage) {
+    selectFloatingWindowImage()
+    return
   }
+  settingsStore.settings.floatingWindowStyle = style
+  const syncing = syncFloatingWindowStyle()
+  await settingsStore.save()
+  await syncing
+}
+
+function syncFloatingWindowStyle(overrides = {}) {
+  if (!isTauri()) return Promise.resolve()
+  const style = overrides.style ?? settings.value.floatingWindowStyle
+  floatingStylePending = [
+    style,
+    style === 'custom' ? (overrides.customImage ?? settings.value.floatingWindowCustomImage) : '',
+    overrides.radius ?? settings.value.floatingWindowRadius,
+    overrides.text ?? settings.value.floatingWindowText,
+    overrides.backgroundColor ?? settings.value.floatingWindowBackgroundColor,
+    overrides.textColor ?? settings.value.floatingWindowTextColor,
+    overrides.textSize ?? settings.value.floatingWindowTextSize,
+    overrides.opacity ?? settings.value.floatingWindowOpacity
+  ]
+  if (!floatingStyleRunning) floatingStyleDrain = processFloatingWindowStyleQueue()
+  return floatingStyleDrain
+}
+
+let floatingStylePending = null
+let floatingStyleRunning = false
+let floatingStyleDrain = Promise.resolve()
+
+async function processFloatingWindowStyleQueue() {
+  floatingStyleRunning = true
+  try {
+    while (floatingStylePending) {
+      const payload = floatingStylePending
+      floatingStylePending = null
+      await tauriAPI.setFloatingWindowStyle(...payload)
+    }
+  } finally {
+    floatingStyleRunning = false
+  }
+}
+
+let floatingAppearanceSaveTimer = null
+let floatingAppearanceDirty = false
+let floatingAppearanceSaving = false
+
+function updateFloatingAppearanceSetting(key, value) {
+  settingsStore.settings[key] = value
+  floatingAppearanceDirty = true
+  clearTimeout(floatingAppearanceSaveTimer)
+  floatingAppearanceSaveTimer = setTimeout(persistFloatingAppearance, 300)
+}
+
+async function persistFloatingAppearance() {
+  clearTimeout(floatingAppearanceSaveTimer)
+  floatingAppearanceSaveTimer = null
+  if (floatingAppearanceSaving || !floatingAppearanceDirty) return
+  floatingAppearanceDirty = false
+  floatingAppearanceSaving = true
+  try {
+    await settingsStore.save()
+  } finally {
+    floatingAppearanceSaving = false
+    if (floatingAppearanceDirty) {
+      floatingAppearanceSaveTimer = setTimeout(persistFloatingAppearance, 300)
+    }
+  }
+}
+
+function onFloatingWindowTextInput(value) {
+  floatingTextDraft.value = Array.from(String(value ?? '')).slice(0, MAX_FLOATING_WINDOW_TEXT_LENGTH).join('')
+  syncFloatingWindowStyle({ text: normalizeFloatingWindowText(floatingTextDraft.value) })
+}
+
+function commitFloatingWindowText() {
+  const text = normalizeFloatingWindowText(floatingTextDraft.value)
+  floatingTextDraft.value = text
+  updateFloatingAppearanceSetting('floatingWindowText', text)
+  syncFloatingWindowStyle()
+}
+
+function onFloatingWindowTextSizeInput(value) {
+  const requested = Math.round(Number(value))
+  const size = Math.min(
+    floatingTextSizeMax.value,
+    Math.max(MIN_FLOATING_WINDOW_TEXT_SIZE, Number.isFinite(requested) ? requested : floatingTextSizeDraft.value)
+  )
+  floatingTextSizeDraft.value = size
+  updateFloatingAppearanceSetting('floatingWindowTextSize', normalizeFloatingWindowTextSize(size))
+  syncFloatingWindowStyle({ textSize: size })
+}
+
+function onFloatingWindowBackgroundColor(value) {
+  updateFloatingAppearanceSetting('floatingWindowBackgroundColor', normalizeFloatingWindowBackgroundColor(value))
+  syncFloatingWindowStyle()
+}
+
+function onFloatingWindowTextColor(value) {
+  updateFloatingAppearanceSetting('floatingWindowTextColor', normalizeFloatingWindowTextColor(value))
+  syncFloatingWindowStyle()
+}
+
+function onFloatingWindowOpacityInput(value) {
+  const opacity = normalizeFloatingWindowOpacity(value)
+  floatingOpacityDraft.value = opacity
+  updateFloatingAppearanceSetting('floatingWindowOpacity', opacity)
+  syncFloatingWindowStyle({ opacity })
+}
+
+function selectFloatingWindowImage() {
+  const input = document.createElement('input')
+  input.type = 'file'
+  input.accept = 'image/png,image/jpeg,image/webp'
+  input.onchange = async () => {
+    const file = input.files?.[0]
+    if (!file) return
+    if (file.size > 12 * 1024 * 1024) {
+      showBanner({ message: lang.value === 'en' ? 'Image must be smaller than 12 MB' : '图片不能超过 12 MB', icon: 'warning-16-regular', type: 'warning', duration: 6000 })
+      return
+    }
+    floatingCropSource.value = await readImageFile(file)
+    showFloatingCropper.value = true
+  }
+  input.click()
+}
+
+function readImageFile(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result || ''))
+    reader.onerror = () => reject(reader.error)
+    reader.readAsDataURL(file)
+  })
+}
+
+async function saveFloatingWindowImage(image) {
+  settingsStore.settings.floatingWindowCustomImage = image
+  settingsStore.settings.floatingWindowStyle = 'custom'
+  const syncing = syncFloatingWindowStyle()
+  await settingsStore.save()
+  await syncing
+}
+
+let floatingRadiusPending = null
+let floatingRadiusRunning = false
+let floatingRadiusWaiters = []
+
+function sendFloatingWindowRadius(radius) {
+  if (!isTauri()) return Promise.resolve()
+  floatingRadiusPending = radius
+  const completion = new Promise(resolve => { floatingRadiusWaiters.push(resolve) })
+  if (!floatingRadiusRunning) processFloatingWindowRadiusQueue()
+  return completion
+}
+
+async function processFloatingWindowRadiusQueue() {
+  floatingRadiusRunning = true
+  while (floatingRadiusPending !== null) {
+    const radius = floatingRadiusPending
+    floatingRadiusPending = null
+    await syncFloatingWindowStyle({ radius })
+  }
+  floatingRadiusRunning = false
+  const waiters = floatingRadiusWaiters
+  floatingRadiusWaiters = []
+  waiters.forEach(resolve => resolve())
+}
+
+function onFloatingWindowRadiusInput(value) {
+  const radius = normalizeFloatingWindowRadius(value)
+  floatingRadiusDraft.value = radius
+  sendFloatingWindowRadius(radius)
+}
+
+async function onFloatingWindowRadiusChange(value) {
+  const radius = normalizeFloatingWindowRadius(value)
+  floatingRadiusDraft.value = radius
+  await update('floatingWindowRadius', radius)
+  await sendFloatingWindowRadius(radius)
 }
 
 let floatingSizeTimer = null
@@ -919,11 +1259,17 @@ async function processFloatingWindowSizeQueue() {
 }
 
 onBeforeUnmount(() => {
+  clearTimeout(floatingAppearanceSaveTimer)
+  void persistFloatingAppearance()
   clearTimeout(floatingSizeTimer)
   floatingSizePending = null
+  floatingRadiusPending = null
   const waiters = floatingSizeWaiters
   floatingSizeWaiters = []
   waiters.forEach(resolve => resolve({ success: false, cancelled: true }))
+  const radiusWaiters = floatingRadiusWaiters
+  floatingRadiusWaiters = []
+  radiusWaiters.forEach(resolve => resolve())
 })
 
 function onFloatingWindowSizeInput(value) {
@@ -1124,11 +1470,15 @@ function onBalanceEnabledChange(enabled) {
 .floating-style-option:has(.floating-style-radio:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
 .floating-style-radio { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 .floating-style-preview { width: 52px; height: 52px; display: flex; align-items: center; justify-content: center; overflow: hidden; }
-.floating-style-preview.text-preview { border-radius: 50%; background: var(--accent); color: #fff; font-size: 12px; font-weight: 600; }
+.floating-style-preview.text-preview { padding: 8px; font-weight: 600; line-height: 1.1; text-align: center; overflow-wrap: anywhere; box-sizing: border-box; }
 .floating-style-preview img { width: 100%; height: 100%; display: block; object-fit: cover; }
 .floating-style-label { max-width: 100%; font-size: 12px; line-height: 1.25; text-align: center; overflow-wrap: anywhere; }
+.floating-custom-button { align-self: flex-start; }
+.floating-text-settings { display: flex; flex-direction: column; padding-top: 4px; border-top: 1px solid var(--border-subtle); }
+.floating-text-input { width: 220px; }
 .floating-reset-row { padding: 4px 0; }
 .floating-size-row { align-items: center; }
+.floating-radius-row { align-items: center; }
 .color-picker-row { display: flex; align-items: center; gap: 10px; }
 .scale-control { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .scale-input-wrap {
@@ -1178,6 +1528,7 @@ function onBalanceEnabledChange(enabled) {
   .setting-row > .update-actions { width: 100%; min-width: 0; }
   .setting-row :deep(.fluent-select) { width: 100% !important; min-width: 0 !important; }
   .scale-input-wrap, .hex-color-input { width: 100%; max-width: 100%; box-sizing: border-box; }
+  .floating-text-input { width: 100%; max-width: 100%; box-sizing: border-box; }
   .uri-setting-row { align-items: flex-start; flex-direction: column; }
   .uri-setting-actions { width: 100%; justify-content: space-between; }
   .uri-route-grid { grid-template-columns: 1fr; }

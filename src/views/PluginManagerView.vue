@@ -36,46 +36,32 @@
       <div v-else class="empty-state"><FluentIcon icon="plug-disconnected-24-regular" :width="28" /><span>{{ lang === 'en' ? 'No plugins installed.' : '尚未安装插件。' }}</span></div>
     </section>
 
-    <section v-if="stylePacks.length" class="plugin-section component-style-section">
-      <div class="section-heading"><h2>{{ lang === 'en' ? 'Component styles' : '组件样式' }}</h2><span>{{ stylePacks.length }}</span></div>
+    <section v-if="styleTargets.length" class="plugin-section component-style-section">
+      <div class="section-heading"><h2>{{ lang === 'en' ? 'Component styles' : '组件样式' }}</h2><span>{{ styleTargets.length }}</span></div>
       <div class="style-pack-list">
-        <article v-for="pack in stylePacks" :key="pack.value" class="style-pack-row">
-          <div class="style-pack-copy"><strong>{{ pack.title }}</strong><small>{{ pack.pluginName }} / {{ pack.id }}</small><span v-if="pack.description">{{ pack.description }}</span></div>
+        <article v-for="target in styleTargets" :key="target" class="style-pack-row">
+          <div class="style-pack-copy"><strong>{{ target }}</strong><small>{{ lang === 'en' ? 'Global fallback selector' : '全局兜底选择器' }}</small></div>
           <div class="style-pack-controls">
-            <FluentSelect
-              v-for="target in styleTargets"
-              :key="target"
-              :model-value="plugins.componentStyleSelections[target] || ''"
-              :options="[{ value: '', label: lang === 'en' ? `Default: ${target}` : `默认：${target}` }, ...plugins.componentStyleOptions(target, lang)]"
-              width="230px"
-              @update:model-value="value => chooseStyle(target, value)"
-            />
-            <div class="style-pack-preview" :style="plugins.componentStyleStyle('roller.result')">Aa</div>
+            <FluentSelect :model-value="plugins.componentStyleSelections[target] || ''" :options="[{ value: '', label: lang === 'en' ? `Default: ${target}` : `默认：${target}` }, ...plugins.componentStyleOptions(target, lang)]" width="280px" @update:model-value="value => chooseStyle(target, value)" />
+            <div v-if="target === 'roller.result'" class="style-pack-preview" :style="plugins.componentStyleStyle(target)">Aa</div>
           </div>
         </article>
       </div>
     </section>
 
-    <section v-if="overridePacks.length" class="plugin-section">
+    <section v-if="overrideTargets.length" class="plugin-section">
       <div class="section-heading"><h2>{{ lang === 'en' ? 'Component overrides' : '组件覆盖' }}</h2><FluentButton variant="subtle" size="sm" @click="resetOverrides">{{ lang === 'en' ? 'Restore defaults' : '恢复默认界面' }}</FluentButton></div>
       <div class="style-pack-list">
-        <article v-for="pack in overridePacks" :key="pack.value" class="style-pack-row">
-          <div class="style-pack-copy"><strong>{{ pack.title }}</strong><small>{{ pack.pluginName }} / {{ pack.id }}</small></div>
+        <article v-for="target in overrideTargets" :key="target" class="style-pack-row">
+          <div class="style-pack-copy"><strong>{{ target }}</strong><small>{{ lang === 'en' ? 'Global fallback selector' : '全局兜底选择器' }}</small></div>
           <div class="style-pack-controls">
-            <FluentSelect
-              v-for="target in overrideTargets"
-              :key="target"
-              :model-value="plugins.componentOverrideSelections[target] || ''"
-              :options="[{ value: '', label: lang === 'en' ? `Default: ${target}` : `默认：${target}` }, ...plugins.componentOverrideOptions(target, lang)]"
-              width="230px"
-              @update:model-value="value => chooseOverride(target, value)"
-            />
+            <FluentSelect :model-value="plugins.componentOverrideSelections[target] || ''" :options="[{ value: '', label: lang === 'en' ? `Default: ${target}` : `默认：${target}` }, ...plugins.componentOverrideOptions(target, lang)]" width="280px" @update:model-value="value => chooseOverride(target, value)" />
           </div>
         </article>
       </div>
     </section>
 
-    <section v-if="resultPresentations.length" class="plugin-section">
+    <section v-if="resultPresentations.length && !nativeSelectorTargets.has('result-presentation-select:roller.result')" class="plugin-section">
       <div class="section-heading"><h2>{{ lang === 'en' ? 'Verified result presentation' : '权威结果呈现' }}</h2><span>{{ resultPresentations.length }}</span></div>
       <div class="style-pack-controls">
         <FluentSelect
@@ -155,12 +141,21 @@ const confirmManifest = ref(null)
 const confirmPlugin = ref(null)
 let confirmResolver = null
 const installedPlugins = computed(() => Object.values(plugins.installed))
-const stylePacks = computed(() => plugins.contributedComponentStylePacks)
-const styleTargets = ['roller.result', 'roller.filters', 'roller.current-list', 'roller.primary-action']
-const overridePacks = computed(() => plugins.contributedComponentOverridePacks)
-const overrideTargets = ['app.version-badge', 'roller.filters', 'statistics.summary']
-const resultPresentations = computed(() => plugins.contributedResultPresentations)
 const contributedPages = computed(() => plugins.contributedPages)
+const nativeSelectorTargets = computed(() => new Set(contributedPages.value.flatMap(page =>
+  (page.native?.controls || [])
+    .filter(control => ['component-style-select', 'component-override-select', 'component-override-toggle', 'result-presentation-select'].includes(control.type))
+    .map(control => `${control.type}:${control.target}`)
+)))
+const stylePacks = computed(() => plugins.contributedComponentStylePacks)
+const styleTargets = computed(() => [...new Set(stylePacks.value.flatMap(pack => Object.keys(pack.targets || {})))]
+  .filter(target => !nativeSelectorTargets.value.has(`component-style-select:${target}`))
+  .sort())
+const overridePacks = computed(() => plugins.contributedComponentOverridePacks)
+const overrideTargets = computed(() => [...new Set(overridePacks.value.flatMap(pack => Object.keys(pack.targets || {})))]
+  .filter(target => !nativeSelectorTargets.value.has(`component-override-select:${target}`))
+  .sort())
+const resultPresentations = computed(() => plugins.contributedResultPresentations)
 const permissionDescriptions = {
   'draw:execute': { zh: '通过宿主 CAF 公平事务追加抽取结果', en: 'Run host-controlled CAF draws and append records', risk: 'elevated' },
   'ui:animations': { zh: '为宿主提供受控动画方案', en: 'Provide controlled host animations', risk: 'normal' },
@@ -233,7 +228,7 @@ function catalogButtonLabel(item) {
   if (compareVersion(item.version, installed) > 0) return lang.value === 'en' ? 'Update' : '更新'
   return lang.value === 'en' ? 'Installed' : '已安装'
 }
-function pagesFor(plugin) { return contributedPages.value.filter(page => page.pluginId === plugin.manifest.id) }
+function pagesFor(plugin) { return contributedPages.value.filter(page => page.pluginId === plugin.manifest.id && page.location === 'plugins') }
 function pluginIcon(plugin) { return plugins.pluginAssetUrl(plugin) || plugin.manifest.iconDataUrl || '' }
 function pluginCompatibility(plugin) { return plugins.compatibilityFor(plugin) }
 function pluginProvenance(plugin) {

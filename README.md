@@ -94,7 +94,14 @@ npm i @starcyrene/cyrene-name-roller
 <img width="1655" height="2380" alt="wechat_longscreenshot_2026-07-10_101035_521" src="https://github.com/user-attachments/assets/cbc33cb6-7e86-4c77-9c24-643aa2cc1302" />
 <img width="2011" height="958" alt="ScreenShot_2026-07-10_101211_600" src="https://github.com/user-attachments/assets/dc43abf1-ac54-40b6-9833-859386070530" />
 
-## 快速开始
+## 从源码开发
+
+### 环境要求
+
+- Node.js 22
+- pnpm
+- Rust stable
+- [Tauri 2 对应平台的系统依赖](https://v2.tauri.app/start/prerequisites/)
 
 ```bash
 git clone https://github.com/StarCyrene/CyreneNameRoller.git
@@ -103,13 +110,27 @@ bun install
 bun run dev
 ```
 
-## 构建 Tauri 客户端
+启动 Tauri 桌面客户端：
+
+```bash
+pnpm run tauri:dev
+```
+
+### 构建
+
+构建 Web 版本：
+
+```bash
+pnpm run build
+```
+
+构建 Tauri 客户端：
 
 ```bash
 bun run tauri:build
 ```
 
-打包产物在 `src-tauri/target/` 目录下。
+桌面安装包位于 `target/release/bundle/`。
 
 ## 技术栈
 

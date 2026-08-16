@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "root": {
+    "type": "Notice",
+    "props": { "variant": "info", "padding": 10 },
+    "children": [
+      { "type": "Text", "props": { "text": "The result above is bound and verified by the host." } },
+      {
+        "type": "Grid",
+        "props": { "columns": 2, "gap": 8 },
+        "children": [
+          { "type": "Badge", "bindings": { "text": "$host.theme.language" } },
+          { "type": "Text", "bindings": { "text": "$host.theme.dark" } }
+        ]
+      },
+      { "type": "Button", "props": { "label": "Describe host" }, "action": { "command": "describe-host", "args": {} } }
+    ]
+  }
+}

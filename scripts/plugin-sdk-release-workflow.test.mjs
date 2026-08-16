@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict'
 import fs from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
+import { spawnSync } from 'node:child_process'
 import test from 'node:test'
 
 test('SDK release workflow keeps package publication separate from GitHub Releases', async () => {
@@ -29,4 +32,21 @@ test('Windows distribution invokes the Tauri CLI without shell path parsing', as
   assert.match(packageScript, /spawnSync\(process\.execPath, \[tauriCli, \.\.\.buildArgs\]/)
   assert.match(packageScript, /shell: false/)
   assert.doesNotMatch(packageScript, /\.bin.*tauri.*\.cmd/)
+})
+
+test('SDK CLI executes through package-manager directory links', async t => {
+  const temporary = await fs.mkdtemp(path.join(os.tmpdir(), 'cnrp-cli-link-'))
+  t.after(() => fs.rm(temporary, { recursive: true, force: true }))
+  const source = path.resolve('packages/cyrene-name-roller/bin')
+  const linked = path.join(temporary, 'linked-bin')
+  await fs.symlink(source, linked, process.platform === 'win32' ? 'junction' : 'dir')
+
+  const result = spawnSync(process.execPath, [path.join(linked, 'cnrp.mjs'), 'help'], {
+    cwd: process.cwd(),
+    encoding: 'utf8',
+    shell: false
+  })
+
+  assert.equal(result.status, 0, result.stderr)
+  assert.match(result.stdout, /cnrp pack <dir> --out <file\.cnrp>/)
 })

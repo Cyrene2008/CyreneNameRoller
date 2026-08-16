@@ -38,7 +38,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf
-      - run: pnpm install --frozen-lockfile
+      - run: pnpm install --frozen-lockfile --registry=https://registry.npmjs.org/
       - run: node scripts/package-dist.mjs ${{ matrix.args }}
         env:
           CI: true

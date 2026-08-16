@@ -79,7 +79,18 @@ export const tauriAPI = {
       return { success: false, error: String(error) }
     }
   },
-  async setFloatingWindowStyle(style) { return this.invoke('set_floating_window_style', { style }) },
+  async setFloatingWindowStyle(
+    style,
+    customImage = '',
+    radius = null,
+    text = '点名',
+    backgroundColor = '#ea5ec1',
+    textColor = '#ffffff',
+    textSize = null,
+    opacity = 100
+  ) {
+    return this.invoke('set_floating_window_style', { style, customImage, radius, text, backgroundColor, textColor, textSize, opacity })
+  },
   async setFloatingWindowSize(size) {
     if (!isTauri()) return { success: false, error: 'Tauri is unavailable' }
     try {

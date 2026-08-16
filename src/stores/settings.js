@@ -1,8 +1,16 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { dataBridge } from '../utils/dataBridge'
-import { normalizeFloatingWindowStyle } from '../utils/floatingWindowStyle'
-import { normalizeFloatingWindowSize } from '../utils/floatingWindowSize'
+import { normalizeFloatingWindowOpacity, normalizeFloatingWindowStyle } from '../utils/floatingWindowStyle'
+import { normalizeFloatingWindowSize, normalizeFloatingWindowTextSize } from '../utils/floatingWindowSize'
+import {
+  DEFAULT_FLOATING_WINDOW_BACKGROUND_COLOR,
+  DEFAULT_FLOATING_WINDOW_TEXT,
+  DEFAULT_FLOATING_WINDOW_TEXT_COLOR,
+  normalizeFloatingWindowBackgroundColor,
+  normalizeFloatingWindowText,
+  normalizeFloatingWindowTextColor
+} from '../utils/floatingWindowText'
 import { normalizeAutoStopDuration } from '../utils/autoStop.mjs'
 
 const DEFAULT_SETTINGS = {
@@ -42,6 +50,13 @@ const DEFAULT_SETTINGS = {
   disableSplash: false,
   floatingWindowEnabled: false,
   floatingWindowStyle: 'text',
+  floatingWindowOpacity: 100,
+  floatingWindowCustomImage: '',
+  floatingWindowText: DEFAULT_FLOATING_WINDOW_TEXT,
+  floatingWindowBackgroundColor: DEFAULT_FLOATING_WINDOW_BACKGROUND_COLOR,
+  floatingWindowTextColor: DEFAULT_FLOATING_WINDOW_TEXT_COLOR,
+  floatingWindowTextSize: null,
+  floatingWindowRadius: null,
   floatingWindowSize: 64,
   floatingCompassHintDismissed: false,
   autoStart: false,
@@ -63,7 +78,12 @@ export const useSettingsStore = defineStore('settings', () => {
         settings.value = { ...DEFAULT_SETTINGS, ...saved }
         settings.value.newMemberCountMode = settings.value.newMemberCountMode === 'zero' ? 'zero' : 'midpoint'
         settings.value.floatingWindowStyle = normalizeFloatingWindowStyle(settings.value.floatingWindowStyle)
+        settings.value.floatingWindowOpacity = normalizeFloatingWindowOpacity(settings.value.floatingWindowOpacity)
         settings.value.floatingWindowSize = normalizeFloatingWindowSize(settings.value.floatingWindowSize)
+        settings.value.floatingWindowText = normalizeFloatingWindowText(settings.value.floatingWindowText)
+        settings.value.floatingWindowBackgroundColor = normalizeFloatingWindowBackgroundColor(settings.value.floatingWindowBackgroundColor)
+        settings.value.floatingWindowTextColor = normalizeFloatingWindowTextColor(settings.value.floatingWindowTextColor)
+        settings.value.floatingWindowTextSize = normalizeFloatingWindowTextSize(settings.value.floatingWindowTextSize)
         settings.value.autoStopDuration = normalizeAutoStopDuration(settings.value.autoStopDuration)
         darkMode.value = !!saved.darkMode
 

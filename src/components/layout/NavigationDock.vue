@@ -13,7 +13,7 @@
           <Icon icon="fluent:line-horizontal-3-20-regular" :width="18" />
         </button>
         <template v-if="!dockCollapsed">
-          <img src="/cyrene.png" class="dock-logo-img" alt="" />
+          <img src="/icon.png" class="dock-logo-img" alt="" />
           <span class="dock-logo-text">Cyreneの随机点名器</span>
         </template>
       </div>

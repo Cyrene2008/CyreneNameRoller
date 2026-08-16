@@ -10,24 +10,39 @@ import { build } from 'esbuild'
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const read = relative => fs.readFile(path.join(root, relative), 'utf8')
 
-test('API 1.3 release metadata is synchronized', async () => {
+test('API 1.4 release metadata is synchronized', async () => {
   const packageJson = JSON.parse(await read('packages/cyrene-name-roller/package.json'))
-  assert.equal(packageJson.version, '1.3.0')
+  assert.equal(packageJson.version, '1.4.0')
   assert.equal(packageJson.bin.cnrp, 'bin/cnrp.mjs')
-  assert.match(await read('src/plugins/constants.js'), /PLUGIN_API_VERSION = '1\.3\.0'/)
-  assert.match(await read('packages/cyrene-name-roller/src/plugin-sdk.mjs'), /PLUGIN_API_VERSION = '1\.3\.0'/)
-  assert.match(await read('packages/cyrene-name-roller/src/plugin-sdk.d.ts'), /PLUGIN_API_VERSION: '1\.3\.0'/)
-  assert.match(await read('packages/cyrene-name-roller/bin/cnrp.mjs'), /const API_VERSION = '1\.3\.0'/)
+  assert.match(await read('src/plugins/constants.js'), /PLUGIN_API_VERSION = '1\.4\.0'/)
+  assert.match(await read('packages/cyrene-name-roller/src/plugin-sdk.mjs'), /PLUGIN_API_VERSION = '1\.4\.0'/)
+  assert.match(await read('packages/cyrene-name-roller/src/plugin-sdk.d.ts'), /PLUGIN_API_VERSION: '1\.4\.0'/)
+  assert.match(await read('packages/cyrene-name-roller/bin/cnrp.mjs'), /const API_VERSION = '1\.4\.0'/)
 })
 
-test('API 1.3 UI template validates, packs and parses through host parser', async () => {
+test('API 1.4 UI template validates, packs and parses through host parser', async () => {
   const { validateDirectory, packDirectory } = await import(pathToFileURL(path.join(root, 'packages/cyrene-name-roller/bin/cnrp.mjs')).href)
   const template = path.join(root, 'packages/cyrene-name-roller/templates/ui-customization')
   const validation = await validateDirectory(template)
-  assert.equal(validation.manifest.engine.min, '1.3.0')
+  assert.equal(validation.manifest.engine.min, '1.4.0')
+  assert.deepEqual(validation.manifest.contributes.pages[0].native.controls.map(control => control.type), [
+    'component-style-select', 'component-override-select', 'component-override-toggle', 'result-presentation-select'
+  ])
   assert.equal(validation.manifest.systemOperations[0].id, 'desktop-check')
   assert.deepEqual(validation.manifest.systemOperations[0].command, { program: 'cmd', args: ['/d', '/c', 'ver'] })
-  assert.deepEqual(validation.manifest.contributes.nativeViews.map(view => view.slot), ['slot:roller.side-panel'])
+  assert.deepEqual(validation.manifest.contributes.nativeViews.map(view => view.slot), [
+    'slot:roller.side-panel',
+    'slot:roller.below-result',
+    'slot:records.toolbar'
+  ])
+  assert.deepEqual(validation.manifest.contributes.resultPresentations.map(item => item.layout), ['single', 'list', 'grid', 'spotlight'])
+  assert.equal(validation.manifest.contributes.componentStylePacks.length, 3)
+  assert.equal(validation.manifest.contributes.componentOverridePacks.length, 3)
+  const styledTargets = new Set(validation.manifest.contributes.componentStylePacks.flatMap(pack => Object.keys(pack.targets)))
+  assert.equal(styledTargets.size, 11)
+  for (const target of ['navigation.dock', 'roller.current-list', 'roller.filters', 'card.item', 'lottery.result', 'statistics.summary']) {
+    assert.equal(styledTargets.has(target), true)
+  }
   const styles = validation.manifest.contributes.componentStylePacks[0].targets
   assert.deepEqual(styles['roller.result'], {
     size: 'large', foreground: '#172033', background: '#ffffff', fontFamily: 'host:display',
@@ -36,7 +51,15 @@ test('API 1.3 UI template validates, packs and parses through host parser', asyn
   assert.deepEqual(styles['roller.primary-action'], {
     size: 'large', foreground: '#ffffff', background: '#005a9e', fontFamily: 'host:ui', fontSize: 18, fontWeight: 700, radius: 8
   })
-  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'cnrp-api-1.3-'))
+  assert.deepEqual(validation.manifest.contributes.componentOverridePacks.map(pack => pack.targets), [
+    {
+      'app.version-badge': { visibility: 'hidden', layout: 'collapse' },
+      'roller.filters': { visibility: 'hidden', layout: 'collapse' }
+    },
+    { 'roller.filters': { visibility: 'visible', layout: 'compact' } },
+    { 'statistics.summary': { visibility: 'hidden', layout: 'reserve' } }
+  ])
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'cnrp-api-1.4-'))
   const output = path.join(tempDir, 'ui-customization.cnrp')
   const parserOutput = path.join(tempDir, 'application-plugin-parser.mjs')
   await build({ entryPoints: [path.join(root, 'src/plugins/package.js')], bundle: true, write: true, outfile: parserOutput, platform: 'browser', format: 'esm', target: ['es2022'], legalComments: 'none' })
@@ -45,7 +68,12 @@ test('API 1.3 UI template validates, packs and parses through host parser', asyn
   const parsed = await parsePluginPackage(new Uint8Array(packed.output))
   assert.equal(parsed.manifest.id, validation.manifest.id)
   assert.equal(parsed.manifest.systemOperations[0].id, 'desktop-check')
-  assert.equal(parsed.manifest.contributes.nativeViews[0].slot, 'slot:roller.side-panel')
+  assert.deepEqual(parsed.manifest.contributes.nativeViews.map(view => view.slot), [
+    'slot:roller.side-panel',
+    'slot:roller.below-result',
+    'slot:records.toolbar'
+  ])
+  assert.deepEqual(parsed.manifest.contributes.resultPresentations.map(item => item.layout), ['single', 'list', 'grid', 'spotlight'])
   assert.equal(parsed.manifest.contributes.componentOverridePacks[0].targets['roller.filters'].visibility, 'hidden')
 })
 

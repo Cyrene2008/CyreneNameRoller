@@ -11,7 +11,7 @@ import JavaScriptObfuscator from 'javascript-obfuscator'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const packageRoot = path.resolve(__dirname, '..')
 const MAGIC = Buffer.from('CNRP1\n', 'utf8')
-const API_VERSION = '1.3.0'
+const API_VERSION = '1.4.0'
 const MAX_FILE_COUNT = 256
 const MAX_PACKAGE_SIZE = 32 * 1024 * 1024
 const ID_PATTERN = /^[a-z0-9]+(?:[._-][a-z0-9]+)+$/
@@ -24,6 +24,7 @@ const CONTRIBUTION_ID_PATTERN = /^[a-z][a-z0-9._-]{0,63}$/
 const COMMAND_LOCATIONS = new Set(['command-palette', 'page-header', 'context-menu'])
 const SETTING_PATH_PATTERN = /^[a-z][a-z0-9._-]{0,63}$/i
 const ANIMATION_TARGETS = new Set(['page.transition', 'roller.finish', 'card.deal', 'card.flip', 'lottery.finish', 'global.transition'])
+const COMPONENT_TARGETS = new Set(['app.title-bar', 'app.version-badge', 'navigation.dock', 'navigation.settings-entry', 'roller.current-list', 'roller.filters', 'roller.filter.english-mode', 'roller.filter.draw-target', 'roller.filter.gender', 'roller.filter.draw-count', 'roller.filter.duplicates', 'roller.filter.count', 'roller.primary-action', 'roller.result', 'card.controls', 'card.deck', 'card.item', 'lottery.result', 'statistics.summary'])
 const ANIMATION_FRAME_PROPERTIES = new Set(['opacity', 'transform', 'filter', 'clipPath', 'borderRadius', 'boxShadow', 'textShadow', 'color', 'background', 'backgroundColor', 'letterSpacing', 'offset', 'easing', 'composite'])
 const GSAP_ANIMATION_PROPERTIES = new Set(['opacity', 'autoAlpha', 'x', 'y', 'xPercent', 'yPercent', 'scale', 'scaleX', 'scaleY', 'rotation', 'rotate', 'rotationX', 'rotationY', 'rotateX', 'rotateY', 'skewX', 'skewY', 'filter', 'clipPath', 'borderRadius', 'boxShadow', 'textShadow', 'color', 'background', 'backgroundColor', 'letterSpacing', 'transformOrigin'])
 const UNSAFE_VISUAL_VALUE_PATTERN = /url\s*\(|image-set\s*\(|cross-fade\s*\(|paint\s*\(|(?:https?:|data:|blob:|\/\/)/i
@@ -392,17 +393,21 @@ function normalizeNativePage(value, label) {
     if (!control || typeof control !== 'object' || !CONTRIBUTION_ID_PATTERN.test(control.id || '') || ids.has(control.id)) fail(`${label}.controls[${index}] has an invalid or duplicate id`)
     ids.add(control.id)
     const type = String(control.type || '')
-    if (!['toggle', 'range', 'select', 'audio', 'animation-select'].includes(type)) fail(`${label}.controls[${index}] has an unsupported type`)
-    if (!control.label || String(control.label).length > 120 || (type !== 'animation-select' && !SETTING_PATH_PATTERN.test(control.path || ''))) fail(`${label}.controls[${index}] needs a valid label and path`)
+    const hostSelect = ['animation-select', 'component-style-select', 'component-override-select', 'component-override-toggle', 'result-presentation-select'].includes(type)
+    if (!['toggle', 'range', 'select', 'audio', 'animation-select', 'component-style-select', 'component-override-select', 'component-override-toggle', 'result-presentation-select'].includes(type)) fail(`${label}.controls[${index}] has an unsupported type`)
+    if (!control.label || String(control.label).length > 120 || (!hostSelect && !SETTING_PATH_PATTERN.test(control.path || ''))) fail(`${label}.controls[${index}] needs a valid label and path`)
     if (type === 'animation-select' && !ANIMATION_TARGETS.has(control.target)) fail(`${label}.controls[${index}] has an invalid animation target`)
+    if (['component-style-select', 'component-override-select', 'component-override-toggle'].includes(type) && !COMPONENT_TARGETS.has(control.target)) fail(`${label}.controls[${index}] has an invalid component target`)
+    if (type === 'result-presentation-select' && control.target !== 'roller.result') fail(`${label}.controls[${index}] has an invalid result presentation target`)
     if (type === 'animation-select' && control.packId && !CONTRIBUTION_ID_PATTERN.test(control.packId)) fail(`${label}.controls[${index}] has an invalid animation pack id`)
+    if (type === 'component-override-toggle' && !CONTRIBUTION_ID_PATTERN.test(control.packId || '')) fail(`${label}.controls[${index}] has an invalid component override pack id`)
     if (type === 'select' && (!Array.isArray(control.options) || !control.options.length || control.options.length > 32)) fail(`${label}.controls[${index}] needs options`)
     if (type === 'range' && (!Number.isFinite(Number(control.min)) || !Number.isFinite(Number(control.max)) || Number(control.min) >= Number(control.max))) fail(`${label}.controls[${index}] has an invalid range`)
     return {
       id: String(control.id), type, label: String(control.label), description: String(control.description || ''),
-      path: type === 'animation-select' ? '' : String(control.path),
-      target: type === 'animation-select' ? control.target : undefined,
-      packId: type === 'animation-select' ? String(control.packId || '') : undefined,
+      path: hostSelect ? '' : String(control.path),
+      target: hostSelect ? String(control.target) : undefined,
+      packId: ['animation-select', 'component-override-toggle'].includes(type) ? String(control.packId || '') : undefined,
       accept: type === 'audio' ? String(control.accept || 'audio/*') : undefined,
       min: type === 'range' ? Number(control.min) : undefined,
       max: type === 'range' ? Number(control.max) : undefined,
@@ -786,7 +791,16 @@ async function main() {
   fail(`unknown command: ${command}`)
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+async function isMainModule() {
+  if (!process.argv[1]) return false
+  try {
+    return await fs.realpath(path.resolve(process.argv[1])) === await fs.realpath(fileURLToPath(import.meta.url))
+  } catch {
+    return false
+  }
+}
+
+if (await isMainModule()) {
   main().catch(error => {
     console.error(`cnrp: ${error.message || error}`)
     process.exitCode = 1
