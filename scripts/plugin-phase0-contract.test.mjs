@@ -9,7 +9,7 @@ import { PLUGIN_API_VERSION } from '../src/plugins/constants.js'
 
 const root = new URL('../', import.meta.url)
 const read = path => fs.readFile(new URL(path, root), 'utf8')
-const contract = JSON.parse(await read('scripts/fixtures/plugin-ui-api-1.3-contract.json'))
+const contract = JSON.parse(await read('scripts/fixtures/plugin-ui-api-1.4-contract.json'))
 const parserOutput = path.resolve(import.meta.dirname, '../build-output/plugin-phase0-contract/parser.mjs')
 const runtimeOutput = path.resolve(import.meta.dirname, '../build-output/plugin-phase0-contract/runtime.mjs')
 await fs.mkdir(path.dirname(parserOutput), { recursive: true })
@@ -35,10 +35,10 @@ const { parsePluginPackage } = await import(`${pathToFileURL(parserOutput).href}
 const { PluginRuntime } = await import(`${pathToFileURL(runtimeOutput).href}?v=${Date.now()}`)
 
 test('阶段 0 freezes API, component targets and slot namespaces', async () => {
-  assert.equal(PLUGIN_API_VERSION, '1.3.0')
+  assert.equal(PLUGIN_API_VERSION, '1.4.0')
   assert.equal(contract.legacyApiVersion, '1.2.0')
-  assert.equal(contract.apiVersion, '1.3.0')
-  assert.equal(contract.componentTargets.length, 13)
+  assert.equal(contract.apiVersion, '1.4.0')
+  assert.equal(contract.componentTargets.length, 19)
   assert.equal(contract.componentTargets.find(target => target.id === 'roller.filters').visibilityPolicy, 'optional')
   assert.ok(contract.componentTargets.every(target => !target.id.startsWith('slot:')))
   assert.ok(contract.slots.every(slot => slot.id.startsWith('slot:')))
@@ -65,7 +65,7 @@ test('阶段 0 freezes API, component targets and slot namespaces', async () => 
   const host = hostRuntime.describeHost({ manifest: { permissions: [] } })
   assert.equal(host.platform, 'web')
   assert.equal(host.security.runtime, 'plugin-isolated')
-  assert.equal(host.componentTargets.length, 13)
+  assert.equal(host.componentTargets.length, 19)
   assert.equal(host.componentTargets.find(target => target.id === 'app.title-bar').available, false)
   assert.equal(host.componentTargets.find(target => target.id === 'roller.filters').visibilityPolicy, 'optional')
   assert.equal(host.slots.find(slot => slot.id === 'slot:app.command-palette').available, false)
@@ -75,7 +75,7 @@ test('阶段 0 freezes API, component targets and slot namespaces', async () => 
     ['src/components/layout/TitleBar.vue', ['class="titlebar"', 'isDesktopApp']],
     ['src/components/layout/AppLayout.vue', ['class="version-badge"']],
     ['src/components/layout/NavigationDock.vue', ['class="dock"', "'设置'"]],
-    ['src/views/RollerView.vue', ['class="list-selector-bar"', 'class="switches"', 'class="start-btn"', 'class="display-container"', 'class="name-display"']],
+    ['src/views/RollerView.vue', ['class="list-selector-bar"', 'class="switches"', 'class="english-mode-toggle"', 'data-plugin-component="roller.filter.draw-target"', 'class="start-btn"', 'class="display-container"', 'class="name-display"']],
     ['src/views/CardView.vue', ['class="card-controls"', 'class="cards-grid"', 'class="card-face ', 'class="card"']],
     ['src/views/LotteryView.vue', ['class="roller-result"', 'class="wheel-result"']],
     ['src/views/StatisticsView.vue', ['class="stats-summary"']]

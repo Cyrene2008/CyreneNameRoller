@@ -10,21 +10,24 @@ import { build } from 'esbuild'
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const read = relative => fs.readFile(path.join(root, relative), 'utf8')
 
-test('API 1.3 release metadata is synchronized', async () => {
+test('API 1.4 release metadata is synchronized', async () => {
   const packageJson = JSON.parse(await read('packages/cyrene-name-roller/package.json'))
-  assert.equal(packageJson.version, '1.3.0')
+  assert.equal(packageJson.version, '1.4.0')
   assert.equal(packageJson.bin.cnrp, 'bin/cnrp.mjs')
-  assert.match(await read('src/plugins/constants.js'), /PLUGIN_API_VERSION = '1\.3\.0'/)
-  assert.match(await read('packages/cyrene-name-roller/src/plugin-sdk.mjs'), /PLUGIN_API_VERSION = '1\.3\.0'/)
-  assert.match(await read('packages/cyrene-name-roller/src/plugin-sdk.d.ts'), /PLUGIN_API_VERSION: '1\.3\.0'/)
-  assert.match(await read('packages/cyrene-name-roller/bin/cnrp.mjs'), /const API_VERSION = '1\.3\.0'/)
+  assert.match(await read('src/plugins/constants.js'), /PLUGIN_API_VERSION = '1\.4\.0'/)
+  assert.match(await read('packages/cyrene-name-roller/src/plugin-sdk.mjs'), /PLUGIN_API_VERSION = '1\.4\.0'/)
+  assert.match(await read('packages/cyrene-name-roller/src/plugin-sdk.d.ts'), /PLUGIN_API_VERSION: '1\.4\.0'/)
+  assert.match(await read('packages/cyrene-name-roller/bin/cnrp.mjs'), /const API_VERSION = '1\.4\.0'/)
 })
 
-test('API 1.3 UI template validates, packs and parses through host parser', async () => {
+test('API 1.4 UI template validates, packs and parses through host parser', async () => {
   const { validateDirectory, packDirectory } = await import(pathToFileURL(path.join(root, 'packages/cyrene-name-roller/bin/cnrp.mjs')).href)
   const template = path.join(root, 'packages/cyrene-name-roller/templates/ui-customization')
   const validation = await validateDirectory(template)
-  assert.equal(validation.manifest.engine.min, '1.3.0')
+  assert.equal(validation.manifest.engine.min, '1.4.0')
+  assert.deepEqual(validation.manifest.contributes.pages[0].native.controls.map(control => control.type), [
+    'component-style-select', 'component-override-select', 'component-override-toggle', 'result-presentation-select'
+  ])
   assert.equal(validation.manifest.systemOperations[0].id, 'desktop-check')
   assert.deepEqual(validation.manifest.systemOperations[0].command, { program: 'cmd', args: ['/d', '/c', 'ver'] })
   assert.deepEqual(validation.manifest.contributes.nativeViews.map(view => view.slot), [
@@ -56,7 +59,7 @@ test('API 1.3 UI template validates, packs and parses through host parser', asyn
     { 'roller.filters': { visibility: 'visible', layout: 'compact' } },
     { 'statistics.summary': { visibility: 'hidden', layout: 'reserve' } }
   ])
-  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'cnrp-api-1.3-'))
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'cnrp-api-1.4-'))
   const output = path.join(tempDir, 'ui-customization.cnrp')
   const parserOutput = path.join(tempDir, 'application-plugin-parser.mjs')
   await build({ entryPoints: [path.join(root, 'src/plugins/package.js')], bundle: true, write: true, outfile: parserOutput, platform: 'browser', format: 'esm', target: ['es2022'], legalComments: 'none' })

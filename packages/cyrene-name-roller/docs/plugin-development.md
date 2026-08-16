@@ -269,7 +269,7 @@ Use host-native settings pages whenever possible. The application renders these 
 }
 ```
 
-Supported controls are `toggle`, `range`, `select`, `audio`, `animation-select`, `component-style-select`, `component-override-select` and `result-presentation-select`. Ordinary values are stored in the plugin namespace and can be read by the Worker through `storage.read`; contribution selectors are maintained by the host registries.
+Supported controls are `toggle`, `range`, `select`, `audio`, `animation-select`, `component-style-select`, `component-override-select`, `component-override-toggle` and `result-presentation-select`. `component-override-toggle` binds one validated `packId`: enabling it selects that override pack and disabling it restores the target default. Ordinary values are stored in the plugin namespace and can be read by the Worker through `storage.read`; contribution selectors and toggles are maintained by the host registries.
 
 HTML pages remain supported for rich custom functionality and are rendered in a sandboxed frame with the `window.CyrenePlugin.request()` bridge. They cannot access the host DOM. The host injects the current semantic appearance tokens, a small Fluent base stylesheet, `window.CyrenePlugin.host`, and live theme updates. Use the provided `.cyrene-fluent-page`, `.cyrene-fluent-card`, `.cyrene-fluent-row` and `.cyrene-muted` primitives as a baseline, then build any page-specific UI inside the plugin frame. Host-native settings pages remain the simplest choice for ordinary configuration.
 
@@ -473,15 +473,15 @@ The application downloads `plugins/list.json` at runtime through the selected so
 - Verify the Release asset name matches `assetPattern` and the catalog public key is current.
 - If a plugin crashes the application session, the next startup enters clean mode and disables all plugins for recovery.
 
-## API 1.3 constrained UI
+## API 1.4 constrained UI
 
-API 1.3 adds host-owned UI contributions. The plugin declares intent in `manifest.json`; the host validates, resolves and renders every contribution. Plugins never receive Vue components, host DOM access, arbitrary CSS selectors or a core algorithm reference.
+API 1.4 extends the host-owned UI contributions introduced in API 1.3 with native contribution selectors, binary component override toggles and precise Roller filter visibility targets. The plugin declares intent in `manifest.json`; the host validates, resolves and renders every contribution. Plugins never receive Vue components, host DOM access, arbitrary CSS selectors or a core algorithm reference.
 
 ### Component styles and visibility
 
 Use the `ui:component-styles` and `ui:component-overrides` permissions only when needed. Styles target stable component IDs and may adjust documented size, semantic colors, font size/weight, host font aliases, spacing, radius, borders, shadows and alignment tokens. CSS selectors, CSS files, `url()`, `var()`, `display`, `z-index`, `pointer-events`, positioning and script-backed values are rejected. Protected targets such as the authoritative result, list identity, errors, integrity state and recovery controls cannot be hidden or restyled with plugin fonts.
 
-The first 13 targets are frozen by the host component registry. `roller.filters` is `optional`: it may be hidden or compressed, while the host continues using the current or default draw scope. `app.title-bar` reports unavailable on Web. A failed override package is rejected atomically; it is never partially applied. Disabling or uninstalling a plugin removes its style variables and `FontFace` registrations.
+The original 13 API 1.3 targets remain frozen by the host component registry. API 1.4 adds six optional, hide-only Roller filter targets: `roller.filter.english-mode`, `roller.filter.draw-target`, `roller.filter.gender`, `roller.filter.draw-count`, `roller.filter.duplicates` and `roller.filter.count`. Hiding any filter changes only its rendering; the host keeps its current or default value. `roller.filters` still controls the whole filter area and may be hidden or compressed. `app.title-bar` reports unavailable on Web. A failed override package is rejected atomically; it is never partially applied. Disabling or uninstalling a plugin removes its style variables and `FontFace` registrations.
 
 ### Native views and slots
 
@@ -499,4 +499,4 @@ Roller host draws and plugin-requested draws use the same Core Client transactio
 
 API 1.2 plugins remain valid without repackaging. Their legacy RPC path creates a `legacyPrincipal` and reaches the same authorization kernel, and their existing events, required `DrawReceipt` fields and Chinese error messages remain compatible. See [API 1.2 to 1.3 migration](./api-1.2-to-1.3.md) before declaring new 1.3 contributions.
 
-Before publishing the SDK or a catalog entry, run `node --test scripts/plugin-api-1.3-release.test.mjs`. The regression intentionally keeps the frozen API 1.2 fixture bytes unchanged.
+Before publishing the SDK or a catalog entry, run `node --test scripts/plugin-api-1.4-release.test.mjs`. The regression intentionally keeps the frozen API 1.2 fixture bytes unchanged and verifies API 1.3 compatibility separately.

@@ -1,4 +1,4 @@
-export const PLUGIN_API_VERSION = '1.3.0'
+export const PLUGIN_API_VERSION = '1.4.0'
 export const PLUGIN_LIST_REPOSITORY = 'StarCyrene/CyreneNameRoller'
 export const PLUGIN_LIST_PATH = 'plugins/list.json'
 

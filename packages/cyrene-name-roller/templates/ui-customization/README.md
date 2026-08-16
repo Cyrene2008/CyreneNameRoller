@@ -1,6 +1,6 @@
 # Cyrene UI Customization
 
-API 1.3 example using stable component IDs, bounded size, color, font size/weight and host font aliases, optional component hiding, all three declarative native view slots and all four host-bound result layouts.
+API 1.4 example using stable component IDs, bounded size, color, font size/weight and host font aliases, optional component hiding, native contribution selectors, all three declarative native view slots and all four host-bound result layouts.
 
 The three style packs cover navigation, roller, card, lottery and statistics targets. The override packs demonstrate `collapse`, `compact` and `reserve` semantics only on optional components. Protected and required targets remain visible.
 

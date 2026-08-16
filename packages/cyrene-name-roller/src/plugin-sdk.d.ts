@@ -1,4 +1,4 @@
-export declare const PLUGIN_API_VERSION: '1.3.0'
+export declare const PLUGIN_API_VERSION: '1.4.0'
 export declare const PluginEvents: {
   readonly APP_READY: 'app:ready'
   readonly APP_ROUTE_CHANGED: 'app:route-changed'
@@ -330,6 +330,12 @@ export interface PluginComponentOverrideSelectControl extends PluginNativeContro
   target: string
 }
 
+export interface PluginComponentOverrideToggleControl extends PluginNativeControlBase {
+  type: 'component-override-toggle'
+  target: string
+  packId: string
+}
+
 export interface PluginResultPresentationSelectControl extends PluginNativeControlBase {
   type: 'result-presentation-select'
   target: 'roller.result'
@@ -338,7 +344,7 @@ export interface PluginResultPresentationSelectControl extends PluginNativeContr
 export type PluginNativeControl =
   | PluginToggleControl | PluginRangeControl | PluginSelectControl
   | PluginAudioControl | PluginAnimationSelectControl
-  | PluginComponentStyleSelectControl | PluginComponentOverrideSelectControl
+  | PluginComponentStyleSelectControl | PluginComponentOverrideSelectControl | PluginComponentOverrideToggleControl
   | PluginResultPresentationSelectControl
 
 export interface PluginNativeSettingsPage {

@@ -204,21 +204,24 @@ test('native settings pages accept host contribution selectors', async t => {
   manifest.contributes.pages[0].native.controls.push(
     { id: 'style', type: 'component-style-select', label: 'Style', target: 'navigation.dock' },
     { id: 'override', type: 'component-override-select', label: 'Override', target: 'card.controls' },
-    { id: 'result', type: 'result-presentation-select', label: 'Result', target: 'roller.result' }
+    { id: 'result', type: 'result-presentation-select', label: 'Result', target: 'roller.result' },
+    { id: 'override-toggle', type: 'component-override-toggle', label: 'Hide controls', target: 'card.controls', packId: 'hide-controls' }
   )
   await fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2))
 
   const validation = await validateDirectory(source)
-  assert.deepEqual(validation.manifest.contributes.pages[0].native.controls.slice(-3).map(control => [control.type, control.target, control.path]), [
-    ['component-style-select', 'navigation.dock', ''],
-    ['component-override-select', 'card.controls', ''],
-    ['result-presentation-select', 'roller.result', '']
+  assert.deepEqual(validation.manifest.contributes.pages[0].native.controls.slice(-4).map(control => [control.type, control.target, control.path, control.packId || '']), [
+    ['component-style-select', 'navigation.dock', '', ''],
+    ['component-override-select', 'card.controls', '', ''],
+    ['result-presentation-select', 'roller.result', '', ''],
+    ['component-override-toggle', 'card.controls', '', 'hide-controls']
   ])
 
   await packDirectory(source, output)
   const parser = await loadApplicationParser(temporary)
   const parsed = await parser.parsePluginPackage(new Uint8Array(await fs.readFile(output)))
-  assert.equal(parsed.manifest.contributes.pages[0].native.controls.at(-1).type, 'result-presentation-select')
+  assert.equal(parsed.manifest.contributes.pages[0].native.controls.at(-1).type, 'component-override-toggle')
+  assert.equal(parsed.manifest.contributes.pages[0].native.controls.at(-1).packId, 'hide-controls')
 })
 
 test('plugin-owned commands are validated, packed and advertised as a generic extension point', async t => {
@@ -516,7 +519,7 @@ test('host and CLI load older plugin APIs in compatibility mode but reject newer
   assert.equal(compatibility.degraded, true)
   assert.match(compatibility.reason, /旧版 API|older API/i)
 
-  manifest.engine = { min: '1.4.0', max: '2.0.0' }
+  manifest.engine = { min: '1.5.0', max: '2.0.0' }
   await fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2))
   assert.throws(() => parser.normalizePluginManifest(manifest), /需要 API/)
   await assert.rejects(() => validateDirectory(source), /requires API/i)

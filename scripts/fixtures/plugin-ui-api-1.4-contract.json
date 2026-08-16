@@ -1,5 +1,5 @@
 {
-  "apiVersion": "1.3.0",
+  "apiVersion": "1.4.0",
   "legacyApiVersion": "1.2.0",
   "componentTargets": [
     { "id": "app.title-bar", "platform": "tauri", "visibilityPolicy": "required", "allowedStyles": ["color", "fontAlias", "density"], "source": "src/components/layout/TitleBar.vue", "selector": ".titlebar" },
@@ -8,6 +8,12 @@
     { "id": "navigation.settings-entry", "platform": "all", "visibilityPolicy": "protected", "allowedStyles": [], "source": "src/components/layout/NavigationDock.vue", "selector": null, "mappingStatus": "requires-host-boundary-wrapper" },
     { "id": "roller.current-list", "platform": "all", "visibilityPolicy": "required", "allowedStyles": ["size", "color", "fontSize", "fontWeight", "fontAlias", "spacing"], "source": "src/views/RollerView.vue", "selector": ".list-selector-bar" },
     { "id": "roller.filters", "platform": "all", "visibilityPolicy": "optional", "allowedStyles": ["size", "color", "fontSize", "fontWeight", "fontAlias", "spacing"], "allowedLayouts": ["collapse", "reserve", "compact"], "source": "src/views/RollerView.vue", "selector": [".switches", ".multi-settings"], "hiddenBehavior": "host-keeps-current-or-default-draw-range" },
+    { "id": "roller.filter.english-mode", "platform": "all", "visibilityPolicy": "optional", "allowedStyles": [], "allowedLayouts": ["collapse"], "source": "src/views/RollerView.vue", "selector": ".english-mode-toggle" },
+    { "id": "roller.filter.draw-target", "platform": "all", "visibilityPolicy": "optional", "allowedStyles": [], "allowedLayouts": ["collapse"], "source": "src/views/RollerView.vue", "selector": ".draw-target-tabs" },
+    { "id": "roller.filter.gender", "platform": "all", "visibilityPolicy": "optional", "allowedStyles": [], "allowedLayouts": ["collapse"], "source": "src/views/RollerView.vue", "selector": ".gender-filter-tabs" },
+    { "id": "roller.filter.draw-count", "platform": "all", "visibilityPolicy": "optional", "allowedStyles": [], "allowedLayouts": ["collapse"], "source": "src/views/RollerView.vue", "selector": ".draw-count-tabs" },
+    { "id": "roller.filter.duplicates", "platform": "all", "visibilityPolicy": "optional", "allowedStyles": [], "allowedLayouts": ["collapse"], "source": "src/views/RollerView.vue", "selector": ".duplicate-filter-tabs" },
+    { "id": "roller.filter.count", "platform": "all", "visibilityPolicy": "optional", "allowedStyles": [], "allowedLayouts": ["collapse"], "source": "src/views/RollerView.vue", "selector": ".multi-settings" },
     { "id": "roller.primary-action", "platform": "all", "visibilityPolicy": "required", "allowedStyles": ["size", "color", "fontSize", "fontWeight", "fontAlias", "borderRadius"], "source": "src/views/RollerView.vue", "selector": ".start-btn" },
     { "id": "roller.result", "platform": "all", "visibilityPolicy": "protected", "allowedStyles": ["color", "background", "border", "spacing", "animation"], "source": "src/views/RollerView.vue", "selector": ".display-container,.name-display", "authority": "host-bound-text-only" },
     { "id": "card.controls", "platform": "all", "visibilityPolicy": "replaceable", "allowedStyles": ["size", "color", "fontSize", "fontWeight", "fontAlias", "spacing"], "source": "src/views/CardView.vue", "selector": ".card-controls", "replacementSlots": [] },

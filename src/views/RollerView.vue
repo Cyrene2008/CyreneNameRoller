@@ -32,19 +32,19 @@
     <div class="controls-center" ref="controlsCenterRef">
       <template v-if="filterOverride.visibility !== 'hidden' || filtersCompactOpen">
         <div class="switches" data-plugin-component="roller.filters" :style="pluginsStore.componentStyleStyle('roller.filters')">
-          <FluentToggle class="english-mode-toggle" v-model="settings.englishMode" label="English Mode" @update:model-value="saveSetting('englishMode', $event)" />
-          <FluentTabs :model-value="settings.groupMode ? 'groups' : 'people'" :options="drawTargetOptions" @update:model-value="onDrawTargetChange" />
+          <FluentToggle v-if="englishModeOverride.visibility !== 'hidden'" class="english-mode-toggle" data-plugin-component="roller.filter.english-mode" v-model="settings.englishMode" label="English Mode" @update:model-value="saveSetting('englishMode', $event)" />
+          <FluentTabs v-if="drawTargetOverride.visibility !== 'hidden'" class="draw-target-tabs" data-plugin-component="roller.filter.draw-target" :model-value="settings.groupMode ? 'groups' : 'people'" :options="drawTargetOptions" @update:model-value="onDrawTargetChange" />
           <Transition name="toggle-expand">
-            <FluentTabs v-if="!settings.groupMode" v-model="genderFilter" :options="genderFilterOptions" />
+            <FluentTabs v-if="!settings.groupMode && genderOverride.visibility !== 'hidden'" class="gender-filter-tabs" data-plugin-component="roller.filter.gender" v-model="genderFilter" :options="genderFilterOptions" />
           </Transition>
-          <FluentTabs :model-value="settings.multiMode ? 'multiple' : 'single'" :options="drawCountOptions" @update:model-value="onDrawCountChange" />
+          <FluentTabs v-if="drawCountOverride.visibility !== 'hidden'" class="draw-count-tabs" data-plugin-component="roller.filter.draw-count" :model-value="settings.multiMode ? 'multiple' : 'single'" :options="drawCountOptions" @update:model-value="onDrawCountChange" />
           <Transition name="toggle-expand">
-            <FluentTabs v-if="settings.multiMode" :model-value="settings.forbidDuplicates ? 'unique' : 'repeat'" :options="duplicateOptions" @update:model-value="onDuplicateModeChange" />
+            <FluentTabs v-if="settings.multiMode && duplicatesOverride.visibility !== 'hidden'" class="duplicate-filter-tabs" data-plugin-component="roller.filter.duplicates" :model-value="settings.forbidDuplicates ? 'unique' : 'repeat'" :options="duplicateOptions" @update:model-value="onDuplicateModeChange" />
           </Transition>
         </div>
 
         <Transition name="toggle-expand">
-          <div v-if="settings.multiMode" class="multi-settings" data-plugin-component="roller.filters" :style="pluginsStore.componentStyleStyle('roller.filters')">
+          <div v-if="settings.multiMode && countOverride.visibility !== 'hidden'" class="multi-settings" data-plugin-component="roller.filter.count" :style="pluginsStore.componentStyleStyle('roller.filters')">
             <span class="setting-label">{{ countSettingLabel }}</span>
             <div class="count-control">
               <FluentButton variant="secondary" size="sm" @click="changeCount(-1)"><FluentIcon icon="subtract-16-regular" :width="14" /></FluentButton>
@@ -106,6 +106,12 @@ const showBanner = inject('banner')
 const lang = computed(() => settingsStore.settings.language)
 const settings = computed(() => settingsStore.settings)
 const filterOverride = computed(() => pluginsStore.componentOverrideState('roller.filters'))
+const englishModeOverride = computed(() => pluginsStore.componentOverrideState('roller.filter.english-mode'))
+const drawTargetOverride = computed(() => pluginsStore.componentOverrideState('roller.filter.draw-target'))
+const genderOverride = computed(() => pluginsStore.componentOverrideState('roller.filter.gender'))
+const drawCountOverride = computed(() => pluginsStore.componentOverrideState('roller.filter.draw-count'))
+const duplicatesOverride = computed(() => pluginsStore.componentOverrideState('roller.filter.duplicates'))
+const countOverride = computed(() => pluginsStore.componentOverrideState('roller.filter.count'))
 const filtersCompactOpen = ref(false)
 const listOptions = computed(() => namesStore.allLists.map(l => ({ value: l.id, label: l.name })))
 const genderFilter = ref('all')

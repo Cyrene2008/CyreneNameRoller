@@ -11,15 +11,17 @@ const parserOutput = path.resolve(import.meta.dirname, '../build-output/plugin-c
 await build({ entryPoints: [path.resolve(import.meta.dirname, '../src/plugins/package.js')], bundle: true, write: true, outfile: parserOutput, platform: 'browser', format: 'esm' })
 const parser = await import(`${pathToFileURL(parserOutput).href}?v=${Date.now()}`)
 
-test('组件注册表冻结 13 个目标并报告 Web 标题栏不可用', async () => {
+test('组件注册表包含 19 个目标并报告 Web 标题栏不可用', async () => {
   const registry = await import(`${pathToFileURL(path.resolve(import.meta.dirname, '../src/plugins/ui/componentRegistry.js')).href}?v=${Date.now()}`)
-  assert.equal(registry.COMPONENT_TARGET_IDS.length, 13)
+  assert.equal(registry.COMPONENT_TARGET_IDS.length, 19)
   assert.equal(registry.getComponentTarget('app.title-bar', 'web').available, false)
   assert.equal(registry.getComponentTarget('roller.filters', 'web').visibilityPolicy, 'optional')
   assert.deepEqual(registry.getComponentTarget('roller.filters', 'web').selector, ['.switches', '.multi-settings'])
+  assert.equal(registry.getComponentTarget('roller.filter.gender', 'web').visibilityPolicy, 'optional')
+  assert.deepEqual(registry.getComponentTarget('roller.filter.gender', 'web').allowedStyles, [])
 })
 
-test('13 个首批目标都有真实宿主边界和受限样式挂接', async () => {
+test('19 个目标都有真实宿主边界和受限样式挂接', async () => {
   const registry = await import(`${pathToFileURL(path.resolve(import.meta.dirname, '../src/plugins/ui/componentRegistry.js')).href}?v=${Date.now()}-mapping`)
   const files = await Promise.all([
     'src/components/layout/TitleBar.vue',
@@ -34,7 +36,9 @@ test('13 个首批目标都有真实宿主边界和受限样式挂接', async ()
   const escapeRegExp = value => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   for (const id of [
     'app.title-bar', 'app.version-badge', 'navigation.dock', 'navigation.settings-entry',
-    'roller.current-list', 'roller.filters', 'roller.primary-action', 'roller.result',
+    'roller.current-list', 'roller.filters', 'roller.filter.english-mode', 'roller.filter.draw-target',
+    'roller.filter.gender', 'roller.filter.draw-count', 'roller.filter.duplicates', 'roller.filter.count',
+    'roller.primary-action', 'roller.result',
     'card.controls', 'card.deck', 'card.item', 'lottery.result', 'statistics.summary'
   ]) assert.match(source, new RegExp(`data-plugin-component=["']${escapeRegExp(id)}`), id)
   const resultStyles = registry.COMPONENT_TARGETS['roller.result'].allowedStyles

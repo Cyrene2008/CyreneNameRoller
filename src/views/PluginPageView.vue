@@ -55,6 +55,12 @@
                 @update:model-value="updateValue(control, $event)"
               />
 
+              <FluentToggle
+                v-else-if="control.type === 'component-override-toggle'"
+                :model-value="overrideToggleValue(control)"
+                @update:model-value="updateOverrideToggle(control, $event)"
+              />
+
               <div v-else-if="control.type === 'range'" class="range-control">
                 <input
                   type="range"
@@ -151,8 +157,9 @@ const page = computed(() => plugins.pageById(route.params.pluginId, route.params
 const pageCommands = computed(() => (plugins.contributedCommands || []).filter(command => command.pluginId === route.params.pluginId && command.locations?.includes('page-header')).sort((left, right) => left.order - right.order))
 
 const contributionTypes = new Set(['component-style-select', 'component-override-select', 'result-presentation-select'])
+const hostControlTypes = new Set([...contributionTypes, 'component-override-toggle'])
 function valueAt(path) { return values[path] }
-function isHostSelect(control) { return control.type === 'animation-select' || contributionTypes.has(control.type) }
+function isHostSelect(control) { return control.type === 'animation-select' || hostControlTypes.has(control.type) }
 function isContributionSelect(control) { return contributionTypes.has(control.type) }
 function defaultsFor(nativePage) {
   return Object.fromEntries((nativePage?.controls || []).filter(control => !isHostSelect(control)).map(control => [control.path, control.default ?? (control.type === 'toggle' ? false : '')]))
@@ -178,6 +185,17 @@ async function updateContribution(control, value) {
     if (control.type === 'component-style-select') await plugins.setComponentStyleSelection(control.target, value)
     else if (control.type === 'component-override-select') await plugins.setComponentOverrideSelection(control.target, value)
     else await plugins.setResultPresentationSelection(control.target, value)
+  } catch (error) { notify(error.message || String(error), 'warning') }
+}
+function overrideToggleSelection(control) {
+  return `plugin-component-override::${route.params.pluginId}::${control.packId}`
+}
+function overrideToggleValue(control) {
+  return plugins.componentOverrideSelections[control.target] === overrideToggleSelection(control)
+}
+async function updateOverrideToggle(control, enabled) {
+  try {
+    await plugins.setComponentOverrideSelection(control.target, enabled ? overrideToggleSelection(control) : '')
   } catch (error) { notify(error.message || String(error), 'warning') }
 }
 function notify(message, type = 'info') {

@@ -33,18 +33,20 @@ The pack command bundles and obfuscates the Worker entry, adds file integrity ha
 
 The SDK exposes `getPlatform()`, `getCapabilities()`, `isCapabilityAvailable()` and `requestCapability()` for Web/Tauri compatibility. API 1.2 also adds `describeHost()`, `queryResource()` and `executeTransaction()` so plugins discover and compose host resources/transactions instead of depending on an ever-growing list of feature-specific RPC names. Native-only capabilities should normally be optional; see `docs/plugin-development.md` for the complete contract.
 
-Plugin API compatibility is minimum-version based. A plugin whose `engine.min` is supported will be allowed to load; an older `engine.max` produces a non-blocking compatibility warning instead of rejecting the package. The `basic` and `sound-effects` templates remain frozen API 1.2 compatibility examples. Use `--template ui-customization` for new API 1.3 plugins.
+Plugin API compatibility is minimum-version based. A plugin whose `engine.min` is supported will be allowed to load; an older `engine.max` produces a non-blocking compatibility warning instead of rejecting the package. The `basic` and `sound-effects` templates remain frozen API 1.2 compatibility examples. Use `--template ui-customization` for new API 1.4 plugins.
 
-## API 1.3 constrained UI model
+## API 1.4 constrained UI model
 
-- `componentStylePacks` styles only the 13 published component IDs with validated host properties.
+- `componentStylePacks` styles only published stable component IDs with validated host properties.
 - `componentOverridePacks` can hide only optional targets such as `roller.filters`; protected and required targets remain visible.
+- Native settings support component style/override/result selectors and binary `component-override-toggle` controls.
+- Six precise Roller filter targets can be hidden independently without changing their current host values.
 - `nativeViews` renders a declarative schema in the fixed `slot:` locations owned by the host.
 - `resultPresentations` changes the layout around the host-bound `VerifiedResult`; plugins never provide winner text.
 - `safemode.json` is the only safe-mode switch. Safe mode loads no plugin package, Worker, iframe, font, visual layer, command or UI contribution.
 - Web draws run through the host Core Worker. Tauri draws run through the Rust authoritative transaction and authenticated `CoreStateEnvelope`.
 
-See `docs/api-1.2-to-1.3.md` before adopting the new contributions.
+See `docs/api-1.2-to-1.3.md` for the original constrained contribution model; API 1.4 remains backward compatible with it.
 
 ## API 1.2 extension model
 
