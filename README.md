@@ -106,13 +106,8 @@ npm i @starcyrene/cyrene-name-roller
 ```bash
 git clone https://github.com/StarCyrene/CyreneNameRoller.git
 cd CyreneNameRoller
-pnpm install --frozen-lockfile
-```
-
-启动 Web 开发服务器：
-
-```bash
-pnpm run dev
+bun install
+bun run dev
 ```
 
 启动 Tauri 桌面客户端：
@@ -132,7 +127,7 @@ pnpm run build
 构建 Tauri 客户端：
 
 ```bash
-pnpm run tauri:build
+bun run tauri:build
 ```
 
 桌面安装包位于 `target/release/bundle/`。

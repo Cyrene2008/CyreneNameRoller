@@ -56,13 +56,8 @@ A random name picker desktop app built with Vue 3 + Tauri, featuring Windows 11 
 ```bash
 git clone https://github.com/StarCyrene/CyreneNameRoller.git
 cd CyreneNameRoller
-pnpm install --frozen-lockfile
-```
-
-Start the Web development server:
-
-```bash
-pnpm run dev
+bun install
+bun run dev
 ```
 
 Start the Tauri desktop client:
@@ -82,7 +77,7 @@ pnpm run build
 Build the Tauri client:
 
 ```bash
-pnpm run tauri:build
+bun run tauri:build
 ```
 
 Desktop installers are written to `target/release/bundle/`.
