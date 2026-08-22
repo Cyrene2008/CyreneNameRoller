@@ -45,9 +45,10 @@
     "windows": {
       "nsis": {
         "languages": ["SimpChinese", "English"],
-        "license": "LICENSE",
         "installerIcon": "icons/icon.ico"
       }
-    }
+    },
+    "license": "GPL-3.0",
+    "licenseFile": "LICENSE"
   }
 }
