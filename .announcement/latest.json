@@ -1,5 +1,23 @@
 [
   {
+    "id": 9,
+    "title": {
+      "cn": "v26.2.2 已发布",
+      "en": "v26.2.2 Has released"
+    },
+    "important": true,
+    "pinned": true,
+    "tag": {
+      "cn": "更新",
+      "en": "Update"
+    },
+    "time": "2026/08/22 00:00",
+    "content": {
+      "cn": "v26.2.2 已发布！本版本专注于在**不减少任何视觉效果**的前提下降低 CPU 与内存占用，让程序在老旧的平台上更加流畅，也不会因本程序拖慢其他应用。\n\n本次更新重点包括：\n\n- 横幅倒计时改为合成器驱动动画，与旧版视觉逐帧一致，但主线程不再每 100ms 更新\n- 构建分包优化冷启动（入口包 814KB → 445KB）\n- 保留全部动画效果，性能模式下行为与旧版完全一致\n- Windows 安装器自动适配系统语言（中文/英文）、显示 GPL-3.0 许可证、图标与程序一致\n\n详细内容可在「设置 → 更新日志」查看。欢迎通过 GitHub Issues 反馈问题与建议。",
+      "en": "v26.2.2 has been released! This version focuses on reducing CPU and memory usage **without removing any visual effects**, so the program runs smoother on older hardware and does not slow down other applications.\n\nHighlights include:\n\n- Banner countdowns are now compositor-driven, frame-identical to the old version, but no per-100ms main-thread updates\n- Build splitting improves cold start (entry chunk 814KB → 445KB)\n- All visual effects preserved; performance-mode behavior is identical to the previous version\n- The Windows installer now auto-adapts to the system language (Chinese/English), shows the GPL-3.0 license, and uses the app icon\n\nSee Settings → Changelog for details. Use GitHub Issues for feedback."
+    }
+  },
+  {
     "id": 8,
     "title": {
       "cn": "v26.2.1 已发布",
