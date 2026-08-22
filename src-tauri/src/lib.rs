@@ -3395,8 +3395,13 @@ pub fn run() {
             }
             migrate_legacy_data(&handle);
             restore_window_state(&handle);
+            // 开机自启动（--cyrene-autostart）时保持隐藏，由前端根据「启动到托盘」设置决定是否显示；
+            // 其余启动（含 Linux 兼容）直接显示主窗口。
+            let autostart_launch = std::env::args().any(|arg| arg == "--cyrene-autostart");
             if let Some(window) = app.get_webview_window("main") {
-                let _ = window.show();
+                if !autostart_launch {
+                    let _ = window.show();
+                }
             }
             create_tray(app)?;
 
