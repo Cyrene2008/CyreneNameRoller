@@ -75,7 +75,15 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     emptyOutDir: true,
-    assetsInlineLimit: 0
+    assetsInlineLimit: 0,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vue-vendor': ['vue', 'vue-router', 'pinia', 'vue-fluent-widgets'],
+          gsap: ['gsap']
+        }
+      }
+    }
   },
   server: {
     port: 5173

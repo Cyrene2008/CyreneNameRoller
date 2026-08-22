@@ -45,7 +45,7 @@
         @mouseenter="onBannerEnter(b)"
         @mouseleave="onBannerLeave(b)"
       >
-        <div class="banner-progress-bg" :style="{ width: b.duration > 0 ? b.countdown + '%' : (b.type === 'download' ? b.progress + '%' : '0%'), transition: b.hovered ? 'none' : 'width 0.1s linear' }"></div>
+        <div class="banner-progress-bg" :style="b.duration > 0 ? { animation: `banner-countdown ${b.duration}ms linear forwards`, animationPlayState: b.hovered ? 'paused' : 'running' } : (b.type === 'download' ? { width: b.progress + '%', transition: 'width 0.1s linear' } : { width: '0%' })"></div>
         <div class="banner-scanline"></div>
         <div class="banner-content">
           <span class="banner-icon" v-if="b.icon">
@@ -248,8 +248,8 @@ function showBanner({ message, icon = 'info-16-regular', type = 'info', duration
   const id = ++bannerIdCounter
   const banner = reactive({
     id, message, icon, type, dismissible, progress, undoAction, action, actionLabel, actionIcon,
-    hovered: false, countdown: 100, duration,
-    _timer: null, _countdownInterval: null, _remaining: duration, _startTime: Date.now()
+    hovered: false, duration,
+    _timer: null, _remaining: duration, _startTime: Date.now()
   })
   banners.value.push(banner)
   while (banners.value.length > 3) {
@@ -272,18 +272,11 @@ async function runBannerAction(banner) {
 
 function startBannerTimer(banner, id) {
   banner._startTime = Date.now()
-  banner._countdownStart = banner.countdown
   banner._timer = setTimeout(() => dismissBanner(id), banner._remaining)
-  banner._countdownInterval = setInterval(() => {
-    const elapsed = Date.now() - banner._startTime
-    const pct = (elapsed / banner._remaining) * banner._countdownStart
-    banner.countdown = Math.max(0, banner._countdownStart - pct)
-  }, 100)
 }
 
 function pauseBannerTimer(banner) {
   if (banner._timer) clearTimeout(banner._timer)
-  if (banner._countdownInterval) clearInterval(banner._countdownInterval)
   const elapsed = Date.now() - banner._startTime
   banner._remaining = Math.max(0, banner._remaining - elapsed)
 }
@@ -293,7 +286,6 @@ function dismissBanner(id) {
   if (idx !== -1) {
     const b = banners.value[idx]
     if (b._timer) clearTimeout(b._timer)
-    if (b._countdownInterval) clearInterval(b._countdownInterval)
     banners.value.splice(idx, 1)
   }
 }
@@ -1041,6 +1033,12 @@ watch(() => settingsStore.settings.fontFamily, (val) => {
   bottom: 0;
   background: rgba(255,255,255,0.1);
   z-index: 0;
+  transform-origin: left center;
+}
+
+@keyframes banner-countdown {
+  from { transform: scaleX(1); }
+  to { transform: scaleX(0); }
 }
 
 /* Scanline effect */
