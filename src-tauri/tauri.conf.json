@@ -41,6 +41,13 @@
       "icons/icon.icns",
       "icons/icon.ico",
       "icons/icon.png"
-    ]
+    ],
+    "windows": {
+      "nsis": {
+        "languages": ["SimpChinese", "English"],
+        "license": "LICENSE",
+        "installerIcon": "icons/icon.ico"
+      }
+    }
   }
 }
