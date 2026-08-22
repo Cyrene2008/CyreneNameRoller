@@ -41,7 +41,7 @@ function getDownloadUrl(originalUrl) {
   if (!originalUrl) return ''
   const source = useSettingsStore().settings.downloadSource || 'cyrene'
   if (source === 'github') return originalUrl
-  return `${source === 'ghproxy' ? 'https://gh-proxy.com/' : GHPROXY_BASE}${originalUrl}`
+  return `${source === 'ghproxy' ? 'https://v4.gh-proxy.com/' : GHPROXY_BASE}${originalUrl}`
 }
 
 export { getDownloadUrl }

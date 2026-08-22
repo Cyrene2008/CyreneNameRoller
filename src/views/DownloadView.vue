@@ -90,7 +90,7 @@ const downloadSourceOptions = [
 function downloadUrl(originalUrl) {
   const source = settingsStore.settings.downloadSource || 'cyrene'
   if (source === 'github') return originalUrl
-  return `${source === 'ghproxy' ? 'https://gh-proxy.com/' : 'https://gh.昔涟.cn/'}${originalUrl}`
+  return `${source === 'ghproxy' ? 'https://v4.gh-proxy.com/' : 'https://gh.昔涟.cn/'}${originalUrl}`
 }
 
 const sortedAssets = computed(() => {

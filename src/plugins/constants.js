@@ -98,7 +98,7 @@ export function pluginSourceCandidates(originalUrl, source = 'cyrene') {
     return candidates
   }
 
-  const proxy = source === 'ghproxy' ? 'https://gh-proxy.com/' : 'https://gh.昔涟.cn/'
+  const proxy = source === 'ghproxy' ? 'https://v4.gh-proxy.com/' : 'https://gh.昔涟.cn/'
   add(`${proxy}${original}`)
   const rawAlternative = githubRawAlternative(original)
   if (rawAlternative) add(`${proxy}${rawAlternative}`)
