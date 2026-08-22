@@ -40,9 +40,9 @@
           <span class="about-org-name">星海昔涟 StarCyrene</span>
           <span>「以爱为因，星光成涟」♪</span>
           <span>Made with Love, Starlight Ripples On♪</span>
-          <a href="#" @click.prevent="openLink('https://cyrene.hk')" class="about-org-site">
+          <a href="#" @click.prevent="openLink('https://star.cyrene.hk')" class="about-org-site">
             <FluentIcon icon="globe-20-regular" :width="20" />
-            <span>{{ lang === 'en' ? 'Team website' : '团队官网' }} cyrene.hk</span>
+            <span>{{ lang === 'en' ? 'Team website' : '团队官网' }} star.cyrene.hk</span>
           </a>
         </div>
       </div>
