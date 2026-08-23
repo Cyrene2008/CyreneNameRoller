@@ -1,5 +1,39 @@
 [
   {
+    "version": "26.2.2",
+    "date": "2026-08-22",
+    "logs": {
+      "zh": [
+        "【性能】降低空闲 CPU 占用：横幅倒计时改为合成器驱动动画，视觉不变但主线程不再每 100ms 写入；构建分包优化冷启动（入口包 814KB → 445KB）",
+        "【硬件兼容】保留全部动画效果，性能模式下行为与旧版完全一致，老旧平台整体更流畅",
+        "【安装器】Windows 安装器自动适配系统语言（中文/英文）、显示 GPL-3.0 许可证页、安装器图标与程序图标一致",
+        "【测量工具】新增可复用的性能基准脚本（横幅微基准 + 应用冷启动/空闲长任务测量），便于后续回归"
+      ],
+      "en": [
+        "[Performance] Lowered idle CPU usage: banner countdowns are now compositor-driven with identical visuals, removing the per-100ms main-thread writes; build splitting improved cold start (entry chunk 814KB → 445KB)",
+        "[Hardware] All visual effects are preserved; performance-mode behavior is byte-identical to the previous version, so old hardware runs smoother than before",
+        "[Installer] The Windows installer now follows the system language (Chinese/English), shows the GPL-3.0 license page, and uses the same icon as the app",
+        "[Tooling] Added reusable performance benchmarks (banner micro-benchmark and app cold-start/idle longtask measurement) for future regression checks"
+      ]
+    }
+  },
+  {
+    "version": "26.2.1",
+    "date": "2026-08-16",
+    "logs": {
+      "zh": [
+        "【修复】修复 v26.2.0 构建失败问题：移除设置页中重复声明的悬浮窗样式同步函数",
+        "【发布】恢复 Release（Windows/Linux）、GitHub Pages 与插件 SDK 的 CI 发布流程",
+        "【构建】发布流程全面统一使用 bun，不再依赖 pnpm/npm"
+      ],
+      "en": [
+        "[Fix] Fixed the v26.2.0 build failure by removing duplicate floating-window style sync declarations in Settings",
+        "[Release] Restored the Release (Windows/Linux), GitHub Pages, and Plugin SDK publishing pipelines",
+        "[Build] All publishing pipelines now consistently use bun; pnpm/npm are no longer used"
+      ]
+    }
+  },
+  {
     "version": "26.2.0",
     "date": "2026-08-07",
     "logs": {

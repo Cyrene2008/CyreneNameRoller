@@ -14,9 +14,10 @@ test('SDK release workflow keeps package publication separate from GitHub Releas
   assert.match(workflow, /bun install --frozen-lockfile/)
   assert.match(workflow, /bun run plugin:sdk:pack/)
   assert.match(workflow, /@starcyrene/)
-  assert.match(workflow, /scope:\s+'@starcyrene'/)
-  assert.match(workflow, /npm publish build-output\/plugin-sdk\/cyrene-name-roller-plugin-sdk-\*\.tgz --registry=https:\/\/npm\.pkg\.github\.com/)
+  assert.doesNotMatch(workflow, /scope:\s+'@starcyrene'/)  // setup-node 不再配置 scope，避免 .npmrc 占位 token 屏蔽 OIDC
+  assert.doesNotMatch(workflow, /npm\.pkg\.github\.com/)  // 不再发布到 GitHub Packages
   assert.match(workflow, /npm publish build-output\/plugin-sdk\/cyrene-name-roller-plugin-sdk-\*\.tgz --registry=https:\/\/registry\.npmjs\.org/)
+  assert.match(workflow, /npm install -g npm@latest/)  // OIDC 可信发布需要 npm >= 11.5.1
   assert.doesNotMatch(workflow, /working-directory:\s+packages\/cyrene-name-roller/)
   assert.match(workflow, /provenance/)  // 检查 provenance，这是 OIDC 的标志
   assert.match(workflow, /id-token:\s+write/)  // 检查 OIDC 权限配置

@@ -1,5 +1,41 @@
 [
   {
+    "id": 8,
+    "title": {
+      "cn": "v26.2.2 正式发布",
+      "en": "v26.2.2 Is Now Officially Released"
+    },
+    "important": true,
+    "pinned": true,
+    "tag": {
+      "cn": "正式发布",
+      "en": "Release"
+    },
+    "time": "2026/08/22 15:00",
+    "content": {
+      "cn": "v26.2.2 正式发布！本版本在不减少任何视觉效果的前提下降低 CPU 与内存占用，让程序在老旧平台上更加流畅。\n\n本次更新重点包括：\n\n- 横幅倒计时改为合成器驱动动画，视觉逐帧一致，主线程不再每 100ms 更新\n- 构建分包优化冷启动（入口包 814KB → 445KB）\n- 保留全部动画效果，性能模式行为与旧版完全一致\n- Windows 安装器自动适配系统语言（中文/英文）、显示 GPL-3.0 许可证、图标与程序一致\n\n详细内容可在「设置 → 更新日志」查看。欢迎通过 GitHub Issues 反馈问题与建议。",
+      "en": "v26.2.2 is now officially released. This version reduces CPU and memory usage without removing any visual effects, making the app smoother on older hardware.\n\nHighlights include:\n\n- Banner countdowns are compositor-driven with frame-identical visuals; no more per-100ms main-thread updates\n- Build splitting improves cold start (entry chunk 814KB → 445KB)\n- All visual effects preserved; performance-mode behavior identical to the previous version\n- The Windows installer auto-adapts to the system language (Chinese/English), shows the GPL-3.0 license, and uses the app icon\n\nSee Settings → Changelog for the full list, and use GitHub Issues for feedback."
+    }
+  },
+  {
+    "id": 7,
+    "title": {
+      "cn": "v26.2.1 正式发布",
+      "en": "v26.2.1 Is Now Officially Released"
+    },
+    "important": true,
+    "pinned": true,
+    "tag": {
+      "cn": "正式发布",
+      "en": "Release"
+    },
+    "time": "2026/08/16 15:00",
+    "content": {
+      "cn": "v26.2.1 正式发布！本版本修复了 v26.2.0 的构建失败问题，并恢复 Release、GitHub Pages 与插件 SDK 的发布流程。\n\n本次更新重点包括：\n\n- 移除设置页中重复声明的悬浮窗样式同步函数，修复构建失败\n- 发布流程全面统一使用 bun，安装、测试与构建更加稳定\n\n详细内容可在「设置 → 更新日志」查看。欢迎通过 GitHub Issues 反馈问题与建议。",
+      "en": "v26.2.1 is now officially released. This version fixes the v26.2.0 build failure and restores the Release, GitHub Pages, and Plugin SDK publishing pipelines.\n\nHighlights include:\n\n- Removed duplicate floating-window style sync declarations in Settings that broke the build\n- All publishing pipelines now consistently use bun for more stable installs, tests, and builds\n\nSee Settings → Changelog for the full list, and use GitHub Issues for feedback."
+    }
+  },
+  {
     "id": 6,
     "title": {
       "cn": "v26.1.0 正式发布",

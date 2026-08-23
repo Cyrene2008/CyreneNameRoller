@@ -1716,7 +1716,7 @@ async fn download_installer_bytes(
     let urls = if source == "github" {
         vec![url.to_string()]
     } else if source == "ghproxy" {
-        vec![format!("https://gh-proxy.com/{}", url)]
+        vec![format!("https://v4.gh-proxy.com/{}", url)]
     } else {
         vec![format!("{}{}", UPDATE_PROXY_BASE, url)]
     };
@@ -2466,7 +2466,7 @@ fn announcement_cache_path() -> PathBuf {
 async fn fetch_announcements() -> Result<serde_json::Value, String> {
     let urls = [
         // 镜像代理（refs/heads/master）—— 你确认可用的主源
-        "https://gh.xn--8hvv1o.cn/raw.githubusercontent.com/StarCyrene/CyreneNameRoller/refs/heads/master/.announcement/latest.json",
+        "https://v4.gh-proxy.com/raw.githubusercontent.com/StarCyrene/CyreneNameRoller/refs/heads/master/.announcement/latest.json",
         // 自建 nameapi 镜像
         "https://nameapi.cyrene.hi.cn/announcement/latest.json",
         // 直连 raw.githubusercontent 兜底
@@ -3395,8 +3395,13 @@ pub fn run() {
             }
             migrate_legacy_data(&handle);
             restore_window_state(&handle);
+            // 开机自启动（--cyrene-autostart）时保持隐藏，由前端根据「启动到托盘」设置决定是否显示；
+            // 其余启动（含 Linux 兼容）直接显示主窗口。
+            let autostart_launch = std::env::args().any(|arg| arg == "--cyrene-autostart");
             if let Some(window) = app.get_webview_window("main") {
-                let _ = window.show();
+                if !autostart_launch {
+                    let _ = window.show();
+                }
             }
             create_tray(app)?;
 
