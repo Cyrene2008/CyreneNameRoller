@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "apiVersion": "1.4.0",
-  "updatedAt": "2026-08-16",
+  "updatedAt": "2026-08-23",
   "plugins": [
     {
       "id": "cn.cyrene2008.sound-effects",
@@ -23,6 +23,28 @@
         "audio:select",
         "audio:play",
         "notifications:show"
+      ],
+      "dependencies": [],
+      "defaultEnabled": true,
+      "status": "preview"
+    },
+    {
+      "id": "com.cyrene2008.fancycnr",
+      "name": "FancyCNR",
+      "author": "FancyCNR contributors",
+      "description": "为 CyreneNameRoller 提供受宿主管理的界面显隐、样式与结果布局选项。",
+      "repository": "LeafS825/FancyCNR",
+      "release": {
+        "provider": "github",
+        "channel": "latest",
+        "assetPattern": "FancyCNR*.cnrp"
+      },
+      "publisherKey": "",
+      "permissions": [
+        "storage:read",
+        "ui:component-styles",
+        "ui:component-overrides",
+        "ui:result-presentations"
       ],
       "dependencies": [],
       "defaultEnabled": true,
